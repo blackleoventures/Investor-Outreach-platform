@@ -1,134 +1,212 @@
 "use client";
 
-import { AppstoreOutlined, DollarOutlined, NodeIndexOutlined, NotificationOutlined, UnorderedListOutlined, UserOutlined } from "@ant-design/icons";
-import { Button, Layout, Menu, Spin } from "antd";
-import { LogOut } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import Navbar from "../../legacy_src/components/shared/Navbar";
-import { useAuth } from "../../legacy_src/Context/AuthContext";
-import auth from "../../legacy_src/firebase/firebase.init";
+import { useEffect } from "react";
+import {
+  Layout,
+  Menu,
+  Button,
+  Avatar,
+  Dropdown,
+  Space,
+  Typography,
+} from "antd";
+import {
+  UserOutlined,
+  TeamOutlined,
+  MailOutlined,
+  BarChartOutlined,
+  SettingOutlined,
+  LogoutOutlined,
+  DashboardOutlined,
+  NotificationOutlined,
+  FileTextOutlined,
+  CalendarOutlined,
+  SearchOutlined,
+  UserSwitchOutlined,
+} from "@ant-design/icons";
 
-const { Sider, Content } = Layout;
+const { Header, Sider, Content } = Layout;
+const { Title } = Typography;
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [collapsed, setCollapsed] = useState<boolean>(() => typeof window !== "undefined" && window.innerWidth <= 768);
-  const { logout, user, loading } = useAuth();
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { currentUser, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.replace("/");
+    if (!currentUser) {
+      router.push("/");
     }
-  }, [loading, user, router]);
-
-  const isMobile = typeof window !== "undefined" && window.innerWidth <= 768;
-
-  const items = useMemo(() => {
-    const navItem = (to: string, label: string) => ({
-      label: (
-        <Link href={to} onClick={() => isMobile && setCollapsed(true)}>
-          {label}
-        </Link>
-      ),
-    });
-    return [
-      { key: "/dashboard", icon: <AppstoreOutlined style={{ fontSize: "16px" }} />, ...navItem("/dashboard", "Dashboard") },
-      {
-        key: "sub1",
-        label: "Manage Clients",
-        icon: <UserOutlined style={{ fontSize: "16px" }} />,
-        children: [
-          { key: "/dashboard/all-client", ...navItem("/dashboard/all-client", "All Client") },
-          { key: "/dashboard/manage-client", ...navItem("/dashboard/manage-client", "Active Client") },
-          { key: "/dashboard/add-client", ...navItem("/dashboard/add-client", "Add Client") },
-        ],
-      },
-      { key: "/dashboard/allCampaign", icon: <NotificationOutlined style={{ fontSize: "16px" }} />, ...navItem("/dashboard/allCampaign", "Manage Campaigns") },
-      { key: "/dashboard/match-making", icon: <NodeIndexOutlined style={{ fontSize: "16px" }} />, ...navItem("/dashboard/match-making", "Match Making") },
-      { key: "/dashboard/manage-contactsList", icon: <UnorderedListOutlined style={{ fontSize: "15px" }} />, ...navItem("/dashboard/manage-contactsList", "Manage Lists") },
-    ];
-  }, [isMobile]);
-
-  const [openKeys, setOpenKeys] = useState<string[]>([]);
-  useEffect(() => {
-    const parent = items.find((item: any) => item.children?.some((c: any) => c.key === pathname));
-    setOpenKeys(parent ? [parent.key as string] : []);
-  }, [items, pathname]);
-
-  const onOpenChange = (keys: string[]) => {
-    const latestOpenKey = keys.find((key) => !openKeys.includes(key));
-    if (items.some((item: any) => item.key === latestOpenKey)) {
-      setOpenKeys(latestOpenKey ? [latestOpenKey] : []);
-    } else {
-      setOpenKeys([]);
-    }
-  };
+  }, [currentUser, router]);
 
   const handleLogout = async () => {
     try {
-      await logout(auth);
+      await logout();
+      router.push("/");
     } catch (error) {
-      console.error("Logout Error:", (error as any)?.message);
+      console.error("Logout failed:", error);
     }
   };
 
-  if (loading || (!user && loading)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Spin size="large" tip="Loading..." />
-      </div>
-    );
+  const navItem = (key: string, label: string) => ({
+    key,
+    label: <Link href={key}>{label}</Link>,
+  });
+
+  const menuItems = [
+    {
+      key: "/dashboard",
+      icon: <DashboardOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard", "Dashboard"),
+    },
+    {
+      key: "/dashboard/manage-client",
+      icon: <UserOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/manage-client", "Manage Clients"),
+    },
+    {
+      key: "/dashboard/all-client",
+      icon: <TeamOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/all-client", "All Clients"),
+    },
+    {
+      key: "/dashboard/add-client",
+      icon: <UserOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/add-client", "Add Client"),
+    },
+    {
+      key: "/dashboard/allCampaign",
+      icon: <NotificationOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/allCampaign", "Manage Campaigns"),
+    },
+    {
+      key: "/dashboard/select-campaign",
+      icon: <MailOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/select-campaign", "Select Campaign"),
+    },
+    {
+      key: "/dashboard/manage-contactsList",
+      icon: <TeamOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/manage-contactsList", "Contact Lists"),
+    },
+    {
+      key: "/dashboard/all-reports",
+      icon: <BarChartOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/all-reports", "Reports"),
+    },
+    {
+      key: "/dashboard/all-investors",
+      icon: <UserSwitchOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/all-investors", "Investors"),
+    },
+    {
+      key: "/dashboard/investor-management",
+      icon: <SettingOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/investor-management", "Investor Management"),
+    },
+    {
+      key: "/dashboard/matching-test",
+      icon: <SearchOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/matching-test", "Matching Test"),
+    },
+    {
+      key: "/dashboard/schedule-demo",
+      icon: <CalendarOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/schedule-demo", "Schedule Demo"),
+    },
+  ];
+
+  const userMenuItems = [
+    {
+      key: "profile",
+      icon: <UserOutlined />,
+      label: "Profile",
+    },
+    {
+      key: "logout",
+      icon: <LogoutOutlined />,
+      label: "Logout",
+      onClick: handleLogout,
+    },
+  ];
+
+  if (!currentUser) {
+    return null;
   }
 
-  if (!user) return null;
-
   return (
-    <Layout className="min-h-screen">
+    <Layout style={{ minHeight: "100vh" }}>
       <Sider
-        collapsible
-        collapsed={collapsed}
-        trigger={null}
-        width={200}
-        collapsedWidth={64}
-        className="fixed h-screen left-0 top-0 z-[1000] bg-white border-r overflow-hidden"
+        width={250}
+        style={{
+          background: "#fff",
+          borderRight: "1px solid #f0f0f0",
+        }}
       >
-        <div className="p-4 text-center h-20 flex flex-col justify-center">
-          <img src="/logo.png" alt="Logo" width={collapsed ? 24 : 32} height={collapsed ? 24 : 32} className="mx-auto" />
-          {!collapsed && <h1 className="mt-2 text-lg font-semibold">Black Leo Venture</h1>}
+        <div className="p-4 border-b border-gray-200">
+          <Title level={4} className="m-0 text-center">
+            Investor Outreach
+          </Title>
         </div>
-        <div className="h-[calc(100vh-160px)] overflow-y-auto overflow-x-hidden">
-          <Menu
-            mode="inline"
-            theme="light"
-            selectedKeys={[pathname]}
-            openKeys={openKeys}
-            onOpenChange={onOpenChange}
-            inlineCollapsed={collapsed}
-            items={items as any}
-            className="sidebar-menu h-full border-r-0"
-          />
-        </div>
-        {!collapsed && (
-          <div className="absolute bottom-0 w-full p-4 border-t bg-white h-20 flex flex-col justify-center">
-            <Button onClick={handleLogout} icon={<LogOut size={16} />} className="w-full text-left" type="text">
-              Logout
-            </Button>
-          </div>
-        )}
+        <Menu
+          mode="inline"
+          selectedKeys={[pathname]}
+          style={{ borderRight: 0 }}
+          items={menuItems}
+        />
       </Sider>
 
-      <Layout className={`${collapsed ? "ml-16" : "ml-[200px]"} transition-[margin-left] duration-200 min-h-screen`}>
-        <div className="bg-white h-16 flex items-center pl-6 justify-between sticky top-0 z-[999]">
-          <Button type="text" icon={collapsed ? <span className="anticon"><span className="anticon-menu-unfold" /></span> : <span className="anticon"><span className="anticon-menu-fold" /></span>} onClick={() => setCollapsed(!collapsed)} className="text-2xl mr-4" />
-          <Navbar />
-        </div>
-        <Content className="m-6 md:m-4 bg-[#f4f6f8] min-h-[calc(100vh-112px)] overflow-auto p-0">
-          <div className="p-6 bg-white rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.05)] min-h-full">
-            {children}
+      <Layout>
+        <Header
+          style={{
+            background: "#fff",
+            padding: "0 24px",
+            borderBottom: "1px solid #f0f0f0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div className="flex items-center">
+            <Title level={4} className="m-0">
+              Dashboard
+            </Title>
           </div>
+
+          <Dropdown
+            menu={{ items: userMenuItems }}
+            placement="bottomRight"
+            arrow
+          >
+            <Space className="cursor-pointer">
+              <Avatar
+                icon={<UserOutlined />}
+                src={currentUser.photoURL || undefined}
+              />
+              <span className="text-gray-700">
+                {currentUser.displayName || currentUser.email}
+              </span>
+            </Space>
+          </Dropdown>
+        </Header>
+
+        <Content
+          style={{
+            margin: "24px",
+            padding: "24px",
+            background: "#fff",
+            borderRadius: "8px",
+            minHeight: "calc(100vh - 112px)",
+          }}
+        >
+          {children}
         </Content>
       </Layout>
     </Layout>

@@ -3,20 +3,20 @@ const router = express.Router();
 
 const verifyFirebaseToken = require("../middlewares/firebaseAuth.middleware");
 const {
-  createContactList,
-  getAllContactLists,
-  getContactListsByCompany,
+  uploadContactList,
+  getContactLists,
+  getContactListById,
   deleteContactList,
 } = require("../controllers/contactList.controller");
 
 router
   .route("/")
-  .get(verifyFirebaseToken, getAllContactLists)
-  .post(verifyFirebaseToken, createContactList);
+  .get(verifyFirebaseToken, getContactLists)
+  .post(verifyFirebaseToken, uploadContactList);
 
 router
   .route("/:id")
-  .get(verifyFirebaseToken, getContactListsByCompany)
+  .get(verifyFirebaseToken, getContactListById)
   .delete(verifyFirebaseToken, deleteContactList);
 
 module.exports = router;

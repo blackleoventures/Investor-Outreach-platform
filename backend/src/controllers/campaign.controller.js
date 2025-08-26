@@ -1,157 +1,95 @@
-const Campaign = require("../models/campaign.model");
+const { dbHelpers } = require("../config/firebase-db.config");
 
 exports.createCampaign = async (req, res) => {
   try {
-    const { name, company_id } = req.body;
-
-    if (!company_id) {
-      return res.status(400).json({ message: "company_id are required." });
-    }
-
-    const newCampaign = await Campaign.create({
-      name,
-      company_id,
-    });
+    const campaignData = req.body;
+    
+    const savedCampaign = await dbHelpers.create('campaigns', campaignData);
 
     res.status(201).json({
-      message: "Campaign created",
-      success: true,
-      campaign: newCampaign,
+      id: savedCampaign.id,
+      message: "Campaign created successfully",
     });
   } catch (error) {
-    console.error("Error creating campaign:", error);
-    res.status(500).json({ message: "Failed to create campaign" });
+    res.status(500).json({ error: error.message });
   }
 };
 
 exports.getCampaigns = async (req, res) => {
   try {
-    const { page = 1, limit = 10, company_id } = req.query;
+    const { company_id, page = 1, limit = 10 } = req.query;
 
-    const filter = {};
+    const filters = {};
     if (company_id) {
-      filter.company_id = company_id;
+      filters.company_id = company_id;
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-
-    const [campaigns, total] = await Promise.all([
-      Campaign.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit))
-        .populate("company_id", "company_name email"),
-      Campaign.countDocuments(filter),
-    ]);
-
-    const formattedCampaigns = campaigns.map((campaign) => {
-      const company = campaign.company_id || {};
-      return {
-        _id: campaign._id,
-        name: campaign.name,
-        totalEmailsSent: campaign.totalSentCount || 0,
-        totalEmailsOpened: campaign.totalEmailsOpened || 0,
-        totalDelivered: campaign.totalDeliveredCount || 0,
-        totalBounced: campaign.totalBouncedCount || 0,
-        totalComplained: campaign.totalComplainedCount || 0,
-        totalReplies: campaign.totalReplies || 0,
-        createdAt: campaign.createdAt || 0,
-        companyName: company.company_name || "",
-        companyEmail: company.email || "",
-      };
-    });
-
-    res.status(200).json({
-      success: true,
+    const campaigns = await dbHelpers.getAll('campaigns', {
+      filters,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
       page: parseInt(page),
-      totalPages: Math.ceil(total / limit),
-      totalItems: total,
-      campaigns: formattedCampaigns,
+      limit: parseInt(limit)
     });
-  } catch (error) {
-    console.error("Error fetching campaigns:", error);
-    res.status(500).json({ message: "Failed to fetch campaigns" });
-  }
-};
 
-exports.getCampaignReport = async (req, res) => {
-  try {
-    const { campaignId } = req.params;
-
-    const campaign = await Campaign.findById(campaignId)
-      .populate("company_id", "company_name email") // Only select needed fields
-      .lean();
-
-    if (!campaign) {
-      return res.status(404).json({ message: "Campaign not found" });
-    }
-
-    const company = campaign.company_id || {};
-    const { company_name: companyName, email: companyEmail } = company;
-
-    delete campaign.company_id;
+    const total = await dbHelpers.count('campaigns', filters);
 
     res.json({
-      ...campaign,
-      companyName,
-      companyEmail,
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      campaigns,
     });
-  } catch (err) {
-    console.error("Error fetching report:", err);
-    res.status(500).json({ message: "Failed to get campaign report" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 
-exports.getPublicCampaignReport = async (req, res) => {
+exports.getCampaignById = async (req, res) => {
   try {
-    const { campaignId } = req.params;
+    const { id } = req.params;
 
-    const campaign = await Campaign.findById(campaignId)
-      .populate("company_id", "company_name email") // Only select needed fields
-      .lean();
+    const campaign = await dbHelpers.getById('campaigns', id);
 
     if (!campaign) {
-      return res.status(404).json({ message: "Campaign not found" });
+      return res.status(404).json({ error: "Campaign not found" });
     }
 
-    const company = campaign.company_id || {};
-    const report = {
-      _id: campaign._id,
-      name: campaign.name,
-      totalEmailsSent: campaign.totalSentCount || 0,
-      totalReplies: campaign.totalReplies || 0,
-      companyName: company.company_name || "",
-      companyEmail: company.email || "",
-    };
+    res.json(campaign);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
 
-    res.json(report);
-  } catch (err) {
-    console.error("Error fetching report:", err);
-    res.status(500).json({ message: "Failed to get campaign report" });
+exports.updateCampaign = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updateData = req.body;
+
+    const updatedCampaign = await dbHelpers.update('campaigns', id, updateData);
+
+    if (!updatedCampaign) {
+      return res.status(404).json({ error: "Campaign not found" });
+    }
+
+    res.json(updatedCampaign);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 
 exports.deleteCampaign = async (req, res) => {
   try {
-    const { campaignId } = req.params;
+    const { id } = req.params;
 
-    if (!campaignId) {
-      return res.status(400).json({ message: "Campaign ID is required." });
+    const deletedCampaign = await dbHelpers.delete('campaigns', id);
+
+    if (!deletedCampaign) {
+      return res.status(404).json({ error: "Campaign not found" });
     }
 
-    const deleted = await Campaign.findByIdAndDelete(campaignId);
-
-    if (!deleted) {
-      return res.status(404).json({ message: "Campaign not found." });
-    }
-
-    res.status(200).json({
-      message: "Campaign deleted",
-      success: true,
-      campaign: deleted,
-    });
+    res.status(200).json({ message: "Campaign deleted successfully" });
   } catch (error) {
-    console.error("Error deleting campaign:", error);
-    res.status(500).json({ message: "Failed to delete campaign" });
+    res.status(500).json({ error: error.message });
   }
 };

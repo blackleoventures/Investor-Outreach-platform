@@ -1,4 +1,4 @@
-const Company = require("../models/company.model");
+const { dbHelpers } = require("../config/firebase-db.config");
 const {
   VerifyEmailIdentityCommand,
   GetIdentityVerificationAttributesCommand,
@@ -45,13 +45,13 @@ exports.addClientData = async (req, res) => {
       revenue: revenue ? parseFloat(revenue) : undefined,
       fund_stage: fundingStage,
       employees: employees ? parseInt(employees) : undefined,
+      archive: false,
     };
 
-    const newClient = new Company(clientData);
-    const savedClient = await newClient.save();
+    const savedClient = await dbHelpers.create('companies', clientData);
 
     res.status(201).json({
-      id: savedClient._id,
+      id: savedClient.id,
       message: "Client added successfully",
     });
   } catch (error) {
@@ -63,20 +63,20 @@ exports.getActiveClientData = async (req, res) => {
   try {
     const { email, page = 1, limit = 10 } = req.query;
 
-    const filter = { archive: { $ne: true } };
+    const filters = { archive: false };
     if (email) {
-      filter.email = email;
+      filters.email = email;
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const clients = await dbHelpers.getAll('companies', {
+      filters,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
 
-    const clients = await Company.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean();
-
-    const total = await Company.countDocuments(filter);
+    const total = await dbHelpers.count('companies', filters);
 
     res.json({
       total,
@@ -93,27 +93,27 @@ exports.getClientData = async (req, res) => {
   try {
     const { email, page = 1, limit = 10, filter = "all" } = req.query;
 
-    const query = {};
+    const filters = {};
 
     if (email) {
-      query.email = email;
+      filters.email = email;
     }
 
     if (filter === "archived") {
-      query.archive = true;
+      filters.archive = true;
     } else if (filter === "active") {
-      query.archive = { $ne: true };
+      filters.archive = false;
     }
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const clients = await dbHelpers.getAll('companies', {
+      filters,
+      sortBy: 'createdAt',
+      sortOrder: 'desc',
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
 
-    const clients = await Company.find(query)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(parseInt(limit))
-      .lean();
-
-    const total = await Company.countDocuments(query);
+    const total = await dbHelpers.count('companies', filters);
 
     res.json({
       total,
@@ -173,11 +173,7 @@ exports.updateClientData = async (req, res) => {
       updatedClientData.archive = archive;
     }
 
-    const updatedClient = await Company.findByIdAndUpdate(
-      id,
-      updatedClientData,
-      { new: true, runValidators: true }
-    ).lean();
+    const updatedClient = await dbHelpers.update('companies', id, updatedClientData);
 
     if (!updatedClient) {
       return res.status(404).json({ error: "Client not found" });
@@ -193,7 +189,7 @@ exports.deleteClientData = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const deletedClient = await Company.findOneAndDelete({ _id: id });
+    const deletedClient = await dbHelpers.delete('companies', id);
 
     if (!deletedClient) {
       return res.status(404).json({ error: "Client not found" });
@@ -213,7 +209,7 @@ exports.verifyClientEmail = async (req, res) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    const client = await Company.findOne({ email });
+    const client = await dbHelpers.findOne('companies', { email });
     if (!client) return res.status(404).json({ message: "Client not found" });
 
     if (client.email_verified) {
@@ -263,15 +259,13 @@ exports.updateClientEmailVerification = async (req, res) => {
 
     const isVerified = status === "Success";
 
-    const updatedClient = await Company.findOneAndUpdate(
-      { email },
-      { email_verified: isVerified },
-      { new: true }
-    );
-
-    if (!updatedClient) {
+    // Find client by email and update verification status
+    const client = await dbHelpers.findOne('companies', { email });
+    if (!client) {
       return res.status(404).json({ message: "Client not found in database" });
     }
+
+    await dbHelpers.update('companies', client.id, { email_verified: isVerified });
 
     res.status(200).json({
       email,

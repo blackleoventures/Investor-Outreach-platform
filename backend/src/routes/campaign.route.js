@@ -3,9 +3,9 @@ const router = express.Router();
 
 const {
   createCampaign,
-  getCampaignReport,
   getCampaigns,
-  getPublicCampaignReport,
+  getCampaignById,
+  updateCampaign,
   deleteCampaign,
 } = require("../controllers/campaign.controller");
 const verifyFirebaseToken = require("../middlewares/firebaseAuth.middleware");
@@ -14,10 +14,11 @@ router
   .route("/")
   .get(verifyFirebaseToken, getCampaigns)
   .post(verifyFirebaseToken, createCampaign);
+
 router
-  .route("/:campaignId")
-  .get(getPublicCampaignReport)
+  .route("/:id")
+  .get(verifyFirebaseToken, getCampaignById)
+  .put(verifyFirebaseToken, updateCampaign)
   .delete(verifyFirebaseToken, deleteCampaign);
-// router.route("report/:campaignId").get(verifyFirebaseToken, getCampaignReport);
 
 module.exports = router;

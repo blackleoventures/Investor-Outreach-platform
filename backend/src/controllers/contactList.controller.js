@@ -1,122 +1,113 @@
-const { default: mongoose } = require("mongoose");
-const ContactList = require("../models/contactList.modal");
+const { dbHelpers } = require("../config/firebase-db.config");
 
-exports.createContactList = async (req, res) => {
+exports.uploadContactList = async (req, res) => {
   try {
-    const { listName, emails, companyId } = req.body;
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
 
-    if (!listName || typeof listName !== "string") {
-      return res.status(400).json({
-        success: false,
-        message: "listName is required and must be a string",
+    const { company_id, campaign_id } = req.body;
+    
+    if (!company_id || !campaign_id) {
+      return res.status(400).json({ 
+        error: "Company ID and Campaign ID are required" 
       });
     }
 
-    if (!Array.isArray(emails) || emails.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "emails must be a non-empty array",
-      });
+    // Parse CSV data and create contact list
+    const csvData = req.file.buffer.toString();
+    const lines = csvData.split('\n');
+    const headers = lines[0].split(',').map(h => h.trim());
+    
+    const contacts = [];
+    for (let i = 1; i < lines.length; i++) {
+      if (lines[i].trim()) {
+        const values = lines[i].split(',').map(v => v.trim());
+        const contact = {};
+        headers.forEach((header, index) => {
+          contact[header] = values[index] || '';
+        });
+        contacts.push(contact);
+      }
     }
 
-    if (companyId && !mongoose.Types.ObjectId.isValid(companyId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid company ID",
-      });
-    }
+    const contactListData = {
+      company_id,
+      campaign_id,
+      contacts,
+      total_contacts: contacts.length,
+      uploaded_at: new Date()
+    };
 
-    // console.log(listName, emails);
-
-    const contactList = await ContactList.create({
-      listName,
-      emails,
-      company: companyId || undefined, // Only assign if present
-    });
+    const savedContactList = await dbHelpers.create('contact_lists', contactListData);
 
     res.status(201).json({
-      success: true,
-      message: "Contact list created successfully",
-      // id: contactList._id,
+      id: savedContactList.id,
+      message: "Contact list uploaded successfully",
+      total_contacts: contacts.length
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to create contact list",
-      error: error.message,
-    });
+    res.status(500).json({ error: error.message });
   }
 };
 
-exports.getAllContactLists = async (req, res) => {
+exports.getContactLists = async (req, res) => {
   try {
-    const lists = await ContactList.find().populate("company", "company_name");
-    res.status(200).json({
-      success: true,
-      data: lists,
+    const { company_id, campaign_id, page = 1, limit = 10 } = req.query;
+
+    const filters = {};
+    if (company_id) filters.company_id = company_id;
+    if (campaign_id) filters.campaign_id = campaign_id;
+
+    const contactLists = await dbHelpers.getAll('contact_lists', {
+      filters,
+      sortBy: 'uploaded_at',
+      sortOrder: 'desc',
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
+
+    const total = await dbHelpers.count('contact_lists', filters);
+
+    res.json({
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+      contact_lists: contactLists,
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch contact lists",
-      error: error.message,
-    });
+    res.status(500).json({ error: error.message });
   }
 };
 
-exports.getContactListsByCompany = async (req, res) => {
+exports.getContactListById = async (req, res) => {
   try {
-    const { companyId } = req.params;
-
-    if (!companyId || !mongoose.Types.ObjectId.isValid(companyId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Valid companyId is required in the URL",
-      });
+    const { id } = req.params;
+    
+    const contactList = await dbHelpers.getById('contact_lists', id);
+    
+    if (!contactList) {
+      return res.status(404).json({ error: "Contact list not found" });
     }
 
-    const contactLists = await ContactList.find({ company: companyId });
-
-    res.status(200).json({
-      success: true,
-      data: contactLists,
-    });
+    res.json(contactList);
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch contact lists for company",
-      error: error.message,
-    });
+    res.status(500).json({ error: error.message });
   }
 };
 
 exports.deleteContactList = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid contact list ID",
-      });
+
+    const deletedContactList = await dbHelpers.delete('contact_lists', id);
+
+    if (!deletedContactList) {
+      return res.status(404).json({ error: "Contact list not found" });
     }
 
-    const deleted = await ContactList.findByIdAndDelete(id);
-    if (!deleted) {
-      return res.status(404).json({
-        success: false,
-        message: "Contact list not found",
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Contact list deleted successfully",
-    });
+    res.status(200).json({ message: "Contact list deleted successfully" });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Failed to delete contact list",
-      error: error.message,
-    });
+    res.status(500).json({ error: error.message });
   }
 };
