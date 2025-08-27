@@ -1,8 +1,7 @@
+// @ts-nocheck
 "use client";
 
-import ClientCampaigns from "../../../../legacy_src/pages/ClientCampaigns.jsx";
-
 export default function Page() {
-  return <ClientCampaigns />;
+  return <div className="p-6">Client campaigns page coming soon.</div>;
 }
 

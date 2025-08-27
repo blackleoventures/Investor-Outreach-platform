@@ -56,7 +56,6 @@ export default function DashboardLayout({
   };
 
   const navItem = (key: string, label: string) => ({
-    key,
     label: <Link href={key}>{label}</Link>,
   });
 

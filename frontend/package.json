@@ -6,36 +6,33 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint ."
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
-    "@google/generative-ai": "^0.24.0",
-    "@reduxjs/toolkit": "^2.6.1",
-    "antd": "^5.24.0",
+    "antd": "^5.12.8",
     "antd-style": "^3.7.1",
-    "axios": "^1.7.9",
+    "axios": "^1.11.0",
     "firebase": "^11.10.0",
-    "lucide-react": "^0.475.0",
-    "moment": "^2.30.1",
-    "next": "15.5.0",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "react-redux": "^9.2.0",
-    "recharts": "^2.15.1",
-    "redux-persist": "^6.0.0",
-    "sweetalert2": "^11.6.13",
-    "xlsx": "^0.18.5"
+    "framer-motion": "10.16.0",
+    "lucide-react": "^0.542.0",
+    "next": "14.0.4",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-hook-form": "7.47.0",
+    "react-hot-toast": "2.4.1",
+    "recharts": "^2.15.4",
+    "sweetalert2": "^11.12.4"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3",
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "15.5.0",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "@types/node": "20",
+    "@types/react": "18",
+    "@types/react-dom": "18",
+    "autoprefixer": "10.4.16",
+    "eslint": "8",
+    "eslint-config-next": "13.5.6",
+    "postcss": "8.4.31",
+    "tailwindcss": "3.3.0",
+    "typescript": "5"
   }
 }

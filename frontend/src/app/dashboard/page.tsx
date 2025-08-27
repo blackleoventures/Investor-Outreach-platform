@@ -1,19 +1,23 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import StatsCard from "../../legacy_src/components/card/StatsCard";
-import { useAuth } from "../../legacy_src/Context/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { Users, List, Briefcase, Plus, X, Mail, UserPlus } from "lucide-react";
 import { BarChart, Bar, PieChart, Pie, Cell } from "recharts";
-import { fetchData } from "../../legacy_src/utils/fetchData";
+// TODO: Replace with current fetch util or axios; keeping inline for now
+const fetchData = async <T = any>(url: string): Promise<T> => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return (await res.json()) as T;
+};
 import { ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
 import { Button, Form, Input, Modal, Spin } from "antd";
 import { useRouter } from "next/navigation";
-import DemoBanner from "../../legacy_src/components/card/DemoBanner";
+// TODO: Re-add DemoBanner when present in current codebase
 import Swal from "sweetalert2";
 import axios from "axios";
 import { createStyles } from "antd-style";
-import { BACKEND_URL } from "../../legacy_src/config/env";
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL as string;
 
 const mockChartData = [
   { name: "Jan", emails: 3000 },
@@ -66,6 +70,22 @@ const API_ENDPOINTS = {
   CONTACT_LISTS: `${BACKEND_URL}/contact-lists`,
 };
 
+// Minimal local StatsCard to replace legacy component
+const StatsCard = ({ title, count, icon: Icon, trend, trendPositive, classNames }) => (
+  <div className={`p-4 rounded-lg ${classNames || ''}`}>
+    <div className="flex items-center justify-between">
+      <div>
+        <div className="text-sm opacity-80">{title}</div>
+        <div className="text-2xl font-semibold">{count}</div>
+        {trend && (
+          <div className={`text-xs mt-1 ${trendPositive ? 'text-green-600' : 'text-red-600'}`}>{trend}</div>
+        )}
+      </div>
+      {Icon && <Icon size={24} />}
+    </div>
+  </div>
+);
+
 const Profile = () => {
   const [loading, setLoading] = useState(false);
   const [emailStatLoading, setEmailStatLoading] = useState(false);
@@ -75,7 +95,7 @@ const Profile = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { styles } = useStyle();
   const [emailStats, setEmailStats] = useState(null);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState<string | null>(null);
 
   const [stats, setStats] = useState({
     clients: 0,
@@ -212,7 +232,7 @@ const Profile = () => {
       });
     } catch (err) {
       console.error("Error loading stats:", err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error occurred');
       setStats({
         clients: 0,
         investorLists: 0,
@@ -232,7 +252,7 @@ const Profile = () => {
       setEmailStats(data.data);
     } catch (err) {
       console.error("Error loading email stats:", err);
-      setError(err.message);
+      setError(err instanceof Error ? err.message : 'Unknown error occurred');
     } finally {
       setEmailStatLoading(false);
     }
@@ -594,12 +614,7 @@ const Profile = () => {
           </div>
         </div>
 
-        <div
-          className="my-8"
-          style={{ boxShadow: "0 0 4px rgba(0, 0, 0, 0.1)" }}
-        >
-          <DemoBanner />
-        </div>
+        {/* TODO: Re-add DemoBanner when present in current codebase */}
       </div>
     </div>
   );
