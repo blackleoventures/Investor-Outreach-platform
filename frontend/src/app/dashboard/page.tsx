@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { Users, List, Briefcase, Plus, X, Mail, UserPlus } from "lucide-react";
+import { Users, List, Briefcase, Plus, X, Mail, UserPlus, TrendingUp, Activity } from "lucide-react";
 import { BarChart, Bar, PieChart, Pie, Cell } from "recharts";
 // TODO: Replace with current fetch util or axios; keeping inline for now
 const fetchData = async <T = any>(url: string): Promise<T> => {
@@ -70,20 +70,31 @@ const API_ENDPOINTS = {
   CONTACT_LISTS: `${BACKEND_URL}/contact-lists`,
 };
 
-// Minimal local StatsCard to replace legacy component
+// Enhanced StatsCard with faster animations
 const StatsCard = ({ title, count, icon: Icon, trend, trendPositive, classNames }) => (
-  <div className={`p-4 rounded-lg ${classNames || ''}`}>
+  <motion.div
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ duration: 0.2 }}
+    whileHover={{ y: -8, scale: 1.05 }}
+    whileTap={{ scale: 0.98 }}
+    className={`p-6 rounded-2xl cursor-pointer ${classNames || ''}`}
+  >
     <div className="flex items-center justify-between">
       <div>
-        <div className="text-sm opacity-80">{title}</div>
-        <div className="text-2xl font-semibold">{count}</div>
+        <div className="text-sm opacity-90 font-medium">{title}</div>
+        <div className="text-3xl font-bold mt-2">{count}</div>
         {trend && (
-          <div className={`text-xs mt-1 ${trendPositive ? 'text-green-600' : 'text-red-600'}`}>{trend}</div>
+          <div className={`text-sm mt-2 font-semibold ${trendPositive ? 'text-green-200' : 'text-red-200'}`}>{trend}</div>
         )}
       </div>
-      {Icon && <Icon size={24} />}
+      {Icon && (
+        <div className="bg-white/20 p-3 rounded-xl">
+          <Icon size={28} className="text-white" />
+        </div>
+      )}
     </div>
-  </div>
+  </motion.div>
 );
 
 const Profile = () => {
@@ -335,70 +346,72 @@ const Profile = () => {
   const currentUser = user.providerData?.[0] || user;
 
   return (
-    <div className="min-h-screen ">
-      <div
-        style={{ boxShadow: "0 0 4px rgba(0, 0, 0, 0.1)" }}
-        className="px-6 py-8 rounded-2xl mt-8 mb-4 mx-4"
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+      <div className="fixed top-4 left-4 z-50">
+        <div className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center">
+          <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
+        </div>
+      </div>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="px-6 py-8 rounded-2xl mt-8 mb-4 mx-4 bg-white/80 backdrop-blur-sm shadow-xl border border-white/20"
       >
         <div className="mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
-            <div>
-              <h1 className="text-3xl font-bold">
-                Welcome back,{" "}
-                {currentUser?.displayName || currentUser?.email || "User"}
-              </h1>
-              <p className="mt-2 opacity-90">
-                Here&apos;s your business overview
-              </p>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+            className="flex flex-col md:flex-row justify-between items-start md:items-center"
+          >
+            <div className="flex items-center gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    Welcome back
+                  </h1>
+                </div>
+                <h2 className="text-xl font-semibold text-gray-700">
+                  {currentUser?.displayName || currentUser?.email || "User"}
+                </h2>
+                <p className="mt-1 opacity-90 text-gray-600">Here's your business overview</p>
+              </div>
             </div>
             <div className="mt-4 md:mt-0 flex flex-col-reverse sm:flex-col md:flex-row gap-3 md:items-center md:space-x-3">
               <div>
-                <Button
-                  variant="solid"
-                  style={{
-                    backgroundColor: "#ac6a1e",
-                    color: "#fff",
-                  }}
-                  icon={<Plus size={16} />}
-                  onClick={() => setIsOpen(true)}
-                  className="w-full sm:w-auto"
-                >
-                  Create
-                </Button>
+                <motion.div whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.05 }}>
+                  <Button
+                    type="primary"
+                    size="large"
+                    className="bg-gradient-to-r from-orange-500 to-red-600 border-0 shadow-lg hover:shadow-xl transition-all duration-200 font-semibold px-8 py-2 h-12"
+                    icon={<Plus size={18} />}
+                    onClick={() => setIsOpen(true)}
+                  >
+                    Create New
+                  </Button>
+                </motion.div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-indigo-500 flex items-center justify-center">
+                <motion.div whileHover={{ scale: 1.05 }} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-indigo-500 flex items-center justify-center">
                   <span className="font-medium text-sm text-wrap sm:text-base text-white">
-                    {(currentUser?.displayName ||
-                      currentUser?.email ||
-                      "U")[0].toUpperCase()}
+                    {(currentUser?.displayName || currentUser?.email || "U")[0].toUpperCase()}
                   </span>
-                </div>
+                </motion.div>
                 <div className="text-center sm:text-left">
-                  <p className="font-medium text-sm sm:text-base">
-                    {currentUser?.email || "No email"}
-                  </p>
-
+                  <p className="font-medium text-sm sm:text-base">{currentUser?.email || "No email"}</p>
                   <div className="space-y-1">
-                    <p className="text-xs sm:text-sm opacity-75">
-                      Last login:{" "}
-                      {formatLoginTime(actualLoginTime || loginTime)}
-                    </p>
-
+                    <p className="text-xs sm:text-sm opacity-75">Last login: {formatLoginTime(actualLoginTime || loginTime)}</p>
                     {actualLoginTime || loginTime ? (
-                      <p className="text-xs opacity-60 font-mono">
-                        {getExactLoginTime(actualLoginTime || loginTime)}
-                      </p>
+                      <p className="text-xs opacity-60 font-mono">{getExactLoginTime(actualLoginTime || loginTime)}</p>
                     ) : (
-                      <p className="text-xs opacity-50 text-yellow-600">
-                        ⚠️ Login time unavailable
-                      </p>
+                      <p className="text-xs opacity-50 text-yellow-600">⚠️ Login time unavailable</p>
                     )}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         <Modal
@@ -428,56 +441,53 @@ const Profile = () => {
         >
           <div className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4">
-              <div
-                className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer border hover:border-blue-100"
+              <motion.div
+                whileHover={{ y: -6, scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.15 }}
+                className="p-8 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-200 cursor-pointer border-2 border-transparent hover:border-blue-300"
                 role="button"
                 tabIndex={0}
                 onClick={() => router.push("/dashboard/select-campaign")}
               >
-                <div className="text-blue-500 mb-4">
-                  <Mail className="w-8 h-8" />
+                <div className="bg-blue-500 p-3 rounded-xl mb-4 w-fit">
+                  <Mail className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">
-                  Create Email Campaign
-                </h3>
-                <p className="text-gray-600 text-sm">
-                  Design and send targeted email campaigns to your audience
-                </p>
-              </div>
+                <h3 className="text-xl font-bold mb-3 text-gray-800">Create Email Campaign</h3>
+                <p className="text-gray-600 text-base leading-relaxed">Design and send targeted email campaigns to your audience</p>
+              </motion.div>
 
-              <div
-                className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer border hover:border-green-100"
+              <motion.div
+                whileHover={{ y: -6, scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.15 }}
+                className="p-8 bg-gradient-to-br from-green-50 to-emerald-100 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-200 cursor-pointer border-2 border-transparent hover:border-green-300"
                 role="button"
                 onClick={() => toggleModal(0, true)}
                 tabIndex={0}
               >
-                <div className="text-green-500 mb-4">
-                  <List className="w-8 h-8" />
+                <div className="bg-green-500 p-3 rounded-xl mb-4 w-fit">
+                  <List className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">
-                  Add New Contacts
-                </h3>
-                <p className="text-gray-600 text-sm">
-                  Organize and manage your subscriber lists effectively
-                </p>
-              </div>
+                <h3 className="text-xl font-bold mb-3 text-gray-800">Add New Contacts</h3>
+                <p className="text-gray-600 text-base leading-relaxed">Organize and manage your subscriber lists effectively</p>
+              </motion.div>
 
-              <div
-                className="p-6 bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow cursor-pointer border hover:border-purple-100"
+              <motion.div
+                whileHover={{ y: -6, scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ duration: 0.15 }}
+                className="p-8 bg-gradient-to-br from-purple-50 to-pink-100 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-200 cursor-pointer border-2 border-transparent hover:border-purple-300"
                 role="button"
                 tabIndex={0}
                 onClick={() => router.push("/dashboard/add-client")}
               >
-                <div className="text-purple-500 mb-4">
-                  <UserPlus className="w-8 h-8" />
+                <div className="bg-purple-500 p-3 rounded-xl mb-4 w-fit">
+                  <UserPlus className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-lg font-semibold mb-2">
-                  Create a Client
-                </h3>
-                <p className="text-gray-600 text-sm">
-                  Add new clients and manage their profiles in your system
-                </p>
-              </div>
+                <h3 className="text-xl font-bold mb-3 text-gray-800">Create a Client</h3>
+                <p className="text-gray-600 text-base leading-relaxed">Add new clients and manage their profiles in your system</p>
+              </motion.div>
             </div>
           </div>
         </Modal>
@@ -523,7 +533,7 @@ const Profile = () => {
             </Form.Item>
           </Form>
         </Modal>
-      </div>
+      </motion.div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         {error && (
@@ -534,14 +544,19 @@ const Profile = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.4 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+        >
           <StatsCard
             title="Total Investors"
             count={stats.clients || 0}
             icon={Users}
             trend="+12.5%"
             trendPositive={true}
-            classNames="bg-green-500 shadow-lg hover:shadow-xl transition-shadow text-white"
+            classNames="bg-gradient-to-br from-emerald-500 to-green-600 shadow-xl hover:shadow-2xl transition-all duration-300 text-white border-0"
           />
           <StatsCard
             title="Total Companies"
@@ -549,32 +564,43 @@ const Profile = () => {
             icon={List}
             trend="+8.2%"
             trendPositive={true}
-            classNames="bg-blue-400 shadow-lg hover:shadow-xl transition-shadow"
+            classNames="bg-gradient-to-br from-blue-500 to-indigo-600 shadow-xl hover:shadow-2xl transition-all duration-300 text-white border-0"
           />
           <StatsCard
             title="Sent Emails"
             count={stats.totalContacts || 0}
-            icon={Briefcase}
+            icon={Mail}
             trend="-3.1%"
             trendPositive={false}
-            classNames="bg-red-300 shadow-lg hover:shadow-xl transition-shadow"
+            classNames="bg-gradient-to-br from-purple-500 to-pink-600 shadow-xl hover:shadow-2xl transition-all duration-300 text-white border-0"
           />
           <StatsCard
             title="Responded"
             count={stats.totalContacts || 0}
-            icon={Briefcase}
+            icon={TrendingUp}
             trend="-3.1%"
             trendPositive={false}
-            classNames="bg-orange-500 shadow-lg hover:shadow-xl transition-shadow"
+            classNames="bg-gradient-to-br from-orange-500 to-red-600 shadow-xl hover:shadow-2xl transition-all duration-300 text-white border-0"
           />
-        </div>
+        </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10">
-          <div
-            className="bg-white p-6 rounded-xl"
-            style={{ boxShadow: "0 0 4px rgba(0, 0, 0, 0.1)" }}
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2, duration: 0.4 }}
+          className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-10"
+        >
+          <motion.div
+            whileHover={{ y: -5, scale: 1.02 }}
+            transition={{ duration: 0.2 }}
+            className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300"
           >
-            <h2 className="text-lg font-semibold mb-4">Email Monthly Report</h2>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Activity className="w-5 h-5 text-blue-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-800">Email Monthly Report</h2>
+            </div>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={mockChartData}>
                 <XAxis dataKey="name" />
@@ -584,13 +610,19 @@ const Profile = () => {
                 <Bar dataKey="emails" fill="#4285F4" />
               </BarChart>
             </ResponsiveContainer>
-          </div>
+          </motion.div>
 
-          <div
-            className="bg-white p-6 rounded-xl"
-            style={{ boxShadow: "0 0 4px rgba(0, 0, 0, 0.1)" }}
+          <motion.div
+            whileHover={{ y: -5, scale: 1.02 }}
+            transition={{ duration: 0.2 }}
+            className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300"
           >
-            <h2 className="text-lg font-semibold mb-4">Users Monthly Report</h2>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Users className="w-5 h-5 text-purple-600" />
+              </div>
+              <h2 className="text-lg font-semibold text-gray-800">Users Monthly Report</h2>
+            </div>
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
@@ -611,8 +643,8 @@ const Profile = () => {
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
         {/* TODO: Re-add DemoBanner when present in current codebase */}
       </div>
