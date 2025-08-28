@@ -43,36 +43,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     provider.addScope('email');
     provider.addScope('profile');
     
-    // Check if mobile device
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    if (isMobile) {
-      // Use redirect for mobile devices
-      try {
-        await signInWithRedirect(auth, provider);
-        return;
-      } catch (error) {
-        console.error('Mobile redirect login failed:', error);
-        throw error;
-      }
-    } else {
-      // Use popup for desktop
-      try {
-        const result = await signInWithPopup(auth, provider);
-        console.log('Login successful:', result.user.email);
-        return result;
-      } catch (error: any) {
-        console.error('Popup login failed, trying redirect:', error);
-        
-        // Fallback to redirect
-        try {
-          await signInWithRedirect(auth, provider);
-          return;
-        } catch (redirectError) {
-          console.error('Redirect login also failed:', redirectError);
-          throw redirectError;
-        }
-      }
+    // Always use redirect for better mobile compatibility
+    try {
+      await signInWithRedirect(auth, provider);
+      return;
+    } catch (error) {
+      console.error('Redirect login failed:', error);
+      throw error;
     }
   }
 
