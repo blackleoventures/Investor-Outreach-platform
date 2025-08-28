@@ -14,7 +14,7 @@
   "license": "ISC",
   "description": "",
   "engines": {
-    "node": "18.x"
+    "node": "22.x"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.777.0",
