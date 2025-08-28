@@ -1,11 +1,10 @@
 "use client";
 
-import { GoogleAuthProvider, signInWithPopup } from "firebase/auth";
-import { auth } from "@/lib/firebase";
 import { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 
 export default function Home() {
   const { currentUser, login, loading } = useAuth();
@@ -53,7 +52,7 @@ export default function Home() {
             className="mb-6"
           >
             <div className="mx-auto w-24 h-24 rounded-full bg-white flex items-center justify-center shadow-lg">
-              <img src="/logo.png" alt="Logo" className="w-20 h-20 object-contain" />
+              <Image src="/logo.png" alt="Logo" width={80} height={80} className="w-20 h-20 object-contain" priority />
             </div>
           </motion.div>
           <motion.h1
@@ -80,7 +79,7 @@ export default function Home() {
           onClick={handleLogin}
           className="w-full bg-white hover:bg-gray-100 text-black font-semibold py-4 px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
         >
-          <img src="/google.png" alt="Google" className="w-6 h-6" />
+          <Image src="/google.png" alt="Google" width={24} height={24} className="w-6 h-6" />
           Sign in with Google
         </motion.button>
 

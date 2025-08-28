@@ -3,7 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 import {
   Layout,
   Menu,
@@ -26,6 +26,7 @@ import {
   CalendarOutlined,
   SearchOutlined,
   UserSwitchOutlined,
+  RobotOutlined,
 } from "@ant-design/icons";
 
 const { Header, Sider, Content } = Layout;
@@ -46,20 +47,20 @@ export default function DashboardLayout({
     }
   }, [currentUser, router]);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     try {
       await logout();
       router.push("/");
     } catch (error) {
       console.error("Logout failed:", error);
     }
-  };
+  }, [logout, router]);
 
-  const navItem = (key: string, label: string) => ({
+  const navItem = useCallback((key: string, label: string) => ({
     label: <Link href={key}>{label}</Link>,
-  });
+  }), []);
 
-  const menuItems = [
+  const menuItems = useMemo(() => ([
     {
       key: "/dashboard",
       icon: <DashboardOutlined style={{ fontSize: "16px" }} />,
@@ -120,9 +121,15 @@ export default function DashboardLayout({
       icon: <CalendarOutlined style={{ fontSize: "16px" }} />,
       ...navItem("/dashboard/schedule-demo", "Schedule Demo"),
     },
-  ];
 
-  const userMenuItems = [
+    {
+      key: "/dashboard/pitch-analyzer",
+      icon: <RobotOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/pitch-analyzer", "Pitch Analyzer"),
+    },
+  ]), [navItem]);
+
+  const userMenuItems = useMemo(() => ([
     {
       key: "profile",
       icon: <UserOutlined />,
@@ -134,7 +141,7 @@ export default function DashboardLayout({
       label: "Logout",
       onClick: handleLogout,
     },
-  ];
+  ]), [handleLogout]);
 
   if (!currentUser) {
     return null;

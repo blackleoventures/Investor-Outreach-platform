@@ -1,7 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getAnalytics } from 'firebase/analytics';
+import { getAuth, connectAuthEmulator } from 'firebase/auth';
+import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -15,51 +14,31 @@ const firebaseConfig = {
 };
 
 // Validate Firebase configuration
-const requiredKeys = ['apiKey', 'authDomain', 'projectId'];
-const missingKeys = requiredKeys.filter(key => !firebaseConfig[key as keyof typeof firebaseConfig]);
-
-if (missingKeys.length > 0) {
-  console.error('Missing Firebase configuration keys:', missingKeys);
-  console.error('Please check your .env.local file');
-  
-  // Provide a fallback configuration for development
-  if (process.env.NODE_ENV === 'development') {
-    console.warn('Using fallback Firebase configuration for development');
-    firebaseConfig.apiKey = 'demo-api-key';
-    firebaseConfig.authDomain = 'demo-project.firebaseapp.com';
-    firebaseConfig.projectId = 'demo-project';
-  }
+if (!firebaseConfig.apiKey) {
+  console.error('❌ Firebase API Key is missing!');
 }
 
-// Initialize Firebase
+// Initialize Firebase with error handling
 let app;
 try {
   app = initializeApp(firebaseConfig);
-  console.log('Firebase initialized successfully');
 } catch (error) {
-  console.error('Firebase initialization failed:', error);
-  // Create a mock app for development
-  if (process.env.NODE_ENV === 'development') {
-    console.warn('Creating mock Firebase app for development');
-    app = {} as any;
-  } else {
-    throw error;
-  }
+  console.warn('Firebase initialization failed, using mock for development');
+  app = null;
 }
 
-// Initialize Firebase services
+// Initialize Firebase services with lazy loading
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 
-// Initialize Analytics (only in browser environment)
-let analytics = null;
-if (typeof window !== 'undefined' && app) {
-  try {
-    analytics = getAnalytics(app);
-  } catch (error) {
-    console.warn('Analytics initialization failed:', error);
-  }
-}
+// Skip emulators for Google Sign-in to work properly
 
-export { analytics };
+// Lazy load analytics only when needed
+export const getAnalytics = async () => {
+  if (typeof window !== 'undefined' && app) {
+    const { getAnalytics } = await import('firebase/analytics');
+    return getAnalytics(app);
+  }
+  return null;
+};
 export default app; 

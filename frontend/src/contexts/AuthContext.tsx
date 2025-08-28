@@ -4,9 +4,11 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { 
   User, 
   signInWithPopup, 
+  signInWithRedirect,
   GoogleAuthProvider, 
   signOut, 
-  onAuthStateChanged 
+  onAuthStateChanged,
+  getRedirectResult
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
@@ -38,10 +40,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     
     const provider = new GoogleAuthProvider();
+    provider.addScope('email');
+    provider.addScope('profile');
+    
     try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error('Login error:', error);
+      // Try popup first, fallback to redirect if popup fails
+      const result = await signInWithPopup(auth, provider);
+      console.log('Login successful:', result.user.email);
+      return result;
+    } catch (error: any) {
+      console.error('Popup login failed, trying redirect:', error);
+      
+      // If popup fails due to COOP policy or popup blocking, use redirect
+      if (error.code === 'auth/popup-blocked' || 
+          error.code === 'auth/cancelled-popup-request' ||
+          error.message?.includes('Cross-Origin-Opener-Policy')) {
+        try {
+          await signInWithRedirect(auth, provider);
+          // The page will redirect to Google, then back to our app
+          return;
+        } catch (redirectError) {
+          console.error('Redirect login also failed:', redirectError);
+          throw redirectError;
+        }
+      }
+      
       throw error;
     }
   }
@@ -67,6 +90,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    // Handle redirect result when page loads
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          console.log('Redirect login successful:', result.user.email);
+        }
+      } catch (error) {
+        console.error('Redirect result error:', error);
+      }
+    };
+
+    handleRedirectResult();
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setLoading(false);
@@ -84,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 } 

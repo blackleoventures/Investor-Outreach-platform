@@ -1,23 +1,38 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback } from "react";
+import Image from "next/image";
+import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { Users, List, Briefcase, Plus, X, Mail, UserPlus, TrendingUp, Activity } from "lucide-react";
-import { BarChart, Bar, PieChart, Pie, Cell } from "recharts";
-// TODO: Replace with current fetch util or axios; keeping inline for now
+// Charts are dynamically loaded to speed up initial render
+// Faster fetch helper with timeout and no-cache for dynamic endpoints
 const fetchData = async <T = any>(url: string): Promise<T> => {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-  return (await res.json()) as T;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
+  try {
+    const res = await fetch(url, { cache: 'no-store', signal: controller.signal });
+    if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+    return (await res.json()) as T;
+  } finally {
+    clearTimeout(timeout);
+  }
 };
-import { ResponsiveContainer, XAxis, YAxis, Tooltip, Legend } from "recharts";
-import { Button, Form, Input, Modal, Spin } from "antd";
+import dynamic from "next/dynamic";
+const MonthlyEmailBarChart = dynamic(() => import("@/components/charts/MonthlyEmailBarChart"), { ssr: false });
+const EmailDistributionPie = dynamic(() => import("@/components/charts/EmailDistributionPie"), { ssr: false });
+import { Button, Form, Input } from "antd";
+
+// Lazy-load heavy components
+const Modal = dynamic(async () => (await import("antd")).Modal, { ssr: false });
+const Spin = dynamic(async () => (await import("antd")).Spin, { ssr: false });
 import { useRouter } from "next/navigation";
 // TODO: Re-add DemoBanner when present in current codebase
-import Swal from "sweetalert2";
-import axios from "axios";
+// Lazily import heavy libs when needed to reduce initial bundle size
+let lazyAxios: typeof import("axios") | null = null;
+let lazySwal: typeof import("sweetalert2") | null = null;
 import { createStyles } from "antd-style";
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL as string;
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL as string) || '/api';
 
 const mockChartData = [
   { name: "Jan", emails: 3000 },
@@ -71,7 +86,7 @@ const API_ENDPOINTS = {
 };
 
 // Enhanced StatsCard with faster animations
-const StatsCard = ({ title, count, icon: Icon, trend, trendPositive, classNames }) => (
+const StatsCard = React.memo(({ title, count, icon: Icon, trend, trendPositive, classNames }: any) => (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -95,7 +110,7 @@ const StatsCard = ({ title, count, icon: Icon, trend, trendPositive, classNames 
       )}
     </div>
   </motion.div>
-);
+));
 
 const Profile = () => {
   const [loading, setLoading] = useState(false);
@@ -108,48 +123,48 @@ const Profile = () => {
   const [emailStats, setEmailStats] = useState(null);
   const [error, setError] = useState<string | null>(null);
 
-  const [stats, setStats] = useState({
+  type ClientDistributionItem = { name: string; value: number };
+  const [stats, setStats] = useState<{
+    clients: number;
+    investorLists: number;
+    totalContacts: number;
+    clientDistribution: ClientDistributionItem[];
+    performanceData?: typeof mockChartData;
+  }>({
     clients: 0,
     investorLists: 0,
     totalContacts: 0,
     clientDistribution: [],
   });
 
-  const {
-    user,
-    loginTime,
-    getTimeSinceLogin,
-    loading: authLoading,
-  } = useAuth();
+  const { currentUser, loading: authLoading } = useAuth();
 
   const [actualLoginTime, setActualLoginTime] = useState(null);
 
   useEffect(() => {
-    if (user && !actualLoginTime) {
+    if (currentUser && !actualLoginTime) {
       const loginTimestamp =
-        loginTime ||
-        user.metadata?.lastSignInTime ||
-        user.metadata?.creationTime ||
-        user.lastLoginAt ||
+        currentUser.metadata?.lastSignInTime ||
+        currentUser.metadata?.creationTime ||
         Date.now();
 
-      setActualLoginTime(loginTimestamp);
-      console.log("Login time set:", loginTimestamp, new Date(loginTimestamp));
+      setActualLoginTime(loginTimestamp as any);
+      console.log("Login time set:", loginTimestamp, new Date(loginTimestamp as any));
     }
-  }, [user, loginTime, actualLoginTime]);
+  }, [currentUser, actualLoginTime]);
 
-  const formatLoginTime = useCallback((timestamp) => {
+  const formatLoginTime = useCallback((timestamp: number | string | Date) => {
     if (!timestamp) return "Unknown";
 
     try {
-      const loginDate = new Date(timestamp);
+      const loginDate = new Date(timestamp as any);
 
       if (isNaN(loginDate.getTime())) {
         return "Invalid date";
       }
 
       const now = new Date();
-      const diffMs = now - loginDate;
+      const diffMs = (now as any) - (loginDate as any);
       const diffMinutes = Math.floor(diffMs / (1000 * 60));
       const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
       const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -177,11 +192,11 @@ const Profile = () => {
     }
   }, []);
 
-  const getExactLoginTime = useCallback((timestamp) => {
+  const getExactLoginTime = useCallback((timestamp: number | string | Date) => {
     if (!timestamp) return "Login time not available";
 
     try {
-      const loginDate = new Date(timestamp);
+      const loginDate = new Date(timestamp as any);
 
       if (isNaN(loginDate.getTime())) {
         return "Invalid login time";
@@ -223,7 +238,7 @@ const Profile = () => {
     },
   };
 
-  const toggleModal = useCallback((idx, target) => {
+  const toggleModal = useCallback((idx: number, target: boolean) => {
     setIsOpen(false);
     setIsModalOpen((p) => {
       const newState = [...p];
@@ -277,24 +292,33 @@ const Profile = () => {
     loadEmailStats();
   }, [loadEmailStats]);
 
-  const handleSave = async (values) => {
+  const handleSave = async (values: { listName: string }) => {
     try {
-      const response = await axios.post(API_ENDPOINTS.CONTACT_LISTS, {
+      if (!lazyAxios) {
+        lazyAxios = await import("axios");
+      }
+      const response = await lazyAxios.default.post(API_ENDPOINTS.CONTACT_LISTS, {
         listName: values.listName,
       });
       if (response.data.success) {
         toggleModal(0, false);
         form.resetFields();
-        Swal.fire({
+        if (!lazySwal) {
+          lazySwal = await import("sweetalert2");
+        }
+        lazySwal.default.fire({
           title: "Contact List Added Successfully",
           icon: "success",
           confirmButtonText: "Close",
         });
         router.push(`/dashboard/${response.data.id}/type`);
       }
-    } catch (error) {
-      if (error.response?.status === 409) {
-        Swal.fire({
+    } catch (error: any) {
+      if (error?.response?.status === 409) {
+        if (!lazySwal) {
+          lazySwal = await import("sweetalert2");
+        }
+        lazySwal.default.fire({
           title: "Duplicate List Name",
           text: error.response.data.message,
           icon: "warning",
@@ -302,7 +326,10 @@ const Profile = () => {
         });
       } else {
         console.error("Error saving list:", error);
-        Swal.fire({
+        if (!lazySwal) {
+          lazySwal = await import("sweetalert2");
+        }
+        lazySwal.default.fire({
           title: "Error",
           text: "Failed to create contact list",
           icon: "error",
@@ -322,7 +349,7 @@ const Profile = () => {
     );
   }
 
-  if (!user) {
+  if (!currentUser) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
         <div className="text-center">
@@ -343,13 +370,13 @@ const Profile = () => {
     );
   }
 
-  const currentUser = user.providerData?.[0] || user;
+  const currentUserInfo: any = (currentUser as any).providerData?.[0] || currentUser;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
       <div className="fixed top-4 left-4 z-50">
         <div className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center">
-          <img src="/logo.png" alt="Logo" className="w-8 h-8 object-contain" />
+          <Image src="/logo.png" alt="Logo" width={32} height={32} className="w-8 h-8 object-contain" priority />
         </div>
       </div>
       <motion.div
@@ -373,7 +400,7 @@ const Profile = () => {
                   </h1>
                 </div>
                 <h2 className="text-xl font-semibold text-gray-700">
-                  {currentUser?.displayName || currentUser?.email || "User"}
+                  {currentUserInfo?.displayName || currentUserInfo?.email || "User"}
                 </h2>
                 <p className="mt-1 opacity-90 text-gray-600">Here's your business overview</p>
               </div>
@@ -395,15 +422,15 @@ const Profile = () => {
               <div className="flex items-center gap-3">
                 <motion.div whileHover={{ scale: 1.05 }} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-indigo-500 flex items-center justify-center">
                   <span className="font-medium text-sm text-wrap sm:text-base text-white">
-                    {(currentUser?.displayName || currentUser?.email || "U")[0].toUpperCase()}
+                    {(currentUserInfo?.displayName || currentUserInfo?.email || "U")[0].toUpperCase()}
                   </span>
                 </motion.div>
                 <div className="text-center sm:text-left">
-                  <p className="font-medium text-sm sm:text-base">{currentUser?.email || "No email"}</p>
+                  <p className="font-medium text-sm sm:text-base">{currentUserInfo?.email || "No email"}</p>
                   <div className="space-y-1">
-                    <p className="text-xs sm:text-sm opacity-75">Last login: {formatLoginTime(actualLoginTime || loginTime)}</p>
-                    {actualLoginTime || loginTime ? (
-                      <p className="text-xs opacity-60 font-mono">{getExactLoginTime(actualLoginTime || loginTime)}</p>
+                    <p className="text-xs sm:text-sm opacity-75">Last login: {formatLoginTime(actualLoginTime as any)}</p>
+                    {actualLoginTime ? (
+                      <p className="text-xs opacity-60 font-mono">{getExactLoginTime(actualLoginTime as any)}</p>
                     ) : (
                       <p className="text-xs opacity-50 text-yellow-600">⚠️ Login time unavailable</p>
                     )}
@@ -593,7 +620,7 @@ const Profile = () => {
           <motion.div
             whileHover={{ y: -5, scale: 1.02 }}
             transition={{ duration: 0.2 }}
-            className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300"
+            className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 hover:shadow-2xl transition-all duration-300"
           >
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -601,21 +628,13 @@ const Profile = () => {
               </div>
               <h2 className="text-lg font-semibold text-gray-800">Email Monthly Report</h2>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={mockChartData}>
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="emails" fill="#4285F4" />
-              </BarChart>
-            </ResponsiveContainer>
+            <MonthlyEmailBarChart data={mockChartData} />
           </motion.div>
 
           <motion.div
             whileHover={{ y: -5, scale: 1.02 }}
             transition={{ duration: 0.2 }}
-            className="bg-white/90 backdrop-blur-sm p-6 rounded-2xl shadow-xl border border-white/20 hover:shadow-2xl transition-all duration-300"
+            className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 hover:shadow-2xl transition-all duration-300"
           >
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-purple-100 rounded-lg">
@@ -623,26 +642,7 @@ const Profile = () => {
               </div>
               <h2 className="text-lg font-semibold text-gray-800">Users Monthly Report</h2>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={emailDistributionData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  label
-                >
-                  {emailDistributionData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
+            <EmailDistributionPie data={emailDistributionData} />
           </motion.div>
         </motion.div>
 

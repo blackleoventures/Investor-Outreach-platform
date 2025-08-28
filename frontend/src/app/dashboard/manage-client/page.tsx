@@ -1,10 +1,34 @@
 // @ts-nocheck
 "use client";
 
-import { CheckCircleOutlined, EditOutlined, EyeOutlined, InboxOutlined, NotificationOutlined, PlusOutlined, SearchOutlined, SendOutlined, UserSwitchOutlined } from "@ant-design/icons";
-import { Badge, Button, Card, Descriptions, Form, Input, message, Modal, Space, Tag, Tooltip, Typography } from "antd";
-import Table from "antd/es/table";
-import axios from "axios";
+import {
+  CheckCircleOutlined,
+  EditOutlined,
+  EyeOutlined,
+  InboxOutlined,
+  NotificationOutlined,
+  PlusOutlined,
+  SearchOutlined,
+  SendOutlined,
+  UserSwitchOutlined,
+} from "@ant-design/icons";
+import {
+  Badge,
+  Button,
+  Card,
+  Descriptions,
+  Form,
+  Input,
+  message,
+  Modal,
+  Space,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
+// Lazy-load axios to reduce initial bundle size
+let lazyAxios: typeof import("axios") | null = null;
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,11 +59,14 @@ const ManageClients = () => {
   const loadClients = async (email = "") => {
     setLoading(true);
     try {
+      if (!lazyAxios) {
+        lazyAxios = await import("axios");
+      }
       const url = email
         ? `${BACKEND_URL}/clients?filter=active?email=${email}`
         : `${BACKEND_URL}/clients?filter=active`;
 
-      const response = await axios.get(url, {
+      const response = await lazyAxios.default.get(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -94,7 +121,10 @@ const ManageClients = () => {
 
   const handleArchive = async (id) => {
     try {
-      await axios.put(
+      if (!lazyAxios) {
+        lazyAxios = await import("axios");
+      }
+      await lazyAxios.default.put(
         `${BACKEND_URL}/clients/${id}`,
         {
           archive: true,
@@ -115,7 +145,10 @@ const ManageClients = () => {
 
   const checkEmailVerificationStatus = async (clientId, email) => {
     try {
-      const response = await axios.post(
+      if (!lazyAxios) {
+        lazyAxios = await import("axios");
+      }
+      const response = await lazyAxios.default.post(
         `${BACKEND_URL}/clients/get-verify-status`,
         { email: email },
         {
@@ -153,7 +186,10 @@ const ManageClients = () => {
 
   const handleEditSubmit = async (updatedClient) => {
     try {
-      const response = await axios.put(
+      if (!lazyAxios) {
+        lazyAxios = await import("axios");
+      }
+      const response = await lazyAxios.default.put(
         `${BACKEND_URL}/clients/${updatedClient.id}`,
         updatedClient,
         {
@@ -183,7 +219,10 @@ const ManageClients = () => {
 
   const handleCreateCampaign = async (name) => {
     try {
-      const response = await axios.post(
+      if (!lazyAxios) {
+        lazyAxios = await import("axios");
+      }
+      const response = await lazyAxios.default.post(
         `${BACKEND_URL}/campaign`,
         { name: name.name, company_id: companyId },
         {
@@ -210,7 +249,10 @@ const ManageClients = () => {
 
     setVerifyingEmail(client.id);
     try {
-      const response = await axios.post(
+      if (!lazyAxios) {
+        lazyAxios = await import("axios");
+      }
+      const response = await lazyAxios.default.post(
         `${BACKEND_URL}/clients/verify-email`,
         { clientId: client.id, email: client.email },
         {
@@ -270,7 +312,10 @@ const ManageClients = () => {
       imapPassword: data.imapPassword,
     };
     try {
-      const response = await axios.put(
+      if (!lazyAxios) {
+        lazyAxios = await import("axios");
+      }
+      const response = await lazyAxios.default.put(
         `${BACKEND_URL}/clients/add-credentials`,
         formData,
         {

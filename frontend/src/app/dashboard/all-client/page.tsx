@@ -8,7 +8,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL as string;
-import axios from "axios";
+// Lazy-load axios to reduce initial bundle size
+let lazyAxios: typeof import("axios") | null = null;
 
 const { Title, Text } = Typography;
 
@@ -131,12 +132,15 @@ const ClientsData = () => {
   const loadClients = async (email = "") => {
     setLoading(true);
     try {
+      if (!lazyAxios) {
+        lazyAxios = await import("axios");
+      }
       const filter = showAll ? "all" : "archived";
       const baseUrl = `${BACKEND_URL}/clients?filter=${filter}`;
 
       const url = email ? `${baseUrl}&email=${email}` : baseUrl;
 
-      const response = await axios.get(url, {
+      const response = await lazyAxios.default.get(url, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -156,7 +160,10 @@ const ClientsData = () => {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`${BACKEND_URL}/clients/${id}`, {
+      if (!lazyAxios) {
+        lazyAxios = await import("axios");
+      }
+      await lazyAxios.default.delete(`${BACKEND_URL}/clients/${id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -183,7 +190,10 @@ const ClientsData = () => {
 
   const handleUnArchive = async (id) => {
     try {
-      await axios.put(
+      if (!lazyAxios) {
+        lazyAxios = await import("axios");
+      }
+      await lazyAxios.default.put(
         `${BACKEND_URL}/clients/${id}`,
         {
           archive: false,
@@ -204,7 +214,10 @@ const ClientsData = () => {
 
   const handleEditSubmit = async (updatedClient) => {
     try {
-      const response = await axios.put(
+      if (!lazyAxios) {
+        lazyAxios = await import("axios");
+      }
+      const response = await lazyAxios.default.put(
         `${BACKEND_URL}/clients/${updatedClient.id}`,
         updatedClient,
         {

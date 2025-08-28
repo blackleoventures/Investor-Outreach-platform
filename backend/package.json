@@ -1,20 +1,25 @@
 {
   "name": "email-sender-server",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "src/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "build": "echo 'No build step required'"
+    "build": "echo 'No build step required'",
+    "vercel-build": "echo 'Building for Vercel'"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
+  "engines": {
+    "node": "18.x"
+  },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.777.0",
     "@aws-sdk/client-sns": "^3.787.0",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "csv-parser": "^3.2.0",
     "dotenv": "^16.4.7",
@@ -24,6 +29,13 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.10.0",
     "papaparse": "^5.5.2",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "pdf-parse": "^1.1.1",
+    "jszip": "^3.10.1",
+    "fast-xml-parser": "^4.3.4",
+    "undici": "^7.1.0",
+    "mammoth": "^1.8.0",
+    "docx": "^8.5.0",
+    "pdf-poppler": "^0.2.1"
   }
 }

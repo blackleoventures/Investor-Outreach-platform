@@ -1,6 +1,7 @@
 const dotenv = require("dotenv");
 const express = require("express");
 const cors = require("cors");
+const compression = require("compression");
 
 dotenv.config();
 
@@ -11,6 +12,10 @@ console.log("Firebase initialized successfully");
 
 const app = express();
 
+// Enable gzip/deflate compression for faster responses
+app.use(compression());
+
+// CORS with preflight caching to reduce OPTIONS overhead
 app.use(
   cors({
     origin: [
@@ -18,22 +23,41 @@ app.use(
       "http://localhost:5173",
       "https://email-sender-platform.web.app",
     ],
+    maxAge: 86400, // cache preflight for 24h
   })
 );
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Optional small cache for safe GETs (tweak per endpoint if needed)
+app.use((req, res, next) => {
+  if (req.method === "GET") {
+    res.setHeader("Cache-Control", "private, max-age=30");
+  }
+  next();
+});
 
 // Routes import
 const companyRoutes = require("./routes/company.route");
 const campaignRoutes = require("./routes/campaign.route");
 const contactListRoutes = require("./routes/contactList.route");
+const aiRoutes = require("./routes/ai.route");
 
 // Router Declaration
 app.use("/clients", companyRoutes);
 app.use("/campaign", campaignRoutes);
 app.use("/contact-list", contactListRoutes);
+app.use("/ai", aiRoutes);
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+
+// For Vercel deployment
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
+}
+
+// Export for Vercel
+module.exports = app;

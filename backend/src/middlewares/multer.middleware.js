@@ -1,5 +1,7 @@
 const multer = require("multer");
+const os = require("os");
 
-const upload = multer({ dest: "/tmp" });
+// Use system temp directory for cross-platform safety (Windows/Linux/macOS)
+const upload = multer({ dest: os.tmpdir() });
 
 module.exports = upload;
