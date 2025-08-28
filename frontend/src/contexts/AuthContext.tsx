@@ -43,13 +43,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     provider.addScope('email');
     provider.addScope('profile');
     
-    // Always use redirect for better mobile compatibility
-    try {
-      await signInWithRedirect(auth, provider);
-      return;
-    } catch (error) {
-      console.error('Redirect login failed:', error);
-      throw error;
+    // Mobile detection
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // For mobile, always use redirect
+      try {
+        console.log('Mobile detected, using redirect method');
+        await signInWithRedirect(auth, provider);
+        return;
+      } catch (error: any) {
+        console.error('Mobile redirect failed:', error);
+        
+        // iOS Safari specific fix
+        if (isIOS && error.code === 'auth/operation-not-supported-in-this-environment') {
+          alert('Please use Safari browser for Google Sign-in on iOS');
+        }
+        throw error;
+      }
+    } else {
+      // Desktop: try popup first, fallback to redirect
+      try {
+        const result = await signInWithPopup(auth, provider);
+        console.log('Desktop popup login successful');
+        return result;
+      } catch (error: any) {
+        console.log('Popup failed, trying redirect:', error.code);
+        await signInWithRedirect(auth, provider);
+        return;
+      }
     }
   }
 

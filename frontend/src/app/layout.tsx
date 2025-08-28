@@ -17,6 +17,7 @@ const robotoMono = Roboto_Mono({
 export const metadata: Metadata = {
   title: "Send Email - Email Campaign Management",
   description: "Modern email campaign management platform built with Next.js and React",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no",
 };
 
 export default function RootLayout({
