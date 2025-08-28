@@ -22,6 +22,7 @@ app.use(
       "http://localhost:3000",
       "http://localhost:5173",
       "https://email-sender-platform.web.app",
+      "https://investor-outreach-platform.vercel.app",
     ],
     maxAge: 86400, // cache preflight for 24h
   })
