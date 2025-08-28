@@ -43,29 +43,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     provider.addScope('email');
     provider.addScope('profile');
     
-    try {
-      // Try popup first, fallback to redirect if popup fails
-      const result = await signInWithPopup(auth, provider);
-      console.log('Login successful:', result.user.email);
-      return result;
-    } catch (error: any) {
-      console.error('Popup login failed, trying redirect:', error);
-      
-      // If popup fails due to COOP policy or popup blocking, use redirect
-      if (error.code === 'auth/popup-blocked' || 
-          error.code === 'auth/cancelled-popup-request' ||
-          error.message?.includes('Cross-Origin-Opener-Policy')) {
+    // Check if mobile device
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    if (isMobile) {
+      // Use redirect for mobile devices
+      try {
+        await signInWithRedirect(auth, provider);
+        return;
+      } catch (error) {
+        console.error('Mobile redirect login failed:', error);
+        throw error;
+      }
+    } else {
+      // Use popup for desktop
+      try {
+        const result = await signInWithPopup(auth, provider);
+        console.log('Login successful:', result.user.email);
+        return result;
+      } catch (error: any) {
+        console.error('Popup login failed, trying redirect:', error);
+        
+        // Fallback to redirect
         try {
           await signInWithRedirect(auth, provider);
-          // The page will redirect to Google, then back to our app
           return;
         } catch (redirectError) {
           console.error('Redirect login also failed:', redirectError);
           throw redirectError;
         }
       }
-      
-      throw error;
     }
   }
 
