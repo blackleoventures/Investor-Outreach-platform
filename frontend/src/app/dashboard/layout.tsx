@@ -204,7 +204,7 @@ export default function DashboardLayout({
       <Header
         style={{
           background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-          padding: isMobile ? "0 16px" : "0 24px",
+          padding: isMobile ? "0 12px" : "0 24px",
           borderBottom: "1px solid #e2e8f0",
           display: "flex",
           alignItems: "center",
@@ -215,25 +215,36 @@ export default function DashboardLayout({
           left: 0,
           right: 0,
           zIndex: 1000,
-          height: "64px"
+          height: isMobile ? "56px" : "64px"
         }}
       >
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md p-1">
+        <div className="flex items-center gap-2">
+          <div className={`${isMobile ? 'w-8 h-8' : 'w-10 h-10'} bg-white rounded-full flex items-center justify-center shadow-md p-1`}>
             <Image 
               src="/logo.png" 
               alt="Logo" 
-              width={32} 
-              height={32} 
-              className="w-8 h-8 object-contain" 
+              width={isMobile ? 24 : 32} 
+              height={isMobile ? 24 : 32} 
+              className={`${isMobile ? 'w-6 h-6' : 'w-8 h-8'} object-contain`} 
             />
           </div>
-          <Title level={isMobile ? 5 : 4} className="m-0 text-white font-semibold">
-            Investor Outreach Platform
+          <Title 
+            level={isMobile ? 5 : 4} 
+            className="m-0 text-white font-semibold"
+            style={{ 
+              fontSize: isMobile ? '14px' : '18px',
+              lineHeight: isMobile ? '20px' : '24px',
+              whiteSpace: isMobile ? 'nowrap' : 'normal',
+              overflow: isMobile ? 'hidden' : 'visible',
+              textOverflow: isMobile ? 'ellipsis' : 'clip',
+              maxWidth: isMobile ? '150px' : 'none'
+            }}
+          >
+            {isMobile ? 'Investor Platform' : 'Investor Outreach Platform'}
           </Title>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <Dropdown
             menu={{ items: userMenuItems }}
             placement="bottomRight"
@@ -246,7 +257,7 @@ export default function DashboardLayout({
                 size={isMobile ? "small" : "default"}
               />
               {!isMobile && (
-                <span className="text-gray-700">
+                <span className="text-white text-sm">
                   {currentUser.displayName || currentUser.email}
                 </span>
               )}
@@ -261,15 +272,15 @@ export default function DashboardLayout({
                 setMobileMenuOpen(true);
                 setDrawerKey(prev => prev + 1);
               }}
-              size="large"
-              style={{ color: 'white' }}
+              size="small"
+              style={{ color: 'white', padding: '4px' }}
             />
           )}
         </div>
       </Header>
 
       {/* Main Content Area */}
-      <div style={{ display: "flex", flex: 1, marginTop: "64px" }}>
+      <div style={{ display: "flex", flex: 1, marginTop: isMobile ? "56px" : "64px" }}>
         {/* Desktop Sidebar */}
         {!isMobile && (
           <Sider
@@ -278,10 +289,10 @@ export default function DashboardLayout({
               background: "#f8fafc",
               borderRight: "1px solid #e2e8f0",
               boxShadow: "2px 0 8px rgba(0,0,0,0.1)",
-              height: "calc(100vh - 64px)",
+              height: `calc(100vh - ${isMobile ? '56px' : '64px'})`,
               position: "fixed",
               left: 0,
-              top: "64px",
+              top: isMobile ? "56px" : "64px",
               overflow: "auto"
             }}
           >
@@ -299,9 +310,14 @@ export default function DashboardLayout({
           }}
           open={mobileMenuOpen}
           bodyStyle={{ padding: 0 }}
-          width={250}
+          width={isMobile ? Math.min(280, window.innerWidth * 0.8) : 250}
           key={`mobile-drawer-${drawerKey}`}
           destroyOnClose={true}
+          headerStyle={{ 
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+            color: "white",
+            borderBottom: "1px solid #e2e8f0"
+          }}
         >
           <SidebarContent />
         </Drawer>
@@ -311,19 +327,19 @@ export default function DashboardLayout({
           style={{
             flex: 1,
             marginLeft: !isMobile ? "250px" : "0",
-            padding: isMobile ? "16px" : "24px",
+            padding: isMobile ? "12px" : "24px",
             background: "#f5f5f5",
-            minHeight: "calc(100vh - 64px)"
+            minHeight: `calc(100vh - ${isMobile ? '56px' : '64px'})`
           }}
         >
           <div
             style={{
               background: "#fff",
-              borderRadius: "12px",
-              padding: isMobile ? "16px" : "24px",
+              borderRadius: isMobile ? "8px" : "12px",
+              padding: isMobile ? "12px" : "24px",
               boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
               border: "1px solid #f1f5f9",
-              minHeight: "calc(100vh - 128px)"
+              minHeight: `calc(100vh - ${isMobile ? '88px' : '128px'})`
             }}
           >
             {children}
