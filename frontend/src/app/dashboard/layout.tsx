@@ -40,7 +40,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { currentUser, logout } = useAuth();
+  const { currentUser, logout, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -56,10 +56,22 @@ export default function DashboardLayout({
   }, []);
 
   useEffect(() => {
-    if (!currentUser) {
+    if (!loading && !currentUser) {
       router.push("/");
     }
-  }, [currentUser, router]);
+  }, [currentUser, loading, router]);
+
+  // Show loading spinner while checking auth
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-600 text-sm">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogout = useCallback(async () => {
     try {

@@ -24,10 +24,26 @@ export default function Home() {
     }
   };
 
+  // Show loading spinner during auth check
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-pulse" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] via-[#0b1220] to-[#0a0f1a]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-white text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is logged in, don't show login page (redirect will happen)
+  if (currentUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] via-[#0b1220] to-[#0a0f1a]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-white text-sm">Redirecting to dashboard...</p>
+        </div>
       </div>
     );
   }
