@@ -162,15 +162,20 @@ export default function DashboardLayout({
 
   const SidebarContent = () => (
     <>
-      <div className="p-4 border-b border-gray-200">
-        <Title level={4} className="m-0 text-center">
-          Investor Outreach
-        </Title>
+      <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-purple-600">
+        <div className="flex items-center justify-center gap-3">
+          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg">
+            <span className="text-blue-600 font-bold text-lg">IO</span>
+          </div>
+          <Title level={4} className="m-0 text-white font-semibold">
+            Investor Outreach
+          </Title>
+        </div>
       </div>
       <Menu
         mode="inline"
         selectedKeys={[pathname]}
-        style={{ borderRight: 0 }}
+        style={{ borderRight: 0, backgroundColor: '#f8fafc' }}
         items={menuItems}
         onClick={() => isMobile && setMobileMenuOpen(false)}
       />
@@ -184,8 +189,9 @@ export default function DashboardLayout({
         <Sider
           width={250}
           style={{
-            background: "#fff",
-            borderRight: "1px solid #f0f0f0",
+            background: "#f8fafc",
+            borderRight: "1px solid #e2e8f0",
+            boxShadow: "2px 0 8px rgba(0,0,0,0.1)",
           }}
         >
           <SidebarContent />
@@ -194,7 +200,14 @@ export default function DashboardLayout({
 
       {/* Mobile Drawer */}
       <Drawer
-        title="Navigation"
+        title={
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+              <span className="text-white font-bold text-sm">IO</span>
+            </div>
+            <span className="text-gray-800 font-semibold">Navigation</span>
+          </div>
+        }
         placement="left"
         onClose={() => setMobileMenuOpen(false)}
         open={mobileMenuOpen}
@@ -207,25 +220,32 @@ export default function DashboardLayout({
       <Layout>
         <Header
           style={{
-            background: "#fff",
+            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
             padding: isMobile ? "0 16px" : "0 24px",
-            borderBottom: "1px solid #f0f0f0",
+            borderBottom: "1px solid #e2e8f0",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
           }}
         >
           <div className="flex items-center gap-3">
             {isMobile && (
-              <Button
-                type="text"
-                icon={<MenuOutlined />}
-                onClick={() => setMobileMenuOpen(true)}
-                size="large"
-              />
+              <>
+                <Button
+                  type="text"
+                  icon={<MenuOutlined />}
+                  onClick={() => setMobileMenuOpen(true)}
+                  size="large"
+                  style={{ color: 'white' }}
+                />
+                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md">
+                  <span className="text-blue-600 font-bold text-sm">IO</span>
+                </div>
+              </>
             )}
-            <Title level={isMobile ? 5 : 4} className="m-0">
-              Dashboard
+            <Title level={isMobile ? 5 : 4} className="m-0 text-white font-semibold">
+              {isMobile ? "IO Platform" : "Investor Outreach Platform"}
             </Title>
           </div>
 
@@ -254,8 +274,10 @@ export default function DashboardLayout({
             margin: isMobile ? "16px" : "24px",
             padding: isMobile ? "16px" : "24px",
             background: "#fff",
-            borderRadius: "8px",
+            borderRadius: "12px",
             minHeight: "calc(100vh - 112px)",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+            border: "1px solid #f1f5f9",
           }}
         >
           {children}
