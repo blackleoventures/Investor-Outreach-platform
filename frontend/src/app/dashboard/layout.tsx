@@ -40,6 +40,30 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Add mobile-specific styles
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const style = document.createElement('style');
+      style.textContent = `
+        @media (max-width: 768px) {
+          body {
+            overflow-x: hidden !important;
+          }
+          .ant-layout {
+            overflow-x: hidden !important;
+          }
+          .ant-table-wrapper {
+            overflow-x: auto !important;
+          }
+        }
+      `;
+      document.head.appendChild(style);
+      
+      return () => {
+        document.head.removeChild(style);
+      };
+    }
+  }, []);
   const { currentUser, logout, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
@@ -199,7 +223,7 @@ export default function DashboardLayout({
   );
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
       {/* Header - Full Width */}
       <Header
         style={{
@@ -280,7 +304,13 @@ export default function DashboardLayout({
       </Header>
 
       {/* Main Content Area */}
-      <div style={{ display: "flex", flex: 1, marginTop: isMobile ? "56px" : "64px" }}>
+      <div style={{ 
+        display: "flex", 
+        flex: 1, 
+        marginTop: isMobile ? "56px" : "64px",
+        overflow: "hidden",
+        position: "relative"
+      }}>
         {/* Desktop Sidebar */}
         {!isMobile && (
           <Sider
@@ -310,7 +340,7 @@ export default function DashboardLayout({
           }}
           open={mobileMenuOpen}
           bodyStyle={{ padding: 0 }}
-          width={isMobile ? Math.min(280, window.innerWidth * 0.8) : 250}
+          width={isMobile ? 280 : 250}
           key={`mobile-drawer-${drawerKey}`}
           destroyOnClose={true}
           headerStyle={{ 
@@ -327,19 +357,23 @@ export default function DashboardLayout({
           style={{
             flex: 1,
             marginLeft: !isMobile ? "250px" : "0",
-            padding: isMobile ? "12px" : "24px",
+            padding: isMobile ? "8px" : "24px",
             background: "#f5f5f5",
-            minHeight: `calc(100vh - ${isMobile ? '56px' : '64px'})`
+            height: `calc(100vh - ${isMobile ? '56px' : '64px'})`,
+            overflow: "auto",
+            position: "relative"
           }}
         >
           <div
             style={{
               background: "#fff",
               borderRadius: isMobile ? "8px" : "12px",
-              padding: isMobile ? "12px" : "24px",
+              padding: isMobile ? "16px" : "24px",
               boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
               border: "1px solid #f1f5f9",
-              minHeight: `calc(100vh - ${isMobile ? '88px' : '128px'})`
+              minHeight: isMobile ? "auto" : `calc(100vh - 128px)`,
+              width: "100%",
+              boxSizing: "border-box"
             }}
           >
             {children}
