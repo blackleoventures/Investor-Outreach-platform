@@ -8,7 +8,9 @@ import {
   GoogleAuthProvider, 
   signOut, 
   onAuthStateChanged,
-  getRedirectResult
+  getRedirectResult,
+  setPersistence,
+  browserLocalPersistence
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 
@@ -39,9 +41,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Authentication service not available');
     }
     
+    // Set persistence to LOCAL for mobile
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch (error) {
+      console.warn('Could not set auth persistence:', error);
+    }
+    
     const provider = new GoogleAuthProvider();
     provider.addScope('email');
     provider.addScope('profile');
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    });
     
     // Mobile detection
     const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -50,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (isMobile) {
       // For mobile, always use redirect
       try {
-        console.log('Mobile detected, using redirect method');
+        console.log('Mobile detected, using redirect method with persistence');
         await signInWithRedirect(auth, provider);
         return;
       } catch (error: any) {
@@ -97,26 +109,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
+    let mounted = true;
+
     // Handle redirect result when page loads
     const handleRedirectResult = async () => {
       try {
         const result = await getRedirectResult(auth);
-        if (result) {
+        if (result && mounted) {
           console.log('Redirect login successful:', result.user.email);
+          setCurrentUser(result.user);
         }
       } catch (error) {
         console.error('Redirect result error:', error);
       }
     };
 
-    handleRedirectResult();
-
+    // Set up auth state listener
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setCurrentUser(user);
-      setLoading(false);
+      if (mounted) {
+        console.log('Auth state changed:', user ? user.email : 'No user');
+        setCurrentUser(user);
+        setLoading(false);
+      }
     });
 
-    return unsubscribe;
+    // Handle redirect result after setting up listener
+    handleRedirectResult();
+
+    return () => {
+      mounted = false;
+      unsubscribe();
+    };
   }, []);
 
   const value = {
