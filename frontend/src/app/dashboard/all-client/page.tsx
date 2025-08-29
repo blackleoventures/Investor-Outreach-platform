@@ -151,11 +151,7 @@ const ClientsData = () => {
       );
     } catch (error) {
       console.error("Error fetching clients:", error);
-      if (error.response?.status === 401) {
-        console.log("Authentication error - silently handling");
-      } else {
-        message.error(`Failed to load clients: ${error.message}`);
-      }
+      // Silently handle all errors without showing popup messages
       setClients([]);
     } finally {
       setLoading(false);
@@ -176,7 +172,7 @@ const ClientsData = () => {
       setClients(clients.filter((client) => client._id !== id));
     } catch (error) {
       console.error("Delete error:", error);
-      message.error(`Error deleting client: ${error.message}`);
+      // Silently handle delete errors
     }
   };
 
@@ -212,7 +208,7 @@ const ClientsData = () => {
       setClients(clients.filter((client) => client.id !== id));
     } catch (error) {
       console.error("Archive error:", error);
-      message.error(`Error unarchiving client: ${error.message}`);
+      // Silently handle archive errors
     }
   };
 
@@ -240,7 +236,7 @@ const ClientsData = () => {
       setSelectedClient(null);
     } catch (error) {
       console.error("Update error:", error);
-      message.error(`Error updating client: ${error.message}`);
+      // Silently handle update errors
     }
   };
 

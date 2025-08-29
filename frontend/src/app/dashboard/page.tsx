@@ -258,7 +258,7 @@ const Profile = () => {
       });
     } catch (err) {
       console.error("Error loading stats:", err);
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      // Silently handle stats loading errors
       setStats({
         clients: 0,
         investorLists: 0,
@@ -278,7 +278,7 @@ const Profile = () => {
       setEmailStats(data.data);
     } catch (err) {
       console.error("Error loading email stats:", err);
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      // Silently handle email stats loading errors
     } finally {
       setEmailStatLoading(false);
     }
@@ -559,13 +559,7 @@ const Profile = () => {
       </motion.div>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {error && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-6">
-            <p className="text-yellow-800">
-              <strong>Notice:</strong> Some data may not be available. {error}
-            </p>
-          </div>
-        )}
+
 
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
