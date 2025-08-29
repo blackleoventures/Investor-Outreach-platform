@@ -1,14 +1,21 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import AuthDebugInfo from "@/components/AuthDebugInfo";
+import AuthTestButton from "@/components/AuthTestButton";
 
 export default function Home() {
-  const { currentUser, login, loading } = useAuth();
+  const { currentUser, login, loading, authError, retryLogin, clearError } = useAuth();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (currentUser && !loading) {
@@ -21,8 +28,21 @@ export default function Home() {
       await login();
     } catch (error) {
       console.error("Login failed:", error);
+      // Error will be handled by AuthContext and shown via authError
     }
   };
+
+  // Prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] via-[#0b1220] to-[#0a0f1a]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-white text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Show loading spinner during auth check
   if (loading) {
@@ -85,14 +105,43 @@ export default function Home() {
           </motion.p>
         </div>
 
+        {authError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm"
+          >
+            <div className="text-center mb-2">{authError}</div>
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={retryLogin}
+                className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors"
+              >
+                Retry
+              </button>
+              <button
+                onClick={clearError}
+                className="px-3 py-1 bg-gray-600 hover:bg-gray-700 rounded text-xs transition-colors"
+              >
+                Dismiss
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         <motion.button
           whileHover={{ scale: 1.02, y: -2 }}
           whileTap={{ scale: 0.98 }}
           onClick={handleLogin}
-          className="w-full bg-white hover:bg-gray-100 text-black font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl text-sm sm:text-base"
+          disabled={loading}
+          className="w-full bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl text-sm sm:text-base"
         >
-          <Image src="/google.png" alt="Google" width={24} height={24} className="w-6 h-6" />
-          Sign in with Google
+          {loading ? (
+            <div className="w-6 h-6 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Image src="/google.png" alt="Google" width={24} height={24} className="w-6 h-6" />
+          )}
+          {loading ? 'Signing in...' : 'Sign in with Google'}
         </motion.button>
 
         <motion.div
@@ -104,8 +153,14 @@ export default function Home() {
           <p className="text-sm text-gray-400">
             By signing in, you agree to our Terms of Service and Privacy Policy
           </p>
+          <p className="text-xs text-gray-500 mt-2">
+            Having trouble? Try refreshing the page or using a different browser
+          </p>
         </motion.div>
       </motion.div>
+      
+      <AuthDebugInfo />
+      <AuthTestButton />
     </div>
   );
 }

@@ -45,8 +45,10 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
@@ -54,24 +56,6 @@ export default function DashboardLayout({
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-
-  useEffect(() => {
-    if (!loading && !currentUser) {
-      router.push("/");
-    }
-  }, [currentUser, loading, router]);
-
-  // Show loading spinner while checking auth
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-          <p className="text-gray-600 text-sm">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
 
   const handleLogout = useCallback(async () => {
     try {
@@ -168,6 +152,36 @@ export default function DashboardLayout({
       onClick: handleLogout,
     },
   ]), [handleLogout]);
+
+  useEffect(() => {
+    if (!loading && !currentUser) {
+      router.push("/");
+    }
+  }, [currentUser, loading, router]);
+
+  // Prevent hydration mismatch
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-600 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading spinner while checking auth
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <p className="text-gray-600 text-sm">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!currentUser) {
     return null;
