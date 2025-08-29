@@ -374,11 +374,7 @@ const Profile = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-      <div className="fixed top-4 left-4 z-50">
-        <div className="w-10 h-10 rounded-full bg-white shadow-lg flex items-center justify-center">
-          <Image src="/logo.png" alt="Logo" width={32} height={32} className="w-8 h-8 object-contain" priority />
-        </div>
-      </div>
+
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
