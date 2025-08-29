@@ -30,6 +30,7 @@ import {
   RobotOutlined,
   MenuOutlined,
 } from "@ant-design/icons";
+import Image from "next/image";
 
 const { Header, Sider, Content } = Layout;
 const { Title } = Typography;
@@ -161,22 +162,13 @@ export default function DashboardLayout({
   }
 
   const SidebarContent = () => (
-    <>
-      <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-purple-600">
-        <div className="flex items-center justify-center">
-          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg">
-            <span className="text-blue-600 font-bold text-xl">IO</span>
-          </div>
-        </div>
-      </div>
-      <Menu
-        mode="inline"
-        selectedKeys={[pathname]}
-        style={{ borderRight: 0, backgroundColor: '#f8fafc' }}
-        items={menuItems}
-        onClick={() => isMobile && setMobileMenuOpen(false)}
-      />
-    </>
+    <Menu
+      mode="inline"
+      selectedKeys={[pathname]}
+      style={{ borderRight: 0, backgroundColor: '#f8fafc', paddingTop: '16px' }}
+      items={menuItems}
+      onClick={() => isMobile && setMobileMenuOpen(false)}
+    />
   );
 
   return (
@@ -229,8 +221,14 @@ export default function DashboardLayout({
                 style={{ color: 'white' }}
               />
             )}
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md">
-              <span className="text-blue-600 font-bold text-lg">IO</span>
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md p-1">
+              <Image 
+                src="/logo.png" 
+                alt="Logo" 
+                width={32} 
+                height={32} 
+                className="w-8 h-8 object-contain" 
+              />
             </div>
             <Title level={isMobile ? 5 : 4} className="m-0 text-white font-semibold">
               Investor Outreach Platform
