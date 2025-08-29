@@ -33,12 +33,12 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] via-[#0b1220] to-[#0a0f1a]">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] via-[#0b1220] to-[#0a0f1a] px-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="bg-black/70 backdrop-blur-md p-8 rounded-2xl shadow-2xl max-w-md w-full mx-4 border border-gray-800"
+        className="bg-black/70 backdrop-blur-md p-6 sm:p-8 rounded-2xl shadow-2xl max-w-md w-full border border-gray-800"
       >
         <div className="text-center mb-8">
           <motion.div
@@ -55,7 +55,7 @@ export default function Home() {
             initial={{ scale: 0.9 }}
             animate={{ scale: 1 }}
             transition={{ duration: 0.5, delay: 0.2 }}
-            className="text-3xl font-bold text-white mb-2"
+            className="text-2xl sm:text-3xl font-bold text-white mb-2"
           >
             Welcome back
           </motion.h1>
@@ -73,7 +73,7 @@ export default function Home() {
           whileHover={{ scale: 1.02, y: -2 }}
           whileTap={{ scale: 0.98 }}
           onClick={handleLogin}
-          className="w-full bg-white hover:bg-gray-100 text-black font-semibold py-4 px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl"
+          className="w-full bg-white hover:bg-gray-100 text-black font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl text-sm sm:text-base"
         >
           <Image src="/google.png" alt="Google" width={24} height={24} className="w-6 h-6" />
           Sign in with Google

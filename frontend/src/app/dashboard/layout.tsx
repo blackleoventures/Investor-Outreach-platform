@@ -3,7 +3,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useState } from "react";
 import {
   Layout,
   Menu,
@@ -12,6 +12,7 @@ import {
   Dropdown,
   Space,
   Typography,
+  Drawer,
 } from "antd";
 import {
   UserOutlined,
@@ -27,6 +28,7 @@ import {
   SearchOutlined,
   UserSwitchOutlined,
   RobotOutlined,
+  MenuOutlined,
 } from "@ant-design/icons";
 
 const { Header, Sider, Content } = Layout;
@@ -40,6 +42,17 @@ export default function DashboardLayout({
   const { currentUser, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   useEffect(() => {
     if (!currentUser) {
@@ -147,41 +160,71 @@ export default function DashboardLayout({
     return null;
   }
 
+  const SidebarContent = () => (
+    <>
+      <div className="p-4 border-b border-gray-200">
+        <Title level={4} className="m-0 text-center">
+          Investor Outreach
+        </Title>
+      </div>
+      <Menu
+        mode="inline"
+        selectedKeys={[pathname]}
+        style={{ borderRight: 0 }}
+        items={menuItems}
+        onClick={() => isMobile && setMobileMenuOpen(false)}
+      />
+    </>
+  );
+
   return (
     <Layout style={{ minHeight: "100vh" }}>
-      <Sider
+      {/* Desktop Sidebar */}
+      {!isMobile && (
+        <Sider
+          width={250}
+          style={{
+            background: "#fff",
+            borderRight: "1px solid #f0f0f0",
+          }}
+        >
+          <SidebarContent />
+        </Sider>
+      )}
+
+      {/* Mobile Drawer */}
+      <Drawer
+        title="Navigation"
+        placement="left"
+        onClose={() => setMobileMenuOpen(false)}
+        open={mobileMenuOpen}
+        bodyStyle={{ padding: 0 }}
         width={250}
-        style={{
-          background: "#fff",
-          borderRight: "1px solid #f0f0f0",
-        }}
       >
-        <div className="p-4 border-b border-gray-200">
-          <Title level={4} className="m-0 text-center">
-            Investor Outreach
-          </Title>
-        </div>
-        <Menu
-          mode="inline"
-          selectedKeys={[pathname]}
-          style={{ borderRight: 0 }}
-          items={menuItems}
-        />
-      </Sider>
+        <SidebarContent />
+      </Drawer>
 
       <Layout>
         <Header
           style={{
             background: "#fff",
-            padding: "0 24px",
+            padding: isMobile ? "0 16px" : "0 24px",
             borderBottom: "1px solid #f0f0f0",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
           }}
         >
-          <div className="flex items-center">
-            <Title level={4} className="m-0">
+          <div className="flex items-center gap-3">
+            {isMobile && (
+              <Button
+                type="text"
+                icon={<MenuOutlined />}
+                onClick={() => setMobileMenuOpen(true)}
+                size="large"
+              />
+            )}
+            <Title level={isMobile ? 5 : 4} className="m-0">
               Dashboard
             </Title>
           </div>
@@ -195,18 +238,21 @@ export default function DashboardLayout({
               <Avatar
                 icon={<UserOutlined />}
                 src={currentUser.photoURL || undefined}
+                size={isMobile ? "small" : "default"}
               />
-              <span className="text-gray-700">
-                {currentUser.displayName || currentUser.email}
-              </span>
+              {!isMobile && (
+                <span className="text-gray-700">
+                  {currentUser.displayName || currentUser.email}
+                </span>
+              )}
             </Space>
           </Dropdown>
         </Header>
 
         <Content
           style={{
-            margin: "24px",
-            padding: "24px",
+            margin: isMobile ? "16px" : "24px",
+            padding: isMobile ? "16px" : "24px",
             background: "#fff",
             borderRadius: "8px",
             minHeight: "calc(100vh - 112px)",
