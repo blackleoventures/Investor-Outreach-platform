@@ -44,6 +44,7 @@ export default function DashboardLayout({
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [drawerKey, setDrawerKey] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -198,69 +199,41 @@ export default function DashboardLayout({
   );
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      {/* Desktop Sidebar */}
-      {!isMobile && (
-        <Sider
-          width={250}
-          style={{
-            background: "#f8fafc",
-            borderRight: "1px solid #e2e8f0",
-            boxShadow: "2px 0 8px rgba(0,0,0,0.1)",
-          }}
-        >
-          <SidebarContent />
-        </Sider>
-      )}
-
-      {/* Mobile Drawer */}
-      <Drawer
-        title="Navigation"
-        placement="left"
-        onClose={() => setMobileMenuOpen(false)}
-        open={mobileMenuOpen}
-        bodyStyle={{ padding: 0 }}
-        width={250}
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+      {/* Header - Full Width */}
+      <Header
+        style={{
+          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
+          padding: isMobile ? "0 16px" : "0 24px",
+          borderBottom: "1px solid #e2e8f0",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          position: "fixed",
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 1000,
+          height: "64px"
+        }}
       >
-        <SidebarContent />
-      </Drawer>
-
-      <Layout>
-        <Header
-          style={{
-            background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-            padding: isMobile ? "0 16px" : "0 24px",
-            borderBottom: "1px solid #e2e8f0",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-          }}
-        >
-          <div className="flex items-center gap-3">
-            {isMobile && (
-              <Button
-                type="text"
-                icon={<MenuOutlined />}
-                onClick={() => setMobileMenuOpen(true)}
-                size="large"
-                style={{ color: 'white' }}
-              />
-            )}
-            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md p-1">
-              <Image 
-                src="/logo.png" 
-                alt="Logo" 
-                width={32} 
-                height={32} 
-                className="w-8 h-8 object-contain" 
-              />
-            </div>
-            <Title level={isMobile ? 5 : 4} className="m-0 text-white font-semibold">
-              Investor Outreach Platform
-            </Title>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md p-1">
+            <Image 
+              src="/logo.png" 
+              alt="Logo" 
+              width={32} 
+              height={32} 
+              className="w-8 h-8 object-contain" 
+            />
           </div>
+          <Title level={isMobile ? 5 : 4} className="m-0 text-white font-semibold">
+            Investor Outreach Platform
+          </Title>
+        </div>
 
+        <div className="flex items-center gap-3">
           <Dropdown
             menu={{ items: userMenuItems }}
             placement="bottomRight"
@@ -279,23 +252,85 @@ export default function DashboardLayout({
               )}
             </Space>
           </Dropdown>
-        </Header>
+          
+          {isMobile && (
+            <Button
+              type="text"
+              icon={<MenuOutlined />}
+              onClick={() => {
+                setMobileMenuOpen(true);
+                setDrawerKey(prev => prev + 1);
+              }}
+              size="large"
+              style={{ color: 'white' }}
+            />
+          )}
+        </div>
+      </Header>
 
-        <Content
+      {/* Main Content Area */}
+      <div style={{ display: "flex", flex: 1, marginTop: "64px" }}>
+        {/* Desktop Sidebar */}
+        {!isMobile && (
+          <Sider
+            width={250}
+            style={{
+              background: "#f8fafc",
+              borderRight: "1px solid #e2e8f0",
+              boxShadow: "2px 0 8px rgba(0,0,0,0.1)",
+              height: "calc(100vh - 64px)",
+              position: "fixed",
+              left: 0,
+              top: "64px",
+              overflow: "auto"
+            }}
+          >
+            <SidebarContent />
+          </Sider>
+        )}
+
+        {/* Mobile Drawer */}
+        <Drawer
+          title="Navigation"
+          placement="left"
+          onClose={() => {
+            setMobileMenuOpen(false);
+            setDrawerKey(prev => prev + 1);
+          }}
+          open={mobileMenuOpen}
+          bodyStyle={{ padding: 0 }}
+          width={250}
+          key={`mobile-drawer-${drawerKey}`}
+          destroyOnClose={true}
+        >
+          <SidebarContent />
+        </Drawer>
+
+        {/* Content */}
+        <div
           style={{
-            margin: isMobile ? "16px" : "24px",
+            flex: 1,
+            marginLeft: !isMobile ? "250px" : "0",
             padding: isMobile ? "16px" : "24px",
-            background: "#fff",
-            borderRadius: "12px",
-            minHeight: "calc(100vh - 112px)",
-            boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-            border: "1px solid #f1f5f9",
+            background: "#f5f5f5",
+            minHeight: "calc(100vh - 64px)"
           }}
         >
-          {children}
-        </Content>
-      </Layout>
-    </Layout>
+          <div
+            style={{
+              background: "#fff",
+              borderRadius: "12px",
+              padding: isMobile ? "16px" : "24px",
+              boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+              border: "1px solid #f1f5f9",
+              minHeight: "calc(100vh - 128px)"
+            }}
+          >
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 

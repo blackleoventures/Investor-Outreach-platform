@@ -151,7 +151,11 @@ const ClientsData = () => {
       );
     } catch (error) {
       console.error("Error fetching clients:", error);
-      message.error(`Failed to load clients: ${error.message}`);
+      if (error.response?.status === 401) {
+        console.log("Authentication error - silently handling");
+      } else {
+        message.error(`Failed to load clients: ${error.message}`);
+      }
       setClients([]);
     } finally {
       setLoading(false);
