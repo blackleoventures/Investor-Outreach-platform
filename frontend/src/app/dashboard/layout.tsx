@@ -163,13 +163,10 @@ export default function DashboardLayout({
   const SidebarContent = () => (
     <>
       <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-purple-600">
-        <div className="flex items-center justify-center gap-3">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-lg">
-            <span className="text-blue-600 font-bold text-lg">IO</span>
+        <div className="flex items-center justify-center">
+          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg">
+            <span className="text-blue-600 font-bold text-xl">IO</span>
           </div>
-          <Title level={4} className="m-0 text-white font-semibold">
-            Investor Outreach
-          </Title>
         </div>
       </div>
       <Menu
@@ -200,14 +197,7 @@ export default function DashboardLayout({
 
       {/* Mobile Drawer */}
       <Drawer
-        title={
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-sm">IO</span>
-            </div>
-            <span className="text-gray-800 font-semibold">Navigation</span>
-          </div>
-        }
+        title="Navigation"
         placement="left"
         onClose={() => setMobileMenuOpen(false)}
         open={mobileMenuOpen}
@@ -231,21 +221,19 @@ export default function DashboardLayout({
         >
           <div className="flex items-center gap-3">
             {isMobile && (
-              <>
-                <Button
-                  type="text"
-                  icon={<MenuOutlined />}
-                  onClick={() => setMobileMenuOpen(true)}
-                  size="large"
-                  style={{ color: 'white' }}
-                />
-                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md">
-                  <span className="text-blue-600 font-bold text-sm">IO</span>
-                </div>
-              </>
+              <Button
+                type="text"
+                icon={<MenuOutlined />}
+                onClick={() => setMobileMenuOpen(true)}
+                size="large"
+                style={{ color: 'white' }}
+              />
             )}
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-md">
+              <span className="text-blue-600 font-bold text-lg">IO</span>
+            </div>
             <Title level={isMobile ? 5 : 4} className="m-0 text-white font-semibold">
-              {isMobile ? "IO Platform" : "Investor Outreach Platform"}
+              Investor Outreach Platform
             </Title>
           </div>
 
