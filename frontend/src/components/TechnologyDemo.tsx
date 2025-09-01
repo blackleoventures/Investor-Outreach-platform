@@ -1,9 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { useForm } from 'react-hook-form';
-import toast from 'react-hot-toast';
 import { Mail, Send, CheckCircle, AlertCircle } from 'lucide-react';
 
 interface FormData {
@@ -13,29 +11,62 @@ interface FormData {
 }
 
 const TechnologyDemo: React.FC = () => {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-    reset,
-  } = useForm<FormData>();
+  const [formData, setFormData] = useState<FormData>({
+    email: '',
+    subject: '',
+    message: ''
+  });
+  const [errors, setErrors] = useState<Partial<FormData>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  const onSubmit = async (data: FormData) => {
+  const validateForm = (): boolean => {
+    const newErrors: Partial<FormData> = {};
+    
+    if (!formData.email) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(formData.email)) {
+      newErrors.email = 'Invalid email address';
+    }
+    
+    if (!formData.subject) {
+      newErrors.subject = 'Subject is required';
+    }
+    
+    if (!formData.message) {
+      newErrors.message = 'Message is required';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateForm()) return;
+    
+    setIsSubmitting(true);
     try {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      toast.success('Email sent successfully!', {
-        icon: <CheckCircle className="w-5 h-5 text-green-500" />,
-        duration: 4000,
-      });
+      setShowSuccess(true);
+      setFormData({ email: '', subject: '', message: '' });
+      setErrors({});
       
-      reset();
+      setTimeout(() => setShowSuccess(false), 3000);
     } catch (error) {
-      toast.error('Failed to send email. Please try again.', {
-        icon: <AlertCircle className="w-5 h-5 text-red-500" />,
-        duration: 4000,
-      });
+      console.error('Failed to send email');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleInputChange = (field: keyof FormData, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: undefined }));
     }
   };
 
@@ -114,21 +145,16 @@ const TechnologyDemo: React.FC = () => {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={onSubmit} className="space-y-6">
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                 Email Address
               </label>
               <input
-                {...register('email', {
-                  required: 'Email is required',
-                  pattern: {
-                    value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                    message: 'Invalid email address',
-                  },
-                })}
                 type="email"
                 id="email"
+                value={formData.email}
+                onChange={(e) => handleInputChange('email', e.target.value)}
                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                   errors.email ? 'border-red-300 bg-red-50' : 'border-gray-300'
                 }`}
@@ -151,9 +177,10 @@ const TechnologyDemo: React.FC = () => {
                 Subject
               </label>
               <input
-                {...register('subject', { required: 'Subject is required' })}
                 type="text"
                 id="subject"
+                value={formData.subject}
+                onChange={(e) => handleInputChange('subject', e.target.value)}
                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                   errors.subject ? 'border-red-300 bg-red-50' : 'border-gray-300'
                 }`}
@@ -176,9 +203,10 @@ const TechnologyDemo: React.FC = () => {
                 Message
               </label>
               <textarea
-                {...register('message', { required: 'Message is required' })}
                 id="message"
                 rows={4}
+                value={formData.message}
+                onChange={(e) => handleInputChange('message', e.target.value)}
                 className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none ${
                   errors.message ? 'border-red-300 bg-red-50' : 'border-gray-300'
                 }`}
@@ -191,7 +219,7 @@ const TechnologyDemo: React.FC = () => {
                   className="text-red-500 text-sm mt-1 flex items-center"
                 >
                   <AlertCircle className="w-4 h-4 mr-1" />
-                  {errors.message.message}
+                  {errors.message}
                 </motion.p>
               )}
             </div>
