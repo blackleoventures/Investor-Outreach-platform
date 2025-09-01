@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, Table, Typography, Button, Space, Tag, Tooltip } from "antd";
-import { EyeOutlined, EditOutlined, DeleteOutlined, PlusOutlined, MailOutlined } from "@ant-design/icons";
+import { EyeOutlined, EditOutlined, DeleteOutlined, PlusOutlined, MailOutlined, FileTextOutlined, RobotOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -132,16 +132,48 @@ const Campaigns = () => {
           </Title>
         }
         extra={
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => router.push("/dashboard/campaign/email-form")}
-            style={{ backgroundColor: "#ac6a1e" }}
-          >
-            Create Campaign
-          </Button>
+          <Space>
+            <Button
+              type="default"
+              icon={<FileTextOutlined />}
+              onClick={() => router.push("/dashboard/campaign/ai-email-campaign")}
+            >
+              Pitch Analysis
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => router.push("/dashboard/campaign/email-form")}
+              style={{ backgroundColor: "#ac6a1e" }}
+            >
+              Create Campaign
+            </Button>
+          </Space>
         }
       >
+        {/* Pitch Analysis Quick Access */}
+        <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border border-purple-200">
+          <div className="flex items-center justify-between">
+            <div>
+              <Title level={5} className="!mb-2">
+                <RobotOutlined className="mr-2 text-purple-600" />
+                AI-Powered Pitch Analysis
+              </Title>
+              <Text type="secondary">
+                Upload your pitch deck for AI analysis, investment scoring, and investor matching
+              </Text>
+            </div>
+            <Button
+              type="primary"
+              icon={<FileTextOutlined />}
+              onClick={() => router.push("/dashboard/campaign/ai-email-campaign")}
+              style={{ backgroundColor: "#722ed1" }}
+            >
+              Analyze Pitch Deck
+            </Button>
+          </div>
+        </div>
+
         <Table
           columns={columns}
           dataSource={campaigns}

@@ -1,6 +1,6 @@
 const fs = require("fs").promises;
 const Papa = require("papaparse");
-const Investor = require("../models/investor.model");
+const { db } = require("../config/firebase");
 const transformFrontendToDB = require("../utils/functions");
 const { EXPECTED_KEYS } = require("../utils/data");
 
@@ -56,17 +56,68 @@ exports.getPaginatedInvestors = async (req, res) => {
     //   JSON.stringify(explain.executionStats, null, 2)
     // );
 
-    const aggregate = Investor.aggregate([
-      { $match: matchStage },
-      { $sort: { createdAt: -1 } },
-    ]);
+    // Get investors from Firebase with filtering
+    const investorsRef = db.collection('investors');
+    let query = investorsRef;
 
-    const options = {
-      page: parseInt(page),
+    // Apply filters
+    if (search.trim()) {
+      // For Firebase, we'll need to implement text search differently
+      // For now, we'll get all and filter in memory
+    }
+
+    if (Array.isArray(fund_stage) && fund_stage.length > 0) {
+      query = query.where('fund_stage', 'in', fund_stage.map(s => s.toLowerCase()));
+    }
+
+    if (Array.isArray(fund_type) && fund_type.length > 0) {
+      query = query.where('fund_type', 'in', fund_type.map(t => t.toLowerCase()));
+    }
+
+    // Note: Firebase doesn't support array queries like MongoDB
+    // We'll need to handle sector filtering differently
+
+    const snapshot = await query.orderBy('createdAt', 'desc').get();
+    const allInvestors = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Apply sector filtering in memory
+    let filteredInvestors = allInvestors;
+    if (Array.isArray(sector) && sector.length > 0) {
+      filteredInvestors = allInvestors.filter(investor => 
+        investor.sector_focus && 
+        sector.some(s => investor.sector_focus.includes(s.toLowerCase()))
+      );
+    }
+
+    // Apply search filtering in memory
+    if (search.trim()) {
+      const searchTerm = search.trim().toLowerCase();
+      filteredInvestors = filteredInvestors.filter(investor =>
+        investor.partner_name?.toLowerCase().includes(searchTerm) ||
+        investor.partner_email?.toLowerCase().includes(searchTerm) ||
+        investor.firm_name?.toLowerCase().includes(searchTerm)
+      );
+    }
+
+    // Apply pagination
+    const startIndex = (parseInt(page) - 1) * parseInt(limit);
+    const endIndex = startIndex + parseInt(limit);
+    const paginatedInvestors = filteredInvestors.slice(startIndex, endIndex);
+
+    const result = {
+      docs: paginatedInvestors,
+      totalDocs: filteredInvestors.length,
       limit: parseInt(limit),
+      page: parseInt(page),
+      totalPages: Math.ceil(filteredInvestors.length / parseInt(limit)),
+      hasNextPage: endIndex < filteredInvestors.length,
+      hasPrevPage: parseInt(page) > 1,
+      nextPage: endIndex < filteredInvestors.length ? parseInt(page) + 1 : null,
+      prevPage: parseInt(page) > 1 ? parseInt(page) - 1 : null,
     };
-
-    const result = await Investor.aggregatePaginate(aggregate, options);
 
     res.status(200).json(result);
   } catch (err) {
@@ -98,11 +149,24 @@ exports.bulkAddInvestors = async (req, res) => {
       transformFrontendToDB(item)
     );
 
-    const result = await Investor.insertMany(normalizedData);
+    // Add investors to Firebase
+    const batch = db.batch();
+    const results = [];
+
+    for (const investor of normalizedData) {
+      const investorRef = db.collection('investors').doc();
+      batch.set(investorRef, {
+        ...investor,
+        createdAt: new Date(),
+      });
+      results.push({ id: investorRef.id, ...investor });
+    }
+
+    await batch.commit();
 
     res.status(201).json({
-      ids: result.map((doc) => doc._id),
-      message: `Successfully added ${result.length} investors`,
+      ids: results.map((doc) => doc.id),
+      message: `Successfully added ${results.length} investors`,
     });
   } catch (error) {
     res.status(500).json({
@@ -152,7 +216,20 @@ exports.uploadCSV = async (req, res) => {
     // Normalize CSV records
     const records = transformFrontendToDB(data);
 
-    const result = await Investor.insertMany(records);
+    // Add investors to Firebase
+    const batch = db.batch();
+    const results = [];
+
+    for (const investor of records) {
+      const investorRef = db.collection('investors').doc();
+      batch.set(investorRef, {
+        ...investor,
+        createdAt: new Date(),
+      });
+      results.push({ id: investorRef.id, ...investor });
+    }
+
+    await batch.commit();
 
     res.status(201).json({
       success: true,
@@ -174,13 +251,20 @@ exports.getAllInvestors = async (req, res) => {
     const parsedLimit = parseInt(limit);
     const skip = (parsedPage - 1) * parsedLimit;
 
-    const [investors, totalCount] = await Promise.all([
-      Investor.find().sort({ createdAt: -1 }).skip(skip).limit(parsedLimit),
-      Investor.countDocuments(),
-    ]);
+    // Get investors from Firebase
+    const investorsRef = db.collection('investors');
+    const snapshot = await investorsRef.orderBy('createdAt', 'desc').get();
+    
+    const allInvestors = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    const totalCount = allInvestors.length;
+    const investors = allInvestors.slice(skip, skip + parsedLimit);
 
     const formattedInvestors = investors.map((investor) => ({
-      ...investor.toObject(),
+      ...investor,
       fund_stage: Array.isArray(investor.fund_stage)
         ? investor.fund_stage.join(", ")
         : investor.fund_stage,
@@ -225,13 +309,17 @@ exports.updateInvestor = async (req, res) => {
       ? transformFrontendToDB(updateData)
       : updateData;
 
-    const investor = await Investor.findById(investorId);
-    if (!investor) {
+    const investorRef = db.collection('investors').doc(investorId);
+    const investorDoc = await investorRef.get();
+    
+    if (!investorDoc.exists) {
       return res.status(404).json({ error: "Investor not found" });
     }
 
-    Object.assign(investor, normalizedData);
-    await investor.save();
+    await investorRef.update({
+      ...normalizedData,
+      updatedAt: new Date(),
+    });
 
     res.status(200).json({
       message: `Investor ${investorId} updated successfully`,
@@ -253,12 +341,14 @@ exports.deleteInvestor = async (req, res) => {
       return res.status(400).json({ error: "Investor ID is required" });
     }
 
-    const investor = await Investor.findById(investorId);
-    if (!investor) {
+    const investorRef = db.collection('investors').doc(investorId);
+    const investorDoc = await investorRef.get();
+    
+    if (!investorDoc.exists) {
       return res.status(404).json({ error: "Investor not found" });
     }
 
-    await investor.deleteOne();
+    await investorRef.delete();
 
     res.status(200).json({
       message: `Successfully deleted investor with ID: ${investorId}`,
@@ -274,27 +364,29 @@ exports.deleteInvestor = async (req, res) => {
 
 exports.getFilterOptions = async (req, res) => {
   try {
-    const result = await Investor.aggregate([
-      {
-        $facet: {
-          fund_stage: [
-            { $unwind: "$fund_stage" },
-            { $group: { _id: { $toLower: "$fund_stage" } } },
-            { $sort: { _id: 1 } },
-          ],
-          fund_type: [
-            { $unwind: "$fund_type" },
-            { $group: { _id: { $toLower: "$fund_type" } } },
-            { $sort: { _id: 1 } },
-          ],
-          sector_focus: [
-            { $unwind: "$sector_focus" },
-            { $group: { _id: { $toLower: "$sector_focus" } } },
-            { $sort: { _id: 1 } },
-          ],
-        },
-      },
-    ]);
+    // Get all investors from Firebase
+    const investorsRef = db.collection('investors');
+    const snapshot = await investorsRef.get();
+    const investors = snapshot.docs.map(doc => doc.data());
+
+    // Process filter options in memory
+    const fund_stage = [...new Set(investors.flatMap(inv => 
+      Array.isArray(inv.fund_stage) ? inv.fund_stage : [inv.fund_stage]
+    ).filter(Boolean).map(s => s.toLowerCase()))].sort();
+
+    const fund_type = [...new Set(investors.flatMap(inv => 
+      Array.isArray(inv.fund_type) ? inv.fund_type : [inv.fund_type]
+    ).filter(Boolean).map(t => t.toLowerCase()))].sort();
+
+    const sector_focus = [...new Set(investors.flatMap(inv => 
+      Array.isArray(inv.sector_focus) ? inv.sector_focus : [inv.sector_focus]
+    ).filter(Boolean).map(s => s.toLowerCase()))].sort();
+
+    const result = {
+      fund_stage: fund_stage.map(s => ({ _id: s })),
+      fund_type: fund_type.map(t => ({ _id: t })),
+      sector_focus: sector_focus.map(s => ({ _id: s })),
+    };
 
     const format = (arr) => arr.map((item) => item._id);
 

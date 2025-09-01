@@ -35,7 +35,32 @@ const SelectCampaign = () => {
       icon: <RocketOutlined style={{ fontSize: "2rem", color: "#fa8c16" }} />,
       route: "/dashboard/allCampaign",
       features: ["Multi-step workflows", "Advanced targeting", "A/B testing"]
-    }
+    },
+    {
+      id: "ai-qna-bot",
+      title: "AI Q&A Bot",
+      description: "AI-powered chatbot that answers investor questions using your pitch deck",
+      icon: <BulbOutlined style={{ fontSize: "2rem", color: "#722ed1" }} />,
+      route: "/dashboard/ai-qna-bot",
+      features: ["Pitch deck powered", "Instant responses", "24/7 availability"]
+    },
+    {
+      id: "followup-automation",
+      title: "Follow-up Automation",
+      description: "Automated multi-step email sequences based on investor engagement",
+      icon: <RocketOutlined style={{ fontSize: "2rem", color: "#13c2c2" }} />,
+      route: "/dashboard/followup-automation",
+      features: ["Smart triggers", "Engagement tracking", "AI-enhanced templates"]
+    },
+    {
+      id: "weekly-progress",
+      title: "Weekly Progress",
+      description: "Automated weekly progress reports with campaign analytics",
+      icon: <MailOutlined style={{ fontSize: "2rem", color: "#eb2f96" }} />,
+      route: "/dashboard/weekly-progress",
+      features: ["Automated reports", "Campaign analytics", "Engagement metrics"]
+    },
+
   ];
 
   const handleSelectCampaign = (route) => {

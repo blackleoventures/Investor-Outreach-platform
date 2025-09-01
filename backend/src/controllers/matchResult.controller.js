@@ -1,25 +1,27 @@
-const Investor = require("../models/investor.model");
-const Company = require("../models/company.model");
-const MatchResult = require("../models/matchResult.model");
+const { db } = require("../config/firebase");
 
 exports.getAllMatchResults = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
 
-    const total = await MatchResult.countDocuments();
-    const totalPages = Math.ceil(total / limit);
+    // Get match results from Firebase
+    const matchResultsRef = db.collection('matchResults');
+    const snapshot = await matchResultsRef.orderBy('createdAt', 'desc').get();
+    
+    const allResults = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
 
-    const results = await MatchResult.find()
-      .populate("company", "company_name email city state industry fund_stage")
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
+    const total = allResults.length;
+    const totalPages = Math.ceil(total / limit);
+    const results = allResults.slice((page - 1) * limit, page * limit);
 
     const formatted = results.map((item) => ({
-      id: item._id,
+      id: item.id,
       company: item.company,
-      totalMatches: item.results.length,
+      totalMatches: item.results ? item.results.length : 0,
       createdAt: item.createdAt,
       updatedAt: item.updatedAt,
     }));
@@ -40,11 +42,14 @@ exports.getAllMatchResults = async (req, res) => {
 exports.getScoredInvestors = async (req, res) => {
   try {
     const { companyId } = req.params;
-    const company = await Company.findById(companyId);
+    const companyRef = db.collection('companies').doc(companyId);
+    const companyDoc = await companyRef.get();
 
-    if (!company) {
+    if (!companyDoc.exists) {
       return res.status(404).json({ error: "Company not found" });
     }
+
+    const company = companyDoc.data();
 
     // Normalize company fields for matching
     const companySectors = [company.industry?.toLowerCase()];
@@ -52,14 +57,24 @@ exports.getScoredInvestors = async (req, res) => {
     const companyCity = company.city?.toLowerCase();
     const companyState = company.state?.toLowerCase();
 
-    // Basic match to reduce dataset (~3000)
-    const investors = await Investor.find({
-      $or: [
-        { sector_focus: { $in: companySectors } },
-        { fund_stage: companyFundStage },
-        { location: { $regex: companyCity, $options: "i" } },
-        { location: { $regex: companyState, $options: "i" } },
-      ],
+    // Get all investors from Firebase and filter in memory
+    const investorsRef = db.collection('investors');
+    const investorsSnapshot = await investorsRef.get();
+    const allInvestors = investorsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Basic match to reduce dataset
+    const investors = allInvestors.filter(inv => {
+      const sectorMatch = inv.sector_focus && companySectors.some(sec => 
+        inv.sector_focus.includes(sec)
+      );
+      const fundMatch = inv.fund_stage && inv.fund_stage.includes(companyFundStage);
+      const cityMatch = inv.location && inv.location.toLowerCase().includes(companyCity);
+      const stateMatch = inv.location && inv.location.toLowerCase().includes(companyState);
+      
+      return sectorMatch || fundMatch || cityMatch || stateMatch;
     });
 
     const scoredResults = investors.map((inv) => {
@@ -95,11 +110,15 @@ exports.getScoredInvestors = async (req, res) => {
     // Sort by score descending
     const sorted = scoredResults.sort((a, b) => b.score - a.score);
 
-    await MatchResult.findOneAndUpdate(
-      { company: companyId },
-      { results: sorted },
-      { upsert: true, new: true }
-    );
+    // Update or create match result in Firebase
+    const matchResultRef = db.collection('matchResults').doc();
+    await matchResultRef.set({
+      company: companyId,
+      results: sorted,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    // Remove the old MongoDB-specific code
 
     res.json(sorted);
   } catch (err) {

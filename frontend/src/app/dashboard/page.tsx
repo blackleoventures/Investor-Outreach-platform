@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { Users, List, Briefcase, Plus, X, Mail, UserPlus, TrendingUp, Activity } from "lucide-react";
+import { FileTextOutlined } from "@ant-design/icons";
 // Charts are dynamically loaded to speed up initial render
 // Faster fetch helper with timeout and no-cache for dynamic endpoints
 const fetchData = async <T = any>(url: string): Promise<T> => {
@@ -22,6 +23,7 @@ import dynamic from "next/dynamic";
 const MonthlyEmailBarChart = dynamic(() => import("@/components/charts/MonthlyEmailBarChart"), { ssr: false });
 const EmailDistributionPie = dynamic(() => import("@/components/charts/EmailDistributionPie"), { ssr: false });
 import { Button, Form, Input } from "antd";
+
 
 // Lazy-load heavy components
 const Modal = dynamic(async () => (await import("antd")).Modal, { ssr: false });
@@ -601,6 +603,93 @@ const Profile = () => {
           />
         </motion.div>
 
+        {/* Quick Actions Section */}
+        <motion.div 
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15, duration: 0.4 }}
+          className="mt-8"
+        >
+          <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Briefcase className="w-5 h-5 text-purple-600" />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-800">Quick Actions</h2>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <motion.div
+                whileHover={{ y: -3, scale: 1.02 }}
+                transition={{ duration: 0.2 }}
+                className="p-4 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl border border-blue-200 cursor-pointer hover:shadow-md transition-all duration-300"
+                onClick={() => router.push("/dashboard/campaign/ai-email-campaign")}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-500 rounded-lg">
+                    <FileTextOutlined className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-blue-800">Pitch Analysis</h3>
+                    <p className="text-sm text-blue-600">AI-powered deck analysis</p>
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ y: -3, scale: 1.02 }}
+                transition={{ duration: 0.2 }}
+                className="p-4 bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl border border-green-200 cursor-pointer hover:shadow-md transition-all duration-300"
+                onClick={() => router.push("/dashboard/investor-management")}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-500 rounded-lg">
+                    <Users className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-green-800">Investor Matching</h3>
+                    <p className="text-sm text-green-600">Find perfect investors</p>
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ y: -3, scale: 1.02 }}
+                transition={{ duration: 0.2 }}
+                className="p-4 bg-gradient-to-br from-purple-50 to-pink-100 rounded-xl border border-purple-200 cursor-pointer hover:shadow-md transition-all duration-300"
+                onClick={() => router.push("/dashboard/campaign/email-form")}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-500 rounded-lg">
+                    <Mail className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-purple-800">Email Campaign</h3>
+                    <p className="text-sm text-purple-600">Create & send emails</p>
+                  </div>
+                </div>
+              </motion.div>
+
+              <motion.div
+                whileHover={{ y: -3, scale: 1.02 }}
+                transition={{ duration: 0.2 }}
+                className="p-4 bg-gradient-to-br from-orange-50 to-red-100 rounded-xl border border-orange-200 cursor-pointer hover:shadow-md transition-all duration-300"
+                onClick={() => router.push("/dashboard/campaign/ai-email-campaign")}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-orange-500 rounded-lg">
+                    <TrendingUp className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-orange-800">AI Deal Room</h3>
+                    <p className="text-sm text-orange-600">Pitch analysis & matching</p>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          </div>
+        </motion.div>
+
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -635,6 +724,8 @@ const Profile = () => {
             <EmailDistributionPie data={emailDistributionData} />
           </motion.div>
         </motion.div>
+
+
 
         {/* TODO: Re-add DemoBanner when present in current codebase */}
       </div>

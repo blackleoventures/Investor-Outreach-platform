@@ -116,6 +116,7 @@ export default function DashboardLayout({
       icon: <UserOutlined style={{ fontSize: "16px" }} />,
       ...navItem("/dashboard/add-client", "Add Client"),
     },
+
     {
       key: "/dashboard/allCampaign",
       icon: <NotificationOutlined style={{ fontSize: "16px" }} />,
@@ -146,22 +147,7 @@ export default function DashboardLayout({
       icon: <SettingOutlined style={{ fontSize: "16px" }} />,
       ...navItem("/dashboard/investor-management", "Investor Management"),
     },
-    {
-      key: "/dashboard/matching-test",
-      icon: <SearchOutlined style={{ fontSize: "16px" }} />,
-      ...navItem("/dashboard/matching-test", "Matching Test"),
-    },
-    {
-      key: "/dashboard/schedule-demo",
-      icon: <CalendarOutlined style={{ fontSize: "16px" }} />,
-      ...navItem("/dashboard/schedule-demo", "Schedule Demo"),
-    },
 
-    {
-      key: "/dashboard/pitch-analyzer",
-      icon: <RobotOutlined style={{ fontSize: "16px" }} />,
-      ...navItem("/dashboard/pitch-analyzer", "Pitch Analyzer"),
-    },
   ]), [navItem]);
 
   const userMenuItems = useMemo(() => ([
@@ -256,15 +242,14 @@ export default function DashboardLayout({
             level={isMobile ? 5 : 4} 
             className="m-0 text-white font-semibold"
             style={{ 
-              fontSize: isMobile ? '14px' : '18px',
-              lineHeight: isMobile ? '20px' : '24px',
-              whiteSpace: isMobile ? 'nowrap' : 'normal',
-              overflow: isMobile ? 'hidden' : 'visible',
-              textOverflow: isMobile ? 'ellipsis' : 'clip',
-              maxWidth: isMobile ? '150px' : 'none'
+              fontSize: isMobile ? '12px' : '18px',
+              lineHeight: isMobile ? '14px' : '24px',
+              whiteSpace: 'nowrap',
+              overflow: 'visible',
+              maxWidth: 'none'
             }}
           >
-            {isMobile ? 'Investor Platform' : 'Investor Outreach Platform'}
+            Investor Outreach Platform
           </Title>
         </div>
 

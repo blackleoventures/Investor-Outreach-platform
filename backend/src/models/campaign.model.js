@@ -23,7 +23,7 @@ CampaignSchema.pre("findOneAndDelete", async function (next) {
   try {
     const campaignId = this.getQuery()._id;
 
-    await mongoose.model("EmailStatus").deleteMany({ campaignRef: campaignId });
+    await mongoose.model("EmailCampaign").deleteMany({ campaignRef: campaignId });
     await mongoose.model("EmailReply").deleteMany({ campaignRef: campaignId });
 
     next();

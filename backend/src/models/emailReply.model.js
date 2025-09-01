@@ -2,11 +2,11 @@ const mongoose = require("mongoose");
 
 const EmailReplySchema = new mongoose.Schema(
   {
-    emailCampaignRef: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "EmailStatus",
-      required: true,
-    },
+      emailCampaignRef: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "EmailCampaign",
+    required: true,
+  },
     campaignRef: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Campaign",

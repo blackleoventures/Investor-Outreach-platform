@@ -555,6 +555,268 @@ IMPORTANT: Return only valid JSON, no backticks or explanations.`;
   }
 };
 
+// Suggest subject lines with engagement predictions
+exports.optimizeSubject = async (req, res) => {
+  try {
+    const { brief, tone = "Professional" } = req.body || {};
+    if (!brief) return res.status(400).json({ error: "brief is required" });
+
+    const prompt = `Create 6 investor outreach subject lines based on this brief: "${brief}".
+Tone: ${tone}.
+Return JSON with an array of {subject, rationale, predictedOpenRate (0-100)}. Only valid JSON.`;
+
+    let result = null;
+    const key = process.env.GEMINI_API_KEY;
+    if (key) {
+      try {
+        const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + key, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const content = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          const s = content.indexOf("[");
+          const e = content.lastIndexOf("]");
+          if (s !== -1 && e !== -1) {
+            result = JSON.parse(content.slice(s, e + 1));
+          }
+        }
+      } catch {}
+    }
+
+    if (!result) {
+      result = [
+        { subject: "Quick intro: solving [Problem] in [Market]", rationale: "Concise and relevant", predictedOpenRate: 42 },
+        { subject: "[Investor Name], a data-driven opportunity in [Sector]", rationale: "Personalized + sector", predictedOpenRate: 47 },
+        { subject: "$[TAM]B market, [X]% MoM – meet [Startup]", rationale: "Numbers signal traction", predictedOpenRate: 49 },
+        { subject: "[Startup]: strong founder-market fit in [Category]", rationale: "FMF resonates", predictedOpenRate: 44 },
+        { subject: "Intro via Deal Room: [Startup] x [Investor]", rationale: "Contextual via portal", predictedOpenRate: 41 },
+        { subject: "Following up on [Hook] – quick 15?", rationale: "Follow-up CTA", predictedOpenRate: 39 },
+      ];
+    }
+
+    res.json({ options: result });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+// Draft replies with tone and length options
+exports.draftReply = async (req, res) => {
+  try {
+    const { threadSummary, tone = "Formal", length = "Short" } = req.body || {};
+    if (!threadSummary) return res.status(400).json({ error: "threadSummary is required" });
+
+    const prompt = `Draft a ${length.toLowerCase()} and ${tone.toLowerCase()} reply to this investor email thread summary: \n${threadSummary}\nReturn JSON: {variants: [{tone, length, body}], tips: ["..."]}.`;
+    let out = null;
+    const key = process.env.GEMINI_API_KEY;
+    if (key) {
+      try {
+        const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + key, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const content = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          const s = content.indexOf("{");
+          const e = content.lastIndexOf("}");
+          if (s !== -1 && e !== -1) {
+            out = JSON.parse(content.slice(s, e + 1));
+          }
+        }
+      } catch {}
+    }
+
+    if (!out) {
+      out = {
+        variants: [
+          { tone, length, body: "Thanks for the note—happy to share our deck and metrics..." },
+          { tone: "Casual", length: "Short", body: "Appreciate the reply—link to deck inside, open to quick chat." },
+          { tone: "Formal", length: "Detailed", body: "Thank you for your interest. Attached is our updated deck along with key KPIs..." },
+        ],
+        tips: ["Keep the ask clear", "Reference prior context", "Offer specific next steps"],
+      };
+    }
+
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
+
+// Match investors with AI scoring
+exports.matchInvestors = async (req, res) => {
+  try {
+    const { companyProfile, preferences = {} } = req.body;
+    if (!companyProfile) return res.status(400).json({ error: "companyProfile is required" });
+
+    const { db } = require("../config/firebase");
+    
+    // Get all investors
+    const investorsRef = db.collection('investors');
+    const snapshot = await investorsRef.get();
+    const investors = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // AI-powered matching logic
+    const matchedInvestors = investors.map(investor => {
+      let score = 0;
+      const reasons = [];
+
+      // Sector matching
+      if (investor.sector_focus && companyProfile.sector) {
+        const sectorMatch = investor.sector_focus.some(sector => 
+          sector.toLowerCase().includes(companyProfile.sector.toLowerCase()) ||
+          companyProfile.sector.toLowerCase().includes(sector.toLowerCase())
+        );
+        if (sectorMatch) {
+          score += 30;
+          reasons.push("Sector alignment");
+        }
+      }
+
+      // Stage matching
+      if (investor.fund_stage && companyProfile.stage) {
+        const stageMatch = investor.fund_stage.includes(companyProfile.stage.toLowerCase());
+        if (stageMatch) {
+          score += 25;
+          reasons.push("Stage fit");
+        }
+      }
+
+      // Geographic preference
+      if (investor.location && companyProfile.location) {
+        const locationMatch = investor.location.toLowerCase().includes(companyProfile.location.toLowerCase());
+        if (locationMatch) {
+          score += 15;
+          reasons.push("Geographic proximity");
+        }
+      }
+
+      // Check size preference
+      if (companyProfile.fundingAmount && investor.typical_check_size) {
+        const amount = parseFloat(companyProfile.fundingAmount.replace(/[^\d.]/g, ''));
+        const checkSize = parseFloat(investor.typical_check_size.replace(/[^\d.]/g, ''));
+        if (amount >= checkSize * 0.5 && amount <= checkSize * 2) {
+          score += 20;
+          reasons.push("Check size alignment");
+        }
+      }
+
+      return {
+        ...investor,
+        matchScore: Math.min(100, score),
+        matchReasons: reasons,
+        canContact: score >= 40
+      };
+    });
+
+    const sortedMatches = matchedInvestors
+      .filter(inv => inv.matchScore > 0)
+      .sort((a, b) => b.matchScore - a.matchScore)
+      .slice(0, 50);
+
+    res.json({
+      success: true,
+      totalMatches: sortedMatches.length,
+      highQualityMatches: sortedMatches.filter(inv => inv.matchScore >= 70).length,
+      matches: sortedMatches
+    });
+  } catch (e) {
+    console.error("matchInvestors error", e);
+    res.status(500).json({ error: e.message });
+  }
+};
+
+// Generate follow-up sequences
+exports.generateFollowUpSequence = async (req, res) => {
+  try {
+    const { initialEmail, companyProfile, investorProfile, sequenceType = "standard" } = req.body;
+    if (!initialEmail) return res.status(400).json({ error: "initialEmail is required" });
+
+    const prompt = `Create a 3-email follow-up sequence for investor outreach.
+
+Initial Email: ${initialEmail.subject}\n${initialEmail.body}
+
+Company: ${JSON.stringify(companyProfile || {})}
+Investor: ${JSON.stringify(investorProfile || {})}
+Sequence Type: ${sequenceType}
+
+Create follow-ups for:
+1. Day 7: Gentle follow-up
+2. Day 14: Value-add follow-up with new information
+3. Day 21: Final follow-up with urgency
+
+Return JSON:
+{
+  "sequence": [
+    {
+      "day": 7,
+      "subject": "...",
+      "body": "...",
+      "trigger": "no_response"
+    }
+  ]
+}
+
+IMPORTANT: Return only valid JSON.`;
+
+    let result = null;
+    const key = process.env.GEMINI_API_KEY;
+    if (key) {
+      try {
+        const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + key, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          const content = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          const s = content.indexOf("{");
+          const e = content.lastIndexOf("}");
+          if (s !== -1 && e !== -1) {
+            result = JSON.parse(content.slice(s, e + 1));
+          }
+        }
+      } catch {}
+    }
+
+    if (!result) {
+      result = {
+        sequence: [
+          {
+            day: 7,
+            subject: "Following up on our investment opportunity",
+            body: "Hi [Investor Name],\n\nI wanted to follow up on the investment opportunity I shared last week. Have you had a chance to review our pitch deck?\n\nI'd be happy to answer any questions or provide additional information.\n\nBest regards,\n[Founder Name]",
+            trigger: "no_response"
+          },
+          {
+            day: 14,
+            subject: "New milestone achieved - [Company Name] update",
+            body: "Hi [Investor Name],\n\nI wanted to share some exciting news - we just achieved [milestone]. This reinforces the opportunity I shared with you two weeks ago.\n\nWould you be interested in a brief call to discuss how this impacts our growth trajectory?\n\nBest regards,\n[Founder Name]",
+            trigger: "no_response"
+          },
+          {
+            day: 21,
+            subject: "Final follow-up - [Company Name] funding round",
+            body: "Hi [Investor Name],\n\nThis is my final follow-up regarding our funding round. We're making good progress with other investors and expect to close soon.\n\nIf you're interested in learning more, I'd be happy to schedule a quick call this week.\n\nThanks for your time.\n\nBest regards,\n[Founder Name]",
+            trigger: "no_response"
+          }
+        ]
+      };
+    }
+
+    res.json({ success: true, data: result });
+  } catch (e) {
+    console.error("generateFollowUpSequence error", e);
+    res.status(500).json({ error: e.message });
+  }
+};
+
 function escapeHtml(str = "") {
   return String(str)
     .replace(/&/g, "&amp;")
