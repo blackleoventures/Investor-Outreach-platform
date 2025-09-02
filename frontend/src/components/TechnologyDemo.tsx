@@ -167,7 +167,7 @@ const TechnologyDemo: React.FC = () => {
                   className="text-red-500 text-sm mt-1 flex items-center"
                 >
                   <AlertCircle className="w-4 h-4 mr-1" />
-                  {errors.email.message}
+                  {errors.email}
                 </motion.p>
               )}
             </div>
@@ -193,7 +193,7 @@ const TechnologyDemo: React.FC = () => {
                   className="text-red-500 text-sm mt-1 flex items-center"
                 >
                   <AlertCircle className="w-4 h-4 mr-1" />
-                  {errors.subject.message}
+                  {errors.subject}
                 </motion.p>
               )}
             </div>

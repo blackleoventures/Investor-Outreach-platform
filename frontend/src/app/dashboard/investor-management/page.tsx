@@ -10,7 +10,7 @@ const { Search } = Input;
 
 // Dynamic imports for better performance
 const InvestorMatcher = dynamic(() => import("@/components/InvestorMatcher"), { ssr: false });
-const FollowUpAutomation = dynamic(() => import("@/components/FollowUpAutomation"), { ssr: false });
+
 
 export default function InvestorManagementPage() {
   const [activeTab, setActiveTab] = useState("1");
@@ -285,16 +285,7 @@ export default function InvestorManagementPage() {
         </div>
       ),
     },
-    {
-      key: "4",
-      label: (
-        <span>
-          <MailOutlined />
-          Follow-up Automation
-        </span>
-      ),
-      children: <FollowUpAutomation companyId="test-company-123" />,
-    },
+
   ];
 
   return (
