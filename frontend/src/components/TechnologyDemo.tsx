@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Mail, Send, CheckCircle, AlertCircle } from 'lucide-react';
+import { Mail, Send, AlertCircle } from 'lucide-react';
 
 interface FormData {
   email: string;
@@ -48,7 +48,6 @@ const TechnologyDemo: React.FC = () => {
     
     setIsSubmitting(true);
     try {
-      // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       setShowSuccess(true);
@@ -73,7 +72,6 @@ const TechnologyDemo: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
       <div className="max-w-4xl mx-auto">
-        {/* Header with Framer Motion */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -98,7 +96,6 @@ const TechnologyDemo: React.FC = () => {
           </motion.p>
         </motion.div>
 
-        {/* Technology Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {[
             { name: 'Next.js 14', desc: 'React Framework', color: 'from-purple-500 to-pink-500' },
@@ -122,7 +119,6 @@ const TechnologyDemo: React.FC = () => {
           ))}
         </div>
 
-        {/* Interactive Form Demo */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -144,6 +140,16 @@ const TechnologyDemo: React.FC = () => {
               Experience form handling with validation and notifications
             </p>
           </div>
+
+          {showSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 bg-green-500/20 border border-green-500/30 rounded-lg text-green-700 text-sm text-center"
+            >
+              Email sent successfully!
+            </motion.div>
+          )}
 
           <form onSubmit={onSubmit} className="space-y-6">
             <div>
@@ -252,7 +258,6 @@ const TechnologyDemo: React.FC = () => {
           </form>
         </motion.div>
 
-        {/* Footer */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -266,4 +271,4 @@ const TechnologyDemo: React.FC = () => {
   );
 };
 
-export default TechnologyDemo; 
+export default TechnologyDemo;
