@@ -1,0 +1,23 @@
+Startup Pitch Deck
+Company Name: Innovexa Technologies
+Tagline: Reinventing Urban Mobility
+
+Problem: Urban traffic congestion costs $150B annually. Commuters lose 100 hours each year.
+
+Solution: AI-powered micro-mobility platform integrating electric scooters, bikes, and ride-sharing
+
+Market: TAM = $500B, SAM = $120B, SOM = $5B. Growing 15% CAGR globally.
+
+Business Model: Subscription + Pay-per-ride. Projected ARR $20M by Year 3.
+
+Traction: 50,000 users, 120 corporate partners, $1.2M ARR, 20% MoM growth.
+
+Team: Founders from Tesla & Uber. Combined 30 years experience in mobility and AI.
+
+Moat: Proprietary AI routing engine, exclusive city partnerships, patent-pending hardware.
+
+GTM: Target top 20 cities, partner with corporates, aggressive influencer campaigns.
+
+Ask: Raising $10M at $50M valuation. Funds for expansion, R&D, and hiring. Runway: 24 months
+
+Exit: Target IPO in 6 years or acquisition by major mobility player (Uber, Lyft, Bird).

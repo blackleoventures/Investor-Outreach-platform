@@ -14,22 +14,29 @@ const firebaseConfig = {
 };
 
 // Validate Firebase configuration
-if (!firebaseConfig.apiKey) {
-  console.error('❌ Firebase API Key is missing!');
+const isValidConfig = firebaseConfig.apiKey && firebaseConfig.projectId;
+
+if (!isValidConfig) {
+  console.warn('⚠️ Firebase configuration incomplete, using fallback');
 }
 
 // Initialize Firebase with error handling
-let app;
-try {
-  app = initializeApp(firebaseConfig);
-} catch (error) {
-  console.warn('Firebase initialization failed, using mock for development');
-  app = null;
+let app = null;
+if (isValidConfig) {
+  try {
+    app = initializeApp(firebaseConfig);
+  } catch (error) {
+    console.warn('Firebase initialization failed:', error);
+    app = null;
+  }
 }
 
-// Initialize Firebase services with lazy loading
+// Initialize Firebase services with null checks
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
+
+// Export config validation status
+export const isFirebaseConfigured = !!app;
 
 // Skip emulators for Google Sign-in to work properly
 

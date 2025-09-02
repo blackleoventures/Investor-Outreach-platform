@@ -53,6 +53,13 @@ const emailTemplateRoutes = require("./routes/emailTemplate.route");
 const deckActivityRoutes = require("./routes/deckActivity.route");
 const dealRoomRoutes = require("./routes/dealRoom.route");
 
+// Healthcheck controller
+const { healthcheck } = require("./controllers/healthcheck.controller");
+
+
+// Healthcheck route (public)
+app.get("/api/healthcheck", healthcheck);
+app.get("/", (req, res) => res.json({ message: "Send Email API Server", status: "running" }));
 
 // Router Declaration
 app.use("/clients", companyRoutes);

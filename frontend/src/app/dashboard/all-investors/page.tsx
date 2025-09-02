@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Card, Tabs, Typography, Button, Input, Table, Tag, Badge, Space, message, Avatar, Modal, Form, Select, Upload } from "antd";
 import { UserOutlined, SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, MailOutlined, StarOutlined, FilterOutlined } from "@ant-design/icons";
 import dynamic from "next/dynamic";
+import "@/styles/investor.css";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -32,7 +33,7 @@ export default function AllInvestorsPage() {
 
   // Mock data for demonstration
   useEffect(() => {
-    setInvestors([
+    const investorData = [
       {
         id: 1,
         name: "John Smith",
@@ -87,7 +88,9 @@ export default function AllInvestorsPage() {
         linkedin: "linkedin.com/in/michaelchen",
         notes: "Great for first-time founders, very hands-on"
       }
-    ]);
+    ];
+    setInvestors(investorData);
+    setFilteredInvestors(investorData);
   }, []);
 
   useEffect(() => {
@@ -184,15 +187,14 @@ export default function AllInvestorsPage() {
       title: 'Score',
       dataIndex: 'score',
       key: 'score',
-      width: 80,
+      width: 70,
+      align: 'center',
       render: (score) => (
-        <Badge 
-          count={score} 
-          style={{ 
-            backgroundColor: getScoreColor(score) === 'success' ? '#52c41a' : 
-                           getScoreColor(score) === 'warning' ? '#faad14' : '#ff4d4f'
-          }}
-        />
+        <div className={`score-badge ${
+          score >= 90 ? 'score-high' : score >= 80 ? 'score-medium' : 'score-low'
+        }`}>
+          {score}
+        </div>
       ),
       sorter: (a, b) => a.score - b.score,
     },
@@ -200,12 +202,13 @@ export default function AllInvestorsPage() {
       title: 'Investor',
       dataIndex: 'name',
       key: 'name',
+      width: 200,
       render: (name, record) => (
-        <div className="flex items-center space-x-3">
-          <Avatar size="large" icon={<UserOutlined />} />
+        <div className="flex items-center space-x-2">
+          <Avatar size="small" icon={<UserOutlined />} />
           <div>
-            <div className="font-medium">{name}</div>
-            <div className="text-sm text-gray-500">{record.fund}</div>
+            <div className="font-medium text-sm">{name}</div>
+            <div className="text-xs text-gray-500">{record.fund}</div>
           </div>
         </div>
       ),
@@ -264,15 +267,12 @@ export default function AllInvestorsPage() {
     {
       title: 'Actions',
       key: 'actions',
+      width: 200,
       render: (_, record) => (
-        <Space>
-          <Button size="small" icon={<EyeOutlined />} onClick={() => setSelectedInvestor(record)}>View</Button>
-          <Button size="small" icon={<EditOutlined />} onClick={() => {
-            setSelectedInvestor(record);
-            form.setFieldsValue(record);
-            setEditInvestorModal(true);
-          }}>Edit</Button>
-          <Button size="small" icon={<DeleteOutlined />} danger onClick={() => handleDeleteInvestor(record.id)}>Delete</Button>
+        <Space size="small">
+          <Button size="small" icon={<EyeOutlined />}>View</Button>
+          <Button size="small" icon={<EditOutlined />}>Edit</Button>
+          <Button size="small" icon={<DeleteOutlined />} danger>Delete</Button>
         </Space>
       ),
     },
@@ -311,18 +311,22 @@ export default function AllInvestorsPage() {
               />
             </div>
 
-            <Table
-              columns={columns}
-              dataSource={filteredInvestors}
-              rowKey="id"
-              loading={loading}
-              pagination={{
-                pageSize: 10,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} investors`,
-              }}
-            />
+            <div className="overflow-x-auto">
+              <Table
+                columns={columns}
+                dataSource={filteredInvestors}
+                rowKey="id"
+                loading={loading}
+                scroll={{ x: 1200 }}
+                className="custom-table"
+                pagination={{
+                  pageSize: 10,
+                  showSizeChanger: true,
+                  showQuickJumper: true,
+                  showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} investors`,
+                }}
+              />
+            </div>
           </Card>
         </div>
       ),
@@ -439,25 +443,30 @@ export default function AllInvestorsPage() {
   ];
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="mb-8">
-        <Title level={1} className="text-3xl font-bold text-gray-800 mb-2">
-          👥 All Investors
-        </Title>
-        <Text className="text-lg text-gray-600">
-          Comprehensive investor database with AI-powered matching and advanced filtering
-        </Text>
-      </div>
+    <div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
+        <div className="max-w-7xl mx-auto p-6">
+          <div className="mb-8">
+            <Title level={1} className="text-3xl font-bold text-gray-800 mb-2">
+              🚀 Investor Outreach Platform
+            </Title>
+            <Text className="text-lg text-gray-600">
+              AI-powered investor matching, deal rooms, and engagement tracking
+            </Text>
+          </div>
 
-      <Card className="shadow-xl">
-        <Tabs 
-          activeKey={activeTab} 
-          onChange={setActiveTab} 
-          items={tabItems}
-          size="large"
-          type="card"
-        />
-      </Card>
+          <Card className="shadow-xl border-0 rounded-2xl overflow-hidden">
+            <Tabs 
+              activeKey={activeTab} 
+              onChange={setActiveTab} 
+              items={tabItems}
+              size="large"
+              type="card"
+              className="custom-tabs"
+            />
+          </Card>
+        </div>
+      </div>
 
       {/* Add Investor Modal */}
       <Modal
