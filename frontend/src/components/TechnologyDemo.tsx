@@ -94,7 +94,7 @@ const TechnologyDemo: React.FC = () => {
             transition={{ duration: 0.5, delay: 0.4 }}
             className="text-xl text-gray-600"
           >
-            Showcasing Next.js, React, TypeScript, Tailwind CSS, Framer Motion, React Hook Form, and React Hot Toast
+            Showcasing Next.js, React, TypeScript, Tailwind CSS, and Framer Motion
           </motion.p>
         </motion.div>
 
@@ -106,7 +106,7 @@ const TechnologyDemo: React.FC = () => {
             { name: 'TypeScript 5', desc: 'Type Safety', color: 'from-blue-600 to-indigo-600' },
             { name: 'Tailwind CSS', desc: 'Utility CSS', color: 'from-cyan-500 to-blue-500' },
             { name: 'Framer Motion', desc: 'Animations', color: 'from-pink-500 to-rose-500' },
-            { name: 'React Hook Form', desc: 'Form Handling', color: 'from-green-500 to-emerald-500' },
+            { name: 'Lucide Icons', desc: 'Icon Library', color: 'from-green-500 to-emerald-500' },
           ].map((tech, index) => (
             <motion.div
               key={tech.name}
@@ -141,7 +141,7 @@ const TechnologyDemo: React.FC = () => {
               Email Form Demo
             </h2>
             <p className="text-gray-600">
-              Experience React Hook Form with validation and React Hot Toast notifications
+              Experience form handling with validation and notifications
             </p>
           </div>
 

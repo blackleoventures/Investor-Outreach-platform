@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { motion } from "framer-motion";
+
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import AuthDebugInfo from "@/components/AuthDebugInfo";
@@ -70,47 +70,23 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0f1a] via-[#0b1220] to-[#0a0f1a] px-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="bg-black/70 backdrop-blur-md p-6 sm:p-8 rounded-2xl shadow-2xl max-w-md w-full border border-gray-800"
-      >
+      <div className="bg-black/70 backdrop-blur-md p-6 sm:p-8 rounded-2xl shadow-2xl max-w-md w-full border border-gray-800">
         <div className="text-center mb-8">
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5 }}
-            className="mb-6"
-          >
+          <div className="mb-6">
             <div className="mx-auto w-24 h-24 rounded-full bg-white flex items-center justify-center shadow-lg">
               <Image src="/logo.png" alt="Logo" width={80} height={80} className="w-20 h-20 object-contain" priority />
             </div>
-          </motion.div>
-          <motion.h1
-            initial={{ scale: 0.9 }}
-            animate={{ scale: 1 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-            className="text-2xl sm:text-3xl font-bold text-white mb-2"
-          >
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
             Welcome back
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="text-gray-300"
-          >
+          </h1>
+          <p className="text-gray-300">
             Sign in to access your investor outreach platform
-          </motion.p>
+          </p>
         </div>
 
         {authError && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm"
-          >
+          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm">
             <div className="text-center mb-2">{authError}</div>
             <div className="flex gap-2 justify-center">
               <button
@@ -126,15 +102,13 @@ export default function Home() {
                 Dismiss
               </button>
             </div>
-          </motion.div>
+          </div>
         )}
 
-        <motion.button
-          whileHover={{ scale: 1.02, y: -2 }}
-          whileTap={{ scale: 0.98 }}
+        <button
           onClick={handleLogin}
           disabled={loading}
-          className="w-full bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl text-sm sm:text-base"
+          className="w-full bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black font-semibold py-3 sm:py-4 px-4 sm:px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl text-sm sm:text-base hover:scale-105 transform"
         >
           {loading ? (
             <div className="w-6 h-6 border-2 border-gray-600 border-t-transparent rounded-full animate-spin" />
@@ -142,22 +116,17 @@ export default function Home() {
             <Image src="/google.png" alt="Google" width={24} height={24} className="w-6 h-6" />
           )}
           {loading ? 'Signing in...' : 'Sign in with Google'}
-        </motion.button>
+        </button>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
-          className="mt-6 text-center"
-        >
+        <div className="mt-6 text-center">
           <p className="text-sm text-gray-400">
             By signing in, you agree to our Terms of Service and Privacy Policy
           </p>
           <p className="text-xs text-gray-500 mt-2">
             Having trouble? Try refreshing the page or using a different browser
           </p>
-        </motion.div>
-      </motion.div>
+        </div>
+      </div>
       
       <AuthDebugInfo />
       <AuthTestButton />
