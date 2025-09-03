@@ -1,218 +1,139 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Card, Tabs, Typography, Button, Input, Table, Tag, Badge, Space, message, Avatar, Modal, Form, Select, Upload } from "antd";
-import { UserOutlined, SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, MailOutlined, StarOutlined, FilterOutlined } from "@ant-design/icons";
-import dynamic from "next/dynamic";
-import "@/styles/investor.css";
+import { Card, Typography, Button, Input, Table, Tag, Space, message, Avatar, Modal, Form, Select, Dropdown, Checkbox } from "antd";
+import { UserOutlined, SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SettingOutlined } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
-const { Dragger } = Upload;
-
-// Dynamic imports for better performance
-const InvestorMatcher = dynamic(() => import("@/components/InvestorMatcher"), { ssr: false });
 
 export default function AllInvestorsPage() {
-  const [activeTab, setActiveTab] = useState("1");
   const [investors, setInvestors] = useState([]);
   const [filteredInvestors, setFilteredInvestors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedFilters, setSelectedFilters] = useState({
-    sector: [],
-    stage: [],
-    location: [],
-    checkSize: []
-  });
   const [addInvestorModal, setAddInvestorModal] = useState(false);
   const [editInvestorModal, setEditInvestorModal] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState(null);
   const [form] = Form.useForm();
+  const [visibleColumns, setVisibleColumns] = useState({
+    serialNumber: true,
+    investorName: true,
+    fundStage: true,
+    fundType: true,
+    fundFocus: true,
+    partnerName: false,
+    partnerEmail: false,
+    fundDescription: false,
+    portfolioCompanies: false,
+    numberOfInvestments: false,
+    numberOfExits: false,
+    location: false,
+    foundingYear: false,
+    website: false,
+    twitterLink: false,
+    linkedinLink: false,
+    facebookLink: false
+  });
 
   // Mock data for demonstration
   useEffect(() => {
     const investorData = [
       {
         id: 1,
-        name: "John Smith",
-        email: "john@techventures.com",
-        fund: "Tech Ventures Fund",
-        sector: ["Technology", "SaaS"],
-        stage: ["Seed", "Series A"],
-        checkSize: "$500K - $2M",
-        location: "San Francisco",
-        score: 95,
-        status: "active",
-        lastContact: "2024-01-15",
-        portfolio: 45,
-        avgCheck: "$1.2M",
-        website: "techventures.com",
-        linkedin: "linkedin.com/in/johnsmith",
-        notes: "Very responsive, interested in AI/ML startups"
+        investorName: "Sequoia Capital",
+        fundStage: "Series A, Series B",
+        fundType: "Venture Capital",
+        fundFocus: "Technology, SaaS, AI/ML",
+        partnerName: "Roelof Botha",
+        partnerEmail: "roelof@sequoiacap.com",
+        fundDescription: "Leading venture capital firm investing in technology companies",
+        portfolioCompanies: "Apple, Google, WhatsApp, Instagram, Airbnb",
+        numberOfInvestments: 500,
+        numberOfExits: 150,
+        location: "Menlo Park, CA",
+        foundingYear: 1972,
+        website: "sequoiacap.com",
+        twitterLink: "@sequoia",
+        linkedinLink: "linkedin.com/company/sequoia-capital",
+        facebookLink: "facebook.com/sequoiacapital"
       },
       {
         id: 2,
-        name: "Sarah Johnson",
-        email: "sarah@growthpartners.com",
-        fund: "Growth Partners",
-        sector: ["SaaS", "Fintech"],
-        stage: ["Series B", "Series C"],
-        checkSize: "$2M - $5M",
-        location: "New York",
-        score: 87,
-        status: "active",
-        lastContact: "2024-01-10",
-        portfolio: 32,
-        avgCheck: "$3.1M",
-        website: "growthpartners.com",
-        linkedin: "linkedin.com/in/sarahjohnson",
-        notes: "Focuses on B2B SaaS with strong unit economics"
+        investorName: "Andreessen Horowitz",
+        fundStage: "Seed, Series A, Series B",
+        fundType: "Venture Capital",
+        fundFocus: "Software, Crypto, Bio, Consumer",
+        partnerName: "Marc Andreessen",
+        partnerEmail: "marc@a16z.com",
+        fundDescription: "Venture capital firm focused on technology companies",
+        portfolioCompanies: "Facebook, Twitter, Skype, Foursquare, Airbnb",
+        numberOfInvestments: 400,
+        numberOfExits: 120,
+        location: "Menlo Park, CA",
+        foundingYear: 2009,
+        website: "a16z.com",
+        twitterLink: "@a16z",
+        linkedinLink: "linkedin.com/company/andreessen-horowitz",
+        facebookLink: "facebook.com/a16z"
       },
       {
         id: 3,
-        name: "Michael Chen",
-        email: "michael@earlystage.com",
-        fund: "Early Stage Capital",
-        sector: ["Fintech", "Healthcare"],
-        stage: ["Seed"],
-        checkSize: "$100K - $500K",
-        location: "Boston",
-        score: 92,
-        status: "pending",
-        lastContact: "2024-01-05",
-        portfolio: 28,
-        avgCheck: "$300K",
-        website: "earlystage.com",
-        linkedin: "linkedin.com/in/michaelchen",
-        notes: "Great for first-time founders, very hands-on"
+        investorName: "Accel Partners",
+        fundStage: "Seed, Series A",
+        fundType: "Venture Capital",
+        fundFocus: "Enterprise Software, Consumer Internet, Mobile",
+        partnerName: "Jim Breyer",
+        partnerEmail: "jim@accel.com",
+        fundDescription: "Early and growth-stage venture capital firm",
+        portfolioCompanies: "Facebook, Dropbox, Slack, Atlassian, Spotify",
+        numberOfInvestments: 350,
+        numberOfExits: 100,
+        location: "Palo Alto, CA",
+        foundingYear: 1983,
+        website: "accel.com",
+        twitterLink: "@accel",
+        linkedinLink: "linkedin.com/company/accel-partners",
+        facebookLink: "facebook.com/accelpartners"
       },
       {
         id: 4,
-        name: "Emily Davis",
-        email: "emily@cleantech.vc",
-        fund: "CleanTech Ventures",
-        sector: ["CleanTech", "Technology"],
-        stage: ["Series A", "Series B"],
-        checkSize: "$2M - $5M",
-        location: "Austin",
-        score: 89,
-        status: "active",
-        lastContact: "2024-01-12",
-        portfolio: 38,
-        avgCheck: "$2.8M",
-        website: "cleantech.vc",
-        linkedin: "linkedin.com/in/emilydavis",
-        notes: "Passionate about sustainable technology solutions"
+        investorName: "Kleiner Perkins",
+        fundStage: "Series A, Series B, Growth",
+        fundType: "Venture Capital",
+        fundFocus: "Consumer, Enterprise, Hardtech, Fintech",
+        partnerName: "John Doerr",
+        partnerEmail: "john@kpcb.com",
+        fundDescription: "Venture capital firm partnering with entrepreneurs",
+        portfolioCompanies: "Google, Amazon, Twitter, Uber, Airbnb",
+        numberOfInvestments: 800,
+        numberOfExits: 200,
+        location: "Menlo Park, CA",
+        foundingYear: 1972,
+        website: "kleinerperkins.com",
+        twitterLink: "@kleinerperkins",
+        linkedinLink: "linkedin.com/company/kleiner-perkins",
+        facebookLink: "facebook.com/kleinerperkins"
       },
       {
         id: 5,
-        name: "David Wilson",
-        email: "david@aiventures.com",
-        fund: "AI Ventures",
-        sector: ["AI/ML", "Technology"],
-        stage: ["Seed", "Series A"],
-        checkSize: "$500K - $2M",
-        location: "Seattle",
-        score: 94,
-        status: "active",
-        lastContact: "2024-01-18",
-        portfolio: 22,
-        avgCheck: "$1.5M",
-        website: "aiventures.com",
-        linkedin: "linkedin.com/in/davidwilson",
-        notes: "Expert in AI/ML, former Google executive"
-      },
-      {
-        id: 6,
-        name: "Lisa Brown",
-        email: "lisa@healthcapital.com",
-        fund: "Health Capital Partners",
-        sector: ["Healthcare", "Fintech"],
-        stage: ["Series A", "Series B"],
-        checkSize: "$2M - $5M",
-        location: "Los Angeles",
-        score: 91,
-        status: "active",
-        lastContact: "2024-01-08",
-        portfolio: 41,
-        avgCheck: "$3.2M",
-        website: "healthcapital.com",
-        linkedin: "linkedin.com/in/lisabrown",
-        notes: "Focus on digital health and medical devices"
-      },
-      {
-        id: 7,
-        name: "Robert Taylor",
-        email: "robert@ecommercefund.com",
-        fund: "E-commerce Growth Fund",
-        sector: ["E-commerce", "SaaS"],
-        stage: ["Series B", "Series C"],
-        checkSize: "$5M+",
-        location: "New York",
-        score: 85,
-        status: "active",
-        lastContact: "2024-01-14",
-        portfolio: 29,
-        avgCheck: "$6.5M",
-        website: "ecommercefund.com",
-        linkedin: "linkedin.com/in/roberttaylor",
-        notes: "Specializes in scaling e-commerce platforms"
-      },
-      {
-        id: 8,
-        name: "Jennifer Martinez",
-        email: "jennifer@edtechvc.com",
-        fund: "EdTech Ventures",
-        sector: ["Education", "Technology"],
-        stage: ["Seed", "Series A"],
-        checkSize: "$500K - $2M",
-        location: "San Francisco",
-        score: 88,
-        status: "pending",
-        lastContact: "2024-01-06",
-        portfolio: 35,
-        avgCheck: "$1.1M",
-        website: "edtechvc.com",
-        linkedin: "linkedin.com/in/jennifermartinez",
-        notes: "Former educator, passionate about learning tech"
-      },
-      {
-        id: 9,
-        name: "James Anderson",
-        email: "james@mobilityvc.com",
-        fund: "Mobility Ventures",
-        sector: ["Transportation", "Technology"],
-        stage: ["Series A", "Series B"],
-        checkSize: "$2M - $5M",
-        location: "Boston",
-        score: 90,
-        status: "active",
-        lastContact: "2024-01-11",
-        portfolio: 26,
-        avgCheck: "$2.9M",
-        website: "mobilityvc.com",
-        linkedin: "linkedin.com/in/jamesanderson",
-        notes: "Focus on autonomous vehicles and smart transportation"
-      },
-      {
-        id: 10,
-        name: "Amanda Garcia",
-        email: "amanda@foodtechfund.com",
-        fund: "FoodTech Innovation Fund",
-        sector: ["Food & Beverage", "Technology"],
-        stage: ["Seed", "Series A"],
-        checkSize: "$500K - $2M",
-        location: "Remote",
-        score: 86,
-        status: "active",
-        lastContact: "2024-01-09",
-        portfolio: 31,
-        avgCheck: "$1.3M",
-        website: "foodtechfund.com",
-        linkedin: "linkedin.com/in/amandagarcia",
-        notes: "Expertise in food technology and sustainable agriculture"
+        investorName: "Benchmark Capital",
+        fundStage: "Series A",
+        fundType: "Venture Capital",
+        fundFocus: "Consumer Internet, Enterprise Software, Mobile",
+        partnerName: "Bill Gurley",
+        partnerEmail: "bill@benchmark.com",
+        fundDescription: "Early-stage venture capital firm",
+        portfolioCompanies: "Uber, Twitter, Instagram, Snapchat, WeWork",
+        numberOfInvestments: 200,
+        numberOfExits: 80,
+        location: "Menlo Park, CA",
+        foundingYear: 1995,
+        website: "benchmark.com",
+        twitterLink: "@benchmark",
+        linkedinLink: "linkedin.com/company/benchmark-capital",
+        facebookLink: "facebook.com/benchmarkcapital"
       }
     ];
     setInvestors(investorData);
@@ -222,46 +143,21 @@ export default function AllInvestorsPage() {
   useEffect(() => {
     let filtered = [...investors];
     
-    // Apply search filter
     if (searchQuery) {
       filtered = filtered.filter(investor =>
-        investor.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        investor.fund.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        investor.email.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-    
-    // Apply selected filters
-    if (selectedFilters.sector.length > 0) {
-      filtered = filtered.filter(investor =>
-        investor.sector.some(s => selectedFilters.sector.includes(s))
-      );
-    }
-    
-    if (selectedFilters.stage.length > 0) {
-      filtered = filtered.filter(investor =>
-        investor.stage.some(s => selectedFilters.stage.includes(s))
-      );
-    }
-    
-    if (selectedFilters.location.length > 0) {
-      filtered = filtered.filter(investor =>
-        selectedFilters.location.includes(investor.location)
+        investor.investorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        investor.partnerEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        investor.fundFocus.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
     
     setFilteredInvestors(filtered);
-  }, [searchQuery, selectedFilters, investors]);
+  }, [searchQuery, investors]);
 
   const handleAddInvestor = async (values) => {
     const newInvestor = {
       id: Date.now(),
-      ...values,
-      score: Math.floor(Math.random() * 30) + 70, // Random score for demo
-      status: "active",
-      lastContact: new Date().toISOString().split('T')[0],
-      portfolio: 0,
-      notes: ""
+      ...values
     };
     
     setInvestors([...investors, newInvestor]);
@@ -293,306 +189,405 @@ export default function AllInvestorsPage() {
     });
   };
 
-  const getScoreColor = (score) => {
-    if (score >= 90) return 'success';
-    if (score >= 80) return 'warning';
-    return 'error';
+  const handleColumnVisibilityChange = (columnKey, checked) => {
+    setVisibleColumns(prev => ({
+      ...prev,
+      [columnKey]: checked
+    }));
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'active': return 'success';
-      case 'pending': return 'warning';
-      case 'inactive': return 'default';
-      default: return 'default';
-    }
-  };
-
-  const columns = [
+  const columnDefinitions = [
     {
-      title: 'Score',
-      dataIndex: 'score',
-      key: 'score',
-      width: 70,
+      key: 'serialNumber',
+      title: 'Sr. No.',
+      width: 80,
       align: 'center',
-      render: (score) => (
-        <div className={`score-badge ${
-          score >= 90 ? 'score-high' : score >= 80 ? 'score-medium' : 'score-low'
-        }`}>
-          {score}
-        </div>
-      ),
-      sorter: (a, b) => a.score - b.score,
+      render: (_, __, index) => index + 1,
     },
     {
-      title: 'Investor',
-      dataIndex: 'name',
-      key: 'name',
-      width: 200,
-      render: (name, record) => (
+      key: 'investorName',
+      title: 'Investor Name',
+      dataIndex: 'investorName',
+      render: (name) => (
         <div className="flex items-center space-x-2">
           <Avatar size="small" icon={<UserOutlined />} />
-          <div>
-            <div className="font-medium text-sm">{name}</div>
-            <div className="text-xs text-gray-500">{record.fund}</div>
-          </div>
+          <Text strong>{name}</Text>
         </div>
       ),
     },
     {
-      title: 'Contact',
-      dataIndex: 'email',
-      key: 'email',
+      key: 'fundStage',
+      title: 'Fund Stage',
+      dataIndex: 'fundStage',
+      render: (stage) => <Tag color="blue">{stage}</Tag>,
+    },
+    {
+      key: 'fundType',
+      title: 'Fund Type',
+      dataIndex: 'fundType',
+    },
+    {
+      key: 'fundFocus',
+      title: 'Fund Focus (Sectors)',
+      dataIndex: 'fundFocus',
+      render: (focus) => (
+        <div>
+          {focus.split(', ').map(sector => (
+            <Tag key={sector} color="green" size="small">{sector}</Tag>
+          ))}
+        </div>
+      ),
+    },
+    {
+      key: 'partnerName',
+      title: 'Partner Name',
+      dataIndex: 'partnerName',
+    },
+    {
+      key: 'partnerEmail',
+      title: 'Partner Email',
+      dataIndex: 'partnerEmail',
       render: (email) => <Text copyable>{email}</Text>,
     },
     {
-      title: 'Focus',
-      key: 'focus',
-      render: (_, record) => (
-        <div className="space-y-1">
-          {record.sector.map(s => (
-            <Tag key={s} color="blue" size="small">{s}</Tag>
-          ))}
-          {record.stage.map(s => (
-            <Tag key={s} color="green" size="small">{s}</Tag>
-          ))}
-        </div>
-      ),
+      key: 'fundDescription',
+      title: 'Fund Description',
+      dataIndex: 'fundDescription',
+      ellipsis: true,
     },
     {
-      title: 'Check Size',
-      dataIndex: 'checkSize',
-      key: 'checkSize',
+      key: 'portfolioCompanies',
+      title: 'Portfolio Companies',
+      dataIndex: 'portfolioCompanies',
+      ellipsis: true,
     },
     {
+      key: 'numberOfInvestments',
+      title: 'Number Of Investments',
+      dataIndex: 'numberOfInvestments',
+      align: 'center',
+    },
+    {
+      key: 'numberOfExits',
+      title: 'Number Of Exits',
+      dataIndex: 'numberOfExits',
+      align: 'center',
+    },
+    {
+      key: 'location',
       title: 'Location',
       dataIndex: 'location',
-      key: 'location',
     },
     {
-      title: 'Portfolio',
-      dataIndex: 'portfolio',
-      key: 'portfolio',
-      render: (portfolio) => (
-        <div className="text-center">
-          <div className="font-medium">{portfolio}</div>
-          <div className="text-xs text-gray-500">companies</div>
-        </div>
-      ),
+      key: 'foundingYear',
+      title: 'Founding Year',
+      dataIndex: 'foundingYear',
+      align: 'center',
     },
     {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status) => (
-        <Tag color={getStatusColor(status)}>
-          {status.charAt(0).toUpperCase() + status.slice(1)}
-        </Tag>
-      ),
+      key: 'website',
+      title: 'Website (If Available)',
+      dataIndex: 'website',
+      render: (website) => website ? (
+        <a href={`https://${website}`} target="_blank" rel="noreferrer">
+          {website}
+        </a>
+      ) : 'N/A',
     },
     {
-      title: 'Actions',
-      key: 'actions',
-      width: 200,
-      render: (_, record) => (
-        <Space size="small">
-          <Button size="small" icon={<EyeOutlined />}>View</Button>
-          <Button size="small" icon={<EditOutlined />}>Edit</Button>
-          <Button size="small" icon={<DeleteOutlined />} danger>Delete</Button>
-        </Space>
-      ),
+      key: 'twitterLink',
+      title: 'Twitter Link',
+      dataIndex: 'twitterLink',
+      render: (twitter) => twitter ? (
+        <a href={`https://twitter.com/${twitter.replace('@', '')}`} target="_blank" rel="noreferrer">
+          {twitter}
+        </a>
+      ) : 'N/A',
     },
+    {
+      key: 'linkedinLink',
+      title: 'Linkedin Link',
+      dataIndex: 'linkedinLink',
+      render: (linkedin) => linkedin ? (
+        <a href={`https://${linkedin}`} target="_blank" rel="noreferrer">
+          LinkedIn
+        </a>
+      ) : 'N/A',
+    },
+    {
+      key: 'facebookLink',
+      title: 'Facebook Link',
+      dataIndex: 'facebookLink',
+      render: (facebook) => facebook ? (
+        <a href={`https://${facebook}`} target="_blank" rel="noreferrer">
+          Facebook
+        </a>
+      ) : 'N/A',
+    }
   ];
 
-  const tabItems = [
-    {
-      key: "1",
-      label: (
-        <span>
-          <UserOutlined />
-          Investor Database
-        </span>
-      ),
-      children: (
-        <div className="space-y-6">
-          <Card>
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <Title level={4}>Investor Database</Title>
-                <Text type="secondary">Manage and track your investor relationships</Text>
-              </div>
-              <Button type="primary" icon={<PlusOutlined />} onClick={() => setAddInvestorModal(true)}>
-                Add Investor
-              </Button>
-            </div>
-            
-            <div className="mb-4">
-              <Search
-                placeholder="Search investors by name, fund, or email..."
-                allowClear
-                enterButton={<SearchOutlined />}
-                size="large"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+  const visibleColumnsArray = columnDefinitions.filter(col => visibleColumns[col.key]);
 
-            <div className="overflow-x-auto">
-              <Table
-                columns={columns}
-                dataSource={filteredInvestors}
-                rowKey="id"
-                loading={loading}
-                scroll={{ x: 1200 }}
-                className="custom-table"
-                pagination={{
-                  pageSize: 10,
-                  showSizeChanger: true,
-                  showQuickJumper: true,
-                  showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} investors`,
-                }}
-              />
-            </div>
-          </Card>
-        </div>
-      ),
-    },
-    {
-      key: "2",
-      label: (
-        <span>
-          <StarOutlined />
-          Smart Matching
-        </span>
-      ),
-      children: (
-        <div className="space-y-6">
-          <Card title="🤖 AI-Powered Investor Matching" className="shadow-lg">
-            <div className="mb-4">
-              <Text>
-                Use our AI matching algorithm to find the best investors for your startup based on sector, 
-                stage, check size, and other criteria.
-              </Text>
-            </div>
-            <InvestorMatcher />
-          </Card>
-        </div>
-      ),
-    },
-    {
-      key: "3",
-      label: (
-        <span>
-          <FilterOutlined />
-          Advanced Filters
-        </span>
-      ),
-      children: (
-        <div className="space-y-6">
-          <Card title="🔍 Advanced Investor Filtering" className="shadow-lg">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Text strong>Sector Focus</Text>
-                <Select
-                  mode="multiple"
-                  placeholder="Select sectors"
-                  value={selectedFilters.sector}
-                  onChange={(value) => setSelectedFilters({...selectedFilters, sector: value})}
-                  style={{ width: '100%', marginTop: 8 }}
-                >
-                  {['Technology', 'SaaS', 'Fintech', 'Healthcare', 'E-commerce', 'AI/ML', 'CleanTech'].map(sector => (
-                    <Option key={sector} value={sector}>{sector}</Option>
-                  ))}
-                </Select>
-              </div>
-              
-              <div>
-                <Text strong>Investment Stage</Text>
-                <Select
-                  mode="multiple"
-                  placeholder="Select stages"
-                  value={selectedFilters.stage}
-                  onChange={(value) => setSelectedFilters({...selectedFilters, stage: value})}
-                  style={{ width: '100%', marginTop: 8 }}
-                >
-                  {['Seed', 'Series A', 'Series B', 'Series C', 'Growth'].map(stage => (
-                    <Option key={stage} value={stage}>{stage}</Option>
-                  ))}
-                </Select>
-              </div>
-              
-              <div>
-                <Text strong>Location</Text>
-                <Select
-                  mode="multiple"
-                  placeholder="Select locations"
-                  value={selectedFilters.location}
-                  onChange={(value) => setSelectedFilters({...selectedFilters, location: value})}
-                  style={{ width: '100%', marginTop: 8 }}
-                >
-                  {['San Francisco', 'New York', 'Boston', 'Austin', 'Los Angeles', 'Seattle', 'Remote'].map(location => (
-                    <Option key={location} value={location}>{location}</Option>
-                  ))}
-                </Select>
-              </div>
-              
-              <div>
-                <Text strong>Check Size Range</Text>
-                <Select
-                  mode="multiple"
-                  placeholder="Select check sizes"
-                  value={selectedFilters.checkSize}
-                  onChange={(value) => setSelectedFilters({...selectedFilters, checkSize: value})}
-                  style={{ width: '100%', marginTop: 8 }}
-                >
-                  {['$100K - $500K', '$500K - $2M', '$2M - $5M', '$5M+'].map(size => (
-                    <Option key={size} value={size}>{size}</Option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-            
-            <div className="mt-4 text-center">
-              <Button onClick={() => setSelectedFilters({
-                sector: [],
-                stage: [],
-                location: [],
-                checkSize: []
-              })}>
-                Clear All Filters
-              </Button>
-            </div>
-          </Card>
-        </div>
-      ),
-    },
-  ];
+  const actionsColumn = {
+    title: 'Actions',
+    key: 'actions',
+    width: 150,
+    render: (_, record) => (
+      <Space size="small">
+        <Button size="small" icon={<EyeOutlined />} />
+        <Button size="small" icon={<EditOutlined />} />
+        <Button size="small" icon={<DeleteOutlined />} danger />
+      </Space>
+    ),
+  };
 
-  return (
-    <div>
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-        <div className="max-w-7xl mx-auto p-6">
-          <div className="mb-8">
-            <Title level={1} className="text-3xl font-bold text-gray-800 mb-2">
-              🚀 Investor Outreach Platform
-            </Title>
-            <Text className="text-lg text-gray-600">
-              AI-powered investor matching, deal rooms, and engagement tracking
-            </Text>
+  const finalColumns = [...visibleColumnsArray, actionsColumn];
+
+  const customizeColumnsMenu = (
+    <div className="p-4 w-80">
+      <Title level={5} className="mb-4">Customize Columns</Title>
+      
+      {/* Basic Information */}
+      <div className="mb-4">
+        <Text strong className="text-blue-600 mb-2 block">📊 Basic Information</Text>
+        <div className="space-y-2 pl-2">
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.serialNumber}
+              onChange={(e) => handleColumnVisibilityChange('serialNumber', e.target.checked)}
+            >
+              Sr. No.
+            </Checkbox>
           </div>
-
-          <Card className="shadow-xl border-0 rounded-2xl overflow-hidden">
-            <Tabs 
-              activeKey={activeTab} 
-              onChange={setActiveTab} 
-              items={tabItems}
-              size="large"
-              type="card"
-              className="custom-tabs"
-            />
-          </Card>
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.investorName}
+              onChange={(e) => handleColumnVisibilityChange('investorName', e.target.checked)}
+            >
+              Investor Name
+            </Checkbox>
+          </div>
         </div>
       </div>
+
+      {/* Fund Details */}
+      <div className="mb-4">
+        <Text strong className="text-green-600 mb-2 block">💰 Fund Details</Text>
+        <div className="space-y-2 pl-2">
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.fundStage}
+              onChange={(e) => handleColumnVisibilityChange('fundStage', e.target.checked)}
+            >
+              Fund Stage
+            </Checkbox>
+          </div>
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.fundType}
+              onChange={(e) => handleColumnVisibilityChange('fundType', e.target.checked)}
+            >
+              Fund Type
+            </Checkbox>
+          </div>
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.fundFocus}
+              onChange={(e) => handleColumnVisibilityChange('fundFocus', e.target.checked)}
+            >
+              Fund Focus (Sectors)
+            </Checkbox>
+          </div>
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.fundDescription}
+              onChange={(e) => handleColumnVisibilityChange('fundDescription', e.target.checked)}
+            >
+              Fund Description
+            </Checkbox>
+          </div>
+        </div>
+      </div>
+
+      {/* Contact Information */}
+      <div className="mb-4">
+        <Text strong className="text-purple-600 mb-2 block">👤 Contact Information</Text>
+        <div className="space-y-2 pl-2">
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.partnerName}
+              onChange={(e) => handleColumnVisibilityChange('partnerName', e.target.checked)}
+            >
+              Partner Name
+            </Checkbox>
+          </div>
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.partnerEmail}
+              onChange={(e) => handleColumnVisibilityChange('partnerEmail', e.target.checked)}
+            >
+              Partner Email
+            </Checkbox>
+          </div>
+        </div>
+      </div>
+
+      {/* Portfolio & Stats */}
+      <div className="mb-4">
+        <Text strong className="text-orange-600 mb-2 block">📈 Portfolio & Stats</Text>
+        <div className="space-y-2 pl-2">
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.portfolioCompanies}
+              onChange={(e) => handleColumnVisibilityChange('portfolioCompanies', e.target.checked)}
+            >
+              Portfolio Companies
+            </Checkbox>
+          </div>
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.numberOfInvestments}
+              onChange={(e) => handleColumnVisibilityChange('numberOfInvestments', e.target.checked)}
+            >
+              Number Of Investments
+            </Checkbox>
+          </div>
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.numberOfExits}
+              onChange={(e) => handleColumnVisibilityChange('numberOfExits', e.target.checked)}
+            >
+              Number Of Exits
+            </Checkbox>
+          </div>
+        </div>
+      </div>
+
+      {/* Company Details */}
+      <div className="mb-4">
+        <Text strong className="text-red-600 mb-2 block">🏢 Company Details</Text>
+        <div className="space-y-2 pl-2">
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.location}
+              onChange={(e) => handleColumnVisibilityChange('location', e.target.checked)}
+            >
+              Location
+            </Checkbox>
+          </div>
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.foundingYear}
+              onChange={(e) => handleColumnVisibilityChange('foundingYear', e.target.checked)}
+            >
+              Founding Year
+            </Checkbox>
+          </div>
+        </div>
+      </div>
+
+      {/* Social Links */}
+      <div className="mb-4">
+        <Text strong className="text-cyan-600 mb-2 block">🔗 Social Links</Text>
+        <div className="space-y-2 pl-2">
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.website}
+              onChange={(e) => handleColumnVisibilityChange('website', e.target.checked)}
+            >
+              Website
+            </Checkbox>
+          </div>
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.twitterLink}
+              onChange={(e) => handleColumnVisibilityChange('twitterLink', e.target.checked)}
+            >
+              Twitter Link
+            </Checkbox>
+          </div>
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.linkedinLink}
+              onChange={(e) => handleColumnVisibilityChange('linkedinLink', e.target.checked)}
+            >
+              LinkedIn Link
+            </Checkbox>
+          </div>
+          <div className="flex items-center">
+            <Checkbox
+              checked={visibleColumns.facebookLink}
+              onChange={(e) => handleColumnVisibilityChange('facebookLink', e.target.checked)}
+            >
+              Facebook Link
+            </Checkbox>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="p-6">
+      <Card
+        title={
+          <Title level={4} className="!mb-0">
+            All Investors
+          </Title>
+        }
+        extra={
+          <Space>
+            <Dropdown
+              overlay={customizeColumnsMenu}
+              trigger={['click']}
+              placement="bottomRight"
+            >
+              <Button icon={<SettingOutlined />}>
+                Customize Columns
+              </Button>
+            </Dropdown>
+            <Button
+              type="primary"
+              style={{
+                backgroundColor: "#ac6a1e",
+                color: "#fff",
+              }}
+              icon={<PlusOutlined />}
+              onClick={() => setAddInvestorModal(true)}
+            >
+              Add Investors
+            </Button>
+          </Space>
+        }
+      >
+        <div className="mb-6">
+          <Search
+            placeholder="Search investors by name, email, or focus..."
+            allowClear
+            enterButton={<SearchOutlined />}
+            size="large"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{ maxWidth: 400 }}
+          />
+        </div>
+
+        <div className="overflow-x-auto">
+          <Table
+            columns={finalColumns}
+            dataSource={filteredInvestors}
+            rowKey="id"
+            loading={loading}
+            scroll={{ x: 'max-content' }}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} investors`,
+            }}
+          />
+        </div>
+      </Card>
 
       {/* Add Investor Modal */}
       <Modal
@@ -603,108 +598,40 @@ export default function AllInvestorsPage() {
         width={600}
       >
         <Form form={form} onFinish={handleAddInvestor} layout="vertical">
-          <Form.Item name="name" label="Name" rules={[{ required: true }]}>
+          <Form.Item name="investorName" label="Investor Name" rules={[{ required: true }]}>
             <Input placeholder="Investor name" />
           </Form.Item>
-          <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
-            <Input placeholder="investor@fund.com" />
-          </Form.Item>
-          <Form.Item name="fund" label="Fund" rules={[{ required: true }]}>
-            <Input placeholder="Fund name" />
-          </Form.Item>
-          <Form.Item name="sector" label="Sectors" rules={[{ required: true }]}>
-            <Select mode="multiple" placeholder="Select sectors">
-              {['Technology', 'SaaS', 'Fintech', 'Healthcare', 'E-commerce', 'AI/ML', 'CleanTech'].map(sector => (
-                <Option key={sector} value={sector}>{sector}</Option>
-              ))}
+          <Form.Item name="fundStage" label="Fund Stage" rules={[{ required: true }]}>
+            <Select placeholder="Select fund stage">
+              <Option value="Seed">Seed</Option>
+              <Option value="Series A">Series A</Option>
+              <Option value="Series B">Series B</Option>
+              <Option value="Series C">Series C</Option>
+              <Option value="Growth">Growth</Option>
             </Select>
           </Form.Item>
-          <Form.Item name="stage" label="Investment Stages" rules={[{ required: true }]}>
-            <Select mode="multiple" placeholder="Select stages">
-              {['Seed', 'Series A', 'Series B', 'Series C', 'Growth'].map(stage => (
-                <Option key={stage} value={stage}>{stage}</Option>
-              ))}
-            </Select>
+          <Form.Item name="fundType" label="Fund Type" rules={[{ required: true }]}>
+            <Input placeholder="Fund type" />
           </Form.Item>
-          <Form.Item name="checkSize" label="Check Size" rules={[{ required: true }]}>
-            <Select placeholder="Select check size">
-              {['$100K - $500K', '$500K - $2M', '$2M - $5M', '$5M+'].map(size => (
-                <Option key={size} value={size}>{size}</Option>
-              ))}
-            </Select>
+          <Form.Item name="fundFocus" label="Fund Focus (Sectors)" rules={[{ required: true }]}>
+            <Input placeholder="Technology, SaaS, Fintech" />
           </Form.Item>
-          <Form.Item name="location" label="Location" rules={[{ required: true }]}>
-            <Select placeholder="Select location">
-              {['San Francisco', 'New York', 'Boston', 'Austin', 'Los Angeles', 'Seattle', 'Remote'].map(location => (
-                <Option key={location} value={location}>{location}</Option>
-              ))}
-            </Select>
+          <Form.Item name="partnerName" label="Partner Name" rules={[{ required: true }]}>
+            <Input placeholder="Partner name" />
+          </Form.Item>
+          <Form.Item name="partnerEmail" label="Partner Email" rules={[{ required: true, type: 'email' }]}>
+            <Input placeholder="partner@fund.com" />
+          </Form.Item>
+          <Form.Item name="location" label="Location">
+            <Input placeholder="City, Country" />
+          </Form.Item>
+          <Form.Item name="website" label="Website">
+            <Input placeholder="fund.com" />
           </Form.Item>
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit">Add Investor</Button>
               <Button onClick={() => setAddInvestorModal(false)}>Cancel</Button>
-            </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Edit Investor Modal */}
-      <Modal
-        title="Edit Investor"
-        open={editInvestorModal}
-        onCancel={() => {
-          setEditInvestorModal(false);
-          setSelectedInvestor(null);
-        }}
-        footer={null}
-        width={600}
-      >
-        <Form form={form} onFinish={handleEditInvestor} layout="vertical">
-          <Form.Item name="name" label="Name" rules={[{ required: true }]}>
-            <Input placeholder="Investor name" />
-          </Form.Item>
-          <Form.Item name="email" label="Email" rules={[{ required: true, type: 'email' }]}>
-            <Input placeholder="investor@fund.com" />
-          </Form.Item>
-          <Form.Item name="fund" label="Fund" rules={[{ required: true }]}>
-            <Input placeholder="Fund name" />
-          </Form.Item>
-          <Form.Item name="sector" label="Sectors" rules={[{ required: true }]}>
-            <Select mode="multiple" placeholder="Select sectors">
-              {['Technology', 'SaaS', 'Fintech', 'Healthcare', 'E-commerce', 'AI/ML', 'CleanTech'].map(sector => (
-                <Option key={sector} value={sector}>{sector}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item name="stage" label="Investment Stages" rules={[{ required: true }]}>
-            <Select mode="multiple" placeholder="Select stages">
-              {['Seed', 'Series A', 'Series B', 'Series C', 'Growth'].map(stage => (
-                <Option key={stage} value={stage}>{stage}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item name="checkSize" label="Check Size" rules={[{ required: true }]}>
-            <Select placeholder="Select check size">
-              {['$100K - $500K', '$500K - $2M', '$2M - $5M', '$5M+'].map(size => (
-                <Option key={size} value={size}>{size}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item name="location" label="Location" rules={[{ required: true }]}>
-            <Select placeholder="Select location">
-              {['San Francisco', 'New York', 'Boston', 'Austin', 'Los Angeles', 'Seattle', 'Remote'].map(location => (
-                <Option key={location} value={location}>{location}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit">Update Investor</Button>
-              <Button onClick={() => {
-                setEditInvestorModal(false);
-                setSelectedInvestor(null);
-              }}>Cancel</Button>
             </Space>
           </Form.Item>
         </Form>

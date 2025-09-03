@@ -19,7 +19,7 @@ export default function Home() {
 
   useEffect(() => {
     if (currentUser && !loading) {
-      router.push("/dashboard/manage-client");
+      router.replace("/dashboard");
     }
   }, [currentUser, loading, router]);
 

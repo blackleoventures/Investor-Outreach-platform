@@ -29,6 +29,8 @@ import {
   UserSwitchOutlined,
   RobotOutlined,
   MenuOutlined,
+  CheckCircleOutlined,
+  PlusOutlined,
 } from "@ant-design/icons";
 import Image from "next/image";
 
@@ -91,19 +93,26 @@ export default function DashboardLayout({
       ...navItem("/dashboard", "Dashboard"),
     },
     {
-      key: "/dashboard/manage-client",
+      key: "client-management",
       icon: <UserOutlined style={{ fontSize: "16px" }} />,
-      ...navItem("/dashboard/manage-client", "Manage Clients"),
-    },
-    {
-      key: "/dashboard/all-client",
-      icon: <TeamOutlined style={{ fontSize: "16px" }} />,
-      ...navItem("/dashboard/all-client", "All Clients"),
-    },
-    {
-      key: "/dashboard/add-client",
-      icon: <UserOutlined style={{ fontSize: "16px" }} />,
-      ...navItem("/dashboard/add-client", "Add Client"),
+      label: "Client Management",
+      children: [
+        {
+          key: "/dashboard/all-client",
+          icon: <TeamOutlined style={{ fontSize: "14px" }} />,
+          ...navItem("/dashboard/all-client", "All Clients"),
+        },
+        {
+          key: "/dashboard/active-client",
+          icon: <CheckCircleOutlined style={{ fontSize: "14px" }} />,
+          ...navItem("/dashboard/active-client", "Active Clients"),
+        },
+        {
+          key: "/dashboard/add-client",
+          icon: <PlusOutlined style={{ fontSize: "14px" }} />,
+          ...navItem("/dashboard/add-client", "Add Client"),
+        },
+      ],
     },
 
     {
@@ -127,14 +136,21 @@ export default function DashboardLayout({
       ...navItem("/dashboard/all-reports", "Reports"),
     },
     {
-      key: "/dashboard/all-investors",
+      key: "investor-management",
       icon: <UserSwitchOutlined style={{ fontSize: "16px" }} />,
-      ...navItem("/dashboard/all-investors", "Investors"),
-    },
-    {
-      key: "/dashboard/investor-management",
-      icon: <SettingOutlined style={{ fontSize: "16px" }} />,
-      ...navItem("/dashboard/investor-management", "Investor Management"),
+      label: "Investor Management",
+      children: [
+        {
+          key: "/dashboard/all-investors",
+          icon: <UserSwitchOutlined style={{ fontSize: "14px" }} />,
+          ...navItem("/dashboard/all-investors", "All Investors"),
+        },
+        {
+          key: "/dashboard/investor-management",
+          icon: <PlusOutlined style={{ fontSize: "14px" }} />,
+          ...navItem("/dashboard/investor-management", "Add Investor"),
+        },
+      ],
     },
 
   ]), [navItem]);

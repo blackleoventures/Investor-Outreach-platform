@@ -36,7 +36,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL as string;
 
 const { Title, Text } = Typography;
 
-const ManageClients = () => {
+const ActiveClients = () => {
   const { token } = useAuth();
   const router = useRouter();
   const [clients, setClients] = useState([]);
@@ -63,7 +63,7 @@ const ManageClients = () => {
         lazyAxios = await import("axios");
       }
       const url = email
-        ? `${BACKEND_URL}/clients?filter=active?email=${email}`
+        ? `${BACKEND_URL}/clients?filter=active&email=${email}`
         : `${BACKEND_URL}/clients?filter=active`;
 
       const response = await lazyAxios.default.get(url, {
@@ -103,7 +103,7 @@ const ManageClients = () => {
       setClients(clientData);
 
       if (clientData.length === 0) {
-        message.info("No clients found.");
+        message.info("No active clients found.");
       }
     } catch (error) {
       console.error("Error fetching clients:", error);
@@ -465,7 +465,7 @@ const ManageClients = () => {
       <Card
         title={
           <Title level={4} className="!mb-0">
-            Client Management
+            Active Clients
           </Title>
         }
         extra={
@@ -703,7 +703,6 @@ const ManageClients = () => {
           </Form.Item>
         </Form>
       </Modal>
-      {/* TODO: Re-add AddCredentialModal and EditClientModal when implemented in current codebase */}
     </div>
   );
 };
@@ -720,6 +719,5 @@ const StatCard = ({ title, value }) => (
 );
 
 export default function Page() {
-  return <ManageClients />;
+  return <ActiveClients />;
 }
-
