@@ -10,6 +10,7 @@ const nextConfig = {
   },
   experimental: {
     optimizeCss: true,
+    optimizePackageImports: ['antd'],
   },
   // Speed up builds (skip type checking and eslint during builds)
   typescript: {
@@ -31,6 +32,13 @@ const nextConfig = {
         source: '/:all*(png|jpg|jpeg|gif|svg|webp|ico)',
         headers: [
           { key: 'Cache-Control', value: 'public, max-age=604800, must-revalidate' },
+        ],
+      },
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
         ],
       },
     ];

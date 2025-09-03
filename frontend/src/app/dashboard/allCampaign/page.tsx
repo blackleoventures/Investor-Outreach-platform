@@ -6,7 +6,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 const Campaigns = () => {
   const { currentUser } = useAuth();

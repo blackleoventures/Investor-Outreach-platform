@@ -1,6 +1,6 @@
 const express = require("express");
 const upload = require("../middlewares/multer.middleware");
-const { analyzeDeck, createTemplate, getTemplate, updateTemplate, downloadTemplate, enhanceEmail, optimizeSubject, draftReply, matchInvestors, generateFollowUpSequence } = require("../controllers/ai.controller");
+const { analyzeDeck, createTemplate, getTemplate, updateTemplate, downloadTemplate, enhanceEmail, optimizeSubject, draftReply, matchInvestors } = require("../controllers/ai.controller");
 
 const router = express.Router();
 
@@ -13,6 +13,6 @@ router.get("/templates/:id", getTemplate);
 router.put("/templates/:id", updateTemplate);
 router.get("/templates/:id/download", downloadTemplate);
 router.post("/match-investors", matchInvestors);
-router.post("/generate-followup-sequence", generateFollowUpSequence);
+
 
 module.exports = router;

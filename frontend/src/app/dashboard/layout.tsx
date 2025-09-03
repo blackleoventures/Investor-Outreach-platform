@@ -40,35 +40,11 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Add mobile-specific styles
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const style = document.createElement('style');
-      style.textContent = `
-        @media (max-width: 768px) {
-          body {
-            overflow-x: hidden !important;
-          }
-          .ant-layout {
-            overflow-x: hidden !important;
-          }
-          .ant-table-wrapper {
-            overflow-x: auto !important;
-          }
-        }
-      `;
-      document.head.appendChild(style);
-      
-      return () => {
-        document.head.removeChild(style);
-      };
-    }
-  }, []);
+
   const { currentUser, logout, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [drawerKey, setDrawerKey] = useState(0);
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
 
@@ -78,9 +54,22 @@ export default function DashboardLayout({
       setIsMobile(window.innerWidth < 768);
     };
     checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    const debouncedResize = debounce(checkMobile, 100);
+    window.addEventListener('resize', debouncedResize);
+    return () => window.removeEventListener('resize', debouncedResize);
   }, []);
+
+  const debounce = (func, wait) => {
+    let timeout;
+    return function executedFunction(...args) {
+      const later = () => {
+        clearTimeout(timeout);
+        func(...args);
+      };
+      clearTimeout(timeout);
+      timeout = setTimeout(later, wait);
+    };
+  };
 
   const handleLogout = useCallback(async () => {
     try {
@@ -92,7 +81,7 @@ export default function DashboardLayout({
   }, [logout, router]);
 
   const navItem = useCallback((key: string, label: string) => ({
-    label: <Link href={key}>{label}</Link>,
+    label: <Link href={key} prefetch={true}>{label}</Link>,
   }), []);
 
   const menuItems = useMemo(() => ([
@@ -277,10 +266,7 @@ export default function DashboardLayout({
             <Button
               type="text"
               icon={<MenuOutlined />}
-              onClick={() => {
-                setMobileMenuOpen(true);
-                setDrawerKey(prev => prev + 1);
-              }}
+              onClick={() => setMobileMenuOpen(true)}
               size="small"
               style={{ color: 'white', padding: '4px' }}
             />
@@ -319,15 +305,11 @@ export default function DashboardLayout({
         <Drawer
           title="Navigation"
           placement="left"
-          onClose={() => {
-            setMobileMenuOpen(false);
-            setDrawerKey(prev => prev + 1);
-          }}
+          onClose={() => setMobileMenuOpen(false)}
           open={mobileMenuOpen}
           bodyStyle={{ padding: 0 }}
           width={isMobile ? 280 : 250}
-          key={`mobile-drawer-${drawerKey}`}
-          destroyOnClose={true}
+          destroyOnClose={false}
           headerStyle={{ 
             background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
             color: "white",

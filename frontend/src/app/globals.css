@@ -2,20 +2,57 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Force no cache */
+html {
+  cache-control: no-cache, no-store, must-revalidate !important;
+  pragma: no-cache !important;
+  expires: 0 !important;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  body {
+    overflow-x: hidden !important;
+    font-size: 14px !important;
+  }
+  
+  .ant-layout {
+    overflow-x: hidden !important;
+  }
+  
+  .ant-card {
+    margin-bottom: 16px !important;
+  }
+  
+  .ant-row {
+    margin: 0 !important;
+  }
+  
+  .ant-col {
+    padding: 8px !important;
+  }
+  
+  .ant-typography h2 {
+    font-size: 20px !important;
+  }
+  
+  .ant-typography h4 {
+    font-size: 16px !important;
+  }
+  
+  .ant-btn {
+    height: 36px !important;
+    font-size: 14px !important;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Ensure proper mobile scaling */
+* {
+  box-sizing: border-box;
+}
+
+.mobile-optimized {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: hidden !important;
 }
