@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Card, Typography, Button, Input, Table, Tag, Space, message, Avatar, Modal, Form, Select, Dropdown, Checkbox } from "antd";
-import { UserOutlined, SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SettingOutlined } from "@ant-design/icons";
+import { UserOutlined, SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SettingOutlined, FileTextOutlined } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -16,6 +16,7 @@ export default function AllInvestorsPage() {
   const [addInvestorModal, setAddInvestorModal] = useState(false);
   const [editInvestorModal, setEditInvestorModal] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState(null);
+
   const [form] = Form.useForm();
   const [visibleColumns, setVisibleColumns] = useState({
     serialNumber: true,
@@ -343,189 +344,151 @@ export default function AllInvestorsPage() {
 
   const finalColumns = [...visibleColumnsArray, actionsColumn];
 
-  const customizeColumnsMenu = (
-    <div className="p-4 w-80">
-      <Title level={5} className="mb-4">Customize Columns</Title>
-      
-      {/* Basic Information */}
-      <div className="mb-4">
-        <Text strong className="text-blue-600 mb-2 block">📊 Basic Information</Text>
-        <div className="space-y-2 pl-2">
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.serialNumber}
-              onChange={(e) => handleColumnVisibilityChange('serialNumber', e.target.checked)}
-            >
-              Sr. No.
-            </Checkbox>
+  const customizeColumnsMenu = {
+    items: [
+      {
+        key: 'customize-panel',
+        label: (
+          <div className="w-64" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            <div className="p-2 border-b border-gray-200 mb-2">
+              <Text strong className="text-gray-800">Select Columns</Text>
+            </div>
+            
+            <div className="space-y-1 px-2 pb-2">
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.investorName}
+                  onChange={(e) => handleColumnVisibilityChange('investorName', e.target.checked)}
+                >
+                  Investor Name
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.fundStage}
+                  onChange={(e) => handleColumnVisibilityChange('fundStage', e.target.checked)}
+                >
+                  Fund Stage
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.fundType}
+                  onChange={(e) => handleColumnVisibilityChange('fundType', e.target.checked)}
+                >
+                  Fund Type
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.fundFocus}
+                  onChange={(e) => handleColumnVisibilityChange('fundFocus', e.target.checked)}
+                >
+                  Fund Focus (Sectors)
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.partnerName}
+                  onChange={(e) => handleColumnVisibilityChange('partnerName', e.target.checked)}
+                >
+                  Partner Name
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.partnerEmail}
+                  onChange={(e) => handleColumnVisibilityChange('partnerEmail', e.target.checked)}
+                >
+                  Partner Email
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.fundDescription}
+                  onChange={(e) => handleColumnVisibilityChange('fundDescription', e.target.checked)}
+                >
+                  Fund Description
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.portfolioCompanies}
+                  onChange={(e) => handleColumnVisibilityChange('portfolioCompanies', e.target.checked)}
+                >
+                  Portfolio Companies
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.numberOfInvestments}
+                  onChange={(e) => handleColumnVisibilityChange('numberOfInvestments', e.target.checked)}
+                >
+                  Number Of Investments
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.numberOfExits}
+                  onChange={(e) => handleColumnVisibilityChange('numberOfExits', e.target.checked)}
+                >
+                  Number Of Exits
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.location}
+                  onChange={(e) => handleColumnVisibilityChange('location', e.target.checked)}
+                >
+                  Location
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.foundingYear}
+                  onChange={(e) => handleColumnVisibilityChange('foundingYear', e.target.checked)}
+                >
+                  Founding Year
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.website}
+                  onChange={(e) => handleColumnVisibilityChange('website', e.target.checked)}
+                >
+                  Website (If Available)
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.twitterLink}
+                  onChange={(e) => handleColumnVisibilityChange('twitterLink', e.target.checked)}
+                >
+                  Twitter Link
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.linkedinLink}
+                  onChange={(e) => handleColumnVisibilityChange('linkedinLink', e.target.checked)}
+                >
+                  Linkedin Link
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.facebookLink}
+                  onChange={(e) => handleColumnVisibilityChange('facebookLink', e.target.checked)}
+                >
+                  Facebook Link
+                </Checkbox>
+              </div>
+            </div>
           </div>
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.investorName}
-              onChange={(e) => handleColumnVisibilityChange('investorName', e.target.checked)}
-            >
-              Investor Name
-            </Checkbox>
-          </div>
-        </div>
-      </div>
-
-      {/* Fund Details */}
-      <div className="mb-4">
-        <Text strong className="text-green-600 mb-2 block">💰 Fund Details</Text>
-        <div className="space-y-2 pl-2">
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.fundStage}
-              onChange={(e) => handleColumnVisibilityChange('fundStage', e.target.checked)}
-            >
-              Fund Stage
-            </Checkbox>
-          </div>
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.fundType}
-              onChange={(e) => handleColumnVisibilityChange('fundType', e.target.checked)}
-            >
-              Fund Type
-            </Checkbox>
-          </div>
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.fundFocus}
-              onChange={(e) => handleColumnVisibilityChange('fundFocus', e.target.checked)}
-            >
-              Fund Focus (Sectors)
-            </Checkbox>
-          </div>
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.fundDescription}
-              onChange={(e) => handleColumnVisibilityChange('fundDescription', e.target.checked)}
-            >
-              Fund Description
-            </Checkbox>
-          </div>
-        </div>
-      </div>
-
-      {/* Contact Information */}
-      <div className="mb-4">
-        <Text strong className="text-purple-600 mb-2 block">👤 Contact Information</Text>
-        <div className="space-y-2 pl-2">
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.partnerName}
-              onChange={(e) => handleColumnVisibilityChange('partnerName', e.target.checked)}
-            >
-              Partner Name
-            </Checkbox>
-          </div>
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.partnerEmail}
-              onChange={(e) => handleColumnVisibilityChange('partnerEmail', e.target.checked)}
-            >
-              Partner Email
-            </Checkbox>
-          </div>
-        </div>
-      </div>
-
-      {/* Portfolio & Stats */}
-      <div className="mb-4">
-        <Text strong className="text-orange-600 mb-2 block">📈 Portfolio & Stats</Text>
-        <div className="space-y-2 pl-2">
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.portfolioCompanies}
-              onChange={(e) => handleColumnVisibilityChange('portfolioCompanies', e.target.checked)}
-            >
-              Portfolio Companies
-            </Checkbox>
-          </div>
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.numberOfInvestments}
-              onChange={(e) => handleColumnVisibilityChange('numberOfInvestments', e.target.checked)}
-            >
-              Number Of Investments
-            </Checkbox>
-          </div>
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.numberOfExits}
-              onChange={(e) => handleColumnVisibilityChange('numberOfExits', e.target.checked)}
-            >
-              Number Of Exits
-            </Checkbox>
-          </div>
-        </div>
-      </div>
-
-      {/* Company Details */}
-      <div className="mb-4">
-        <Text strong className="text-red-600 mb-2 block">🏢 Company Details</Text>
-        <div className="space-y-2 pl-2">
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.location}
-              onChange={(e) => handleColumnVisibilityChange('location', e.target.checked)}
-            >
-              Location
-            </Checkbox>
-          </div>
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.foundingYear}
-              onChange={(e) => handleColumnVisibilityChange('foundingYear', e.target.checked)}
-            >
-              Founding Year
-            </Checkbox>
-          </div>
-        </div>
-      </div>
-
-      {/* Social Links */}
-      <div className="mb-4">
-        <Text strong className="text-cyan-600 mb-2 block">🔗 Social Links</Text>
-        <div className="space-y-2 pl-2">
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.website}
-              onChange={(e) => handleColumnVisibilityChange('website', e.target.checked)}
-            >
-              Website
-            </Checkbox>
-          </div>
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.twitterLink}
-              onChange={(e) => handleColumnVisibilityChange('twitterLink', e.target.checked)}
-            >
-              Twitter Link
-            </Checkbox>
-          </div>
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.linkedinLink}
-              onChange={(e) => handleColumnVisibilityChange('linkedinLink', e.target.checked)}
-            >
-              LinkedIn Link
-            </Checkbox>
-          </div>
-          <div className="flex items-center">
-            <Checkbox
-              checked={visibleColumns.facebookLink}
-              onChange={(e) => handleColumnVisibilityChange('facebookLink', e.target.checked)}
-            >
-              Facebook Link
-            </Checkbox>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+        ),
+      },
+    ],
+  };
 
   return (
     <div className="p-6">
@@ -538,7 +501,7 @@ export default function AllInvestorsPage() {
         extra={
           <Space>
             <Dropdown
-              overlay={customizeColumnsMenu}
+              menu={customizeColumnsMenu}
               trigger={['click']}
               placement="bottomRight"
             >
@@ -546,17 +509,54 @@ export default function AllInvestorsPage() {
                 Customize Columns
               </Button>
             </Dropdown>
-            <Button
-              type="primary"
-              style={{
-                backgroundColor: "#ac6a1e",
-                color: "#fff",
+            <Dropdown
+              menu={{
+                items: [
+                  {
+                    key: 'manual',
+                    label: (
+                      <div className="flex items-center gap-2 p-2">
+                        <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center">
+                          <UserOutlined className="text-blue-600" />
+                        </div>
+                        <div>
+                          <div className="font-medium">Manual Entry</div>
+                          <div className="text-xs text-gray-500">Add contacts individually with detailed information</div>
+                        </div>
+                      </div>
+                    ),
+                    onClick: () => setAddInvestorModal(true)
+                  },
+                  {
+                    key: 'csv',
+                    label: (
+                      <div className="flex items-center gap-2 p-2">
+                        <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center">
+                          <FileTextOutlined className="text-green-600" />
+                        </div>
+                        <div>
+                          <div className="font-medium">CSV Import</div>
+                          <div className="text-xs text-gray-500">Bulk upload contacts using CSV file format</div>
+                        </div>
+                      </div>
+                    ),
+                    onClick: () => console.log('CSV Upload clicked')
+                  }
+                ]
               }}
-              icon={<PlusOutlined />}
-              onClick={() => setAddInvestorModal(true)}
+              placement="bottomRight"
             >
-              Add Investors
-            </Button>
+              <Button
+                type="primary"
+                style={{
+                  backgroundColor: "#ac6a1e",
+                  color: "#fff",
+                }}
+                icon={<PlusOutlined />}
+              >
+                Add Investors
+              </Button>
+            </Dropdown>
           </Space>
         }
       >
@@ -564,13 +564,28 @@ export default function AllInvestorsPage() {
           <Search
             placeholder="Search investors by name, email, or focus..."
             allowClear
-            enterButton={<SearchOutlined />}
+            enterButton
             size="large"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ maxWidth: 400 }}
+            style={{ 
+              maxWidth: 400,
+            }}
+            className="custom-search"
           />
         </div>
+        
+        <style jsx>{`
+          :global(.custom-search .ant-btn) {
+            background-color: #1890ff !important;
+            border-color: #1890ff !important;
+            color: white !important;
+          }
+          :global(.custom-search .ant-btn:hover) {
+            background-color: #40a9ff !important;
+            border-color: #40a9ff !important;
+          }
+        `}</style>
 
         <div className="overflow-x-auto">
           <Table
@@ -591,50 +606,86 @@ export default function AllInvestorsPage() {
 
       {/* Add Investor Modal */}
       <Modal
-        title="Add New Investor"
+        title={
+          <div className="flex items-center gap-2">
+            <Button type="text" icon={<SettingOutlined />} size="small">
+              Customize Columns
+            </Button>
+          </div>
+        }
         open={addInvestorModal}
         onCancel={() => setAddInvestorModal(false)}
         footer={null}
-        width={600}
+        width={1200}
+        style={{ top: 20 }}
       >
-        <Form form={form} onFinish={handleAddInvestor} layout="vertical">
-          <Form.Item name="investorName" label="Investor Name" rules={[{ required: true }]}>
-            <Input placeholder="Investor name" />
-          </Form.Item>
-          <Form.Item name="fundStage" label="Fund Stage" rules={[{ required: true }]}>
-            <Select placeholder="Select fund stage">
-              <Option value="Seed">Seed</Option>
-              <Option value="Series A">Series A</Option>
-              <Option value="Series B">Series B</Option>
-              <Option value="Series C">Series C</Option>
-              <Option value="Growth">Growth</Option>
-            </Select>
-          </Form.Item>
-          <Form.Item name="fundType" label="Fund Type" rules={[{ required: true }]}>
-            <Input placeholder="Fund type" />
-          </Form.Item>
-          <Form.Item name="fundFocus" label="Fund Focus (Sectors)" rules={[{ required: true }]}>
-            <Input placeholder="Technology, SaaS, Fintech" />
-          </Form.Item>
-          <Form.Item name="partnerName" label="Partner Name" rules={[{ required: true }]}>
-            <Input placeholder="Partner name" />
-          </Form.Item>
-          <Form.Item name="partnerEmail" label="Partner Email" rules={[{ required: true, type: 'email' }]}>
-            <Input placeholder="partner@fund.com" />
-          </Form.Item>
-          <Form.Item name="location" label="Location">
-            <Input placeholder="City, Country" />
-          </Form.Item>
-          <Form.Item name="website" label="Website">
-            <Input placeholder="fund.com" />
-          </Form.Item>
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit">Add Investor</Button>
-              <Button onClick={() => setAddInvestorModal(false)}>Cancel</Button>
-            </Space>
-          </Form.Item>
-        </Form>
+        <div className="p-4">
+          {/* Form Headers */}
+          <div className="grid grid-cols-4 gap-4 mb-4 font-semibold text-gray-700">
+            <div>Partner Email</div>
+            <div>Investor Name</div>
+            <div>Partner Name</div>
+            <div>Fund Focus (Sectors)</div>
+          </div>
+          
+          {/* Form Rows */}
+          <Form form={form} onFinish={handleAddInvestor}>
+            {[1, 2, 3, 4].map((row) => (
+              <div key={row} className="grid grid-cols-4 gap-4 mb-4">
+                <Form.Item name={`partnerEmail_${row}`}>
+                  <Input placeholder="Partner Email" />
+                </Form.Item>
+                <Form.Item name={`investorName_${row}`}>
+                  <Input placeholder="Investor Name" />
+                </Form.Item>
+                <Form.Item name={`partnerName_${row}`}>
+                  <Input placeholder="Partner Name" />
+                </Form.Item>
+                <Form.Item name={`fundFocus_${row}`}>
+                  <Input placeholder="Fund Focus" />
+                </Form.Item>
+              </div>
+            ))}
+            
+            {/* Add more field button */}
+            <div className="text-center mb-6">
+              <Button type="link" icon={<PlusOutlined />} className="text-blue-500">
+                Add more field
+              </Button>
+            </div>
+            
+            {/* Progress bar */}
+            <div className="mb-6">
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="bg-gray-400 h-2 rounded-full" style={{ width: '25%' }}></div>
+              </div>
+            </div>
+            
+            {/* Action buttons */}
+            <div className="flex gap-4">
+              <Button 
+                type="primary" 
+                htmlType="submit"
+                style={{
+                  backgroundColor: "#ac6a1e",
+                  color: "#fff",
+                  borderColor: "#ac6a1e"
+                }}
+              >
+                Submit
+              </Button>
+              <Button 
+                onClick={() => setAddInvestorModal(false)}
+                style={{
+                  borderColor: "#dc2626",
+                  color: "#dc2626"
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </Form>
+        </div>
       </Modal>
     </div>
   );

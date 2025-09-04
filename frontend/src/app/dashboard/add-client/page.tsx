@@ -13,7 +13,7 @@ export default function Page() {
     setLoading(true);
     try {
       message.success("Client created (stub)");
-      router.push("/dashboard/manage-client");
+      router.push("/dashboard/all-client");
     } finally {
       setLoading(false);
     }

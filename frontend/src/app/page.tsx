@@ -19,6 +19,7 @@ export default function Home() {
 
   useEffect(() => {
     if (currentUser && !loading) {
+      console.log('User authenticated, redirecting to dashboard');
       router.replace("/dashboard");
     }
   }, [currentUser, loading, router]);
@@ -26,6 +27,7 @@ export default function Home() {
   const handleLogin = async () => {
     try {
       await login();
+      // The redirect will be handled by the useEffect above
     } catch (error) {
       console.error("Login failed:", error);
       // Error will be handled by AuthContext and shown via authError

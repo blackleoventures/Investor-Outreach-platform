@@ -146,9 +146,9 @@ export default function DashboardLayout({
           ...navItem("/dashboard/all-investors", "All Investors"),
         },
         {
-          key: "/dashboard/investor-management",
+          key: "/dashboard/add-investor",
           icon: <PlusOutlined style={{ fontSize: "14px" }} />,
-          ...navItem("/dashboard/investor-management", "Add Investor"),
+          ...navItem("/dashboard/add-investor", "Add Investor"),
         },
       ],
     },

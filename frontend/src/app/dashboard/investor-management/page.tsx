@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Card, Tabs, Typography, Button, Input, Table, Tag, Badge, Space, message, Spin } from "antd";
-import { UserOutlined, SearchOutlined, FilterOutlined, StarOutlined, MailOutlined, EyeOutlined } from "@ant-design/icons";
+import { UserOutlined, SearchOutlined, FilterOutlined, StarOutlined, MailOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
 import dynamic from "next/dynamic";
 
 const { Title, Text } = Typography;
@@ -184,7 +184,11 @@ export default function InvestorManagementPage() {
                 <Title level={4}>Investor Database</Title>
                 <Text type="secondary">Manage and track your investor relationships</Text>
               </div>
-              <Button type="primary" icon={<UserOutlined />}>
+              <Button 
+                type="primary" 
+                icon={<PlusOutlined />}
+                onClick={() => window.location.href = '/dashboard/add-investor'}
+              >
                 Add Investor
               </Button>
             </div>
