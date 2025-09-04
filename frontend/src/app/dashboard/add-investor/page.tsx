@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, Typography, Button, Form, Input, Modal, Dropdown, Checkbox } from "antd";
-import { UserOutlined, FileTextOutlined, ArrowLeftOutlined, PlusOutlined, SettingOutlined, DeleteOutlined, EditOutlined, SaveOutlined } from "@ant-design/icons";
+import { UserOutlined, FileTextOutlined, ArrowLeftOutlined, PlusOutlined, SettingOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 
 const { Title, Text } = Typography;
@@ -12,7 +12,29 @@ export default function AddInvestorPage() {
   const [showManualForm, setShowManualForm] = useState(false);
   const [form] = Form.useForm();
   const [formRows, setFormRows] = useState([1, 2, 3, 4]);
-  const [editingRows, setEditingRows] = useState<number[]>([]);
+
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      * {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+      }
+      *::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+      }
+      .ant-modal, .ant-modal-content, .ant-modal-body, .ant-modal-wrap {
+        overflow: hidden !important;
+        overflow-x: hidden !important;
+        overflow-y: hidden !important;
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+
   const [visibleColumns, setVisibleColumns] = useState({
     partnerEmail: true,
     investorName: true,
@@ -55,19 +77,6 @@ export default function AddInvestorPage() {
     }
   };
 
-  const toggleEditRow = (rowId: number) => {
-    if (editingRows.includes(rowId)) {
-      setEditingRows(editingRows.filter(id => id !== rowId));
-    } else {
-      setEditingRows([...editingRows, rowId]);
-    }
-  };
-
-  const saveRow = (rowId: number) => {
-    setEditingRows(editingRows.filter(id => id !== rowId));
-    console.log(`Row ${rowId} saved`);
-  };
-
   const handleColumnVisibilityChange = (columnKey: string, checked: boolean) => {
     setVisibleColumns(prev => ({
       ...prev,
@@ -84,7 +93,6 @@ export default function AddInvestorPage() {
             <div className="p-2 border-b border-gray-200 mb-2">
               <Text strong className="text-gray-800">Select Columns</Text>
             </div>
-            
             <div className="space-y-1 px-2 pb-2">
               <div className="flex items-center py-1">
                 <Checkbox
@@ -132,86 +140,6 @@ export default function AddInvestorPage() {
                   onChange={(e) => handleColumnVisibilityChange('website', e.target.checked)}
                 >
                   Website (If Available)
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.fundFocus}
-                  onChange={(e) => handleColumnVisibilityChange('fundFocus', e.target.checked)}
-                >
-                  Fund Focus (Sectors)
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.portfolioCompanies}
-                  onChange={(e) => handleColumnVisibilityChange('portfolioCompanies', e.target.checked)}
-                >
-                  Portfolio Companies
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.location}
-                  onChange={(e) => handleColumnVisibilityChange('location', e.target.checked)}
-                >
-                  Location
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.twitterLink}
-                  onChange={(e) => handleColumnVisibilityChange('twitterLink', e.target.checked)}
-                >
-                  Twitter Link
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.linkedinLink}
-                  onChange={(e) => handleColumnVisibilityChange('linkedinLink', e.target.checked)}
-                >
-                  Linkedin Link
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.facebookLink}
-                  onChange={(e) => handleColumnVisibilityChange('facebookLink', e.target.checked)}
-                >
-                  Facebook Link
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.numberOfInvestments}
-                  onChange={(e) => handleColumnVisibilityChange('numberOfInvestments', e.target.checked)}
-                >
-                  Number Of Investments
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.numberOfExits}
-                  onChange={(e) => handleColumnVisibilityChange('numberOfExits', e.target.checked)}
-                >
-                  Number Of Exits
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.fundDescription}
-                  onChange={(e) => handleColumnVisibilityChange('fundDescription', e.target.checked)}
-                >
-                  Fund Description
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.foundingYear}
-                  onChange={(e) => handleColumnVisibilityChange('foundingYear', e.target.checked)}
-                >
-                  Founding Year
                 </Checkbox>
               </div>
             </div>
@@ -293,129 +221,74 @@ export default function AddInvestorPage() {
           footer={null}
           width={1200}
           style={{ top: 20 }}
+          styles={{ 
+            body: { 
+              padding: 0, 
+              overflow: 'hidden', 
+              overflowX: 'hidden',
+              overflowY: 'hidden'
+            }
+          }}
         >
-          <div className="p-4 overflow-x-auto">
-            <div className="flex gap-4 mb-4 font-semibold text-gray-700 min-w-max">
-              {visibleColumns.partnerEmail && <div className="w-48 flex-shrink-0">Partner Email (Required)</div>}
-              {visibleColumns.investorName && <div className="w-48 flex-shrink-0">Investor Name (Required)</div>}
-              {visibleColumns.partnerName && <div className="w-48 flex-shrink-0">Partner Name (Required)</div>}
-              {visibleColumns.fundType && <div className="w-48 flex-shrink-0">Fund Type (Required)</div>}
-              {visibleColumns.fundStage && <div className="w-48 flex-shrink-0">Fund Stage (Required)</div>}
-              {visibleColumns.website && <div className="w-48 flex-shrink-0">Website (If Available)</div>}
-              {visibleColumns.fundFocus && <div className="w-48 flex-shrink-0">Fund Focus (Sectors)</div>}
-              {visibleColumns.portfolioCompanies && <div className="w-48 flex-shrink-0">Portfolio Companies</div>}
-              {visibleColumns.location && <div className="w-48 flex-shrink-0">Location</div>}
-              {visibleColumns.twitterLink && <div className="w-48 flex-shrink-0">Twitter Link</div>}
-              {visibleColumns.linkedinLink && <div className="w-48 flex-shrink-0">Linkedin Link</div>}
-              {visibleColumns.facebookLink && <div className="w-48 flex-shrink-0">Facebook Link</div>}
-              {visibleColumns.numberOfInvestments && <div className="w-48 flex-shrink-0">Number Of Investments</div>}
-              {visibleColumns.numberOfExits && <div className="w-48 flex-shrink-0">Number Of Exits</div>}
-              {visibleColumns.fundDescription && <div className="w-48 flex-shrink-0">Fund Description</div>}
-              {visibleColumns.foundingYear && <div className="w-48 flex-shrink-0">Founding Year</div>}
-              <div className="w-24 flex-shrink-0">Actions</div>
+          <div className="p-4" style={{ 
+            overflow: 'hidden',
+            overflowX: 'hidden',
+            maxWidth: '100%',
+            width: '100%',
+            boxSizing: 'border-box'
+          }}>
+            <div className="grid gap-2 mb-4 font-semibold text-gray-700 text-xs" style={{
+              gridTemplateColumns: `repeat(${Object.values(visibleColumns).filter(Boolean).length + 1}, 1fr)`,
+              maxWidth: '100%',
+              overflow: 'hidden'
+            }}>
+              {visibleColumns.partnerEmail && <div>Partner Email (Required)</div>}
+              {visibleColumns.investorName && <div>Investor Name (Required)</div>}
+              {visibleColumns.partnerName && <div>Partner Name (Required)</div>}
+              {visibleColumns.fundType && <div>Fund Type (Required)</div>}
+              {visibleColumns.fundStage && <div>Fund Stage (Required)</div>}
+              {visibleColumns.website && <div>Website (If Available)</div>}
+              <div>Actions</div>
             </div>
             
             <Form form={form} onFinish={handleSubmit}>
               {formRows.map((row) => (
-                <div key={row} className="flex gap-4 mb-4 min-w-max">
+                <div key={row} className="grid gap-2 mb-4" style={{
+                  gridTemplateColumns: `repeat(${Object.values(visibleColumns).filter(Boolean).length + 1}, 1fr)`,
+                  maxWidth: '100%',
+                  overflow: 'hidden'
+                }}>
                   {visibleColumns.partnerEmail && (
-                    <Form.Item name={`partnerEmail_${row}`} className="w-48 flex-shrink-0">
+                    <Form.Item name={`partnerEmail_${row}`} className="mb-0">
                       <Input placeholder="Partner Email" />
                     </Form.Item>
                   )}
                   {visibleColumns.investorName && (
-                    <Form.Item name={`investorName_${row}`} className="w-48 flex-shrink-0">
+                    <Form.Item name={`investorName_${row}`} className="mb-0">
                       <Input placeholder="Investor Name" />
                     </Form.Item>
                   )}
                   {visibleColumns.partnerName && (
-                    <Form.Item name={`partnerName_${row}`} className="w-48 flex-shrink-0">
+                    <Form.Item name={`partnerName_${row}`} className="mb-0">
                       <Input placeholder="Partner Name" />
                     </Form.Item>
                   )}
                   {visibleColumns.fundType && (
-                    <Form.Item name={`fundType_${row}`} className="w-48 flex-shrink-0">
+                    <Form.Item name={`fundType_${row}`} className="mb-0">
                       <Input placeholder="Fund Type" />
                     </Form.Item>
                   )}
                   {visibleColumns.fundStage && (
-                    <Form.Item name={`fundStage_${row}`} className="w-48 flex-shrink-0">
+                    <Form.Item name={`fundStage_${row}`} className="mb-0">
                       <Input placeholder="Fund Stage" />
                     </Form.Item>
                   )}
                   {visibleColumns.website && (
-                    <Form.Item name={`website_${row}`} className="w-48 flex-shrink-0">
+                    <Form.Item name={`website_${row}`} className="mb-0">
                       <Input placeholder="Website" />
                     </Form.Item>
                   )}
-                  {visibleColumns.fundFocus && (
-                    <Form.Item name={`fundFocus_${row}`} className="w-48 flex-shrink-0">
-                      <Input placeholder="Fund Focus" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.portfolioCompanies && (
-                    <Form.Item name={`portfolioCompanies_${row}`} className="w-48 flex-shrink-0">
-                      <Input placeholder="Portfolio Companies" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.location && (
-                    <Form.Item name={`location_${row}`} className="w-48 flex-shrink-0">
-                      <Input placeholder="Location" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.twitterLink && (
-                    <Form.Item name={`twitterLink_${row}`} className="w-48 flex-shrink-0">
-                      <Input placeholder="Twitter Link" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.linkedinLink && (
-                    <Form.Item name={`linkedinLink_${row}`} className="w-48 flex-shrink-0">
-                      <Input placeholder="Linkedin Link" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.facebookLink && (
-                    <Form.Item name={`facebookLink_${row}`} className="w-48 flex-shrink-0">
-                      <Input placeholder="Facebook Link" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.numberOfInvestments && (
-                    <Form.Item name={`numberOfInvestments_${row}`} className="w-48 flex-shrink-0">
-                      <Input placeholder="Number Of Investments" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.numberOfExits && (
-                    <Form.Item name={`numberOfExits_${row}`} className="w-48 flex-shrink-0">
-                      <Input placeholder="Number Of Exits" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.fundDescription && (
-                    <Form.Item name={`fundDescription_${row}`} className="w-48 flex-shrink-0">
-                      <Input placeholder="Fund Description" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.foundingYear && (
-                    <Form.Item name={`foundingYear_${row}`} className="w-48 flex-shrink-0">
-                      <Input placeholder="Founding Year" />
-                    </Form.Item>
-                  )}
-                  <div className="flex items-center justify-center gap-1 w-24 flex-shrink-0">
-                    {editingRows.includes(row) ? (
-                      <Button 
-                        type="text" 
-                        icon={<SaveOutlined />} 
-                        onClick={() => saveRow(row)}
-                        className="text-green-500 hover:text-green-700"
-                        size="small"
-                      />
-                    ) : (
-                      <Button 
-                        type="text" 
-                        icon={<EditOutlined />} 
-                        onClick={() => toggleEditRow(row)}
-                        className="text-blue-500 hover:text-blue-700"
-                        size="small"
-                      />
-                    )}
+                  <div className="flex items-center justify-center">
                     <Button 
                       type="text" 
                       danger 
@@ -428,47 +301,47 @@ export default function AddInvestorPage() {
                   </div>
                 </div>
               ))}
-              
-              <div className="text-center mb-6">
-                <Button 
-                  type="link" 
-                  icon={<PlusOutlined />} 
-                  className="text-blue-500"
-                  onClick={addFormRow}
-                >
-                  Add more field
-                </Button>
-              </div>
-              
-              <div className="mb-6">
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div className="bg-gray-400 h-2 rounded-full" style={{ width: '25%' }}></div>
-                </div>
-              </div>
-              
-              <div className="flex gap-4">
-                <Button 
-                  type="primary" 
-                  htmlType="submit"
-                  style={{
-                    backgroundColor: "#ac6a1e",
-                    color: "#fff",
-                    borderColor: "#ac6a1e"
-                  }}
-                >
-                  Submit
-                </Button>
-                <Button 
-                  onClick={() => setShowManualForm(false)}
-                  style={{
-                    borderColor: "#dc2626",
-                    color: "#dc2626"
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
             </Form>
+            
+            <div className="text-center mb-6">
+              <Button 
+                type="link" 
+                icon={<PlusOutlined />} 
+                className="text-blue-500"
+                onClick={addFormRow}
+              >
+                Add more field
+              </Button>
+            </div>
+            
+            <div className="mb-6">
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div className="bg-gray-400 h-2 rounded-full" style={{ width: '25%' }}></div>
+              </div>
+            </div>
+            
+            <div className="flex gap-4">
+              <Button 
+                type="primary" 
+                onClick={() => form.submit()}
+                style={{
+                  backgroundColor: "#ac6a1e",
+                  color: "#fff",
+                  borderColor: "#ac6a1e"
+                }}
+              >
+                Submit
+              </Button>
+              <Button 
+                onClick={() => setShowManualForm(false)}
+                style={{
+                  borderColor: "#dc2626",
+                  color: "#dc2626"
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
           </div>
         </Modal>
       )}
