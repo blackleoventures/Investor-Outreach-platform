@@ -273,7 +273,7 @@ function buildEmailTemplate({
   investorName = "[Investor Name]",
 } = {}) {
   const subject = `Investment Opportunity in ${startupName} – Solving ${problem} in ${market}`;
-  const body = `Hi ${investorName},\n\nWe’re building ${startupName}, addressing ${problem} with a scalable solution in the ${market} space. Attached is our pitch deck for your review. We are currently raising ${amount} at a ${valuation} and would love your thoughts.\n\nLooking forward to your feedback.\n\nBest regards,\n${founder} | ${contact}`;
+  const body = `Hi ${investorName},\n\nWe're building ${startupName}, addressing ${problem} with a scalable solution in the ${market} space. Attached is our pitch deck for your review. We are currently raising ${amount} at a ${valuation} and would love your thoughts.\n\nLooking forward to your feedback.\n\nBest regards,\n${founder} | ${contact}`;
   const highlights = [
     "Problem clearly articulated and validated",
     "Scalable solution with initial traction",
@@ -346,7 +346,7 @@ Return ONLY this JSON format:
     "Alignment with Investor": 7
   },
   "suggested_questions": ["Question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"],
-  "email_template": "Subject: Investment Opportunity - [Company Name]\n\nHi [Investor Name],\n\nEmail content here...",
+  "email_template": "Subject: Investment Opportunity - [Company Name]\\n\\nHi [Investor Name],\\n\\nEmail content here...",
   "highlights": ["Highlight 1", "Highlight 2", "Highlight 3"]
 }
 

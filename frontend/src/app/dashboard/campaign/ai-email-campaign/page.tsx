@@ -243,14 +243,7 @@ const InvestorMatcher = () => (
   </div>
 );
 
-const EmailTemplateLibrary = () => (
-  <div className="p-8 text-center bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl">
-    <FileTextOutlined className="text-4xl text-purple-500 mb-4" />
-    <h3 className="text-2xl font-semibold mb-4 text-gray-800">Email Template Library</h3>
-    <p className="text-gray-600 mb-6">Pre-built and customizable email templates will be available here</p>
-    <Button type="primary" size="large" className="bg-purple-600">Coming Soon</Button>
-  </div>
-);
+
 
 const { Title, Text } = Typography;
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "/api";
@@ -904,70 +897,7 @@ export default function AIEmailCampaignPage() {
         </div>
       ),
     },
-    {
-      key: "4",
-      label: (
-        <span>
-          <FileTextOutlined />
-          Template Library
-        </span>
-      ),
-      children: <EmailTemplateLibrary />,
-    },
-    {
-      key: "5",
-      label: (
-        <span>
-          <BarChartOutlined />
-          Campaign Analytics
-        </span>
-      ),
-      children: (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="text-center">
-              <div className="text-3xl font-bold text-blue-600 mb-2">{matchedInvestors.length}</div>
-              <div className="text-gray-600">Matched Investors</div>
-            </Card>
-            <Card className="text-center">
-              <div className="text-3xl font-bold text-green-600 mb-2">
-                {matchedInvestors.filter((inv: any) => inv.canContact).length}
-              </div>
-              <div className="text-gray-600">Can Contact</div>
-            </Card>
-            <Card className="text-center">
-              <div className="text-3xl font-bold text-orange-600 mb-2">
-                {matchedInvestors.filter((inv: any) => inv.matchScore >= 70).length}
-              </div>
-              <div className="text-gray-600">High Quality Matches</div>
-            </Card>
-            <Card className="text-center">
-              <div className="text-3xl font-bold text-purple-600 mb-2">
-                {pitchAnalysis?.summary.total_score || 0}
-              </div>
-              <div className="text-gray-600">Investment Score</div>
-            </Card>
-          </div>
-          
-          <Card title="Advanced Campaign Analytics">
-            <div className="text-center py-12 bg-gradient-to-r from-gray-50 to-purple-50 rounded-xl">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-600 rounded-full mb-4">
-                <BarChartOutlined className="text-2xl text-white" />
-              </div>
-              <h4 className="text-xl font-semibold text-gray-800 mb-3">AI-Powered Analytics Coming Soon</h4>
-              <p className="text-gray-600 mb-4 max-w-md mx-auto">
-                Advanced engagement tracking, investor behavior analysis, and AI-driven insights will appear here once you start your campaigns
-              </p>
-              <div className="flex justify-center space-x-4 text-sm text-gray-500">
-                <span>📊 Engagement Heatmaps</span>
-                <span>🎯 Conversion Funnels</span>
-                <span>🤖 AI Recommendations</span>
-              </div>
-            </div>
-          </Card>
-        </div>
-      ),
-    },
+
   ];
 
   return (

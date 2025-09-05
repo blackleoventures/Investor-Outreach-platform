@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, Typography, Button, Form, Input, Modal, Dropdown, Checkbox } from "antd";
 import { UserOutlined, FileTextOutlined, ArrowLeftOutlined, PlusOutlined, SettingOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
@@ -12,28 +12,6 @@ export default function AddInvestorPage() {
   const [showManualForm, setShowManualForm] = useState(false);
   const [form] = Form.useForm();
   const [formRows, setFormRows] = useState([1, 2, 3, 4]);
-
-  useEffect(() => {
-    const style = document.createElement('style');
-    style.textContent = `
-      * {
-        scrollbar-width: none !important;
-        -ms-overflow-style: none !important;
-      }
-      *::-webkit-scrollbar {
-        display: none !important;
-        width: 0 !important;
-        height: 0 !important;
-      }
-      .ant-modal, .ant-modal-content, .ant-modal-body, .ant-modal-wrap {
-        overflow: hidden !important;
-        overflow-x: hidden !important;
-        overflow-y: hidden !important;
-      }
-    `;
-    document.head.appendChild(style);
-    return () => document.head.removeChild(style);
-  }, []);
 
   const [visibleColumns, setVisibleColumns] = useState({
     partnerEmail: true,

@@ -48,7 +48,7 @@ const emailRoutes = require("./routes/email.route");
 const investorRoutes = require("./routes/investor.route");
 const matchRoutes = require("./routes/match.route");
 
-const emailTemplateRoutes = require("./routes/emailTemplate.route");
+
 
 const deckActivityRoutes = require("./routes/deckActivity.route");
 const dealRoomRoutes = require("./routes/dealRoom.route");
@@ -70,7 +70,7 @@ app.use("/email", emailRoutes);
 app.use("/investors", investorRoutes);
 app.use("/match", matchRoutes);
 
-app.use("/email-templates", emailTemplateRoutes);
+
 
 app.use("/deck-activity", deckActivityRoutes);
 app.use("/deal-rooms", dealRoomRoutes);
