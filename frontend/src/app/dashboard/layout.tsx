@@ -136,6 +136,11 @@ export default function DashboardLayout({
       ...navItem("/dashboard/all-reports", "Reports"),
     },
     {
+      key: "/dashboard/matching-test",
+      icon: <SearchOutlined style={{ fontSize: "16px" }} />,
+      ...navItem("/dashboard/matching-test", "Smart Investor Matching"),
+    },
+    {
       key: "investor-management",
       icon: <UserSwitchOutlined style={{ fontSize: "16px" }} />,
       label: "Investor Management",
