@@ -56,6 +56,20 @@ export default function AllInvestorsPage() {
         const investorData = result.data || [];
         setInvestors(investorData);
         setFilteredInvestors(investorData);
+        
+        // Update visible columns based on available data
+        if (investorData.length > 0) {
+          const firstRecord = investorData[0];
+          const availableColumns = {};
+          
+          Object.keys(firstRecord).forEach(key => {
+            if (key !== 'id' && key !== 'createdAt' && key !== 'uploadedAt') {
+              availableColumns[key] = true;
+            }
+          });
+          
+          setVisibleColumns(prev => ({ ...prev, ...availableColumns }));
+        }
       } else {
         console.error('API Error:', response.status);
       }
@@ -224,7 +238,47 @@ export default function AllInvestorsPage() {
     }));
   };
 
-  const columnDefinitions = [
+  // Generate dynamic columns based on data
+  const generateDynamicColumns = () => {
+    if (investors.length === 0) return [];
+    
+    const firstRecord = investors[0];
+    const dynamicCols = [];
+    
+    // Add serial number column
+    dynamicCols.push({
+      key: 'serialNumber',
+      title: 'Sr. No.',
+      width: 70,
+      align: 'center',
+      render: (_, __, index) => index + 1,
+    });
+    
+    // Generate columns from data keys
+    Object.keys(firstRecord).forEach(key => {
+      if (key !== 'id' && key !== 'createdAt' && key !== 'uploadedAt') {
+        dynamicCols.push({
+          key: key,
+          title: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+          dataIndex: key,
+          width: 150,
+          render: (value) => {
+            if (!value) return 'N/A';
+            if (typeof value === 'string' && value.length > 50) {
+              return <span title={value}>{value.substring(0, 50)}...</span>;
+            }
+            return value.toString();
+          },
+        });
+      }
+    });
+    
+    return dynamicCols;
+  };
+  
+  const columnDefinitions = generateDynamicColumns();
+  
+  const staticColumnDefinitions = [
     {
       key: 'serialNumber',
       title: 'Sr. No.',
@@ -421,7 +475,7 @@ export default function AllInvestorsPage() {
     }
   ];
 
-  const visibleColumnsArray = columnDefinitions.filter(col => visibleColumns[col.key]);
+  const visibleColumnsArray = columnDefinitions.length > 0 ? columnDefinitions : staticColumnDefinitions.filter(col => visibleColumns[col.key]);
 
   const actionsColumn = {
     title: 'Actions',

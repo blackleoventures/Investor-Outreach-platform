@@ -1,5 +1,3 @@
-const excelService = require('../services/excel.service');
-const path = require('path');
 const Papa = require('papaparse');
 
 // Download Excel template/current data
@@ -35,8 +33,7 @@ exports.uploadFile = async (req, res) => {
     uploadedFilePath = req.file.path;
     const fileExtension = req.file.originalname.split('.').pop().toLowerCase();
     const fs = require('fs');
-    const { db } = require('../config/firebase');
-    const transformFrontendToDB = require('../utils/functions');
+    const { db } = require('../config/firebase-db.config');
     
     console.log(`Processing ${fileExtension} file: ${req.file.originalname}`);
     
@@ -79,7 +76,6 @@ exports.uploadFile = async (req, res) => {
     
     // Filter out completely empty rows
     const validData = data.filter(item => {
-      // Check if at least one field has data
       return Object.values(item).some(value => value && value.toString().trim());
     });
     
@@ -87,59 +83,62 @@ exports.uploadFile = async (req, res) => {
       return res.status(400).json({ error: 'No valid records found. File appears to be empty.' });
     }
     
-    // Transform and save to Firebase directly
+    // Save to Firebase directly without transformation
     const investorsRef = db.collection('investors');
     
-    // Clear existing data
+    // Clear existing data in batches
     const snapshot = await investorsRef.get();
-    const batch = db.batch();
+    const batchSize = 500;
     
-    snapshot.docs.forEach(doc => {
-      batch.delete(doc.ref);
-    });
+    for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+      const batch = db.batch();
+      const chunk = snapshot.docs.slice(i, i + batchSize);
+      chunk.forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+    }
     
-    // Add new data
-    const normalizedData = validData.map(item => {
-      try {
-        return transformFrontendToDB(item);
-      } catch (err) {
-        console.error('Transform error:', err);
-        return null;
-      }
-    }).filter(Boolean);
-    
-    normalizedData.forEach(investor => {
-      const investorRef = investorsRef.doc();
-      batch.set(investorRef, {
-        ...investor,
-        createdAt: new Date(),
-        uploadedAt: new Date()
+    // Add new data in batches
+    for (let i = 0; i < validData.length; i += batchSize) {
+      const batch = db.batch();
+      const chunk = validData.slice(i, i + batchSize);
+      
+      chunk.forEach(item => {
+        const investorRef = investorsRef.doc();
+        batch.set(investorRef, {
+          ...item,
+          createdAt: new Date(),
+          uploadedAt: new Date()
+        });
       });
-    });
-    
-    await batch.commit();
+      
+      await batch.commit();
+    }
     
     // Clean up uploaded file
-    if (fs.existsSync(uploadedFilePath)) {
-      fs.unlinkSync(uploadedFilePath);
+    try {
+      if (fs.existsSync(uploadedFilePath)) {
+        fs.unlinkSync(uploadedFilePath);
+      }
+    } catch (cleanupError) {
+      console.log('File cleanup skipped');
     }
     
     res.status(200).json({
       success: true,
-      message: `Successfully imported ${normalizedData.length} records from ${fileExtension.toUpperCase()} file`,
-      recordCount: normalizedData.length
+      message: `Successfully imported ${validData.length} records from ${fileExtension.toUpperCase()} file`,
+      recordCount: validData.length
     });
     
   } catch (error) {
     console.error('Error in uploadFile:', error);
     
     // Clean up uploaded file on error
-    if (uploadedFilePath && require('fs').existsSync(uploadedFilePath)) {
-      try {
+    try {
+      if (uploadedFilePath && require('fs').existsSync(uploadedFilePath)) {
         require('fs').unlinkSync(uploadedFilePath);
-      } catch (cleanupError) {
-        console.error('Error cleaning up file:', cleanupError);
       }
+    } catch (cleanupError) {
+      console.log('Error cleanup skipped');
     }
     
     res.status(500).json({ 
