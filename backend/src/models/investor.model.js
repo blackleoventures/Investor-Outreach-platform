@@ -8,26 +8,6 @@ const investorSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    fund_type: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    fund_stage: {
-      type: [String],
-      required: true,
-      default: [],
-    },
-    website: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    sector_focus: {
-      type: [String],
-      required: true,
-      default: [],
-    },
     partner_name: {
       type: String,
       required: true,
@@ -38,6 +18,45 @@ const investorSchema = new mongoose.Schema(
       required: true,
       trim: true,
       lowercase: true,
+    },
+    phone_number: {
+      type: String,
+      trim: true,
+    },
+    fund_type: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    fund_stage: {
+      type: [String],
+      required: true,
+      default: [],
+    },
+    country: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    state: {
+      type: String,
+      trim: true,
+    },
+    city: {
+      type: String,
+      trim: true,
+    },
+    ticket_size: {
+      type: String,
+      trim: true,
+    },
+    website: {
+      type: String,
+      trim: true,
+    },
+    sector_focus: {
+      type: [String],
+      default: [],
     },
     location: {
       type: String,
@@ -50,12 +69,7 @@ const investorSchema = new mongoose.Schema(
     },
     portfolio_companies: {
       type: [String],
-      required: true,
       default: [],
-    },
-    location: {
-      type: String,
-      trim: true,
     },
     twitter_link: {
       type: String,

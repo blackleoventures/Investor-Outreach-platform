@@ -7,8 +7,15 @@ dotenv.config();
 
 // Initialize Firebase (database connection is handled in firebase-db.config.js)
 const { db } = require("./config/firebase-db.config");
+const excelService = require('./services/excel.service');
 
 console.log("Firebase initialized successfully");
+
+// Initialize Excel service
+excelService.initializeExcelFile().then(() => {
+  excelService.startWatching();
+  console.log('Excel service initialized and watching for changes');
+}).catch(console.error);
 
 const app = express();
 
@@ -47,6 +54,7 @@ const aiRoutes = require("./routes/ai.route");
 const emailRoutes = require("./routes/email.route");
 const investorRoutes = require("./routes/investor.route");
 const matchRoutes = require("./routes/match.route");
+const excelRoutes = require("./routes/excel.route");
 
 
 
@@ -69,6 +77,7 @@ app.use("/ai", aiRoutes);
 app.use("/email", emailRoutes);
 app.use("/investors", investorRoutes);
 app.use("/match", matchRoutes);
+app.use("/excel", excelRoutes);
 
 
 

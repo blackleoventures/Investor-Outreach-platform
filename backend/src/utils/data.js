@@ -1,15 +1,19 @@
 // Expected keys for CSV upload
 const EXPECTED_KEYS = [
+  "investor_name",
   "partner_name",
   "partner_email",
-  "firm_name",
-  "fund_stage",
+  "phone_number",
   "fund_type",
+  "fund_stage",
+  "country",
+  "state",
+  "city",
+  "ticket_size",
+  "website",
   "sector_focus",
   "portfolio_companies",
-  "investment_size",
   "location",
-  "website",
   "linkedin",
   "twitter",
   "notes"

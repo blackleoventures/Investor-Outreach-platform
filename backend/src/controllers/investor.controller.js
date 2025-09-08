@@ -321,6 +321,12 @@ exports.updateInvestor = async (req, res) => {
       updatedAt: new Date(),
     });
 
+    // Trigger Excel sync
+    const excelService = require('../services/excel.service');
+    setTimeout(() => {
+      excelService.syncFirebaseToExcel();
+    }, 1000);
+
     res.status(200).json({
       message: `Investor ${investorId} updated successfully`,
       updatedFields: Object.keys(normalizedData),
@@ -349,6 +355,12 @@ exports.deleteInvestor = async (req, res) => {
     }
 
     await investorRef.delete();
+
+    // Trigger Excel sync
+    const excelService = require('../services/excel.service');
+    setTimeout(() => {
+      excelService.syncFirebaseToExcel();
+    }, 1000);
 
     res.status(200).json({
       message: `Successfully deleted investor with ID: ${investorId}`,

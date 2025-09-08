@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Card, Typography, Button, Form, Input, Modal, Dropdown, Checkbox } from "antd";
-import { UserOutlined, FileTextOutlined, ArrowLeftOutlined, PlusOutlined, SettingOutlined, DeleteOutlined } from "@ant-design/icons";
+import { Card, Typography, Button, Form, Input, Modal, Dropdown, Checkbox, Upload, message } from "antd";
+import { UserOutlined, FileTextOutlined, ArrowLeftOutlined, PlusOutlined, SettingOutlined, DeleteOutlined, DownloadOutlined, UploadOutlined, FileExcelOutlined } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 
 const { Title, Text } = Typography;
@@ -10,34 +10,90 @@ const { Title, Text } = Typography;
 export default function AddInvestorPage() {
   const router = useRouter();
   const [showManualForm, setShowManualForm] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [form] = Form.useForm();
   const [formRows, setFormRows] = useState([1, 2, 3, 4]);
 
   const [visibleColumns, setVisibleColumns] = useState({
-    partnerEmail: true,
     investorName: true,
     partnerName: true,
+    partnerEmail: true,
+    phoneNumber: true,
     fundType: true,
     fundStage: true,
-    website: false,
-    fundFocus: false,
-    portfolioCompanies: false,
-    location: false,
-    twitterLink: false,
-    linkedinLink: false,
-    facebookLink: false,
-    numberOfInvestments: false,
-    numberOfExits: false,
-    fundDescription: false,
-    foundingYear: false
+    country: true,
+    state: true,
+    city: true,
+    ticketSize: true
   });
 
   const handleManualEntry = () => {
     setShowManualForm(true);
   };
 
-  const handleCSVUpload = () => {
-    console.log('CSV Upload clicked');
+
+
+  const handleFileUpload = async (file: File) => {
+    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    const formData = new FormData();
+    
+    setUploading(true);
+    message.loading('Uploading file...', 0);
+    
+    try {
+      let response;
+      
+      if (fileExtension === 'csv') {
+        formData.append('file', file);
+        response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/investors/upload-csv`, {
+          method: 'POST',
+          body: formData,
+        });
+      } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+        formData.append('excel', file);
+        response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/upload`, {
+          method: 'POST',
+          body: formData,
+        });
+      } else {
+        message.destroy();
+        message.error('Please upload only CSV or Excel files');
+        setUploading(false);
+        return false;
+      }
+      
+      message.destroy();
+      
+      if (response.ok) {
+        const result = await response.json();
+        
+        // Show success modal with details
+        Modal.success({
+          title: '🎉 Upload Successful!',
+          content: (
+            <div>
+              <p><strong>File:</strong> {file.name}</p>
+              <p><strong>Type:</strong> {fileExtension.toUpperCase()}</p>
+              <p><strong>Status:</strong> {result.message || 'Data imported successfully'}</p>
+              <p className="text-green-600 font-medium">Redirecting to All Investors...</p>
+            </div>
+          ),
+          onOk: () => router.push('/dashboard/all-investors'),
+        });
+        
+        setTimeout(() => router.push('/dashboard/all-investors'), 2000);
+      } else {
+        const error = await response.json();
+        message.error(error.error || `Failed to upload ${fileExtension.toUpperCase()} file`);
+      }
+    } catch (error) {
+      message.destroy();
+      message.error(`Failed to upload ${fileExtension?.toUpperCase() || ''} file`);
+    } finally {
+      setUploading(false);
+    }
+    
+    return false;
   };
 
   const handleSubmit = (values: any) => {
@@ -74,14 +130,6 @@ export default function AddInvestorPage() {
             <div className="space-y-1 px-2 pb-2">
               <div className="flex items-center py-1">
                 <Checkbox
-                  checked={visibleColumns.partnerEmail}
-                  onChange={(e) => handleColumnVisibilityChange('partnerEmail', e.target.checked)}
-                >
-                  Partner Email (Required)
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
                   checked={visibleColumns.investorName}
                   onChange={(e) => handleColumnVisibilityChange('investorName', e.target.checked)}
                 >
@@ -94,6 +142,22 @@ export default function AddInvestorPage() {
                   onChange={(e) => handleColumnVisibilityChange('partnerName', e.target.checked)}
                 >
                   Partner Name (Required)
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.partnerEmail}
+                  onChange={(e) => handleColumnVisibilityChange('partnerEmail', e.target.checked)}
+                >
+                  Partner Email (Required)
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.phoneNumber}
+                  onChange={(e) => handleColumnVisibilityChange('phoneNumber', e.target.checked)}
+                >
+                  Phone Number (Optional)
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
@@ -114,10 +178,34 @@ export default function AddInvestorPage() {
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
-                  checked={visibleColumns.website}
-                  onChange={(e) => handleColumnVisibilityChange('website', e.target.checked)}
+                  checked={visibleColumns.country}
+                  onChange={(e) => handleColumnVisibilityChange('country', e.target.checked)}
                 >
-                  Website (If Available)
+                  Country (Required)
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.state}
+                  onChange={(e) => handleColumnVisibilityChange('state', e.target.checked)}
+                >
+                  State (Optional)
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.city}
+                  onChange={(e) => handleColumnVisibilityChange('city', e.target.checked)}
+                >
+                  City (Optional)
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.ticketSize}
+                  onChange={(e) => handleColumnVisibilityChange('ticketSize', e.target.checked)}
+                >
+                  Ticket Size (Optional)
                 </Checkbox>
               </div>
             </div>
@@ -163,17 +251,34 @@ export default function AddInvestorPage() {
               </div>
             </Card>
 
-            <Card 
-              className="text-center p-8 hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-green-300"
-              onClick={handleCSVUpload}
-            >
+            <Card className="text-center p-8 hover:shadow-lg transition-shadow border-2">
               <div className="mb-6">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <FileTextOutlined className="text-3xl text-green-600" />
                 </div>
-                <Title level={3} className="mb-2">CSV Import</Title>
-                <Text className="text-gray-600">
-                  Bulk upload contacts using CSV file format
+                <Title level={3} className="mb-2">File Import</Title>
+                <Text className="text-gray-600 mb-4">
+                  Upload CSV or Excel files - both formats supported
+                </Text>
+                <Upload
+                  accept=".csv,.xlsx,.xls"
+                  beforeUpload={handleFileUpload}
+                  showUploadList={false}
+                  disabled={uploading}
+                >
+                  <Button 
+                    icon={<UploadOutlined />}
+                    className="w-full"
+                    type="primary"
+                    loading={uploading}
+                    disabled={uploading}
+                    style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+                  >
+                    {uploading ? 'Uploading...' : 'Upload CSV/Excel'}
+                  </Button>
+                </Upload>
+                <Text className="text-xs text-gray-500 mt-2">
+                  Supports: .csv, .xlsx, .xls files
                 </Text>
               </div>
             </Card>
@@ -202,45 +307,39 @@ export default function AddInvestorPage() {
           styles={{ 
             body: { 
               padding: 0, 
-              overflow: 'hidden', 
-              overflowX: 'hidden',
+              overflowX: 'auto',
               overflowY: 'hidden'
             }
           }}
         >
           <div className="p-4" style={{ 
-            overflow: 'hidden',
-            overflowX: 'hidden',
             maxWidth: '100%',
             width: '100%',
             boxSizing: 'border-box'
           }}>
             <div className="grid gap-2 mb-4 font-semibold text-gray-700 text-xs" style={{
-              gridTemplateColumns: `repeat(${Object.values(visibleColumns).filter(Boolean).length + 1}, 1fr)`,
-              maxWidth: '100%',
-              overflow: 'hidden'
+              gridTemplateColumns: `repeat(${Object.values(visibleColumns).filter(Boolean).length + 1}, minmax(120px, 1fr))`,
+              minWidth: `${(Object.values(visibleColumns).filter(Boolean).length + 1) * 130}px`
             }}>
-              {visibleColumns.partnerEmail && <div>Partner Email (Required)</div>}
               {visibleColumns.investorName && <div>Investor Name (Required)</div>}
               {visibleColumns.partnerName && <div>Partner Name (Required)</div>}
+              {visibleColumns.partnerEmail && <div>Partner Email (Required)</div>}
+              {visibleColumns.phoneNumber && <div>Phone Number (Optional)</div>}
               {visibleColumns.fundType && <div>Fund Type (Required)</div>}
               {visibleColumns.fundStage && <div>Fund Stage (Required)</div>}
-              {visibleColumns.website && <div>Website (If Available)</div>}
+              {visibleColumns.country && <div>Country (Required)</div>}
+              {visibleColumns.state && <div>State (Optional)</div>}
+              {visibleColumns.city && <div>City (Optional)</div>}
+              {visibleColumns.ticketSize && <div>Ticket Size (Optional)</div>}
               <div>Actions</div>
             </div>
             
             <Form form={form} onFinish={handleSubmit}>
               {formRows.map((row) => (
                 <div key={row} className="grid gap-2 mb-4" style={{
-                  gridTemplateColumns: `repeat(${Object.values(visibleColumns).filter(Boolean).length + 1}, 1fr)`,
-                  maxWidth: '100%',
-                  overflow: 'hidden'
+                  gridTemplateColumns: `repeat(${Object.values(visibleColumns).filter(Boolean).length + 1}, minmax(120px, 1fr))`,
+                  minWidth: `${(Object.values(visibleColumns).filter(Boolean).length + 1) * 130}px`
                 }}>
-                  {visibleColumns.partnerEmail && (
-                    <Form.Item name={`partnerEmail_${row}`} className="mb-0">
-                      <Input placeholder="Partner Email" />
-                    </Form.Item>
-                  )}
                   {visibleColumns.investorName && (
                     <Form.Item name={`investorName_${row}`} className="mb-0">
                       <Input placeholder="Investor Name" />
@@ -249,6 +348,16 @@ export default function AddInvestorPage() {
                   {visibleColumns.partnerName && (
                     <Form.Item name={`partnerName_${row}`} className="mb-0">
                       <Input placeholder="Partner Name" />
+                    </Form.Item>
+                  )}
+                  {visibleColumns.partnerEmail && (
+                    <Form.Item name={`partnerEmail_${row}`} className="mb-0">
+                      <Input placeholder="Partner Email" />
+                    </Form.Item>
+                  )}
+                  {visibleColumns.phoneNumber && (
+                    <Form.Item name={`phoneNumber_${row}`} className="mb-0">
+                      <Input placeholder="Phone Number" />
                     </Form.Item>
                   )}
                   {visibleColumns.fundType && (
@@ -261,9 +370,24 @@ export default function AddInvestorPage() {
                       <Input placeholder="Fund Stage" />
                     </Form.Item>
                   )}
-                  {visibleColumns.website && (
-                    <Form.Item name={`website_${row}`} className="mb-0">
-                      <Input placeholder="Website" />
+                  {visibleColumns.country && (
+                    <Form.Item name={`country_${row}`} className="mb-0">
+                      <Input placeholder="Country" />
+                    </Form.Item>
+                  )}
+                  {visibleColumns.state && (
+                    <Form.Item name={`state_${row}`} className="mb-0">
+                      <Input placeholder="State" />
+                    </Form.Item>
+                  )}
+                  {visibleColumns.city && (
+                    <Form.Item name={`city_${row}`} className="mb-0">
+                      <Input placeholder="City" />
+                    </Form.Item>
+                  )}
+                  {visibleColumns.ticketSize && (
+                    <Form.Item name={`ticketSize_${row}`} className="mb-0">
+                      <Input placeholder="Ticket Size" />
                     </Form.Item>
                   )}
                   <div className="flex items-center justify-center">

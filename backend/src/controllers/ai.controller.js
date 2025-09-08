@@ -482,73 +482,7 @@ ${text}`;
   }
 };
 
-// Templates stored in Firestore (collection: email_templates)
-exports.createTemplate = async (req, res) => {
-  try {
-    const { subject, body } = req.body || {};
-    if (!subject || !body) return res.status(400).json({ error: "subject and body are required" });
 
-    const doc = await dbHelpers.create("email_templates", { subject, body });
-    const editLink = `/dashboard/editor/${doc.id}`;
-    res.json({ success: true, id: doc.id, editLink });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-};
-
-exports.getTemplate = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const doc = await dbHelpers.getById("email_templates", id);
-    if (!doc) return res.status(404).json({ error: "Not found" });
-    res.json({ success: true, data: doc });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-};
-
-exports.updateTemplate = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { subject, body } = req.body || {};
-    await dbHelpers.update("email_templates", id, { subject, body });
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-};
-
-exports.downloadTemplate = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { format = "txt" } = req.query;
-    const doc = await dbHelpers.getById("email_templates", id);
-    if (!doc) return res.status(404).json({ error: "Not found" });
-
-    const contentTxt = `${doc.subject}\n\n${doc.body}`;
-
-    if (format === "html") {
-      const html = `<!doctype html><html><head><meta charset=\"utf-8\"/><title>${escapeHtml(doc.subject)}</title></head><body><h2>${escapeHtml(doc.subject)}</h2><pre style=\"white-space:pre-wrap\">${escapeHtml(doc.body)}</pre></body></html>`;
-      res.setHeader("Content-Type", "text/html; charset=utf-8");
-      res.setHeader("Content-Disposition", `attachment; filename=template-${id}.html`);
-      return res.send(html);
-    }
-
-    // TODO: Implement proper DOCX using a library like "docx" or "html-docx-js"
-    if (format === "docx") {
-      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-      res.setHeader("Content-Disposition", `attachment; filename=template-${id}.docx`);
-      return res.send(Buffer.from(contentTxt, "utf8"));
-    }
-
-    // default txt
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("Content-Disposition", `attachment; filename=template-${id}.txt`);
-    return res.send(contentTxt);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
-};
 
 exports.enhanceEmail = async (req, res) => {
   try {

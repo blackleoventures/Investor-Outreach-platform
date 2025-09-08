@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Card, Typography, Button, Input, Table, Tag, Space, message, Avatar, Modal, Form, Select, Dropdown, Checkbox } from "antd";
-import { UserOutlined, SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SettingOutlined, FileTextOutlined } from "@ant-design/icons";
+import { Card, Typography, Button, Input, Table, Tag, Space, message, Avatar, Modal, Form, Select, Dropdown, Checkbox, Alert, Spin } from "antd";
+import { UserOutlined, SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SettingOutlined, FileTextOutlined, FileExcelOutlined, SyncOutlined, DownloadOutlined } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
@@ -16,6 +16,8 @@ export default function AllInvestorsPage() {
   const [addInvestorModal, setAddInvestorModal] = useState(false);
   const [editInvestorModal, setEditInvestorModal] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState(null);
+  const [excelSyncStatus, setExcelSyncStatus] = useState(null);
+  const [syncing, setSyncing] = useState(false);
 
   const [form] = Form.useForm();
   const [visibleColumns, setVisibleColumns] = useState({
@@ -38,107 +40,94 @@ export default function AllInvestorsPage() {
     facebookLink: false
   });
 
-  // Mock data for demonstration
-  useEffect(() => {
-    const investorData = [
-      {
-        id: 1,
-        investorName: "Sequoia Capital",
-        fundStage: "Series A, Series B",
-        fundType: "Venture Capital",
-        fundFocus: "Technology, SaaS, AI/ML",
-        partnerName: "Roelof Botha",
-        partnerEmail: "roelof@sequoiacap.com",
-        fundDescription: "Leading venture capital firm investing in technology companies",
-        portfolioCompanies: "Apple, Google, WhatsApp, Instagram, Airbnb",
-        numberOfInvestments: 500,
-        numberOfExits: 150,
-        location: "Menlo Park, CA",
-        foundingYear: 1972,
-        website: "sequoiacap.com",
-        twitterLink: "@sequoia",
-        linkedinLink: "linkedin.com/company/sequoia-capital",
-        facebookLink: "facebook.com/sequoiacapital"
-      },
-      {
-        id: 2,
-        investorName: "Andreessen Horowitz",
-        fundStage: "Seed, Series A, Series B",
-        fundType: "Venture Capital",
-        fundFocus: "Software, Crypto, Bio, Consumer",
-        partnerName: "Marc Andreessen",
-        partnerEmail: "marc@a16z.com",
-        fundDescription: "Venture capital firm focused on technology companies",
-        portfolioCompanies: "Facebook, Twitter, Skype, Foursquare, Airbnb",
-        numberOfInvestments: 400,
-        numberOfExits: 120,
-        location: "Menlo Park, CA",
-        foundingYear: 2009,
-        website: "a16z.com",
-        twitterLink: "@a16z",
-        linkedinLink: "linkedin.com/company/andreessen-horowitz",
-        facebookLink: "facebook.com/a16z"
-      },
-      {
-        id: 3,
-        investorName: "Accel Partners",
-        fundStage: "Seed, Series A",
-        fundType: "Venture Capital",
-        fundFocus: "Enterprise Software, Consumer Internet, Mobile",
-        partnerName: "Jim Breyer",
-        partnerEmail: "jim@accel.com",
-        fundDescription: "Early and growth-stage venture capital firm",
-        portfolioCompanies: "Facebook, Dropbox, Slack, Atlassian, Spotify",
-        numberOfInvestments: 350,
-        numberOfExits: 100,
-        location: "Palo Alto, CA",
-        foundingYear: 1983,
-        website: "accel.com",
-        twitterLink: "@accel",
-        linkedinLink: "linkedin.com/company/accel-partners",
-        facebookLink: "facebook.com/accelpartners"
-      },
-      {
-        id: 4,
-        investorName: "Kleiner Perkins",
-        fundStage: "Series A, Series B, Growth",
-        fundType: "Venture Capital",
-        fundFocus: "Consumer, Enterprise, Hardtech, Fintech",
-        partnerName: "John Doerr",
-        partnerEmail: "john@kpcb.com",
-        fundDescription: "Venture capital firm partnering with entrepreneurs",
-        portfolioCompanies: "Google, Amazon, Twitter, Uber, Airbnb",
-        numberOfInvestments: 800,
-        numberOfExits: 200,
-        location: "Menlo Park, CA",
-        foundingYear: 1972,
-        website: "kleinerperkins.com",
-        twitterLink: "@kleinerperkins",
-        linkedinLink: "linkedin.com/company/kleiner-perkins",
-        facebookLink: "facebook.com/kleinerperkins"
-      },
-      {
-        id: 5,
-        investorName: "Benchmark Capital",
-        fundStage: "Series A",
-        fundType: "Venture Capital",
-        fundFocus: "Consumer Internet, Enterprise Software, Mobile",
-        partnerName: "Bill Gurley",
-        partnerEmail: "bill@benchmark.com",
-        fundDescription: "Early-stage venture capital firm",
-        portfolioCompanies: "Uber, Twitter, Instagram, Snapchat, WeWork",
-        numberOfInvestments: 200,
-        numberOfExits: 80,
-        location: "Menlo Park, CA",
-        foundingYear: 1995,
-        website: "benchmark.com",
-        twitterLink: "@benchmark",
-        linkedinLink: "linkedin.com/company/benchmark-capital",
-        facebookLink: "facebook.com/benchmarkcapital"
+  // Fetch investors data from API
+  const fetchInvestors = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/investors`);
+      if (response.ok) {
+        const data = await response.json();
+        setInvestors(data.data || []);
+        setFilteredInvestors(data.data || []);
       }
-    ];
-    setInvestors(investorData);
-    setFilteredInvestors(investorData);
+    } catch (error) {
+      console.error('Error fetching investors:', error);
+      message.error('Failed to fetch investors data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch Excel sync status
+  const fetchSyncStatus = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/sync/status`);
+      if (response.ok) {
+        const data = await response.json();
+        setExcelSyncStatus(data);
+      }
+    } catch (error) {
+      console.error('Error fetching sync status:', error);
+    }
+  };
+
+  // Sync Firebase to Excel
+  const handleSyncToExcel = async () => {
+    setSyncing(true);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/sync/firebase-to-excel`, {
+        method: 'POST'
+      });
+      if (response.ok) {
+        message.success('Data synced to Excel successfully!');
+        fetchSyncStatus();
+      } else {
+        message.error('Failed to sync data to Excel');
+      }
+    } catch (error) {
+      console.error('Sync error:', error);
+      message.error('Failed to sync data to Excel');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Download Excel file
+  const handleDownloadExcel = async () => {
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/download`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'investors.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        message.success('Excel file downloaded successfully!');
+      } else {
+        message.error('Failed to download Excel file');
+      }
+    } catch (error) {
+      console.error('Download error:', error);
+      message.error('Failed to download Excel file');
+    }
+  };
+
+  // Initialize data and sync status
+  useEffect(() => {
+    fetchInvestors();
+    fetchSyncStatus();
+    
+    // Set up polling for real-time updates
+    const interval = setInterval(() => {
+      fetchInvestors();
+      fetchSyncStatus();
+    }, 5000); // Poll every 5 seconds
+    
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -168,24 +157,51 @@ export default function AllInvestorsPage() {
   };
 
   const handleEditInvestor = async (values) => {
-    const updatedInvestors = investors.map(investor =>
-      investor.id === selectedInvestor.id ? { ...investor, ...values } : investor
-    );
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/investors/${selectedInvestor.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values)
+      });
+      
+      if (response.ok) {
+        message.success("Investor updated successfully!");
+        fetchInvestors(); // Refresh data
+        // Sync changes to Excel
+        await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/sync/firebase-to-excel`, { method: 'POST' });
+      } else {
+        message.error('Failed to update investor');
+      }
+    } catch (error) {
+      message.error('Failed to update investor');
+    }
     
-    setInvestors(updatedInvestors);
     setEditInvestorModal(false);
     setSelectedInvestor(null);
     form.resetFields();
-    message.success("Investor updated successfully!");
   };
 
   const handleDeleteInvestor = (investorId) => {
     Modal.confirm({
       title: "Delete Investor",
       content: "Are you sure you want to delete this investor?",
-      onOk: () => {
-        setInvestors(investors.filter(investor => investor.id !== investorId));
-        message.success("Investor deleted successfully!");
+      onOk: async () => {
+        try {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/investors/${investorId}`, {
+            method: 'DELETE'
+          });
+          
+          if (response.ok) {
+            message.success("Investor deleted successfully!");
+            fetchInvestors(); // Refresh data
+            // Sync changes to Excel
+            await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/sync/firebase-to-excel`, { method: 'POST' });
+          } else {
+            message.error('Failed to delete investor');
+          }
+        } catch (error) {
+          message.error('Failed to delete investor');
+        }
       }
     });
   };
@@ -201,94 +217,111 @@ export default function AllInvestorsPage() {
     {
       key: 'serialNumber',
       title: 'Sr. No.',
-      width: 80,
+      width: 70,
       align: 'center',
       render: (_, __, index) => index + 1,
     },
     {
       key: 'investorName',
       title: 'Investor Name',
-      dataIndex: 'investorName',
+      dataIndex: 'investor_name',
+      width: 180,
       render: (name) => (
         <div className="flex items-center space-x-2">
           <Avatar size="small" icon={<UserOutlined />} />
-          <Text strong>{name}</Text>
+          <Text strong className="truncate">{name}</Text>
         </div>
       ),
     },
     {
       key: 'fundStage',
       title: 'Fund Stage',
-      dataIndex: 'fundStage',
+      dataIndex: 'fund_stage',
+      width: 140,
       render: (stage) => <Tag color="blue">{stage}</Tag>,
     },
     {
       key: 'fundType',
       title: 'Fund Type',
-      dataIndex: 'fundType',
+      dataIndex: 'fund_type',
+      width: 120,
     },
     {
       key: 'fundFocus',
       title: 'Fund Focus (Sectors)',
-      dataIndex: 'fundFocus',
+      dataIndex: 'sector_focus',
+      width: 200,
       render: (focus) => (
-        <div>
-          {focus.split(', ').map(sector => (
+        <div className="flex flex-wrap gap-1">
+          {focus.split(', ').slice(0, 2).map(sector => (
             <Tag key={sector} color="green" size="small">{sector}</Tag>
           ))}
+          {focus.split(', ').length > 2 && <Tag size="small">+{focus.split(', ').length - 2}</Tag>}
         </div>
       ),
     },
     {
       key: 'partnerName',
       title: 'Partner Name',
-      dataIndex: 'partnerName',
+      dataIndex: 'partner_name',
+      width: 140,
+      ellipsis: true,
     },
     {
       key: 'partnerEmail',
       title: 'Partner Email',
-      dataIndex: 'partnerEmail',
-      render: (email) => <Text copyable>{email}</Text>,
+      dataIndex: 'partner_email',
+      width: 180,
+      render: (email) => <Text copyable ellipsis>{email}</Text>,
     },
     {
       key: 'fundDescription',
       title: 'Fund Description',
-      dataIndex: 'fundDescription',
+      dataIndex: 'fund_description',
+      width: 200,
       ellipsis: true,
     },
     {
       key: 'portfolioCompanies',
       title: 'Portfolio Companies',
-      dataIndex: 'portfolioCompanies',
+      dataIndex: 'portfolio_companies',
+      width: 200,
       ellipsis: true,
     },
     {
       key: 'numberOfInvestments',
-      title: 'Number Of Investments',
-      dataIndex: 'numberOfInvestments',
+      title: 'Investments',
+      dataIndex: 'number_of_investments',
+      width: 100,
       align: 'center',
     },
     {
       key: 'numberOfExits',
-      title: 'Number Of Exits',
-      dataIndex: 'numberOfExits',
+      title: 'Exits',
+      dataIndex: 'number_of_exits',
+      width: 80,
       align: 'center',
     },
     {
       key: 'location',
       title: 'Location',
       dataIndex: 'location',
+      width: 120,
+      ellipsis: true,
     },
     {
       key: 'foundingYear',
-      title: 'Founding Year',
-      dataIndex: 'foundingYear',
+      title: 'Founded',
+      dataIndex: 'founded_year',
+      width: 80,
       align: 'center',
     },
     {
       key: 'website',
-      title: 'Website (If Available)',
+      title: 'Website',
       dataIndex: 'website',
+      width: 120,
+      ellipsis: true,
       render: (website) => website ? (
         <a href={`https://${website}`} target="_blank" rel="noreferrer">
           {website}
@@ -297,8 +330,9 @@ export default function AllInvestorsPage() {
     },
     {
       key: 'twitterLink',
-      title: 'Twitter Link',
-      dataIndex: 'twitterLink',
+      title: 'Twitter',
+      dataIndex: 'twitter_link',
+      width: 100,
       render: (twitter) => twitter ? (
         <a href={`https://twitter.com/${twitter.replace('@', '')}`} target="_blank" rel="noreferrer">
           {twitter}
@@ -307,8 +341,9 @@ export default function AllInvestorsPage() {
     },
     {
       key: 'linkedinLink',
-      title: 'Linkedin Link',
-      dataIndex: 'linkedinLink',
+      title: 'LinkedIn',
+      dataIndex: 'linkedIn_link',
+      width: 100,
       render: (linkedin) => linkedin ? (
         <a href={`https://${linkedin}`} target="_blank" rel="noreferrer">
           LinkedIn
@@ -317,8 +352,9 @@ export default function AllInvestorsPage() {
     },
     {
       key: 'facebookLink',
-      title: 'Facebook Link',
-      dataIndex: 'facebookLink',
+      title: 'Facebook',
+      dataIndex: 'facebook_link',
+      width: 100,
       render: (facebook) => facebook ? (
         <a href={`https://${facebook}`} target="_blank" rel="noreferrer">
           Facebook
@@ -332,12 +368,26 @@ export default function AllInvestorsPage() {
   const actionsColumn = {
     title: 'Actions',
     key: 'actions',
-    width: 150,
+    width: 120,
+    fixed: 'right',
     render: (_, record) => (
       <Space size="small">
         <Button size="small" icon={<EyeOutlined />} />
-        <Button size="small" icon={<EditOutlined />} />
-        <Button size="small" icon={<DeleteOutlined />} danger />
+        <Button 
+          size="small" 
+          icon={<EditOutlined />} 
+          onClick={() => {
+            setSelectedInvestor(record);
+            form.setFieldsValue(record);
+            setEditInvestorModal(true);
+          }}
+        />
+        <Button 
+          size="small" 
+          icon={<DeleteOutlined />} 
+          danger 
+          onClick={() => handleDeleteInvestor(record.id)}
+        />
       </Space>
     ),
   };
@@ -560,6 +610,42 @@ export default function AllInvestorsPage() {
           </Space>
         }
       >
+        {/* Excel Sync Status */}
+        {excelSyncStatus && (
+          <Alert
+            message={
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileExcelOutlined className="text-green-600" />
+                  <span>
+                    Excel Database: {excelSyncStatus.excelRecords} records | 
+                    Status: {excelSyncStatus.isWatching ? 'Watching for changes' : 'Not watching'}
+                  </span>
+                </div>
+                <Space>
+                  <Button 
+                    size="small" 
+                    icon={syncing ? <Spin size="small" /> : <SyncOutlined />}
+                    onClick={handleSyncToExcel}
+                    disabled={syncing}
+                  >
+                    {syncing ? 'Syncing...' : 'Sync to Excel'}
+                  </Button>
+                  <Button 
+                    size="small" 
+                    icon={<DownloadOutlined />}
+                    onClick={handleDownloadExcel}
+                  >
+                    Download Excel
+                  </Button>
+                </Space>
+              </div>
+            }
+            type="info"
+            className="mb-4"
+          />
+        )}
+
         <div className="mb-6">
           <Search
             placeholder="Search investors by name, email, or focus..."
@@ -587,21 +673,18 @@ export default function AllInvestorsPage() {
           }
         `}</style>
 
-        <div className="overflow-x-auto">
-          <Table
-            columns={finalColumns}
-            dataSource={filteredInvestors}
-            rowKey="id"
-            loading={loading}
-            scroll={{ x: 'max-content' }}
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} investors`,
-            }}
-          />
-        </div>
+        <Table
+          columns={finalColumns}
+          dataSource={filteredInvestors}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            pageSize: 10,
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} investors`,
+          }}
+        />
       </Card>
 
       {/* Add Investor Modal */}
