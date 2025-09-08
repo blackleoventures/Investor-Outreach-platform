@@ -61,16 +61,62 @@ exports.uploadFile = async (req, res) => {
     } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
       // Handle Excel file using buffer approach
       try {
-        const xlsx = require('xlsx');
+        let xlsx;
+        try {
+          xlsx = require('xlsx');
+        } catch (requireError) {
+          console.error('XLSX module not available:', requireError);
+          return res.status(400).json({ 
+            error: 'Excel processing not available. Please convert to CSV format.' 
+          });
+        }
+        
         const fileBuffer = fs.readFileSync(uploadedFilePath);
-        const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
+        const workbook = xlsx.read(fileBuffer, { 
+          type: 'buffer',
+          cellDates: true,
+          cellNF: false,
+          cellText: false
+        });
+        
+        if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+          return res.status(400).json({ 
+            error: 'Excel file has no sheets or is corrupted.' 
+          });
+        }
+        
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        data = xlsx.utils.sheet_to_json(worksheet);
+        
+        if (!worksheet) {
+          return res.status(400).json({ 
+            error: 'Excel sheet is empty or corrupted.' 
+          });
+        }
+        
+        data = xlsx.utils.sheet_to_json(worksheet, {
+          header: 1,
+          defval: '',
+          blankrows: false
+        });
+        
+        // Convert array of arrays to array of objects
+        if (data.length > 0) {
+          const headers = data[0];
+          data = data.slice(1).map(row => {
+            const obj = {};
+            headers.forEach((header, index) => {
+              obj[header] = row[index] || '';
+            });
+            return obj;
+          });
+        }
+        
       } catch (xlsxError) {
         console.error('Excel processing error:', xlsxError);
         return res.status(400).json({ 
-          error: 'Failed to process Excel file. Please ensure it is a valid Excel file.' 
+          error: 'Failed to process Excel file. Please ensure it is a valid Excel file or convert to CSV format.',
+          details: xlsxError.message
         });
       }
       
@@ -96,21 +142,38 @@ exports.uploadFile = async (req, res) => {
     // Save to Firebase directly
     const investorsRef = db.collection('investors');
     
-    // Clear existing data
-    const snapshot = await investorsRef.get();
-    const deletePromises = snapshot.docs.map(doc => doc.ref.delete());
-    await Promise.all(deletePromises);
-    
-    // Add new data
-    const addPromises = validData.map(item => {
-      return investorsRef.add({
-        ...item,
-        createdAt: new Date(),
-        uploadedAt: new Date()
-      });
-    });
-    
-    await Promise.all(addPromises);
+    try {
+      // Clear existing data in smaller batches
+      const snapshot = await investorsRef.get();
+      const batchSize = 100;
+      
+      for (let i = 0; i < snapshot.docs.length; i += batchSize) {
+        const batch = db.batch();
+        const chunk = snapshot.docs.slice(i, i + batchSize);
+        chunk.forEach(doc => batch.delete(doc.ref));
+        await batch.commit();
+      }
+      
+      // Add new data in batches
+      for (let i = 0; i < validData.length; i += batchSize) {
+        const batch = db.batch();
+        const chunk = validData.slice(i, i + batchSize);
+        
+        chunk.forEach(item => {
+          const docRef = investorsRef.doc();
+          batch.set(docRef, {
+            ...item,
+            createdAt: new Date(),
+            uploadedAt: new Date()
+          });
+        });
+        
+        await batch.commit();
+      }
+    } catch (firebaseError) {
+      console.error('Firebase error:', firebaseError);
+      throw new Error('Failed to save data to database: ' + firebaseError.message);
+    }
     
     // Clean up uploaded file
     try {

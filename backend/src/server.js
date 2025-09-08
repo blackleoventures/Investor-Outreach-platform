@@ -11,11 +11,17 @@ const excelService = require('./services/excel.service');
 
 console.log("Firebase initialized successfully");
 
-// Initialize Excel service
-excelService.initializeExcelFile().then(() => {
-  excelService.startWatching();
-  console.log('Excel service initialized and watching for changes');
-}).catch(console.error);
+// Initialize Excel service (optional)
+try {
+  excelService.initializeExcelFile().then(() => {
+    excelService.startWatching();
+    console.log('Excel service initialized and watching for changes');
+  }).catch(err => {
+    console.log('Excel service initialization skipped:', err.message);
+  });
+} catch (error) {
+  console.log('Excel service not available in this environment');
+}
 
 const app = express();
 

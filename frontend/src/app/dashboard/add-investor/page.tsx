@@ -49,15 +49,9 @@ export default function AddInvestorPage() {
           method: 'POST',
           body: formData,
         });
-      } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
-        formData.append('excel', file);
-        response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/upload`, {
-          method: 'POST',
-          body: formData,
-        });
       } else {
         message.destroy();
-        message.error('Please upload only CSV or Excel files');
+        message.error('Only CSV files are supported. Please convert Excel to CSV format.');
         setUploading(false);
         return false;
       }
