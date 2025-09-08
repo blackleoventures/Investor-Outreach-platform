@@ -35,21 +35,18 @@ exports.uploadFile = async (req, res) => {
     uploadedFilePath = req.file.path;
     const fileExtension = req.file.originalname.split('.').pop().toLowerCase();
     const fs = require('fs');
+    const { db } = require('../config/firebase');
+    const transformFrontendToDB = require('../utils/functions');
     
     console.log(`Processing ${fileExtension} file: ${req.file.originalname}`);
     
-    // Validate file exists
-    if (!fs.existsSync(uploadedFilePath)) {
-      return res.status(400).json({ error: 'Uploaded file not found' });
-    }
-    
-    let recordCount = 0;
+    let data = [];
     
     if (fileExtension === 'csv') {
       // Handle CSV file
       const fileContent = fs.readFileSync(uploadedFilePath, 'utf-8');
       
-      const { data, errors } = Papa.parse(fileContent, {
+      const { data: csvData, errors } = Papa.parse(fileContent, {
         header: true,
         skipEmptyLines: true,
       });
@@ -62,46 +59,71 @@ exports.uploadFile = async (req, res) => {
         });
       }
       
-      if (!data || data.length === 0) {
-        return res.status(400).json({ error: 'CSV file is empty or has no valid data' });
-      }
-      
-      recordCount = data.length;
-      await excelService.writeExcelData(data);
+      data = csvData;
       
     } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
       // Handle Excel file
-      const targetPath = excelService.getExcelFilePath();
-      
-      // Ensure target directory exists
-      const targetDir = path.dirname(targetPath);
-      if (!fs.existsSync(targetDir)) {
-        fs.mkdirSync(targetDir, { recursive: true });
-      }
-      
-      fs.copyFileSync(uploadedFilePath, targetPath);
-      
-      // Read Excel data to get record count
-      const excelData = excelService.readExcelData();
-      recordCount = excelData.length;
+      const xlsx = require('xlsx');
+      const workbook = xlsx.readFile(uploadedFilePath);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      data = xlsx.utils.sheet_to_json(worksheet);
       
     } else {
       return res.status(400).json({ error: 'Unsupported file format. Please upload CSV or Excel files only.' });
     }
+    
+    if (!data || data.length === 0) {
+      return res.status(400).json({ error: 'File is empty or has no valid data' });
+    }
+    
+    // Validate and filter data
+    const validData = data.filter(item => item.partner_email && item.partner_email.trim());
+    if (validData.length === 0) {
+      return res.status(400).json({ error: 'No valid records found. Partner email is required.' });
+    }
+    
+    // Transform and save to Firebase directly
+    const investorsRef = db.collection('investors');
+    
+    // Clear existing data
+    const snapshot = await investorsRef.get();
+    const batch = db.batch();
+    
+    snapshot.docs.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    
+    // Add new data
+    const normalizedData = validData.map(item => {
+      try {
+        return transformFrontendToDB(item);
+      } catch (err) {
+        console.error('Transform error:', err);
+        return null;
+      }
+    }).filter(Boolean);
+    
+    normalizedData.forEach(investor => {
+      const investorRef = investorsRef.doc();
+      batch.set(investorRef, {
+        ...investor,
+        createdAt: new Date(),
+        uploadedAt: new Date()
+      });
+    });
+    
+    await batch.commit();
     
     // Clean up uploaded file
     if (fs.existsSync(uploadedFilePath)) {
       fs.unlinkSync(uploadedFilePath);
     }
     
-    // Sync to Firebase
-    console.log('Syncing to Firebase...');
-    await excelService.syncExcelToFirebase();
-    
     res.status(200).json({
       success: true,
-      message: `Successfully imported ${recordCount} records from ${fileExtension.toUpperCase()} file`,
-      recordCount: recordCount
+      message: `Successfully imported ${normalizedData.length} records from ${fileExtension.toUpperCase()} file`,
+      recordCount: normalizedData.length
     });
     
   } catch (error) {

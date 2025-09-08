@@ -14,29 +14,33 @@ class ExcelService {
 
   // Initialize Excel file if it doesn't exist
   async initializeExcelFile() {
-    const dataDir = path.dirname(this.excelFilePath);
-    
-    // Create data directory if it doesn't exist
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
+    try {
+      const dataDir = path.dirname(this.excelFilePath);
+      
+      // Create data directory if it doesn't exist
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
 
-    // Create Excel file if it doesn't exist
-    if (!fs.existsSync(this.excelFilePath)) {
-      const headers = [
-        'investor_name', 'partner_name', 'partner_email', 'phone_number',
-        'fund_type', 'fund_stage', 'country', 'state', 'city', 'ticket_size',
-        'website', 'sector_focus', 'location', 'founded_year', 'portfolio_companies',
-        'twitter_link', 'linkedIn_link', 'facebook_link', 'number_of_investments',
-        'number_of_exits', 'fund_description'
-      ];
-      
-      const wb = xlsx.utils.book_new();
-      const ws = xlsx.utils.aoa_to_sheet([headers]);
-      xlsx.utils.book_append_sheet(wb, ws, 'Investors');
-      xlsx.writeFile(wb, this.excelFilePath);
-      
-      console.log('Excel file created:', this.excelFilePath);
+      // Create Excel file if it doesn't exist
+      if (!fs.existsSync(this.excelFilePath)) {
+        const headers = [
+          'investor_name', 'partner_name', 'partner_email', 'phone_number',
+          'fund_type', 'fund_stage', 'country', 'state', 'city', 'ticket_size',
+          'website', 'sector_focus', 'location', 'founded_year', 'portfolio_companies',
+          'twitter_link', 'linkedIn_link', 'facebook_link', 'number_of_investments',
+          'number_of_exits', 'fund_description'
+        ];
+        
+        const wb = xlsx.utils.book_new();
+        const ws = xlsx.utils.aoa_to_sheet([headers]);
+        xlsx.utils.book_append_sheet(wb, ws, 'Investors');
+        xlsx.writeFile(wb, this.excelFilePath);
+        
+        console.log('Excel file created:', this.excelFilePath);
+      }
+    } catch (error) {
+      console.log('Excel file initialization skipped in serverless environment');
     }
   }
 
@@ -196,28 +200,38 @@ class ExcelService {
 
   // Start watching Excel file for changes
   startWatching() {
+    // Skip file watching in serverless environment
+    if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+      console.log('File watching disabled in serverless environment');
+      return;
+    }
+    
     if (this.isWatching) {
       console.log('Already watching Excel file');
       return;
     }
 
-    this.watcher = chokidar.watch(this.excelFilePath, {
-      ignored: /^\./, 
-      persistent: true,
-      ignoreInitial: true
-    });
+    try {
+      this.watcher = chokidar.watch(this.excelFilePath, {
+        ignored: /^\./, 
+        persistent: true,
+        ignoreInitial: true
+      });
 
-    this.watcher.on('change', async () => {
-      console.log('Excel file changed, syncing to Firebase...');
-      // Add a small delay to ensure file is fully written
-      setTimeout(async () => {
-        await this.syncExcelToFirebase();
-        console.log('Real-time sync completed');
-      }, 2000);
-    });
+      this.watcher.on('change', async () => {
+        console.log('Excel file changed, syncing to Firebase...');
+        // Add a small delay to ensure file is fully written
+        setTimeout(async () => {
+          await this.syncExcelToFirebase();
+          console.log('Real-time sync completed');
+        }, 2000);
+      });
 
-    this.isWatching = true;
-    console.log('Started watching Excel file:', this.excelFilePath);
+      this.isWatching = true;
+      console.log('Started watching Excel file:', this.excelFilePath);
+    } catch (error) {
+      console.log('File watching not available in this environment');
+    }
   }
 
   // Stop watching Excel file
