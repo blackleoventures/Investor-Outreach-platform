@@ -77,10 +77,14 @@ exports.uploadFile = async (req, res) => {
       return res.status(400).json({ error: 'File is empty or has no valid data' });
     }
     
-    // Validate and filter data
-    const validData = data.filter(item => item.partner_email && item.partner_email.trim());
+    // Filter out completely empty rows
+    const validData = data.filter(item => {
+      // Check if at least one field has data
+      return Object.values(item).some(value => value && value.toString().trim());
+    });
+    
     if (validData.length === 0) {
-      return res.status(400).json({ error: 'No valid records found. Partner email is required.' });
+      return res.status(400).json({ error: 'No valid records found. File appears to be empty.' });
     }
     
     // Transform and save to Firebase directly
