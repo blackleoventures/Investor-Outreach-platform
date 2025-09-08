@@ -21,7 +21,7 @@ exports.downloadExcel = async (req, res) => {
   }
 };
 
-// Upload CSV file and sync to Firebase
+// Upload CSV or Excel file and sync to Firebase
 exports.uploadFile = async (req, res) => {
   let uploadedFilePath = null;
   
@@ -37,34 +37,55 @@ exports.uploadFile = async (req, res) => {
     
     console.log(`Processing ${fileExtension} file: ${req.file.originalname}`);
     
-    if (fileExtension !== 'csv') {
+    let data = [];
+    
+    if (fileExtension === 'csv') {
+      // Handle CSV file
+      const fileContent = fs.readFileSync(uploadedFilePath, 'utf-8');
+      
+      const { data: csvData, errors } = Papa.parse(fileContent, {
+        header: true,
+        skipEmptyLines: true,
+      });
+      
+      if (errors.length > 0) {
+        console.error('CSV parsing errors:', errors);
+        return res.status(400).json({ 
+          error: 'Invalid CSV format', 
+          details: errors.map(e => e.message).join(', ')
+        });
+      }
+      
+      data = csvData;
+      
+    } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+      // Handle Excel file using buffer approach
+      try {
+        const xlsx = require('xlsx');
+        const fileBuffer = fs.readFileSync(uploadedFilePath);
+        const workbook = xlsx.read(fileBuffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        data = xlsx.utils.sheet_to_json(worksheet);
+      } catch (xlsxError) {
+        console.error('Excel processing error:', xlsxError);
+        return res.status(400).json({ 
+          error: 'Failed to process Excel file. Please ensure it is a valid Excel file.' 
+        });
+      }
+      
+    } else {
       return res.status(400).json({ 
-        error: 'Only CSV files are supported on this platform. Please convert your Excel file to CSV format.' 
+        error: 'Unsupported file format. Please upload CSV or Excel files only.' 
       });
     }
     
-    // Handle CSV file
-    const fileContent = fs.readFileSync(uploadedFilePath, 'utf-8');
-    
-    const { data: csvData, errors } = Papa.parse(fileContent, {
-      header: true,
-      skipEmptyLines: true,
-    });
-    
-    if (errors.length > 0) {
-      console.error('CSV parsing errors:', errors);
-      return res.status(400).json({ 
-        error: 'Invalid CSV format', 
-        details: errors.map(e => e.message).join(', ')
-      });
-    }
-    
-    if (!csvData || csvData.length === 0) {
-      return res.status(400).json({ error: 'CSV file is empty or has no valid data' });
+    if (!data || data.length === 0) {
+      return res.status(400).json({ error: 'File is empty or has no valid data' });
     }
     
     // Filter out completely empty rows
-    const validData = csvData.filter(item => {
+    const validData = data.filter(item => {
       return Object.values(item).some(value => value && value.toString().trim());
     });
     
@@ -102,7 +123,7 @@ exports.uploadFile = async (req, res) => {
     
     res.status(200).json({
       success: true,
-      message: `Successfully imported ${validData.length} records from CSV file`,
+      message: `Successfully imported ${validData.length} records from ${fileExtension.toUpperCase()} file`,
       recordCount: validData.length
     });
     
