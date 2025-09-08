@@ -23,21 +23,26 @@ export default function AllInvestorsPage() {
   const [visibleColumns, setVisibleColumns] = useState({
     serialNumber: true,
     investorName: true,
-    fundStage: true,
+    partnerName: true,
+    partnerEmail: true,
+    phoneNumber: true,
     fundType: true,
-    fundFocus: true,
-    partnerName: false,
-    partnerEmail: false,
-    fundDescription: false,
-    portfolioCompanies: false,
-    numberOfInvestments: false,
-    numberOfExits: false,
-    location: false,
-    foundingYear: false,
+    fundStage: true,
+    country: true,
+    state: false,
+    city: false,
+    ticketSize: false,
     website: false,
+    sectorFocus: true,
+    location: false,
+    foundedYear: false,
+    portfolioCompanies: false,
     twitterLink: false,
     linkedinLink: false,
-    facebookLink: false
+    facebookLink: false,
+    numberOfInvestments: false,
+    numberOfExits: false,
+    fundDescription: false
   });
 
   // Fetch investors data from API
@@ -135,9 +140,11 @@ export default function AllInvestorsPage() {
     
     if (searchQuery) {
       filtered = filtered.filter(investor =>
-        investor.investorName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        investor.partnerEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        investor.fundFocus.toLowerCase().includes(searchQuery.toLowerCase())
+        (investor.investor_name && investor.investor_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (investor.partner_name && investor.partner_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (investor.partner_email && investor.partner_email.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (investor.fund_type && investor.fund_type.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (investor.sector_focus && investor.sector_focus.toString().toLowerCase().includes(searchQuery.toLowerCase()))
       );
     }
     
@@ -247,18 +254,53 @@ export default function AllInvestorsPage() {
       width: 120,
     },
     {
-      key: 'fundFocus',
-      title: 'Fund Focus (Sectors)',
+      key: 'phoneNumber',
+      title: 'Phone Number',
+      dataIndex: 'phone_number',
+      width: 140,
+      ellipsis: true,
+    },
+    {
+      key: 'country',
+      title: 'Country',
+      dataIndex: 'country',
+      width: 120,
+    },
+    {
+      key: 'state',
+      title: 'State',
+      dataIndex: 'state',
+      width: 100,
+    },
+    {
+      key: 'city',
+      title: 'City',
+      dataIndex: 'city',
+      width: 100,
+    },
+    {
+      key: 'ticketSize',
+      title: 'Ticket Size',
+      dataIndex: 'ticket_size',
+      width: 120,
+    },
+    {
+      key: 'sectorFocus',
+      title: 'Sector Focus',
       dataIndex: 'sector_focus',
       width: 200,
-      render: (focus) => (
-        <div className="flex flex-wrap gap-1">
-          {focus.split(', ').slice(0, 2).map(sector => (
-            <Tag key={sector} color="green" size="small">{sector}</Tag>
-          ))}
-          {focus.split(', ').length > 2 && <Tag size="small">+{focus.split(', ').length - 2}</Tag>}
-        </div>
-      ),
+      render: (focus) => {
+        if (!focus) return 'N/A';
+        const sectors = typeof focus === 'string' ? focus.split(', ') : (Array.isArray(focus) ? focus : [focus]);
+        return (
+          <div className="flex flex-wrap gap-1">
+            {sectors.slice(0, 2).map((sector, index) => (
+              <Tag key={index} color="green" size="small">{sector}</Tag>
+            ))}
+            {sectors.length > 2 && <Tag size="small">+{sectors.length - 2}</Tag>}
+          </div>
+        );
+      },
     },
     {
       key: 'partnerName',
@@ -287,6 +329,10 @@ export default function AllInvestorsPage() {
       dataIndex: 'portfolio_companies',
       width: 200,
       ellipsis: true,
+      render: (companies) => {
+        if (!companies) return 'N/A';
+        return typeof companies === 'string' ? companies : (Array.isArray(companies) ? companies.join(', ') : companies);
+      },
     },
     {
       key: 'numberOfInvestments',
@@ -310,7 +356,7 @@ export default function AllInvestorsPage() {
       ellipsis: true,
     },
     {
-      key: 'foundingYear',
+      key: 'foundedYear',
       title: 'Founded',
       dataIndex: 'founded_year',
       width: 80,
@@ -431,10 +477,50 @@ export default function AllInvestorsPage() {
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
-                  checked={visibleColumns.fundFocus}
-                  onChange={(e) => handleColumnVisibilityChange('fundFocus', e.target.checked)}
+                  checked={visibleColumns.phoneNumber}
+                  onChange={(e) => handleColumnVisibilityChange('phoneNumber', e.target.checked)}
                 >
-                  Fund Focus (Sectors)
+                  Phone Number
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.country}
+                  onChange={(e) => handleColumnVisibilityChange('country', e.target.checked)}
+                >
+                  Country
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.state}
+                  onChange={(e) => handleColumnVisibilityChange('state', e.target.checked)}
+                >
+                  State
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.city}
+                  onChange={(e) => handleColumnVisibilityChange('city', e.target.checked)}
+                >
+                  City
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.ticketSize}
+                  onChange={(e) => handleColumnVisibilityChange('ticketSize', e.target.checked)}
+                >
+                  Ticket Size
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.sectorFocus}
+                  onChange={(e) => handleColumnVisibilityChange('sectorFocus', e.target.checked)}
+                >
+                  Sector Focus
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
@@ -495,10 +581,10 @@ export default function AllInvestorsPage() {
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
-                  checked={visibleColumns.foundingYear}
-                  onChange={(e) => handleColumnVisibilityChange('foundingYear', e.target.checked)}
+                  checked={visibleColumns.foundedYear}
+                  onChange={(e) => handleColumnVisibilityChange('foundedYear', e.target.checked)}
                 >
-                  Founding Year
+                  Founded Year
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
