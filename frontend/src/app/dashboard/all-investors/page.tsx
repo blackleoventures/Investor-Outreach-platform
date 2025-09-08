@@ -49,11 +49,15 @@ export default function AllInvestorsPage() {
   const fetchInvestors = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/investors`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/investors/all`);
       if (response.ok) {
-        const data = await response.json();
-        setInvestors(data.data || []);
-        setFilteredInvestors(data.data || []);
+        const result = await response.json();
+        console.log('API Response:', result);
+        const investorData = result.data || [];
+        setInvestors(investorData);
+        setFilteredInvestors(investorData);
+      } else {
+        console.error('API Error:', response.status);
       }
     } catch (error) {
       console.error('Error fetching investors:', error);
@@ -226,7 +230,6 @@ export default function AllInvestorsPage() {
       title: 'Sr. No.',
       width: 70,
       align: 'center',
-      fixed: 'left',
       render: (_, __, index) => index + 1,
     },
     {
@@ -234,7 +237,6 @@ export default function AllInvestorsPage() {
       title: 'Investor Name',
       dataIndex: 'investor_name',
       width: 180,
-      fixed: 'left',
       render: (name) => (
         <div className="flex items-center space-x-2">
           <Avatar size="small" icon={<UserOutlined />} />
@@ -425,7 +427,6 @@ export default function AllInvestorsPage() {
     title: 'Actions',
     key: 'actions',
     width: 120,
-    fixed: 'right',
     render: (_, record) => (
       <Space size="small">
         <Button size="small" icon={<EyeOutlined />} />
@@ -735,19 +736,21 @@ export default function AllInvestorsPage() {
           }
         `}</style>
 
-        <Table
-          columns={finalColumns}
-          dataSource={filteredInvestors}
-          rowKey="id"
-          loading={loading}
-          scroll={{ x: 1500, y: 600 }}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} investors`,
-          }}
-        />
+        <div className="overflow-x-auto">
+          <Table
+            columns={finalColumns}
+            dataSource={filteredInvestors}
+            rowKey={(record) => record.id || record._id || Math.random()}
+            loading={loading}
+            scroll={{ x: 'max-content' }}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} investors`,
+            }}
+          />
+        </div>
       </Card>
 
       {/* Add Investor Modal */}
