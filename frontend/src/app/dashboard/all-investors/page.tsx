@@ -25,15 +25,15 @@ export default function AllInvestorsPage() {
     investorName: true,
     partnerName: true,
     partnerEmail: true,
-    phoneNumber: true,
-    fundType: true,
     fundStage: true,
+    fundType: true,
+    phoneNumber: true,
     country: true,
+    sectorFocus: true,
     state: false,
     city: false,
     ticketSize: false,
     website: false,
-    sectorFocus: true,
     location: false,
     foundedYear: false,
     portfolioCompanies: false,
@@ -226,6 +226,7 @@ export default function AllInvestorsPage() {
       title: 'Sr. No.',
       width: 70,
       align: 'center',
+      fixed: 'left',
       render: (_, __, index) => index + 1,
     },
     {
@@ -233,56 +234,55 @@ export default function AllInvestorsPage() {
       title: 'Investor Name',
       dataIndex: 'investor_name',
       width: 180,
+      fixed: 'left',
       render: (name) => (
         <div className="flex items-center space-x-2">
           <Avatar size="small" icon={<UserOutlined />} />
-          <Text strong className="truncate">{name}</Text>
+          <Text strong className="truncate">{name || 'N/A'}</Text>
         </div>
       ),
+    },
+    {
+      key: 'partnerName',
+      title: 'Partner Name',
+      dataIndex: 'partner_name',
+      width: 140,
+      render: (name) => name || 'N/A',
+    },
+    {
+      key: 'partnerEmail',
+      title: 'Partner Email',
+      dataIndex: 'partner_email',
+      width: 200,
+      render: (email) => email ? <Text copyable ellipsis>{email}</Text> : 'N/A',
     },
     {
       key: 'fundStage',
       title: 'Fund Stage',
       dataIndex: 'fund_stage',
       width: 140,
-      render: (stage) => <Tag color="blue">{stage}</Tag>,
+      render: (stage) => stage ? <Tag color="blue">{stage}</Tag> : 'N/A',
     },
     {
       key: 'fundType',
       title: 'Fund Type',
       dataIndex: 'fund_type',
       width: 120,
+      render: (type) => type || 'N/A',
     },
     {
       key: 'phoneNumber',
       title: 'Phone Number',
       dataIndex: 'phone_number',
       width: 140,
-      ellipsis: true,
+      render: (phone) => phone || 'N/A',
     },
     {
       key: 'country',
       title: 'Country',
       dataIndex: 'country',
       width: 120,
-    },
-    {
-      key: 'state',
-      title: 'State',
-      dataIndex: 'state',
-      width: 100,
-    },
-    {
-      key: 'city',
-      title: 'City',
-      dataIndex: 'city',
-      width: 100,
-    },
-    {
-      key: 'ticketSize',
-      title: 'Ticket Size',
-      dataIndex: 'ticket_size',
-      width: 120,
+      render: (country) => country || 'N/A',
     },
     {
       key: 'sectorFocus',
@@ -303,25 +303,51 @@ export default function AllInvestorsPage() {
       },
     },
     {
-      key: 'partnerName',
-      title: 'Partner Name',
-      dataIndex: 'partner_name',
-      width: 140,
-      ellipsis: true,
+      key: 'state',
+      title: 'State',
+      dataIndex: 'state',
+      width: 100,
+      render: (state) => state || 'N/A',
     },
     {
-      key: 'partnerEmail',
-      title: 'Partner Email',
-      dataIndex: 'partner_email',
-      width: 180,
-      render: (email) => <Text copyable ellipsis>{email}</Text>,
+      key: 'city',
+      title: 'City',
+      dataIndex: 'city',
+      width: 100,
+      render: (city) => city || 'N/A',
     },
     {
-      key: 'fundDescription',
-      title: 'Fund Description',
-      dataIndex: 'fund_description',
-      width: 200,
-      ellipsis: true,
+      key: 'ticketSize',
+      title: 'Ticket Size',
+      dataIndex: 'ticket_size',
+      width: 120,
+      render: (size) => size || 'N/A',
+    },
+    {
+      key: 'website',
+      title: 'Website',
+      dataIndex: 'website',
+      width: 120,
+      render: (website) => website ? (
+        <a href={`https://${website}`} target="_blank" rel="noreferrer">
+          {website}
+        </a>
+      ) : 'N/A',
+    },
+    {
+      key: 'location',
+      title: 'Location',
+      dataIndex: 'location',
+      width: 120,
+      render: (location) => location || 'N/A',
+    },
+    {
+      key: 'foundedYear',
+      title: 'Founded',
+      dataIndex: 'founded_year',
+      width: 80,
+      align: 'center',
+      render: (year) => year || 'N/A',
     },
     {
       key: 'portfolioCompanies',
@@ -340,6 +366,7 @@ export default function AllInvestorsPage() {
       dataIndex: 'number_of_investments',
       width: 100,
       align: 'center',
+      render: (num) => num || 0,
     },
     {
       key: 'numberOfExits',
@@ -347,32 +374,15 @@ export default function AllInvestorsPage() {
       dataIndex: 'number_of_exits',
       width: 80,
       align: 'center',
+      render: (num) => num || 0,
     },
     {
-      key: 'location',
-      title: 'Location',
-      dataIndex: 'location',
-      width: 120,
+      key: 'fundDescription',
+      title: 'Fund Description',
+      dataIndex: 'fund_description',
+      width: 200,
       ellipsis: true,
-    },
-    {
-      key: 'foundedYear',
-      title: 'Founded',
-      dataIndex: 'founded_year',
-      width: 80,
-      align: 'center',
-    },
-    {
-      key: 'website',
-      title: 'Website',
-      dataIndex: 'website',
-      width: 120,
-      ellipsis: true,
-      render: (website) => website ? (
-        <a href={`https://${website}`} target="_blank" rel="noreferrer">
-          {website}
-        </a>
-      ) : 'N/A',
+      render: (desc) => desc || 'N/A',
     },
     {
       key: 'twitterLink',
@@ -461,6 +471,22 @@ export default function AllInvestorsPage() {
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
+                  checked={visibleColumns.partnerName}
+                  onChange={(e) => handleColumnVisibilityChange('partnerName', e.target.checked)}
+                >
+                  Partner Name
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.partnerEmail}
+                  onChange={(e) => handleColumnVisibilityChange('partnerEmail', e.target.checked)}
+                >
+                  Partner Email
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
                   checked={visibleColumns.fundStage}
                   onChange={(e) => handleColumnVisibilityChange('fundStage', e.target.checked)}
                 >
@@ -493,6 +519,14 @@ export default function AllInvestorsPage() {
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
+                  checked={visibleColumns.sectorFocus}
+                  onChange={(e) => handleColumnVisibilityChange('sectorFocus', e.target.checked)}
+                >
+                  Sector Focus
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
                   checked={visibleColumns.state}
                   onChange={(e) => handleColumnVisibilityChange('state', e.target.checked)}
                 >
@@ -517,34 +551,26 @@ export default function AllInvestorsPage() {
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
-                  checked={visibleColumns.sectorFocus}
-                  onChange={(e) => handleColumnVisibilityChange('sectorFocus', e.target.checked)}
+                  checked={visibleColumns.website}
+                  onChange={(e) => handleColumnVisibilityChange('website', e.target.checked)}
                 >
-                  Sector Focus
+                  Website
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
-                  checked={visibleColumns.partnerName}
-                  onChange={(e) => handleColumnVisibilityChange('partnerName', e.target.checked)}
+                  checked={visibleColumns.location}
+                  onChange={(e) => handleColumnVisibilityChange('location', e.target.checked)}
                 >
-                  Partner Name
+                  Location
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
-                  checked={visibleColumns.partnerEmail}
-                  onChange={(e) => handleColumnVisibilityChange('partnerEmail', e.target.checked)}
+                  checked={visibleColumns.foundedYear}
+                  onChange={(e) => handleColumnVisibilityChange('foundedYear', e.target.checked)}
                 >
-                  Partner Email
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.fundDescription}
-                  onChange={(e) => handleColumnVisibilityChange('fundDescription', e.target.checked)}
-                >
-                  Fund Description
+                  Founded Year
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
@@ -573,26 +599,10 @@ export default function AllInvestorsPage() {
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
-                  checked={visibleColumns.location}
-                  onChange={(e) => handleColumnVisibilityChange('location', e.target.checked)}
+                  checked={visibleColumns.fundDescription}
+                  onChange={(e) => handleColumnVisibilityChange('fundDescription', e.target.checked)}
                 >
-                  Location
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.foundedYear}
-                  onChange={(e) => handleColumnVisibilityChange('foundedYear', e.target.checked)}
-                >
-                  Founded Year
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.website}
-                  onChange={(e) => handleColumnVisibilityChange('website', e.target.checked)}
-                >
-                  Website (If Available)
+                  Fund Description
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
@@ -608,7 +618,7 @@ export default function AllInvestorsPage() {
                   checked={visibleColumns.linkedinLink}
                   onChange={(e) => handleColumnVisibilityChange('linkedinLink', e.target.checked)}
                 >
-                  Linkedin Link
+                  LinkedIn Link
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
@@ -696,41 +706,7 @@ export default function AllInvestorsPage() {
           </Space>
         }
       >
-        {/* Excel Sync Status */}
-        {excelSyncStatus && (
-          <Alert
-            message={
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileExcelOutlined className="text-green-600" />
-                  <span>
-                    Excel Database: {excelSyncStatus.excelRecords} records | 
-                    Status: {excelSyncStatus.isWatching ? 'Watching for changes' : 'Not watching'}
-                  </span>
-                </div>
-                <Space>
-                  <Button 
-                    size="small" 
-                    icon={syncing ? <Spin size="small" /> : <SyncOutlined />}
-                    onClick={handleSyncToExcel}
-                    disabled={syncing}
-                  >
-                    {syncing ? 'Syncing...' : 'Sync to Excel'}
-                  </Button>
-                  <Button 
-                    size="small" 
-                    icon={<DownloadOutlined />}
-                    onClick={handleDownloadExcel}
-                  >
-                    Download Excel
-                  </Button>
-                </Space>
-              </div>
-            }
-            type="info"
-            className="mb-4"
-          />
-        )}
+
 
         <div className="mb-6">
           <Search
@@ -764,6 +740,7 @@ export default function AllInvestorsPage() {
           dataSource={filteredInvestors}
           rowKey="id"
           loading={loading}
+          scroll={{ x: 1500, y: 600 }}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
