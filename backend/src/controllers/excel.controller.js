@@ -21,7 +21,7 @@ exports.downloadExcel = async (req, res) => {
   }
 };
 
-// Upload CSV or Excel file and sync to Firebase
+// Upload CSV file and sync to Firebase
 exports.uploadFile = async (req, res) => {
   let uploadedFilePath = null;
   
@@ -37,45 +37,34 @@ exports.uploadFile = async (req, res) => {
     
     console.log(`Processing ${fileExtension} file: ${req.file.originalname}`);
     
-    let data = [];
-    
-    if (fileExtension === 'csv') {
-      // Handle CSV file
-      const fileContent = fs.readFileSync(uploadedFilePath, 'utf-8');
-      
-      const { data: csvData, errors } = Papa.parse(fileContent, {
-        header: true,
-        skipEmptyLines: true,
+    if (fileExtension !== 'csv') {
+      return res.status(400).json({ 
+        error: 'Only CSV files are supported on this platform. Please convert your Excel file to CSV format.' 
       });
-      
-      if (errors.length > 0) {
-        console.error('CSV parsing errors:', errors);
-        return res.status(400).json({ 
-          error: 'Invalid CSV format', 
-          details: errors.map(e => e.message).join(', ')
-        });
-      }
-      
-      data = csvData;
-      
-    } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
-      // Handle Excel file
-      const xlsx = require('xlsx');
-      const workbook = xlsx.readFile(uploadedFilePath);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      data = xlsx.utils.sheet_to_json(worksheet);
-      
-    } else {
-      return res.status(400).json({ error: 'Unsupported file format. Please upload CSV or Excel files only.' });
     }
     
-    if (!data || data.length === 0) {
-      return res.status(400).json({ error: 'File is empty or has no valid data' });
+    // Handle CSV file
+    const fileContent = fs.readFileSync(uploadedFilePath, 'utf-8');
+    
+    const { data: csvData, errors } = Papa.parse(fileContent, {
+      header: true,
+      skipEmptyLines: true,
+    });
+    
+    if (errors.length > 0) {
+      console.error('CSV parsing errors:', errors);
+      return res.status(400).json({ 
+        error: 'Invalid CSV format', 
+        details: errors.map(e => e.message).join(', ')
+      });
+    }
+    
+    if (!csvData || csvData.length === 0) {
+      return res.status(400).json({ error: 'CSV file is empty or has no valid data' });
     }
     
     // Filter out completely empty rows
-    const validData = data.filter(item => {
+    const validData = csvData.filter(item => {
       return Object.values(item).some(value => value && value.toString().trim());
     });
     
@@ -83,36 +72,24 @@ exports.uploadFile = async (req, res) => {
       return res.status(400).json({ error: 'No valid records found. File appears to be empty.' });
     }
     
-    // Save to Firebase directly without transformation
+    // Save to Firebase directly
     const investorsRef = db.collection('investors');
     
-    // Clear existing data in batches
+    // Clear existing data
     const snapshot = await investorsRef.get();
-    const batchSize = 500;
+    const deletePromises = snapshot.docs.map(doc => doc.ref.delete());
+    await Promise.all(deletePromises);
     
-    for (let i = 0; i < snapshot.docs.length; i += batchSize) {
-      const batch = db.batch();
-      const chunk = snapshot.docs.slice(i, i + batchSize);
-      chunk.forEach(doc => batch.delete(doc.ref));
-      await batch.commit();
-    }
-    
-    // Add new data in batches
-    for (let i = 0; i < validData.length; i += batchSize) {
-      const batch = db.batch();
-      const chunk = validData.slice(i, i + batchSize);
-      
-      chunk.forEach(item => {
-        const investorRef = investorsRef.doc();
-        batch.set(investorRef, {
-          ...item,
-          createdAt: new Date(),
-          uploadedAt: new Date()
-        });
+    // Add new data
+    const addPromises = validData.map(item => {
+      return investorsRef.add({
+        ...item,
+        createdAt: new Date(),
+        uploadedAt: new Date()
       });
-      
-      await batch.commit();
-    }
+    });
+    
+    await Promise.all(addPromises);
     
     // Clean up uploaded file
     try {
@@ -125,7 +102,7 @@ exports.uploadFile = async (req, res) => {
     
     res.status(200).json({
       success: true,
-      message: `Successfully imported ${validData.length} records from ${fileExtension.toUpperCase()} file`,
+      message: `Successfully imported ${validData.length} records from CSV file`,
       recordCount: validData.length
     });
     

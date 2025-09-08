@@ -49,15 +49,9 @@ export default function AddInvestorPage() {
           method: 'POST',
           body: formData,
         });
-      } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
-        formData.append('excel', file);
-        response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/upload`, {
-          method: 'POST',
-          body: formData,
-        });
       } else {
         message.destroy();
-        message.error('Please upload only CSV or Excel files');
+        message.error('Only CSV files are supported. Please convert Excel to CSV format.');
         setUploading(false);
         return false;
       }
@@ -256,12 +250,12 @@ export default function AddInvestorPage() {
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <FileTextOutlined className="text-3xl text-green-600" />
                 </div>
-                <Title level={3} className="mb-2">File Import</Title>
+                <Title level={3} className="mb-2">CSV Import</Title>
                 <Text className="text-gray-600 mb-4">
-                  Upload CSV or Excel files - both formats supported
+                  Upload CSV files (Excel: Save As → CSV format)
                 </Text>
                 <Upload
-                  accept=".csv,.xlsx,.xls"
+                  accept=".csv"
                   beforeUpload={handleFileUpload}
                   showUploadList={false}
                   disabled={uploading}
@@ -274,11 +268,11 @@ export default function AddInvestorPage() {
                     disabled={uploading}
                     style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
                   >
-                    {uploading ? 'Uploading...' : 'Upload CSV/Excel'}
+                    {uploading ? 'Uploading...' : 'Upload CSV File'}
                   </Button>
                 </Upload>
                 <Text className="text-xs text-gray-500 mt-2">
-                  Supports: .csv, .xlsx, .xls files
+                  Only CSV format supported. Convert Excel to CSV first.
                 </Text>
               </div>
             </Card>
