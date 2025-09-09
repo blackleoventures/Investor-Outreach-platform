@@ -41,20 +41,11 @@ export default function AddInvestorPage() {
     message.loading('Uploading file...', 0);
     
     try {
-      let response;
-      
-      if (fileExtension === 'csv') {
-        formData.append('file', file);
-        response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/investors/upload-csv`, {
-          method: 'POST',
-          body: formData,
-        });
-      } else {
-        message.destroy();
-        message.error('Only CSV files are supported. Please convert Excel to CSV format.');
-        setUploading(false);
-        return false;
-      }
+      formData.append('file', file);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors/upload-file`, {
+        method: 'POST',
+        body: formData,
+      });
       
       message.destroy();
       

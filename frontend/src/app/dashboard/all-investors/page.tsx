@@ -49,7 +49,7 @@ export default function AllInvestorsPage() {
   const fetchInvestors = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/investors/all`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors/all`);
       if (response.ok) {
         const result = await response.json();
         console.log('API Response:', result);
@@ -84,7 +84,7 @@ export default function AllInvestorsPage() {
   // Fetch Excel sync status
   const fetchSyncStatus = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/sync/status`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/excel/sync/status`);
       if (response.ok) {
         const data = await response.json();
         setExcelSyncStatus(data);
@@ -98,7 +98,7 @@ export default function AllInvestorsPage() {
   const handleSyncToExcel = async () => {
     setSyncing(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/sync/firebase-to-excel`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/excel/sync/firebase-to-excel`, {
         method: 'POST'
       });
       if (response.ok) {
@@ -118,7 +118,7 @@ export default function AllInvestorsPage() {
   // Download Excel file
   const handleDownloadExcel = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/download`);
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/excel/download`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -183,7 +183,7 @@ export default function AllInvestorsPage() {
 
   const handleEditInvestor = async (values) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/investors/${selectedInvestor.id}`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors/${selectedInvestor.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values)
@@ -192,8 +192,7 @@ export default function AllInvestorsPage() {
       if (response.ok) {
         message.success("Investor updated successfully!");
         fetchInvestors(); // Refresh data
-        // Sync changes to Excel
-        await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/sync/firebase-to-excel`, { method: 'POST' });
+        // Excel sync not needed with file-based system
       } else {
         message.error('Failed to update investor');
       }
@@ -212,15 +211,14 @@ export default function AllInvestorsPage() {
       content: "Are you sure you want to delete this investor?",
       onOk: async () => {
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/investors/${investorId}`, {
+          const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors/${investorId}`, {
             method: 'DELETE'
           });
           
           if (response.ok) {
             message.success("Investor deleted successfully!");
             fetchInvestors(); // Refresh data
-            // Sync changes to Excel
-            await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/excel/sync/firebase-to-excel`, { method: 'POST' });
+            // Excel sync not needed with file-based system
           } else {
             message.error('Failed to delete investor');
           }

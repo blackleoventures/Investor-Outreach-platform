@@ -76,19 +76,16 @@ app.get("/api/healthcheck", healthcheck);
 app.get("/", (req, res) => res.json({ message: "Send Email API Server", status: "running" }));
 
 // Router Declaration
-app.use("/clients", companyRoutes);
-app.use("/campaign", campaignRoutes);
-app.use("/contact-list", contactListRoutes);
-app.use("/ai", aiRoutes);
-app.use("/email", emailRoutes);
-app.use("/investors", investorRoutes);
-app.use("/match", matchRoutes);
-app.use("/excel", excelRoutes);
-
-
-
-app.use("/deck-activity", deckActivityRoutes);
-app.use("/deal-rooms", dealRoomRoutes);
+app.use("/api/clients", companyRoutes);
+app.use("/api/campaign", campaignRoutes);
+app.use("/api/contact-list", contactListRoutes);
+app.use("/api/ai", aiRoutes);
+app.use("/api/email", emailRoutes);
+app.use("/api/investors", investorRoutes);
+app.use("/api/match", matchRoutes);
+app.use("/api/excel", excelRoutes);
+app.use("/api/deck-activity", deckActivityRoutes);
+app.use("/api/deal-rooms", dealRoomRoutes);
 
 
 const PORT = process.env.PORT || 5000;

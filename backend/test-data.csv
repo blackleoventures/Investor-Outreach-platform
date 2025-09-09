@@ -1,0 +1,4 @@
+partner_name,partner_email,firm_name,fund_stage,fund_type
+John Smith,john@test.com,ABC Ventures,Series A,VC
+Jane Doe,jane@test.com,XYZ Fund,Seed,Angel
+Mike Johnson,mike@test.com,Tech Capital,Series B,Growth
