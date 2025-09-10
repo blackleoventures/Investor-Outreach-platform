@@ -5,8 +5,6 @@ import { useAuth } from "@/contexts/AuthContext";
 
 import { useRouter } from "next/navigation";
 import Image from "next/image";
-import AuthDebugInfo from "@/components/AuthDebugInfo";
-import AuthTestButton from "@/components/AuthTestButton";
 
 export default function Home() {
   const { currentUser, login, loading, authError, retryLogin, clearError } = useAuth();
@@ -129,9 +127,6 @@ export default function Home() {
           </p>
         </div>
       </div>
-      
-      <AuthDebugInfo />
-      <AuthTestButton />
     </div>
   );
 }
