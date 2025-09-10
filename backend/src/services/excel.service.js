@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const xlsx = require('xlsx');
 const chokidar = require('chokidar');
-const { db } = require('../config/firebase');
+const { db } = require('../config/firebase-db.config');
 const transformFrontendToDB = require('../utils/functions');
 
 class ExcelService {

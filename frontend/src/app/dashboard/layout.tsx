@@ -157,6 +157,23 @@ export default function DashboardLayout({
         },
       ],
     },
+    {
+      key: "incubator-management",
+      icon: <RobotOutlined style={{ fontSize: "16px" }} />,
+      label: "Incubator Management",
+      children: [
+        {
+          key: "/dashboard/all-incubators",
+          icon: <RobotOutlined style={{ fontSize: "14px" }} />,
+          ...navItem("/dashboard/all-incubators", "All Incubators"),
+        },
+        {
+          key: "/dashboard/add-incubator",
+          icon: <PlusOutlined style={{ fontSize: "14px" }} />,
+          ...navItem("/dashboard/add-incubator", "Add Incubator"),
+        },
+      ],
+    },
 
   ]), [navItem]);
 

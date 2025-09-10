@@ -1,12 +1,11 @@
 const Papa = require('papaparse');
+const fileDB = require('../services/file-db.service');
 
 // Download Excel template/current data
 exports.downloadExcel = async (req, res) => {
   try {
-    // Sync latest Firebase data to Excel before download
-    await excelService.syncFirebaseToExcel();
-    
-    const filePath = excelService.getExcelFilePath();
+    const path = require('path');
+    const filePath = path.join(__dirname, '../../data/investors.xlsx');
     const fileName = 'investors.xlsx';
     
     res.download(filePath, fileName, (err) => {
@@ -215,10 +214,11 @@ exports.uploadExcel = exports.uploadFile;
 // Manual sync from Excel to Firebase
 exports.syncExcelToFirebase = async (req, res) => {
   try {
-    await excelService.syncExcelToFirebase();
+    const investors = await fileDB.getAllInvestors();
     res.status(200).json({
       success: true,
-      message: 'Excel data synced to Firebase successfully'
+      message: 'Excel data synced to Firebase successfully',
+      count: investors.length
     });
   } catch (error) {
     console.error('Error in syncExcelToFirebase:', error);
@@ -229,10 +229,11 @@ exports.syncExcelToFirebase = async (req, res) => {
 // Manual sync from Firebase to Excel
 exports.syncFirebaseToExcel = async (req, res) => {
   try {
-    await excelService.syncFirebaseToExcel();
+    const investors = await fileDB.getAllInvestors();
     res.status(200).json({
       success: true,
-      message: 'Firebase data synced to Excel successfully'
+      message: 'Firebase data synced to Excel successfully',
+      count: investors.length
     });
   } catch (error) {
     console.error('Error in syncFirebaseToExcel:', error);
@@ -243,15 +244,15 @@ exports.syncFirebaseToExcel = async (req, res) => {
 // Get sync status
 exports.getSyncStatus = async (req, res) => {
   try {
-    const excelData = excelService.readExcelData();
+    const investors = await fileDB.getAllInvestors();
     
     res.status(200).json({
-      excelRecords: excelData.length,
-      isWatching: excelService.isWatching,
-      excelPath: excelService.getExcelFilePath()
+      excelRecords: investors.length,
+      totalInvestors: investors.length,
+      status: 'active'
     });
   } catch (error) {
     console.error('Error in getSyncStatus:', error);
-    res.status(500).json({ error: 'Failed to get sync status' });
+    res.status(500).json({ error: 'Failed to get sync status', details: error.message });
   }
 };

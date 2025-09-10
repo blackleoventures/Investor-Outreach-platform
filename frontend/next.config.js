@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['antd'],
+  transpilePackages: ['antd', '@ant-design/cssinjs'],
   swcMinify: true,
   compress: true,
   poweredByHeader: false,
@@ -11,6 +11,15 @@ const nextConfig = {
   experimental: {
     optimizeCss: true,
     optimizePackageImports: ['antd'],
+  },
+  webpack: (config, { dev, isServer }) => {
+    if (dev && !isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+      };
+    }
+    return config;
   },
   // Speed up builds (skip type checking and eslint during builds)
   typescript: {

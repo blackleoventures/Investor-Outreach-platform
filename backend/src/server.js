@@ -59,6 +59,7 @@ const contactListRoutes = require("./routes/contactList.route");
 const aiRoutes = require("./routes/ai.route");
 const emailRoutes = require("./routes/email.route");
 const investorRoutes = require("./routes/investor.route");
+const incubatorRoutes = require("./routes/incubator.route");
 const matchRoutes = require("./routes/match.route");
 const excelRoutes = require("./routes/excel.route");
 
@@ -82,6 +83,7 @@ app.use("/api/contact-list", contactListRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/investors", investorRoutes);
+app.use("/api/incubators", incubatorRoutes);
 app.use("/api/match", matchRoutes);
 app.use("/api/excel", excelRoutes);
 app.use("/api/deck-activity", deckActivityRoutes);

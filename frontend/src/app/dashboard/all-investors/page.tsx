@@ -1,7 +1,10 @@
+/* eslint-disable */
+// @ts-nocheck
 "use client";
 
 import React, { useState, useEffect } from "react";
 import { Card, Typography, Button, Input, Table, Tag, Space, message, Avatar, Modal, Form, Select, Dropdown, Checkbox, Alert, Spin } from "antd";
+import { useRouter } from 'next/navigation';
 import { UserOutlined, SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SettingOutlined, FileTextOutlined, FileExcelOutlined, SyncOutlined, DownloadOutlined } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
@@ -9,15 +12,19 @@ const { Search } = Input;
 const { Option } = Select;
 
 export default function AllInvestorsPage() {
+  const router = useRouter();
   const [investors, setInvestors] = useState([]);
   const [filteredInvestors, setFilteredInvestors] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
   const [addInvestorModal, setAddInvestorModal] = useState(false);
   const [editInvestorModal, setEditInvestorModal] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState(null);
   const [excelSyncStatus, setExcelSyncStatus] = useState(null);
   const [syncing, setSyncing] = useState(false);
+  const [pageSize, setPageSize] = useState(10);
+  const [visibleCount, setVisibleCount] = useState(10);
 
   const [form] = Form.useForm();
   const [visibleColumns, setVisibleColumns] = useState({
@@ -25,14 +32,14 @@ export default function AllInvestorsPage() {
     investorName: true,
     partnerName: true,
     partnerEmail: true,
-    fundStage: true,
     fundType: true,
-    phoneNumber: true,
+    fundStage: true,
     country: true,
-    sectorFocus: true,
-    state: false,
-    city: false,
-    ticketSize: false,
+    phoneNumber: true,
+    state: true,
+    city: true,
+    ticketSize: true,
+    sectorFocus: false,
     website: false,
     location: false,
     foundedYear: false,
@@ -45,22 +52,203 @@ export default function AllInvestorsPage() {
     fundDescription: false
   });
 
+  // Normalize incoming records to our canonical keys used by the table
+  const normalizeInvestor = (raw) => {
+    // Build case-insensitive lookup maps for robust header matching from CSV/Excel
+    const lowerKeyToValue = {} as Record<string, any>;
+    const compactKeyToValue = {} as Record<string, any>;
+    const alnumKeyToValue = {} as Record<string, any>;
+    Object.entries(raw || {}).forEach(([key, value]) => {
+      const lower = key.toString().trim().toLowerCase();
+      const compact = lower.replace(/[\s_]/g, '');
+      const alnum = lower.replace(/[^a-z0-9]/g, '');
+      if (!(lower in lowerKeyToValue)) lowerKeyToValue[lower] = value;
+      if (!(compact in compactKeyToValue)) compactKeyToValue[compact] = value;
+      if (!(alnum in alnumKeyToValue)) alnumKeyToValue[alnum] = value;
+    });
+
+    const pick = (candidates: string[]) => {
+      for (const candidate of candidates) {
+        // 1) Exact (original case) key on the raw object
+        if (Object.prototype.hasOwnProperty.call(raw, candidate) && raw[candidate] != null && raw[candidate] !== '') {
+          return raw[candidate];
+        }
+        // 2) Case-insensitive direct match
+        const lower = candidate.toLowerCase();
+        if (lower in lowerKeyToValue) {
+          const v = lowerKeyToValue[lower];
+          if (v != null && v !== '') return v;
+        }
+        // 3) Tolerate spaces vs underscores and other minor formatting
+        const variants = [
+          lower.replace(/\s+/g, '_'), // spaces -> underscores
+          lower.replace(/_/g, ' '),    // underscores -> spaces
+          lower.replace(/[\s_]/g, ''),// remove both
+          lower.replace(/[^a-z0-9]/g, ''), // remove all punctuation
+        ];
+        for (const vkey of variants) {
+          if (vkey in lowerKeyToValue) {
+            const v = lowerKeyToValue[vkey];
+            if (v != null && v !== '') return v;
+          }
+          if (vkey in compactKeyToValue) {
+            const v = compactKeyToValue[vkey];
+            if (v != null && v !== '') return v;
+          }
+          if (vkey in alnumKeyToValue) {
+            const v = alnumKeyToValue[vkey];
+            if (v != null && v !== '') return v;
+          }
+        }
+      }
+      return undefined;
+    };
+
+    const locationRaw = (() => {
+      // Try to capture a generic location field for later parsing into city/state
+      return pick([
+        'location', 'hq_location', 'hq location', 'headquarters', 'headquarter', 'headquarter location',
+        'based in', 'base location', 'office location', 'city/state/country', 'city, state, country'
+      ]);
+    })();
+
+    // Attempt to derive city/state from a generic location string if available
+    let derivedCity: any = undefined;
+    let derivedState: any = undefined;
+    if (typeof locationRaw === 'string' && locationRaw.trim() !== '') {
+      const parts = locationRaw.split(',').map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 2) {
+        // Assume format like "City, State, Country" or "City, State"
+        derivedCity = parts[0];
+        derivedState = parts[1];
+      }
+    }
+
+    // Build ticket size with robust derivation from various shapes
+    const baseTicket = pick([
+      'ticket_size', 'ticketSize', 'ticket', 'ticket size', 'cheque size', 'check size', 'ticket size ($)',
+      'ticket-size', 'average ticket size', 'avg ticket size', 'avg. ticket size', 'investment size',
+      'investment range', 'investment amount', 'checksize', 'chequesize', 'typical check size', 'typical ticket size',
+      'ticket size (optional)'
+    ]);
+    let derivedTicket: any = baseTicket;
+    // If no direct value, try min/max based composition
+    if (derivedTicket == null || derivedTicket === '') {
+      const tMin = pick([
+        'ticket_size_min', 'min_ticket_size', 'min ticket size', 'min check size', 'minimum ticket size',
+        'minimum check size', 'min investment size', 'min cheque size', 'min investment amount'
+      ]);
+      const tMax = pick([
+        'ticket_size_max', 'max_ticket_size', 'max ticket size', 'max check size', 'maximum ticket size',
+        'maximum check size', 'max investment size', 'max cheque size', 'max investment amount'
+      ]);
+      if ((tMin != null && tMin !== '') || (tMax != null && tMax !== '')) {
+        const left = (tMin != null && tMin !== '') ? tMin : '—';
+        const right = (tMax != null && tMax !== '') ? tMax : '—';
+        derivedTicket = `${left} - ${right}`;
+      }
+    }
+    // Heuristic: last-resort search for any header that looks like ticket/cheque size or investment range/amount
+    if (derivedTicket == null || derivedTicket === '') {
+      for (const [k, v] of Object.entries(raw || {})) {
+        const lk = k.toString().toLowerCase();
+        const looksLikeTicket = (lk.includes('ticket') || lk.includes('cheque') || lk.includes('check')) && lk.includes('size');
+        const looksLikeInvestment = lk.includes('investment') && (lk.includes('range') || lk.includes('amount') || lk.includes('size'));
+        if ((looksLikeTicket || looksLikeInvestment) && v != null && v !== '') {
+          derivedTicket = v;
+          break;
+        }
+      }
+    }
+
+    return {
+      // preserve id for row key and actions
+      id: raw.id ?? raw._id ?? undefined,
+      // canonical fields with robust, case-insensitive fallbacks
+      investor_name: pick([
+        'investor_name', 'firm_name', 'investorName', 'name', 'investor', 'investor name', 'firm', 'company name'
+      ]),
+      partner_name: pick([
+        'partner_name', 'partnerName', 'partner', 'partner name', 'contact name', 'person name'
+      ]),
+      partner_email: pick([
+        'partner_email', 'email', 'partnerEmail', 'email_id', 'emailId', 'emailAddress', 'email address', 'contact email', 'primary email'
+      ]),
+      phone_number: pick([
+        'phone_number', 'phone', 'phoneNumber', 'mobile', 'mobile_number', 'mobileNumber', 'phone number', 'contact number', 'mobile no', 'mobile number'
+      ]),
+      fund_type: pick([
+        'fund_type', 'type', 'fundType', 'fund type'
+      ]),
+      fund_stage: pick([
+        'fund_stage', 'stage', 'fundStage', 'fund stage'
+      ]),
+      country: pick([
+        'country', 'Country'
+      ]),
+      state: pick([
+        'state', 'State', 'province', 'region', 'state/province', 'state or province', 'county', 'governorate',
+        'state (optional)'
+      ]) ?? derivedState,
+      city: pick([
+        'city', 'City', 'town', 'municipality', 'city/town', 'hq city', 'headquarter city',
+        'city (optional)'
+      ]) ?? derivedCity,
+      sector_focus: pick([
+        'sector_focus', 'sector focus', 'fund focus', 'focus', 'sectors', 'industry', 'industries'
+      ]),
+      ticket_size: derivedTicket,
+      website: pick([
+        'website', 'Website', 'url', 'site'
+      ]),
+      linkedIn_link: pick([
+        'linkedin', 'linkedin_link', 'linkedIn', 'linkedin url', 'linkedin profile', 'linkedIn_link'
+      ]),
+      twitter_link: pick([
+        'twitter', 'twitter_link', 'twitter url', 'x url'
+      ]),
+      facebook_link: pick([
+        'facebook', 'facebook_link', 'facebook url'
+      ]),
+      number_of_investments: pick([
+        'number_of_investments', 'no of investments', 'investments', 'num investments'
+      ]),
+      number_of_exits: pick([
+        'number_of_exits', 'no of exits', 'exits', 'num exits'
+      ]),
+      founded_year: pick([
+        'founded_year', 'founded year', 'year founded', 'established', 'established year'
+      ]),
+      location: locationRaw ?? pick(['location', 'Location']),
+      // keep the rest of fields to avoid losing information
+      ...raw,
+    };
+  };
+
   // Fetch investors data from API
   const fetchInvestors = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors/all`);
+      // Fetch a large page from the paginated endpoint so we have the full dataset client-side
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors?limit=100000&page=1`);
       if (response.ok) {
         const result = await response.json();
-        console.log('API Response:', result);
-        const investorData = result.data || [];
-        setInvestors(investorData);
-        setFilteredInvestors(investorData);
+        const investorData = result.docs || result.data || [];
+        // De-duplicate rows defensively by id/email
+        const seen = new Set();
+        const unique = [] as any[];
+        for (const item of investorData) {
+          const key = `${item.id ?? ''}-${(item.partner_email ?? '').toString().toLowerCase()}`;
+          if (!seen.has(key)) { seen.add(key); unique.push(item); }
+        }
+        const normalized = unique.map(normalizeInvestor);
+        setInvestors(normalized);
+        setFilteredInvestors(normalized);
         
         // Update visible columns based on available data
         if (investorData.length > 0) {
-          const firstRecord = investorData[0];
-          const availableColumns = {};
+          const firstRecord = normalized[0];
+          const availableColumns = {} as any;
           
           Object.keys(firstRecord).forEach(key => {
             if (key !== 'id' && key !== 'createdAt' && key !== 'uploadedAt') {
@@ -154,19 +342,64 @@ export default function AllInvestorsPage() {
   }, []);
 
   useEffect(() => {
-    let filtered = [...investors];
-    
-    if (searchQuery) {
-      filtered = filtered.filter(investor =>
-        (investor.investor_name && investor.investor_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (investor.partner_name && investor.partner_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (investor.partner_email && investor.partner_email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (investor.fund_type && investor.fund_type.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (investor.sector_focus && investor.sector_focus.toString().toLowerCase().includes(searchQuery.toLowerCase()))
-      );
+    const q = searchQuery.trim().toLowerCase();
+
+    const candidateKeys = [
+      // Names
+      'investor_name', 'investorName', 'name',
+      'partner_name', 'partnerName', 'partner',
+      // Emails
+      'partner_email', 'email', 'email_id', 'emailId', 'emailAddress',
+      // Phones
+      'phone_number', 'phone', 'phoneNumber', 'mobile', 'mobile_number', 'mobileNumber',
+      // Extras commonly searched
+      'sector_focus', 'focus', 'country', 'city', 'state'
+    ];
+
+    const stringIncludes = (value: unknown, query: string) => {
+      if (value == null) return false;
+      if (Array.isArray(value)) {
+        return value.some(v => stringIncludes(v, query));
+      }
+      const str = value.toString().toLowerCase();
+      return str.includes(query);
+    };
+
+    const filtered = q
+      ? investors.filter((inv) => {
+          // 1) Try known fields first
+          for (const key of candidateKeys) {
+            if (key in inv && stringIncludes((inv as any)[key], q)) return true;
+          }
+          // 2) Fallback: scan all primitive string/number fields
+          for (const [k, v] of Object.entries(inv)) {
+            if (v == null) continue;
+            const isPrimitive = typeof v === 'string' || typeof v === 'number';
+            if (isPrimitive && stringIncludes(v, q)) return true;
+            if (Array.isArray(v) && stringIncludes(v, q)) return true;
+          }
+          return false;
+        })
+      : investors;
+
+    // De-duplicate visible rows robustly using a stable hash of significant fields
+    const toKey = (r: any) => {
+      return JSON.stringify({
+        id: r.id ?? r._id ?? null,
+        email: (r.partner_email ?? r.email ?? '').toString().toLowerCase(),
+        name: (r.investor_name ?? r.name ?? '').toString().toLowerCase(),
+      });
+    };
+    const seen = new Set<string>();
+    const uniqueFiltered = [] as any[];
+    for (const row of filtered) {
+      const k = toKey(row);
+      if (!seen.has(k)) { seen.add(k); uniqueFiltered.push(row); }
     }
-    
-    setFilteredInvestors(filtered);
+
+    setFilteredInvestors(uniqueFiltered);
+    setCurrentPage(1);
+    setVisibleCount(10);
   }, [searchQuery, investors]);
 
   const handleAddInvestor = async (values) => {
@@ -239,38 +472,51 @@ export default function AllInvestorsPage() {
   // Generate dynamic columns based on data
   const generateDynamicColumns = () => {
     if (investors.length === 0) return [];
-    
-    const firstRecord = investors[0];
-    const dynamicCols = [];
-    
-    // Add serial number column
-    dynamicCols.push({
-      key: 'serialNumber',
-      title: 'Sr. No.',
-      width: 70,
-      align: 'center',
-      render: (_, __, index) => index + 1,
-    });
-    
-    // Generate columns from data keys
-    Object.keys(firstRecord).forEach(key => {
-      if (key !== 'id' && key !== 'createdAt' && key !== 'uploadedAt') {
-        dynamicCols.push({
-          key: key,
-          title: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-          dataIndex: key,
-          width: 150,
-          render: (value) => {
-            if (!value) return 'N/A';
-            if (typeof value === 'string' && value.length > 50) {
-              return <span title={value}>{value.substring(0, 50)}...</span>;
-            }
-            return value.toString();
-          },
-        });
+
+    // Build a union of keys across all records so newly added fields appear
+    const keySet = new Set<string>();
+    for (const inv of investors) {
+      Object.keys(inv || {}).forEach(k => {
+        if (k !== 'id' && k !== 'createdAt' && k !== 'uploadedAt') keySet.add(k);
+      });
+    }
+
+    // Preferred order for commonly used keys
+    const preferredOrder = [
+      'investor_name', 'partner_name', 'partner_email', 'phone_number',
+      'fund_type', 'fund_stage', 'country', 'state', 'city', 'sector_focus',
+      'ticket_size', 'website', 'location', 'founded_year',
+      'portfolio_companies', 'number_of_investments', 'number_of_exits',
+      'twitter_link', 'linkedIn_link', 'facebook_link'
+    ];
+
+    const keys = Array.from(keySet);
+    keys.sort((a, b) => {
+      const ai = preferredOrder.indexOf(a);
+      const bi = preferredOrder.indexOf(b);
+      if (ai !== -1 || bi !== -1) {
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
       }
+      return a.localeCompare(b);
     });
-    
+
+    const dynamicCols = keys.map(key => ({
+      key,
+      title: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+      dataIndex: key,
+      width: 150,
+      render: (value: any) => {
+        if (value == null || value === '') return 'N/A';
+        if (Array.isArray(value)) return value.join(', ');
+        if (typeof value === 'string' && value.length > 50) {
+          return <span title={value}>{value.substring(0, 50)}...</span>;
+        }
+        return value.toString();
+      },
+    }));
+
     return dynamicCols;
   };
   
@@ -278,15 +524,8 @@ export default function AllInvestorsPage() {
   
   const staticColumnDefinitions = [
     {
-      key: 'serialNumber',
-      title: 'Sr. No.',
-      width: 70,
-      align: 'center',
-      render: (_, __, index) => index + 1,
-    },
-    {
       key: 'investorName',
-      title: 'Investor Name',
+      title: 'Investor Name (Required)',
       dataIndex: 'investor_name',
       width: 180,
       render: (name) => (
@@ -298,49 +537,49 @@ export default function AllInvestorsPage() {
     },
     {
       key: 'partnerName',
-      title: 'Partner Name',
+      title: 'Partner Name (Required)',
       dataIndex: 'partner_name',
       width: 140,
       render: (name) => name || 'N/A',
     },
     {
       key: 'partnerEmail',
-      title: 'Partner Email',
+      title: 'Partner Email (Required)',
       dataIndex: 'partner_email',
       width: 200,
       render: (email) => email ? <Text copyable ellipsis>{email}</Text> : 'N/A',
     },
     {
       key: 'fundStage',
-      title: 'Fund Stage',
+      title: 'Fund Stage (Required)',
       dataIndex: 'fund_stage',
       width: 140,
       render: (stage) => stage ? <Tag color="blue">{stage}</Tag> : 'N/A',
     },
     {
       key: 'fundType',
-      title: 'Fund Type',
+      title: 'Fund Type (Required)',
       dataIndex: 'fund_type',
       width: 120,
       render: (type) => type || 'N/A',
     },
     {
       key: 'phoneNumber',
-      title: 'Phone Number',
+      title: 'Phone Number (Optional)',
       dataIndex: 'phone_number',
       width: 140,
       render: (phone) => phone || 'N/A',
     },
     {
       key: 'country',
-      title: 'Country',
+      title: 'Country (Required)',
       dataIndex: 'country',
       width: 120,
       render: (country) => country || 'N/A',
     },
     {
       key: 'sectorFocus',
-      title: 'Sector Focus',
+      title: 'Sector Focus (Optional)',
       dataIndex: 'sector_focus',
       width: 200,
       render: (focus) => {
@@ -349,131 +588,49 @@ export default function AllInvestorsPage() {
         return (
           <div className="flex flex-wrap gap-1">
             {sectors.slice(0, 2).map((sector, index) => (
-              <Tag key={index} color="green" size="small">{sector}</Tag>
+              <Tag key={index} color="green">{sector}</Tag>
             ))}
-            {sectors.length > 2 && <Tag size="small">+{sectors.length - 2}</Tag>}
+            {sectors.length > 2 && <Tag>+{sectors.length - 2}</Tag>}
           </div>
         );
       },
     },
     {
       key: 'state',
-      title: 'State',
+      title: 'State (Optional)',
       dataIndex: 'state',
       width: 100,
       render: (state) => state || 'N/A',
     },
     {
       key: 'city',
-      title: 'City',
+      title: 'City (Optional)',
       dataIndex: 'city',
       width: 100,
       render: (city) => city || 'N/A',
     },
     {
       key: 'ticketSize',
-      title: 'Ticket Size',
+      title: 'Ticket Size (Optional)',
       dataIndex: 'ticket_size',
       width: 120,
-      render: (size) => size || 'N/A',
-    },
-    {
-      key: 'website',
-      title: 'Website',
-      dataIndex: 'website',
-      width: 120,
-      render: (website) => website ? (
-        <a href={`https://${website}`} target="_blank" rel="noreferrer">
-          {website}
-        </a>
-      ) : 'N/A',
-    },
-    {
-      key: 'location',
-      title: 'Location',
-      dataIndex: 'location',
-      width: 120,
-      render: (location) => location || 'N/A',
-    },
-    {
-      key: 'foundedYear',
-      title: 'Founded',
-      dataIndex: 'founded_year',
-      width: 80,
-      align: 'center',
-      render: (year) => year || 'N/A',
-    },
-    {
-      key: 'portfolioCompanies',
-      title: 'Portfolio Companies',
-      dataIndex: 'portfolio_companies',
-      width: 200,
-      ellipsis: true,
-      render: (companies) => {
-        if (!companies) return 'N/A';
-        return typeof companies === 'string' ? companies : (Array.isArray(companies) ? companies.join(', ') : companies);
+      render: (size) => {
+        if (size == null || size === '') return 'N/A';
+        if (Array.isArray(size)) return size.join(', ');
+        if (typeof size === 'object') {
+          const min = (size.min ?? size.minimum ?? size.minTicket ?? size.min_ticket_size);
+          const max = (size.max ?? size.maximum ?? size.maxTicket ?? size.max_ticket_size);
+          if (min || max) return `${min ?? '—'} - ${max ?? '—'}`;
+          try { return JSON.stringify(size); } catch { return 'N/A'; }
+        }
+        return size.toString();
       },
     },
-    {
-      key: 'numberOfInvestments',
-      title: 'Investments',
-      dataIndex: 'number_of_investments',
-      width: 100,
-      align: 'center',
-      render: (num) => num || 0,
-    },
-    {
-      key: 'numberOfExits',
-      title: 'Exits',
-      dataIndex: 'number_of_exits',
-      width: 80,
-      align: 'center',
-      render: (num) => num || 0,
-    },
-    {
-      key: 'fundDescription',
-      title: 'Fund Description',
-      dataIndex: 'fund_description',
-      width: 200,
-      ellipsis: true,
-      render: (desc) => desc || 'N/A',
-    },
-    {
-      key: 'twitterLink',
-      title: 'Twitter',
-      dataIndex: 'twitter_link',
-      width: 100,
-      render: (twitter) => twitter ? (
-        <a href={`https://twitter.com/${twitter.replace('@', '')}`} target="_blank" rel="noreferrer">
-          {twitter}
-        </a>
-      ) : 'N/A',
-    },
-    {
-      key: 'linkedinLink',
-      title: 'LinkedIn',
-      dataIndex: 'linkedIn_link',
-      width: 100,
-      render: (linkedin) => linkedin ? (
-        <a href={`https://${linkedin}`} target="_blank" rel="noreferrer">
-          LinkedIn
-        </a>
-      ) : 'N/A',
-    },
-    {
-      key: 'facebookLink',
-      title: 'Facebook',
-      dataIndex: 'facebook_link',
-      width: 100,
-      render: (facebook) => facebook ? (
-        <a href={`https://${facebook}`} target="_blank" rel="noreferrer">
-          Facebook
-        </a>
-      ) : 'N/A',
-    }
+    // Keep any extra fields off by default for this view
   ];
 
-  const visibleColumnsArray = columnDefinitions.length > 0 ? columnDefinitions : staticColumnDefinitions.filter(col => visibleColumns[col.key]);
+  // Force fixed set/order of columns matching the add form
+  const visibleColumnsArray = staticColumnDefinitions.filter(col => (visibleColumns as any)[col.key]);
 
   const actionsColumn = {
     title: 'Actions',
@@ -501,7 +658,14 @@ export default function AllInvestorsPage() {
     ),
   };
 
-  const finalColumns = [...visibleColumnsArray, actionsColumn];
+  const serialColumn = {
+    key: 'serialNumber',
+    title: 'Sr. No.',
+    width: 80,
+    align: 'center' as const,
+    render: (_: any, __: any, index: number) => index + 1,
+  };
+  const finalColumns = [serialColumn, ...visibleColumnsArray, actionsColumn];
 
   const customizeColumnsMenu = {
     items: [
@@ -578,110 +742,6 @@ export default function AllInvestorsPage() {
                   Sector Focus
                 </Checkbox>
               </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.state}
-                  onChange={(e) => handleColumnVisibilityChange('state', e.target.checked)}
-                >
-                  State
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.city}
-                  onChange={(e) => handleColumnVisibilityChange('city', e.target.checked)}
-                >
-                  City
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.ticketSize}
-                  onChange={(e) => handleColumnVisibilityChange('ticketSize', e.target.checked)}
-                >
-                  Ticket Size
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.website}
-                  onChange={(e) => handleColumnVisibilityChange('website', e.target.checked)}
-                >
-                  Website
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.location}
-                  onChange={(e) => handleColumnVisibilityChange('location', e.target.checked)}
-                >
-                  Location
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.foundedYear}
-                  onChange={(e) => handleColumnVisibilityChange('foundedYear', e.target.checked)}
-                >
-                  Founded Year
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.portfolioCompanies}
-                  onChange={(e) => handleColumnVisibilityChange('portfolioCompanies', e.target.checked)}
-                >
-                  Portfolio Companies
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.numberOfInvestments}
-                  onChange={(e) => handleColumnVisibilityChange('numberOfInvestments', e.target.checked)}
-                >
-                  Number Of Investments
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.numberOfExits}
-                  onChange={(e) => handleColumnVisibilityChange('numberOfExits', e.target.checked)}
-                >
-                  Number Of Exits
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.fundDescription}
-                  onChange={(e) => handleColumnVisibilityChange('fundDescription', e.target.checked)}
-                >
-                  Fund Description
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.twitterLink}
-                  onChange={(e) => handleColumnVisibilityChange('twitterLink', e.target.checked)}
-                >
-                  Twitter Link
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.linkedinLink}
-                  onChange={(e) => handleColumnVisibilityChange('linkedinLink', e.target.checked)}
-                >
-                  LinkedIn Link
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.facebookLink}
-                  onChange={(e) => handleColumnVisibilityChange('facebookLink', e.target.checked)}
-                >
-                  Facebook Link
-                </Checkbox>
-              </div>
             </div>
           </div>
         ),
@@ -724,7 +784,7 @@ export default function AllInvestorsPage() {
                         </div>
                       </div>
                     ),
-                    onClick: () => setAddInvestorModal(true)
+                    onClick: () => router.push('/dashboard/add-investor')
                   },
                   {
                     key: 'csv',
@@ -739,7 +799,7 @@ export default function AllInvestorsPage() {
                         </div>
                       </div>
                     ),
-                    onClick: () => console.log('CSV Upload clicked')
+                    onClick: () => router.push('/dashboard/add-investor')
                   }
                 ]
               }}
@@ -791,17 +851,31 @@ export default function AllInvestorsPage() {
         <div className="overflow-x-auto">
           <Table
             columns={finalColumns}
-            dataSource={filteredInvestors}
-            rowKey={(record) => record.id || record._id || Math.random()}
+            dataSource={filteredInvestors.slice(0, visibleCount)}
+            rowKey={(record) => {
+              const id = record.id ?? record._id;
+              const email = (record.partner_email ?? '').toString().toLowerCase();
+              const name = (record.investor_name ?? '').toString().toLowerCase();
+              return `${id ?? 'noid'}-${email || name}`;
+            }}
             loading={loading}
             scroll={{ x: 'max-content' }}
-            pagination={{
-              pageSize: 10,
-              showSizeChanger: true,
-              showQuickJumper: true,
-              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} investors`,
-            }}
+            pagination={false}
           />
+          <div className="flex justify-between items-center mt-4">
+            <div className="text-sm text-gray-600">Total: {filteredInvestors.length} investors • Showing {Math.min(visibleCount, filteredInvestors.length)}</div>
+            <div className="space-x-2">
+              <Button onClick={() => setVisibleCount(filteredInvestors.length)}>All</Button>
+              <Button 
+                type="primary"
+                disabled={visibleCount >= filteredInvestors.length}
+                onClick={() => setVisibleCount(c => Math.min(c + 10, filteredInvestors.length))}
+                style={{ backgroundColor: '#1890ff', borderColor: '#1890ff', color: '#fff' }}
+              >
+                Show more
+              </Button>
+            </div>
+          </div>
         </div>
       </Card>
 

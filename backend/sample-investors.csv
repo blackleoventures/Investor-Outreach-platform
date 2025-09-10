@@ -1,0 +1,4 @@
+investor_name,partner_name,partner_email,fund_type,country,fund_stage,sector_focus
+Sequoia Capital,John Smith,john@sequoia.com,VC,USA,Series A,Technology
+Andreessen Horowitz,Jane Doe,jane@a16z.com,VC,USA,Seed,Fintech
+Accel Partners,Bob Wilson,bob@accel.com,VC,UK,Series B,Healthcare

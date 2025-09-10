@@ -12,7 +12,7 @@ export default function AddInvestorPage() {
   const [showManualForm, setShowManualForm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [form] = Form.useForm();
-  const [formRows, setFormRows] = useState([1, 2, 3, 4]);
+  // Single unified form instead of multiple rows
 
   const [visibleColumns, setVisibleColumns] = useState({
     investorName: true,
@@ -34,7 +34,8 @@ export default function AddInvestorPage() {
 
 
   const handleFileUpload = async (file: File) => {
-    const fileExtension = file.name.split('.').pop()?.toLowerCase();
+    const rawExt = file.name.split('.').pop();
+    const fileExtension = (rawExt ? rawExt : '').toLowerCase();
     const formData = new FormData();
     
     setUploading(true);
@@ -58,7 +59,7 @@ export default function AddInvestorPage() {
           content: (
             <div>
               <p><strong>File:</strong> {file.name}</p>
-              <p><strong>Type:</strong> {fileExtension.toUpperCase()}</p>
+              <p><strong>Type:</strong> {fileExtension ? fileExtension.toUpperCase() : ''}</p>
               <p><strong>Status:</strong> {result.message || 'Data imported successfully'}</p>
               <p className="text-green-600 font-medium">Redirecting to All Investors...</p>
             </div>
@@ -69,7 +70,7 @@ export default function AddInvestorPage() {
         setTimeout(() => router.push('/dashboard/all-investors'), 2000);
       } else {
         const error = await response.json();
-        message.error(error.error || `Failed to upload ${fileExtension.toUpperCase()} file`);
+        message.error(error.error || `Failed to upload ${fileExtension ? fileExtension.toUpperCase() : ''} file`);
       }
     } catch (error) {
       message.destroy();
@@ -81,20 +82,32 @@ export default function AddInvestorPage() {
     return false;
   };
 
-  const handleSubmit = (values: any) => {
-    console.log('Form submitted:', values);
-  };
+  const handleSubmit = async (values: any) => {
+    try {
+      // Send as an array of one object to existing bulk endpoint
+      const payload = [values];
+      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
 
-  const addFormRow = () => {
-    const newRowId = Math.max(...formRows) + 1;
-    setFormRows([...formRows, newRowId]);
-  };
-
-  const deleteFormRow = (rowId: number) => {
-    if (formRows.length > 1) {
-      setFormRows(formRows.filter(id => id !== rowId));
+      if (response.ok) {
+        message.success('Investor added successfully');
+        form.resetFields();
+        setShowManualForm(false);
+        // Navigate to All Investors so the new record is visible
+        router.push('/dashboard/all-investors');
+      } else {
+        const err = await response.json().catch(() => ({} as any));
+        message.error(err.error || 'Failed to add investor');
+      }
+    } catch (e) {
+      message.error('Failed to add investor');
     }
   };
+
+  // Removed multi-row logic (single form only)
 
   const handleColumnVisibilityChange = (columnKey: string, checked: boolean) => {
     setVisibleColumns(prev => ({
@@ -302,133 +315,129 @@ export default function AddInvestorPage() {
             width: '100%',
             boxSizing: 'border-box'
           }}>
-            <div className="grid gap-2 mb-4 font-semibold text-gray-700 text-xs" style={{
-              gridTemplateColumns: `repeat(${Object.values(visibleColumns).filter(Boolean).length + 1}, minmax(120px, 1fr))`,
-              minWidth: `${(Object.values(visibleColumns).filter(Boolean).length + 1) * 130}px`
-            }}>
-              {visibleColumns.investorName && <div>Investor Name (Required)</div>}
-              {visibleColumns.partnerName && <div>Partner Name (Required)</div>}
-              {visibleColumns.partnerEmail && <div>Partner Email (Required)</div>}
-              {visibleColumns.phoneNumber && <div>Phone Number (Optional)</div>}
-              {visibleColumns.fundType && <div>Fund Type (Required)</div>}
-              {visibleColumns.fundStage && <div>Fund Stage (Required)</div>}
-              {visibleColumns.country && <div>Country (Required)</div>}
-              {visibleColumns.state && <div>State (Optional)</div>}
-              {visibleColumns.city && <div>City (Optional)</div>}
-              {visibleColumns.ticketSize && <div>Ticket Size (Optional)</div>}
-              <div>Actions</div>
-            </div>
-            
-            <Form form={form} onFinish={handleSubmit}>
-              {formRows.map((row) => (
-                <div key={row} className="grid gap-2 mb-4" style={{
-                  gridTemplateColumns: `repeat(${Object.values(visibleColumns).filter(Boolean).length + 1}, minmax(120px, 1fr))`,
-                  minWidth: `${(Object.values(visibleColumns).filter(Boolean).length + 1) * 130}px`
-                }}>
-                  {visibleColumns.investorName && (
-                    <Form.Item name={`investorName_${row}`} className="mb-0">
-                      <Input placeholder="Investor Name" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.partnerName && (
-                    <Form.Item name={`partnerName_${row}`} className="mb-0">
-                      <Input placeholder="Partner Name" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.partnerEmail && (
-                    <Form.Item name={`partnerEmail_${row}`} className="mb-0">
-                      <Input placeholder="Partner Email" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.phoneNumber && (
-                    <Form.Item name={`phoneNumber_${row}`} className="mb-0">
-                      <Input placeholder="Phone Number" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.fundType && (
-                    <Form.Item name={`fundType_${row}`} className="mb-0">
-                      <Input placeholder="Fund Type" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.fundStage && (
-                    <Form.Item name={`fundStage_${row}`} className="mb-0">
-                      <Input placeholder="Fund Stage" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.country && (
-                    <Form.Item name={`country_${row}`} className="mb-0">
-                      <Input placeholder="Country" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.state && (
-                    <Form.Item name={`state_${row}`} className="mb-0">
-                      <Input placeholder="State" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.city && (
-                    <Form.Item name={`city_${row}`} className="mb-0">
-                      <Input placeholder="City" />
-                    </Form.Item>
-                  )}
-                  {visibleColumns.ticketSize && (
-                    <Form.Item name={`ticketSize_${row}`} className="mb-0">
-                      <Input placeholder="Ticket Size" />
-                    </Form.Item>
-                  )}
-                  <div className="flex items-center justify-center">
-                    <Button 
-                      type="text" 
-                      danger 
-                      icon={<DeleteOutlined />} 
-                      onClick={() => deleteFormRow(row)}
-                      disabled={formRows.length === 1}
-                      className="text-red-500 hover:text-red-700"
-                      size="small"
-                    />
-                  </div>
-                </div>
-              ))}
-            </Form>
-            
-            <div className="text-center mb-6">
-              <Button 
-                type="link" 
-                icon={<PlusOutlined />} 
-                className="text-blue-500"
-                onClick={addFormRow}
-              >
-                Add more field
-              </Button>
-            </div>
-            
-            <div className="mb-6">
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-gray-400 h-2 rounded-full" style={{ width: '25%' }}></div>
+            <Form form={form} onFinish={handleSubmit} layout="vertical">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {visibleColumns.investorName && (
+                  <Form.Item 
+                    name="investor_name" 
+                    label="Investor Name (Required)"
+                    className="mb-3"
+                    rules={[]}
+                  >
+                    <Input placeholder="Enter investor name" />
+                  </Form.Item>
+                )}
+                {visibleColumns.partnerName && (
+                  <Form.Item 
+                    name="partner_name" 
+                    label="Partner Name (Required)"
+                    className="mb-3"
+                    rules={[]}
+                  >
+                    <Input placeholder="Enter partner name" />
+                  </Form.Item>
+                )}
+                {visibleColumns.partnerEmail && (
+                  <Form.Item 
+                    name="partner_email" 
+                    label="Partner Email (Required)"
+                    className="mb-3"
+                    rules={[{ type: 'email', message: 'Enter a valid email' }]}
+                  >
+                    <Input placeholder="Enter partner email" type="email" />
+                  </Form.Item>
+                )}
+                {visibleColumns.phoneNumber && (
+                  <Form.Item 
+                    name="phone_number" 
+                    label="Phone Number (Optional)"
+                    className="mb-3"
+                  >
+                    <Input placeholder="Enter phone number" />
+                  </Form.Item>
+                )}
+                {visibleColumns.fundType && (
+                  <Form.Item 
+                    name="fund_type" 
+                    label="Fund Type (Required)"
+                    className="mb-3"
+                    rules={[]}
+                  >
+                    <Input placeholder="Enter fund type" />
+                  </Form.Item>
+                )}
+                {visibleColumns.fundStage && (
+                  <Form.Item 
+                    name="fund_stage" 
+                    label="Fund Stage (Required)"
+                    className="mb-3"
+                    rules={[]}
+                  >
+                    <Input placeholder="Enter fund stage" />
+                  </Form.Item>
+                )}
+                {visibleColumns.country && (
+                  <Form.Item 
+                    name="country" 
+                    label="Country (Required)"
+                    className="mb-3"
+                    rules={[]}
+                  >
+                    <Input placeholder="Enter country" />
+                  </Form.Item>
+                )}
+                {visibleColumns.state && (
+                  <Form.Item 
+                    name="state" 
+                    label="State (Optional)"
+                    className="mb-3"
+                  >
+                    <Input placeholder="Enter state" />
+                  </Form.Item>
+                )}
+                {visibleColumns.city && (
+                  <Form.Item 
+                    name="city" 
+                    label="City (Optional)"
+                    className="mb-3"
+                  >
+                    <Input placeholder="Enter city" />
+                  </Form.Item>
+                )}
+                {visibleColumns.ticketSize && (
+                  <Form.Item 
+                    name="ticket_size" 
+                    label="Ticket Size (Optional)"
+                    className="mb-3"
+                  >
+                    <Input placeholder="Enter ticket size" />
+                  </Form.Item>
+                )}
               </div>
-            </div>
-            
-            <div className="flex gap-4">
-              <Button 
-                type="primary" 
-                onClick={() => form.submit()}
-                style={{
-                  backgroundColor: "#ac6a1e",
-                  color: "#fff",
-                  borderColor: "#ac6a1e"
-                }}
-              >
-                Submit
-              </Button>
-              <Button 
-                onClick={() => setShowManualForm(false)}
-                style={{
-                  borderColor: "#dc2626",
-                  color: "#dc2626"
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
+
+              <div className="flex gap-4 mt-4">
+                <Button 
+                  type="primary" 
+                  htmlType="submit"
+                  style={{
+                    backgroundColor: "#ac6a1e",
+                    color: "#fff",
+                    borderColor: "#ac6a1e"
+                  }}
+                >
+                  Submit
+                </Button>
+                <Button 
+                  onClick={() => setShowManualForm(false)}
+                  style={{
+                    borderColor: "#dc2626",
+                    color: "#dc2626"
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </Form>
           </div>
         </Modal>
       )}

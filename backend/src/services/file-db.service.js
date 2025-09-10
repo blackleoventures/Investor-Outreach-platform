@@ -3,7 +3,12 @@ const path = require('path');
 const Papa = require('papaparse');
 const XLSX = require('xlsx');
 
-const DB_FILE = path.join(__dirname, '../../data/investors.xlsx');
+// Allow overriding the Excel DB path via environment variable
+// Example: INVESTORS_DB_PATH=E:\\MyFolder\\MyInvestors.xlsx (on Windows)
+// Fallback to repo-local data file if not provided
+const DB_FILE = (process.env.INVESTORS_DB_PATH && process.env.INVESTORS_DB_PATH.trim())
+  ? process.env.INVESTORS_DB_PATH.trim()
+  : path.join(__dirname, '../../data/investors.xlsx');
 
 class FileDBService {
   async ensureDataDir() {
@@ -35,21 +40,49 @@ class FileDBService {
     XLSX.writeFile(workbook, DB_FILE);
   }
 
-  async uploadFile(filePath, fileExtension) {
+  async processFile(filePath, fileExtension) {
+    // Prefer provided extension (from original filename via controller). Fallback to temp file path ext.
+    const normalizedExt = (fileExtension?.toString().trim().toLowerCase()) || path.extname(filePath).toLowerCase().slice(1);
     let data = [];
     
-    if (fileExtension === 'csv') {
+    if (normalizedExt === 'csv') {
       const content = await fs.readFile(filePath, 'utf-8');
       const result = Papa.parse(content, { header: true, skipEmptyLines: true });
       data = result.data;
-    } else if (['xlsx', 'xls'].includes(fileExtension)) {
+    } else if (['xlsx', 'xls'].includes(normalizedExt)) {
       const workbook = XLSX.readFile(filePath);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       data = XLSX.utils.sheet_to_json(worksheet);
     }
 
-    await this.writeData(data);
-    return data.length;
+    // Clean up file after processing
+    try {
+      await fs.unlink(filePath);
+    } catch (error) {
+      console.log('Could not delete uploaded file:', error.message);
+    }
+
+    return data;
+  }
+
+  async uploadFile(filePath, fileExtension) {
+    const newData = await this.processFile(filePath, fileExtension);
+    const existingData = await this.readData();
+    
+    // Get the next ID
+    const nextId = existingData.length > 0 ? Math.max(...existingData.map(i => i.id)) + 1 : 1;
+    
+    // Add IDs to new data
+    const dataWithIds = newData.map((item, index) => ({
+      id: nextId + index,
+      ...item
+    }));
+    
+    // Combine existing and new data
+    const combinedData = [...existingData, ...dataWithIds];
+    await this.writeData(combinedData);
+    
+    return newData.length;
   }
 
   async getAllInvestors() {

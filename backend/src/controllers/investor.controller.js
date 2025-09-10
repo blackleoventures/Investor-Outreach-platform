@@ -61,9 +61,6 @@ exports.bulkAddInvestors = async (req, res) => {
 // Universal file upload handler for CSV, Excel, and JSON
 exports.uploadInvestorFile = async (req, res) => {
   try {
-    console.log('Files received:', req.files);
-    console.log('File received:', req.file);
-    
     const file = req.files?.[0] || req.file;
     if (!file) {
       return res.status(400).json({ error: "No file uploaded" });
@@ -71,8 +68,6 @@ exports.uploadInvestorFile = async (req, res) => {
 
     const filePath = file.path;
     const fileExtension = file.originalname.split('.').pop().toLowerCase();
-    
-    console.log('Processing file:', file.originalname, 'Extension:', fileExtension);
 
     if (!['csv', 'xlsx', 'xls'].includes(fileExtension)) {
       await fs.unlink(filePath).catch(console.error);
@@ -80,12 +75,14 @@ exports.uploadInvestorFile = async (req, res) => {
     }
 
     const count = await fileDB.uploadFile(filePath, fileExtension);
-    await fs.unlink(filePath).catch(console.error);
 
     res.status(201).json({
       success: true,
       message: `${count} investors uploaded successfully`,
-      count
+      count,
+      recordsProcessed: count,
+      fileType: fileExtension,
+      uploadedAt: new Date().toISOString()
     });
   } catch (error) {
     console.error('Upload error:', error);
