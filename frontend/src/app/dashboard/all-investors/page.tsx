@@ -21,11 +21,13 @@ export default function AllInvestorsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [addInvestorModal, setAddInvestorModal] = useState(false);
   const [editInvestorModal, setEditInvestorModal] = useState(false);
+  const [viewInvestorModal, setViewInvestorModal] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState(null);
   const [excelSyncStatus, setExcelSyncStatus] = useState(null);
   const [syncing, setSyncing] = useState(false);
   const [pageSize, setPageSize] = useState(10);
   const [visibleCount, setVisibleCount] = useState(10);
+  const [userShowAll, setUserShowAll] = useState(false);
 
   const [form] = Form.useForm();
   const [visibleColumns, setVisibleColumns] = useState({
@@ -149,6 +151,15 @@ export default function AllInvestorsPage() {
         derivedTicket = `${left} - ${right}`;
       }
     }
+    // If still empty, try common alternate keys that often hold ticket size values
+    if (derivedTicket == null || derivedTicket === '') {
+      const alt = pick([
+        'avg_ticket_size', 'average_ticket_size', 'typical_ticket_size', 'typical check size',
+        'investment_range', 'investment amount', 'investment_amount', 'investment_size',
+        'cheque_size', 'check_size', 'ticket'
+      ]);
+      if (alt != null && alt !== '') derivedTicket = alt;
+    }
     // Heuristic: last-resort search for any header that looks like ticket/cheque size or investment range/amount
     if (derivedTicket == null || derivedTicket === '') {
       for (const [k, v] of Object.entries(raw || {})) {
@@ -162,7 +173,9 @@ export default function AllInvestorsPage() {
       }
     }
 
+    // Spread raw first, then override with normalized canonical fields so normalized wins
     return {
+      ...raw,
       // preserve id for row key and actions
       id: raw.id ?? raw._id ?? undefined,
       // canonical fields with robust, case-insensitive fallbacks
@@ -198,7 +211,8 @@ export default function AllInvestorsPage() {
       sector_focus: pick([
         'sector_focus', 'sector focus', 'fund focus', 'focus', 'sectors', 'industry', 'industries'
       ]),
-      ticket_size: derivedTicket,
+      // Ensure normalized ticket size is placed where table expects it
+      ticket_size: derivedTicket ?? raw.ticket_size ?? raw.ticketSize ?? raw['ticket size'],
       website: pick([
         'website', 'Website', 'url', 'site'
       ]),
@@ -221,8 +235,6 @@ export default function AllInvestorsPage() {
         'founded_year', 'founded year', 'year founded', 'established', 'established year'
       ]),
       location: locationRaw ?? pick(['location', 'Location']),
-      // keep the rest of fields to avoid losing information
-      ...raw,
     };
   };
 
@@ -399,9 +411,21 @@ export default function AllInvestorsPage() {
     }
 
     setFilteredInvestors(uniqueFiltered);
+    // Preserve user's current view size unless search text changed to a new query
+    // If user selected "All", keep expanding to the full filtered length on refresh/polling
+    setVisibleCount(prev => {
+      const nextMax = uniqueFiltered.length;
+      if (userShowAll) return nextMax;
+      return Math.min(prev, nextMax);
+    });
     setCurrentPage(1);
+  }, [searchQuery, investors, userShowAll]);
+
+  // Reset pagination only when the search query itself changes
+  useEffect(() => {
     setVisibleCount(10);
-  }, [searchQuery, investors]);
+    setUserShowAll(false);
+  }, [searchQuery]);
 
   const handleAddInvestor = async (values) => {
     const newInvestor = {
@@ -417,10 +441,21 @@ export default function AllInvestorsPage() {
 
   const handleEditInvestor = async (values) => {
     try {
-      const response = await apiFetch(`/api/investors/${selectedInvestor.id}`, {
+      const id = selectedInvestor?.id ?? selectedInvestor?._id;
+      if (!id) {
+        message.error('Missing investor id');
+        return;
+      }
+
+      // Remove undefined fields so we only send real updates
+      const updates = Object.fromEntries(
+        Object.entries(values || {}).filter(([, v]) => v !== undefined)
+      );
+
+      const response = await apiFetch(`/api/investors/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(values)
+        body: JSON.stringify(updates)
       });
       
       if (response.ok) {
@@ -428,7 +463,8 @@ export default function AllInvestorsPage() {
         fetchInvestors(); // Refresh data
         // Excel sync not needed with file-based system
       } else {
-        message.error('Failed to update investor');
+        const err = await response.json().catch(() => ({} as any));
+        message.error(err.error || 'Failed to update investor');
       }
     } catch (error) {
       message.error('Failed to update investor');
@@ -443,6 +479,10 @@ export default function AllInvestorsPage() {
     Modal.confirm({
       title: "Delete Investor",
       content: "Are you sure you want to delete this investor?",
+      okText: 'OK',
+      okButtonProps: {
+        style: { backgroundColor: '#1890ff', borderColor: '#1890ff', color: '#fff' }
+      },
       onOk: async () => {
         try {
           const response = await apiFetch(`/api/investors/${investorId}`, {
@@ -551,11 +591,11 @@ export default function AllInvestorsPage() {
       render: (email) => email ? <Text copyable ellipsis>{email}</Text> : 'N/A',
     },
     {
-      key: 'fundStage',
-      title: 'Fund Stage (Required)',
-      dataIndex: 'fund_stage',
+      key: 'phoneNumber',
+      title: 'Phone Number (Optional)',
+      dataIndex: 'phone_number',
       width: 140,
-      render: (stage) => stage ? <Tag color="blue">{stage}</Tag> : 'N/A',
+      render: (phone) => phone || 'N/A',
     },
     {
       key: 'fundType',
@@ -565,11 +605,11 @@ export default function AllInvestorsPage() {
       render: (type) => type || 'N/A',
     },
     {
-      key: 'phoneNumber',
-      title: 'Phone Number (Optional)',
-      dataIndex: 'phone_number',
+      key: 'fundStage',
+      title: 'Fund Stage (Required)',
+      dataIndex: 'fund_stage',
       width: 140,
-      render: (phone) => phone || 'N/A',
+      render: (stage) => stage ? <Tag color="blue">{stage}</Tag> : 'N/A',
     },
     {
       key: 'country',
@@ -639,7 +679,11 @@ export default function AllInvestorsPage() {
     width: 120,
     render: (_, record) => (
       <Space size="small">
-        <Button size="small" icon={<EyeOutlined />} />
+        <Button 
+          size="small" 
+          icon={<EyeOutlined />} 
+          onClick={() => { setSelectedInvestor(record); setViewInvestorModal(true); }}
+        />
         <Button 
           size="small" 
           icon={<EditOutlined />} 
@@ -684,7 +728,7 @@ export default function AllInvestorsPage() {
                   checked={visibleColumns.investorName}
                   onChange={(e) => handleColumnVisibilityChange('investorName', e.target.checked)}
                 >
-                  Investor Name
+                  Investor name
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
@@ -692,7 +736,7 @@ export default function AllInvestorsPage() {
                   checked={visibleColumns.partnerName}
                   onChange={(e) => handleColumnVisibilityChange('partnerName', e.target.checked)}
                 >
-                  Partner Name
+                  Partner name
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
@@ -700,23 +744,7 @@ export default function AllInvestorsPage() {
                   checked={visibleColumns.partnerEmail}
                   onChange={(e) => handleColumnVisibilityChange('partnerEmail', e.target.checked)}
                 >
-                  Partner Email
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.fundStage}
-                  onChange={(e) => handleColumnVisibilityChange('fundStage', e.target.checked)}
-                >
-                  Fund Stage
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.fundType}
-                  onChange={(e) => handleColumnVisibilityChange('fundType', e.target.checked)}
-                >
-                  Fund Type
+                  Email
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
@@ -724,7 +752,23 @@ export default function AllInvestorsPage() {
                   checked={visibleColumns.phoneNumber}
                   onChange={(e) => handleColumnVisibilityChange('phoneNumber', e.target.checked)}
                 >
-                  Phone Number
+                  Phone number
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.fundType}
+                  onChange={(e) => handleColumnVisibilityChange('fundType', e.target.checked)}
+                >
+                  Fund type
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.fundStage}
+                  onChange={(e) => handleColumnVisibilityChange('fundStage', e.target.checked)}
+                >
+                  Fund stage
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
@@ -737,10 +781,26 @@ export default function AllInvestorsPage() {
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
-                  checked={visibleColumns.sectorFocus}
-                  onChange={(e) => handleColumnVisibilityChange('sectorFocus', e.target.checked)}
+                  checked={visibleColumns.state}
+                  onChange={(e) => handleColumnVisibilityChange('state', e.target.checked)}
                 >
-                  Sector Focus
+                  State (Optional)
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.city}
+                  onChange={(e) => handleColumnVisibilityChange('city', e.target.checked)}
+                >
+                  City (Optional)
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.ticketSize}
+                  onChange={(e) => handleColumnVisibilityChange('ticketSize', e.target.checked)}
+                >
+                  Ticket Size (Optional)
                 </Checkbox>
               </div>
             </div>
@@ -775,28 +835,28 @@ export default function AllInvestorsPage() {
                   {
                     key: 'manual',
                     label: (
-                      <div className="flex items-center gap-2 p-2">
-                        <div className="w-8 h-8 bg-blue-100 rounded flex items-center justify-center">
+                      <div className="flex items-center gap-3 p-3 rounded hover:bg-gray-50 transition-colors">
+                        <div className="w-9 h-9 bg-blue-100 rounded flex items-center justify-center">
                           <UserOutlined className="text-blue-600" />
                         </div>
                         <div>
-                          <div className="font-medium">Manual Entry</div>
-                          <div className="text-xs text-gray-500">Add contacts individually with detailed information</div>
+                          <div className="font-semibold text-gray-900">Add manually</div>
+                          <div className="text-xs text-gray-500">Enter a single investor with full details</div>
                         </div>
                       </div>
                     ),
                     onClick: () => router.push('/dashboard/add-investor')
                   },
                   {
-                    key: 'csv',
+                    key: 'upload',
                     label: (
-                      <div className="flex items-center gap-2 p-2">
-                        <div className="w-8 h-8 bg-green-100 rounded flex items-center justify-center">
-                          <FileTextOutlined className="text-green-600" />
+                      <div className="flex items-center gap-3 p-3 rounded hover:bg-gray-50 transition-colors">
+                        <div className="w-9 h-9 bg-green-100 rounded flex items-center justify-center">
+                          <FileExcelOutlined className="text-green-600" />
                         </div>
                         <div>
-                          <div className="font-medium">CSV Import</div>
-                          <div className="text-xs text-gray-500">Bulk upload contacts using CSV file format</div>
+                          <div className="font-semibold text-gray-900">Upload file (CSV/Excel)</div>
+                          <div className="text-xs text-gray-500">Bulk import multiple investors at once</div>
                         </div>
                       </div>
                     ),
@@ -866,11 +926,11 @@ export default function AllInvestorsPage() {
           <div className="flex justify-between items-center mt-4">
             <div className="text-sm text-gray-600">Total: {filteredInvestors.length} investors • Showing {Math.min(visibleCount, filteredInvestors.length)}</div>
             <div className="space-x-2">
-              <Button onClick={() => setVisibleCount(filteredInvestors.length)}>All</Button>
+              <Button onClick={() => { setUserShowAll(true); setVisibleCount(filteredInvestors.length); }}>All</Button>
               <Button 
                 type="primary"
                 disabled={visibleCount >= filteredInvestors.length}
-                onClick={() => setVisibleCount(c => Math.min(c + 10, filteredInvestors.length))}
+                onClick={() => { setUserShowAll(false); setVisibleCount(c => Math.min(c + 10, filteredInvestors.length)); }}
                 style={{ backgroundColor: '#1890ff', borderColor: '#1890ff', color: '#fff' }}
               >
                 Show more
@@ -879,6 +939,85 @@ export default function AllInvestorsPage() {
           </div>
         </div>
       </Card>
+
+      {/* View Investor Modal */}
+      <Modal
+        title="Investor Details"
+        open={viewInvestorModal}
+        onCancel={() => setViewInvestorModal(false)}
+        footer={<Button onClick={() => setViewInvestorModal(false)}>Close</Button>}
+        width={800}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {selectedInvestor && Object.entries({
+            'Investor name': (selectedInvestor as any).investor_name,
+            'Partner name': (selectedInvestor as any).partner_name,
+            'Email': (selectedInvestor as any).partner_email,
+            'Phone number': (selectedInvestor as any).phone_number,
+            'Fund type': (selectedInvestor as any).fund_type,
+            'Fund stage': (selectedInvestor as any).fund_stage,
+            'Country': (selectedInvestor as any).country,
+            'State': (selectedInvestor as any).state,
+            'City': (selectedInvestor as any).city,
+            'Ticket size': (selectedInvestor as any).ticket_size,
+          }).map(([label, value]) => (
+            <div key={label} className="border rounded p-2">
+              <div className="text-xs text-gray-500">{label}</div>
+              <div className="font-medium break-words">{value || 'N/A'}</div>
+            </div>
+          ))}
+        </div>
+      </Modal>
+
+      {/* Edit Investor Modal */}
+      <Modal
+        title="Edit Investor"
+        open={editInvestorModal}
+        onCancel={() => { setEditInvestorModal(false); setSelectedInvestor(null); }}
+        footer={null}
+        width={800}
+      >
+        <div className="p-2">
+          <Form form={form} onFinish={handleEditInvestor} layout="vertical" initialValues={selectedInvestor || {}}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <Form.Item name="investor_name" label="Investor Name">
+                <Input placeholder="Investor Name" />
+              </Form.Item>
+              <Form.Item name="partner_name" label="Partner Name">
+                <Input placeholder="Partner Name" />
+              </Form.Item>
+              <Form.Item name="partner_email" label="Email" rules={[{ type: 'email', message: 'Enter a valid email' }]}>
+                <Input placeholder="Email" />
+              </Form.Item>
+              <Form.Item name="phone_number" label="Phone Number">
+                <Input placeholder="Phone Number" />
+              </Form.Item>
+              <Form.Item name="fund_type" label="Fund Type">
+                <Input placeholder="Fund Type" />
+              </Form.Item>
+              <Form.Item name="fund_stage" label="Fund Stage">
+                <Input placeholder="Fund Stage" />
+              </Form.Item>
+              <Form.Item name="country" label="Country">
+                <Input placeholder="Country" />
+              </Form.Item>
+              <Form.Item name="state" label="State (Optional)">
+                <Input placeholder="State" />
+              </Form.Item>
+              <Form.Item name="city" label="City (Optional)">
+                <Input placeholder="City" />
+              </Form.Item>
+              <Form.Item name="ticket_size" label="Ticket Size (Optional)">
+                <Input placeholder="Ticket Size" />
+              </Form.Item>
+            </div>
+            <div className="flex gap-3 mt-2">
+              <Button type="primary" htmlType="submit" style={{ backgroundColor: '#1890ff', borderColor: '#1890ff', color: '#fff' }}>Save</Button>
+              <Button onClick={() => { setEditInvestorModal(false); setSelectedInvestor(null); }}>Cancel</Button>
+            </div>
+          </Form>
+        </div>
+      </Modal>
 
       {/* Add Investor Modal */}
       <Modal

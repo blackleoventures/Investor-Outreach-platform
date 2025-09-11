@@ -33,7 +33,6 @@ export default function AddInvestorPage() {
   };
 
 
-
   const handleFileUpload = async (file: File) => {
     const rawExt = file.name.split('.').pop();
     const fileExtension = (rawExt ? rawExt : '').toLowerCase();
@@ -236,8 +235,7 @@ export default function AddInvestorPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-12">
             <Card 
-              className="text-center p-8 hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-blue-300"
-              onClick={handleManualEntry}
+              className="text-center p-8 hover:shadow-lg transition-shadow border-2 hover:border-blue-300"
             >
               <div className="mb-6">
                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -248,36 +246,42 @@ export default function AddInvestorPage() {
                   Add contacts individually with detailed information
                 </Text>
               </div>
+              <div className="flex justify-center">
+                <Button 
+                  type="primary" 
+                  icon={<PlusOutlined />} 
+                  onClick={handleManualEntry}
+                  style={{ backgroundColor: '#1677ff', borderColor: '#1677ff', color: '#fff' }}
+                >
+                  Add Investor
+                </Button>
+              </div>
             </Card>
 
-            <Card className="text-center p-8 hover:shadow-lg transition-shadow border-2">
-              <div className="mb-6">
+            <Card className="text-center p-0 hover:shadow-lg transition-shadow border-2 overflow-hidden">
+              <div className="p-8">
                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <FileTextOutlined className="text-3xl text-green-600" />
                 </div>
                 <Title level={3} className="mb-2">File Import</Title>
-                <Text className="text-gray-600 mb-4">
+                <Text className="text-gray-600 mb-4 block">
                   Upload CSV or Excel files - both formats supported
                 </Text>
-                <Upload
+                <Upload.Dragger
                   accept=".csv,.xlsx,.xls"
                   beforeUpload={handleFileUpload}
                   showUploadList={false}
                   disabled={uploading}
+                  multiple={false}
                 >
-                  <Button 
-                    icon={<UploadOutlined />}
-                    className="w-full"
-                    type="primary"
-                    loading={uploading}
-                    disabled={uploading}
-                    style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
-                  >
-                    {uploading ? 'Uploading...' : 'Upload CSV/Excel'}
-                  </Button>
-                </Upload>
-                <Text className="text-xs text-gray-500 mt-2">
-                  Supports: .csv, .xlsx, .xls files
+                  <p className="ant-upload-drag-icon">
+                    <UploadOutlined />
+                  </p>
+                  <p className="ant-upload-text">Click or drag file to this area to upload</p>
+                  <p className="ant-upload-hint text-xs text-gray-500">Supports .csv, .xlsx, .xls • Max size ~5MB recommended</p>
+                </Upload.Dragger>
+                <Text className="text-xs text-gray-500 mt-2 block">
+                  Tip: Use the All Investors page to verify uploaded records.
                 </Text>
               </div>
             </Card>
@@ -305,17 +309,14 @@ export default function AddInvestorPage() {
           style={{ top: 20 }}
           styles={{ 
             body: { 
-              padding: 0, 
-              overflowX: 'auto',
-              overflowY: 'hidden'
+              padding: 0,
+              maxHeight: '70vh',
+              overflowX: 'hidden',
+              overflowY: 'auto'
             }
           }}
         >
-          <div className="p-4" style={{ 
-            maxWidth: '100%',
-            width: '100%',
-            boxSizing: 'border-box'
-          }}>
+          <div className="p-4" style={{ maxWidth: '100%', width: '100%', boxSizing: 'border-box' }}>
             <Form form={form} onFinish={handleSubmit} layout="vertical">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {visibleColumns.investorName && (
@@ -421,9 +422,9 @@ export default function AddInvestorPage() {
                   type="primary" 
                   htmlType="submit"
                   style={{
-                    backgroundColor: "#ac6a1e",
+                    backgroundColor: "#1677ff",
                     color: "#fff",
-                    borderColor: "#ac6a1e"
+                    borderColor: "#1677ff"
                   }}
                 >
                   Submit
