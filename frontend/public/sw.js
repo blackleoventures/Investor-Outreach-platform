@@ -20,10 +20,18 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
+// Bypass service worker for POST/multipart and non-GET requests to avoid upload issues
 self.addEventListener('fetch', (event) => {
+  const req = event.request;
+  const method = req.method || 'GET';
+  const isGet = method === 'GET';
+
+  if (!isGet) {
+    // Let the network handle it directly for POST/PUT/etc.
+    return; // do not call respondWith
+  }
+
   event.respondWith(
-    fetch(event.request).catch(() => {
-      return caches.match(event.request);
-    })
+    fetch(req).catch(() => caches.match(req))
   );
 });

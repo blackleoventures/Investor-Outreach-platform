@@ -246,7 +246,12 @@ const InvestorMatcher = () => (
 
 
 const { Title, Text } = Typography;
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "/api";
+// Ensure the base points to the API root regardless of env
+// Prefer Next.js rewrite to /api so dev works even without env
+const RAW_BACKEND = (process.env.NEXT_PUBLIC_BACKEND_URL as string | undefined)?.trim();
+const BACKEND_URL = RAW_BACKEND && RAW_BACKEND !== ''
+  ? RAW_BACKEND.replace(/\/$/, '') + (RAW_BACKEND.endsWith('/api') ? '' : '/api')
+  : '/api';
 
 interface PitchAnalysis {
   summary: {
@@ -292,14 +297,30 @@ export default function AIEmailCampaignPage() {
       const formData = new FormData();
       formData.append("deck", file);
       
-      console.log('📤 Sending request to:', `${BACKEND_URL}/ai/analyze-deck`);
+      const primaryUrl = `${BACKEND_URL}/ai/analyze-deck`;
+      const fallbackUrl = `${BACKEND_URL}/ai/analyze-deck?skipGemini=1`;
+      console.log('📤 Sending request to:', primaryUrl);
 
-      const response = await fetch(`${BACKEND_URL}/ai/analyze-deck`, {
-        method: "POST",
-        body: formData,
-      });
-      
-      const data = await response.json();
+      let response: Response | null = null;
+      let payload: any = null;
+      let data: any = null;
+
+      try {
+        response = await fetch(primaryUrl, { method: 'POST', body: formData });
+        const ct = response.headers.get('content-type') || '';
+        payload = ct.includes('application/json') ? await response.json() : await response.text();
+        data = typeof payload === 'string' ? { success: false, error: payload } : payload;
+        if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
+      } catch (primaryErr) {
+        console.warn('Primary AI analyze failed, retrying with fallback:', primaryErr);
+        console.log('📤 Sending fallback request to:', fallbackUrl);
+        response = await fetch(fallbackUrl, { method: 'POST', body: formData });
+        const ct2 = response.headers.get('content-type') || '';
+        payload = ct2.includes('application/json') ? await response.json() : await response.text();
+        data = typeof payload === 'string' ? { success: false, error: payload } : payload;
+        if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
+        message.warning('Using heuristic fallback (Gemini unavailable).');
+      }
       console.log('📊 API Response success:', data.success);
       console.log('📊 API Response data keys:', Object.keys(data.data || {}));
       console.log('🔍 schema exists:', !!data.data?.schema);
@@ -309,10 +330,8 @@ export default function AIEmailCampaignPage() {
       
       if (!response.ok) {
         console.log('❌ API Error - Status:', response.status, 'Data:', data);
-        if (data.retry) {
-          throw new Error(data.error || 'AI analysis failed. Please try again.');
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const textErr = typeof payload === 'string' ? payload : (data?.error || JSON.stringify(data));
+        throw new Error(textErr);
       }
       
       if (data.success && data.data) {
@@ -500,6 +519,61 @@ export default function AIEmailCampaignPage() {
     }
   };
 
+  // Send score via email
+  const [sendModalOpen, setSendModalOpen] = useState(false);
+  const [sendLoading, setSendLoading] = useState(false);
+  const [sendForm] = Form.useForm();
+
+  const openSendModal = () => {
+    if (!pitchAnalysis) {
+      message.warning('Analyze a pitch deck first');
+      return;
+    }
+    const s = pitchAnalysis.summary;
+    const subject = `Investment Readiness Score: ${s.status} – ${s.total_score}/100`;
+    const scoreRows = Object.entries(pitchAnalysis.scorecard || {}).map(([k, v]) => `<li>${k}: <strong>${v}/10</strong></li>`).join('');
+    const html = `
+      <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.6;color:#1f2937;">
+        <h2 style="margin:0 0 8px;">Investment Readiness Score</h2>
+        <p style="margin:0 0 12px;">Overall: <strong>${s.status}</strong> – <strong>${s.total_score}/100</strong></p>
+        <h3 style="margin:16px 0 8px;">Detailed Scorecard</h3>
+        <ul style="padding-left:18px;margin:0 0 12px;">${scoreRows}</ul>
+        <h3 style="margin:16px 0 8px;">Summary</h3>
+        <p style="margin:0 0 6px;"><strong>Problem:</strong> ${s.problem || ''}</p>
+        <p style="margin:0 0 6px;"><strong>Solution:</strong> ${s.solution || ''}</p>
+        <p style="margin:0 0 6px;"><strong>Market:</strong> ${s.market || ''}</p>
+        <p style="margin:0 0 6px;"><strong>Traction:</strong> ${s.traction || ''}</p>
+      </div>`;
+    sendForm.setFieldsValue({ to: '', subject, html });
+    setSendModalOpen(true);
+  };
+
+  const handleSendEmail = async (values: any) => {
+    try {
+      setSendLoading(true);
+      // Only send to & subject; backend builds the email body from analysis
+      const payload = {
+        to: values.to,
+        subject: values.subject,
+        analysis: pitchAnalysis,
+      };
+      const res = await fetch(`${BACKEND_URL}/email/send-score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to send');
+      message.success('Score sent successfully');
+      setSendModalOpen(false);
+      sendForm.resetFields();
+    } catch (err: any) {
+      message.error(err.message || 'Failed to send');
+    } finally {
+      setSendLoading(false);
+    }
+  };
+
   const tabItems = [
     {
       key: "1",
@@ -613,6 +687,9 @@ export default function AIEmailCampaignPage() {
                     />
                     <div className="text-center text-2xl font-bold text-gray-700">
                       {pitchAnalysis.summary.total_score}/100
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                      <Button onClick={openSendModal}>Send Score</Button>
                     </div>
                   </Card>
 
@@ -747,6 +824,30 @@ export default function AIEmailCampaignPage() {
                   </Button>
                 </div>
               </Card>
+
+              <Modal
+                title="Send Score via Email"
+                open={sendModalOpen}
+                onCancel={() => setSendModalOpen(false)}
+                footer={null}
+                width={720}
+              >
+                <Form form={sendForm} layout="vertical" onFinish={handleSendEmail}>
+                  <Form.Item name="to" label="Recipient Email" rules={[{ required: true, type: 'email' }]}>
+                    <Input placeholder="recipient@example.com" />
+                  </Form.Item>
+                  <Form.Item name="subject" label="Subject" rules={[{ required: true }]}>
+                    <Input />
+                  </Form.Item>
+                  <Form.Item name="html" label="Email HTML" rules={[{ required: true }]}>
+                    <Input.TextArea rows={8} />
+                  </Form.Item>
+                  <div className="flex gap-2 justify-end">
+                    <Button onClick={() => setSendModalOpen(false)}>Cancel</Button>
+                    <Button type="primary" htmlType="submit" loading={sendLoading}>Send</Button>
+                  </div>
+                </Form>
+              </Modal>
             </motion.div>
           )}
         </div>

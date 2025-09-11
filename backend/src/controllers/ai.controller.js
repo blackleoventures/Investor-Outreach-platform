@@ -353,6 +353,33 @@ Return ONLY this JSON format:
 Content to analyze:
 ${text}`;
 
+    // Short-circuit path to help diagnose crashes: skip external AI if requested
+    if (String(req.query.skipGemini || '').trim() === '1') {
+      const local = analyzeText(text);
+      return res.status(200).json({
+        success: true,
+        data: {
+          schema: {
+            summary: {
+              problem: "Auto-summary (skipGemini)",
+              solution: "Auto-summary (skipGemini)",
+              market: "Auto-summary (skipGemini)",
+              traction: "Auto-summary (skipGemini)",
+              status: (local.status || 'yellow').toUpperCase(),
+              total_score: local.total || 50,
+            },
+            scorecard: Object.fromEntries(local.breakdown.map(b => [b.name, b.score])),
+            suggested_questions: local.questions,
+            email_template: `Subject: Investment Opportunity - [Company Name]\n\nHi [Investor Name],\n\nQuick intro...`,
+            highlights: ["Heuristic analysis only (Gemini skipped)"]
+          },
+          aiRaw: null,
+          email: { subject: "", body: "", highlights: [] },
+          rawTextPreview: text.slice(0, 2000),
+        }
+      });
+    }
+
     // Try OpenAI first, then Gemini as fallback
     let aiResult = null;
     
@@ -365,72 +392,72 @@ ${text}`;
       });
     }
 
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-      
-      const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiKey, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-        }),
-        signal: controller.signal
-      });
-      
-      clearTimeout(timeoutId);
-      
-      if (!resp.ok) {
-        console.log('❌ Gemini API error:', resp.status, resp.statusText);
-        return res.status(500).json({ 
-          error: "AI analysis failed. Please try again.",
-          retry: true 
-        });
-      }
-
-      const data = await resp.json();
-      const first = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      console.log('🤖 Gemini raw response:', first.substring(0, 500));
-      
+    // Robust Gemini call with retries for 429/5xx
+    const geminiEndpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=" + geminiKey;
+    const maxAttempts = 3;
+    const baseDelayMs = 1200;
+    let lastError = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        aiResult = JSON.parse(first);
-        console.log("✅ Gemini analysis successful, score:", aiResult.summary?.total_score);
-        console.log("🔍 Gemini scorecard:", JSON.stringify(aiResult.scorecard, null, 2));
-      } catch (parseError) {
-        console.log('⚠️ JSON parse failed, trying to extract JSON...');
-        const s = first.indexOf("{");
-        const e = first.lastIndexOf("}");
-        if (s !== -1 && e !== -1) {
-          try {
-            aiResult = JSON.parse(first.slice(s, e + 1));
-            console.log("✅ Extracted JSON successfully, score:", aiResult.summary?.total_score);
-          } catch (extractError) {
-            console.log('❌ Failed to extract JSON:', extractError.message);
-            return res.status(500).json({ 
-              error: "AI analysis failed to parse. Please try again.",
-              retry: true 
-            });
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000);
+        const resp = await fetch(geminiEndpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (!resp.ok) {
+          console.log(`❌ Gemini API error (attempt ${attempt}):`, resp.status, resp.statusText);
+          if (resp.status === 429 || resp.status >= 500) {
+            await new Promise(r => setTimeout(r, baseDelayMs * attempt));
+            continue;
           }
-        } else {
-          return res.status(500).json({ 
-            error: "AI analysis failed to parse. Please try again.",
-            retry: true 
-          });
+          const errText = await resp.text().catch(() => '');
+          return res.status(500).json({ error: errText || 'AI analysis failed', retry: true });
         }
+
+        const data = await resp.json();
+        const first = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+        console.log('🤖 Gemini raw response:', first.substring(0, 500));
+        try {
+          aiResult = JSON.parse(first);
+        } catch {
+          const s = first.indexOf("{");
+          const e = first.lastIndexOf("}");
+          if (s !== -1 && e !== -1) aiResult = JSON.parse(first.slice(s, e + 1));
+        }
+        break; // success
+      } catch (err) {
+        lastError = err;
+        console.log(`❌ Gemini call failed (attempt ${attempt}):`, err.message || err);
+        await new Promise(r => setTimeout(r, baseDelayMs * attempt));
       }
-    } catch (err) {
-      console.error("Gemini call failed", err);
-      return res.status(500).json({ 
-        error: "AI service unavailable. Please try again.",
-        retry: true 
-      });
+    }
+    if (!aiResult) {
+      return res.status(503).json({ error: 'Gemini service unavailable. Please try again later.', retry: true });
     }
 
     if (!aiResult) {
-      return res.status(500).json({ 
-        error: "AI analysis failed. Please try again.",
-        retry: true 
-      });
+      // Fallback: use lightweight heuristic so endpoint still returns a useful result
+      const local = analyzeText(text);
+      const fallback = {
+        summary: {
+          problem: "Auto-summary unavailable",
+          solution: "Auto-summary unavailable",
+          market: "Auto-summary unavailable",
+          traction: "Auto-summary unavailable",
+          status: (local.status || 'yellow').toUpperCase(),
+          total_score: local.total || 50,
+        },
+        scorecard: Object.fromEntries(local.breakdown.map(b => [b.name, b.score])),
+        suggested_questions: local.questions,
+        email_template: `Subject: Investment Opportunity - [Company Name]\n\nHi [Investor Name],\n\nWe are building in [Market]. Attaching our deck for your review.`,
+        highlights: ["Heuristic analysis fallback in use"],
+      };
+      aiResult = fallback;
     }
 
     // Extract basic info for email template
@@ -482,6 +509,27 @@ ${text}`;
   }
 };
 
+
+// Lightweight endpoint to verify multer/file upload without invoking Gemini
+exports.testUpload = async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "No file uploaded. Use field name 'deck'" });
+    const stat = fs.statSync(req.file.path);
+    const meta = {
+      fieldname: req.file.fieldname,
+      originalname: req.file.originalname,
+      encoding: req.file.encoding,
+      mimetype: req.file.mimetype,
+      size: stat.size,
+      tempPath: req.file.path,
+    };
+    return res.status(200).json({ success: true, message: 'Upload OK', file: meta });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  } finally {
+    try { req.file && fs.unlinkSync(req.file.path); } catch {}
+  }
+};
 
 
 exports.enhanceEmail = async (req, res) => {

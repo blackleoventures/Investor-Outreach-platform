@@ -76,6 +76,20 @@ exports.sendEmail = async (req, res) => {
   }
 };
 
+// Lightweight direct sender that doesn't require a campaign in Firebase
+exports.sendDirect = async (req, res) => {
+  try {
+    const { to, subject, html, from } = req.body || {};
+    if (!to || !subject || !html) {
+      return res.status(400).json({ error: "to, subject, html are required" });
+    }
+    const messageId = uuidv4();
+    const result = await sendEmail({ to, from, subject, html, messageId });
+    return res.status(200).json({ success: true, messageId, providerStatus: result.statusCode });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to send email' });
+  }
+};
 exports.trackOpen = async (req, res) => {
   try {
     const { messageId, email } = req.query;
@@ -126,6 +140,40 @@ exports.trackOpen = async (req, res) => {
   }
 };
 
+// Build a professional score summary email from analysis object
+function buildScoreEmailHtml(analysis) {
+  const s = analysis?.summary || {};
+  const scorecard = analysis?.scorecard || {};
+  const rows = Object.entries(scorecard).map(([k, v]) => `<li>${k}: <strong>${v}/10</strong></li>`).join('');
+  return `
+  <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.6;color:#1f2937;">
+    <h2 style="margin:0 0 8px;">Investment Readiness Score</h2>
+    <p style="margin:0 0 12px;">Overall: <strong>${(s.status||'').toString().toUpperCase()}</strong> – <strong>${s.total_score||0}/100</strong></p>
+    <h3 style="margin:16px 0 8px;">Detailed Scorecard</h3>
+    <ul style="padding-left:18px;margin:0 0 12px;">${rows}</ul>
+    <h3 style="margin:16px 0 8px;">Summary</h3>
+    <p style="margin:0 0 6px;"><strong>Problem:</strong> ${s.problem||''}</p>
+    <p style="margin:0 0 6px;"><strong>Solution:</strong> ${s.solution||''}</p>
+    <p style="margin:0 0 6px;"><strong>Market:</strong> ${s.market||''}</p>
+    <p style="margin:0 0 6px;"><strong>Traction:</strong> ${s.traction||''}</p>
+  </div>`;
+}
+
+// Send score email: only requires to, subject, and analysis payload; backend builds HTML
+exports.sendScoreEmail = async (req, res) => {
+  try {
+    const { to, subject, analysis, from } = req.body || {};
+    if (!to || !subject || !analysis) {
+      return res.status(400).json({ error: "to, subject, analysis are required" });
+    }
+    const html = buildScoreEmailHtml(analysis);
+    const messageId = uuidv4();
+    const result = await sendEmail({ to, from, subject, html, messageId });
+    return res.status(200).json({ success: true, messageId, providerStatus: result.statusCode });
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to send score email' });
+  }
+};
 exports.trackClick = async (req, res) => {
   try {
     const { messageId, url } = req.query;
