@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Card, Typography, Button, Form, Input, Modal, Dropdown, Checkbox, Upload, message } from "antd";
 import { UserOutlined, FileTextOutlined, ArrowLeftOutlined, PlusOutlined, SettingOutlined, DeleteOutlined, DownloadOutlined, UploadOutlined, FileExcelOutlined } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 
 const { Title, Text } = Typography;
 
@@ -43,7 +44,7 @@ export default function AddInvestorPage() {
     
     try {
       formData.append('file', file);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors/upload-file`, {
+      const response = await apiFetch(`/api/investors/upload-file`, {
         method: 'POST',
         body: formData,
       });
@@ -86,7 +87,7 @@ export default function AddInvestorPage() {
     try {
       // Send as an array of one object to existing bulk endpoint
       const payload = [values];
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors/bulk`, {
+      const response = await apiFetch(`/api/investors/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

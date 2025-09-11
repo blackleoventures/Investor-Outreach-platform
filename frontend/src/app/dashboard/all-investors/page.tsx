@@ -3,6 +3,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
 import { Card, Typography, Button, Input, Table, Tag, Space, message, Avatar, Modal, Form, Select, Dropdown, Checkbox, Alert, Spin } from "antd";
 import { useRouter } from 'next/navigation';
 import { UserOutlined, SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SettingOutlined, FileTextOutlined, FileExcelOutlined, SyncOutlined, DownloadOutlined } from "@ant-design/icons";
@@ -230,7 +231,7 @@ export default function AllInvestorsPage() {
     setLoading(true);
     try {
       // Fetch a large page from the paginated endpoint so we have the full dataset client-side
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors?limit=100000&page=1`);
+      const response = await apiFetch(`/api/investors?limit=100000&page=1`);
       if (response.ok) {
         const result = await response.json();
         const investorData = result.docs || result.data || [];
@@ -272,7 +273,7 @@ export default function AllInvestorsPage() {
   // Fetch Excel sync status
   const fetchSyncStatus = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/excel/sync/status`);
+      const response = await apiFetch(`/api/excel/sync/status`);
       if (response.ok) {
         const data = await response.json();
         setExcelSyncStatus(data);
@@ -286,7 +287,7 @@ export default function AllInvestorsPage() {
   const handleSyncToExcel = async () => {
     setSyncing(true);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/excel/sync/firebase-to-excel`, {
+      const response = await apiFetch(`/api/excel/sync/firebase-to-excel`, {
         method: 'POST'
       });
       if (response.ok) {
@@ -306,7 +307,7 @@ export default function AllInvestorsPage() {
   // Download Excel file
   const handleDownloadExcel = async () => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/excel/download`);
+      const response = await apiFetch(`/api/excel/download`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -416,7 +417,7 @@ export default function AllInvestorsPage() {
 
   const handleEditInvestor = async (values) => {
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors/${selectedInvestor.id}`, {
+      const response = await apiFetch(`/api/investors/${selectedInvestor.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values)
@@ -444,7 +445,7 @@ export default function AllInvestorsPage() {
       content: "Are you sure you want to delete this investor?",
       onOk: async () => {
         try {
-          const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors/${investorId}`, {
+          const response = await apiFetch(`/api/investors/${investorId}`, {
             method: 'DELETE'
           });
           

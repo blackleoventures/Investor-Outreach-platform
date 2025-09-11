@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
+const os = require('os');
 const Papa = require('papaparse');
 const XLSX = require('xlsx');
 
@@ -10,9 +11,12 @@ const DB_FILE = (process.env.INVESTORS_DB_PATH && process.env.INVESTORS_DB_PATH.
   ? process.env.INVESTORS_DB_PATH.trim()
   : path.join(__dirname, '../../data/investors.xlsx');
 
+// Writable temp fallback for serverless/read-only FS (e.g., Vercel)
+const TEMP_DB_FILE = path.join(os.tmpdir(), 'investors.xlsx');
+
 class FileDBService {
-  async ensureDataDir() {
-    const dataDir = path.dirname(DB_FILE);
+  async ensureDataDir(targetPath = DB_FILE) {
+    const dataDir = path.dirname(targetPath);
     try {
       await fs.access(dataDir);
     } catch {
@@ -21,23 +25,46 @@ class FileDBService {
   }
 
   async readData() {
+    // Try primary path first
     try {
-      await this.ensureDataDir();
+      await this.ensureDataDir(DB_FILE);
       const workbook = XLSX.readFile(DB_FILE);
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(worksheet);
       return data.map((item, index) => ({ id: index + 1, ...item }));
     } catch {
-      return [];
+      // Fallback to temp path if primary is unavailable
+      try {
+        await this.ensureDataDir(TEMP_DB_FILE);
+        const workbook = XLSX.readFile(TEMP_DB_FILE);
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(worksheet);
+        return data.map((item, index) => ({ id: index + 1, ...item }));
+      } catch {
+        return [];
+      }
     }
   }
 
   async writeData(data) {
-    await this.ensureDataDir();
     const workbook = XLSX.utils.book_new();
     const worksheet = XLSX.utils.json_to_sheet(data);
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Investors');
-    XLSX.writeFile(workbook, DB_FILE);
+
+    // Try writing to the primary location
+    try {
+      await this.ensureDataDir(DB_FILE);
+      XLSX.writeFile(workbook, DB_FILE);
+      return;
+    } catch (err) {
+      // On read-only or access errors, write to a temp, writable path
+      if (err && (err.code === 'EROFS' || err.code === 'EACCES' || err.code === 'EPERM')) {
+        await this.ensureDataDir(TEMP_DB_FILE);
+        XLSX.writeFile(workbook, TEMP_DB_FILE);
+        return;
+      }
+      throw err;
+    }
   }
 
   async processFile(filePath, fileExtension) {
