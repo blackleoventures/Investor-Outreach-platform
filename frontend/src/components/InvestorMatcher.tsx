@@ -5,7 +5,7 @@ import { Card, Input, Button, Table, Select, Form, message, Progress, Tag, Toolt
 import { SearchOutlined, RobotOutlined, UserOutlined, MailOutlined } from "@ant-design/icons";
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL as string) || "/api";
-const { Option } = Select;
+ 
 
 interface CompanyProfile {
   sector: string;
@@ -145,33 +145,33 @@ export default function InvestorMatcher() {
         <Form form={form} layout="vertical" className="mb-4" onValuesChange={handleValuesChange}>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Form.Item name="sector" label="Sector" rules={[{ required: true }]}>
-              <Select placeholder="Select sector">
-                <Option value="fintech">Fintech</Option>
-                <Option value="healthtech">Healthtech</Option>
-                <Option value="saas">SaaS</Option>
-                <Option value="ai">AI/ML</Option>
-              </Select>
+              <Select placeholder="Select sector" options={[
+                { value: 'fintech', label: 'Fintech' },
+                { value: 'healthtech', label: 'Healthtech' },
+                { value: 'saas', label: 'SaaS' },
+                { value: 'ai', label: 'AI/ML' }
+              ]} />
             </Form.Item>
             <Form.Item name="stage" label="Stage" rules={[{ required: true }]}>
-              <Select placeholder="Select stage">
-                <Option value="seed">Seed</Option>
-                <Option value="series-a">Series A</Option>
-                <Option value="series-b">Series B</Option>
-              </Select>
+              <Select placeholder="Select stage" options={[
+                { value: 'seed', label: 'Seed' },
+                { value: 'series-a', label: 'Series A' },
+                { value: 'series-b', label: 'Series B' }
+              ]} />
             </Form.Item>
             <Form.Item name="location" label="Location" rules={[{ required: true }]}>
-              <Select placeholder="Location">
-                <Option value="us">US</Option>
-                <Option value="eu">Europe</Option>
-                <Option value="asia">Asia</Option>
-              </Select>
+              <Select placeholder="Location" options={[
+                { value: 'us', label: 'US' },
+                { value: 'eu', label: 'Europe' },
+                { value: 'asia', label: 'Asia' }
+              ]} />
             </Form.Item>
             <Form.Item name="fundingAmount" label="Amount" rules={[{ required: true }]}>
-              <Select placeholder="Amount">
-                <Option value="500k">$500K</Option>
-                <Option value="1m">$1M</Option>
-                <Option value="5m">$5M</Option>
-              </Select>
+              <Select placeholder="Amount" options={[
+                { value: '500k', label: '$500K' },
+                { value: '1m', label: '$1M' },
+                { value: '5m', label: '$5M' }
+              ]} />
             </Form.Item>
           </div>
           {/* Removed explicit AI Match button; auto-run on field change */}
