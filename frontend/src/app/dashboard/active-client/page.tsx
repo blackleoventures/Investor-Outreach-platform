@@ -233,8 +233,10 @@ const ActiveClients = () => {
       );
       if (response.data.success) {
         message.success("Campaign created successfully.");
+        router.push('/dashboard/campaign/ai-email-campaign');
+      } else {
+        toggleModal(false);
       }
-      toggleModal(false);
     } catch (error) {
       console.error("Creation error:", error);
       message.error(`Error creating campaign: ${error.message}`);

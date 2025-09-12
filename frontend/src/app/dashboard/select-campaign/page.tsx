@@ -1,7 +1,7 @@
 "use client";
 
 import { Card, Typography, Button, Row, Col, Tag } from "antd";
-import { MailOutlined, RocketOutlined, BulbOutlined } from "@ant-design/icons";
+import { BulbOutlined } from "@ant-design/icons";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
@@ -23,16 +23,15 @@ const SelectCampaign = () => {
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Only 3 campaign types - FIXED VERSION
+  // Since only one campaign type exists, navigate there immediately
+  useEffect(() => {
+    if (mounted) {
+      router.replace('/dashboard/campaign/ai-email-campaign');
+    }
+  }, [mounted, router]);
+
+  // Show only AI Email Campaign
   const campaignTypes = [
-    {
-      id: "email",
-      title: "Email Campaign",
-      description: "Create and send personalized email campaigns to your contacts",
-      icon: <MailOutlined style={{ fontSize: isMobile ? "1.5rem" : "2rem", color: "#1890ff" }} />,
-      route: "/dashboard/campaign/email-form",
-      features: ["Personalized emails", "Template support", "Analytics tracking"]
-    },
     {
       id: "ai-email",
       title: "AI Email Campaign", 
@@ -40,18 +39,10 @@ const SelectCampaign = () => {
       icon: <BulbOutlined style={{ fontSize: isMobile ? "1.5rem" : "2rem", color: "#52c41a" }} />,
       route: "/dashboard/campaign/ai-email-campaign",
       features: ["AI-generated content", "Smart personalization", "Auto optimization"]
-    },
-    {
-      id: "advanced",
-      title: "Advanced Campaign",
-      description: "Create complex multi-step campaigns with advanced features", 
-      icon: <RocketOutlined style={{ fontSize: isMobile ? "1.5rem" : "2rem", color: "#fa8c16" }} />,
-      route: "/dashboard/allCampaign",
-      features: ["Multi-step workflows", "Advanced targeting", "A/B testing"]
     }
   ];
 
-  const handleSelectCampaign = (route) => {
+  const handleSelectCampaign = (route: string) => {
     router.push(route);
   };
 

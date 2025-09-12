@@ -370,7 +370,7 @@ ${text}`;
             },
             scorecard: Object.fromEntries(local.breakdown.map(b => [b.name, b.score])),
             suggested_questions: local.questions,
-            email_template: `Subject: Investment Opportunity - [Company Name]\n\nHi [Investor Name],\n\nQuick intro...`,
+            email_template: `Subject: Investment Opportunity - [Company Name]\n\nHi [Investor Name],\n\nI hope you are well. I'm reaching out to share a brief overview of [Company Name], where we are solving [Core Problem] in the [Market] space.\n\nIn the past [timeframe], we've achieved:\n• Traction: [key metrics — users, revenue, growth]\n• Product: [brief product/tech edge]\n• Team: [notable credentials]\n\nWe're currently raising [Amount] to [use of funds], and we believe this aligns with your focus on [sector/stage]. I'd appreciate the chance to share our deck and get your feedback.\n\nWould you be open to a 15-minute call this week or next?\n\nBest regards,\n[Your Name]\n[Title], [Company Name]\n[Contact Information]`,
             highlights: ["Heuristic analysis only (Gemini skipped)"]
           },
           aiRaw: null,

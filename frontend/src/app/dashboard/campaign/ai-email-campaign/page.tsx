@@ -8,11 +8,13 @@ const { TextArea } = Input;
 const { Option } = Select;
 
 // Email Composer Component
-const EmailComposer = ({ pitchAnalysis }: { pitchAnalysis: PitchAnalysis | null }) => {
+type EmailComposerProps = { pitchAnalysis: PitchAnalysis | null; autoLoadTemplate?: boolean };
+const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false }: EmailComposerProps) => {
   const [form] = Form.useForm();
   const [sending, setSending] = useState(false);
   const [enhancingSubject, setEnhancingSubject] = useState(false);
   const [enhancingContent, setEnhancingContent] = useState(false);
+  const [formKey, setFormKey] = useState('composer');
 
   const useTemplate = () => {
     if (pitchAnalysis?.email_template) {
@@ -28,8 +30,25 @@ const EmailComposer = ({ pitchAnalysis }: { pitchAnalysis: PitchAnalysis | null 
     }
   };
 
+  // Auto-load the template when the composer is shown
+  useEffect(() => {
+    if (autoLoadTemplate && pitchAnalysis?.email_template) {
+      const lines = pitchAnalysis.email_template.split('\n');
+      const subject = lines[0].replace('Subject: ', '');
+      const content = lines.slice(1).join('\n').trim();
+      form.setFieldsValue({ subject, content });
+      setFormKey(`composer-${Date.now()}`);
+    }
+  }, [autoLoadTemplate, pitchAnalysis, form]);
+
   const enhanceSubject = async () => {
-    const currentSubject = form.getFieldValue('subject');
+    let currentSubject = form.getFieldValue('subject');
+    if (!currentSubject && pitchAnalysis?.email_template) {
+      const lines = pitchAnalysis.email_template.split('\n');
+      currentSubject = lines[0].replace('Subject: ', '');
+      form.setFieldValue('subject', currentSubject);
+      setFormKey(`composer-${Date.now()}`);
+    }
     if (!currentSubject) {
       message.warning('Please enter a subject line first');
       return;
@@ -59,7 +78,13 @@ const EmailComposer = ({ pitchAnalysis }: { pitchAnalysis: PitchAnalysis | null 
   };
 
   const enhanceContent = async () => {
-    const currentContent = form.getFieldValue('content');
+    let currentContent = form.getFieldValue('content');
+    if (!currentContent && pitchAnalysis?.email_template) {
+      const lines = pitchAnalysis.email_template.split('\n');
+      currentContent = lines.slice(1).join('\n').trim();
+      form.setFieldValue('content', currentContent);
+      setFormKey(`composer-${Date.now()}`);
+    }
     if (!currentContent) {
       message.warning('Please enter email content first');
       return;
@@ -143,6 +168,7 @@ Best regards,
         </div>
 
         <Form
+          key={formKey}
           form={form}
           layout="vertical"
           onFinish={sendEmail}
@@ -378,8 +404,8 @@ export default function AIEmailCampaignPage() {
         // Calculate total score
         let totalScore = analysisData.summary.total_score;
         if (!totalScore || totalScore === 0) {
-          const scores = Object.values(fixedScorecard);
-          totalScore = Math.round(scores.reduce((sum, score) => sum + score, 0));
+          const scores = Object.values(fixedScorecard) as number[];
+          totalScore = Math.round(scores.reduce((sum: number, score: number) => sum + score, 0));
           console.log('🔢 Calculated total score from scorecard:', totalScore);
         }
         
@@ -403,13 +429,13 @@ export default function AIEmailCampaignPage() {
       } else {
         throw new Error(data.message || "Invalid response format");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Analysis error:', error);
       
       // If Gemini is rate-limited, use fallback analysis
-      if (error.message.includes('AI analysis failed')) {
+      if ((error?.message || '').includes('AI analysis failed')) {
         console.log('⚠️ Using fallback analysis due to API rate limit');
-        const fallbackAnalysis = {
+        const fallbackAnalysis: PitchAnalysis = {
           summary: {
             problem: "Urban traffic congestion costs $150B annually, affecting millions of commuters",
             solution: "AI-powered micro-mobility platform integrating multiple transportation modes",
@@ -455,7 +481,7 @@ export default function AIEmailCampaignPage() {
         content: (
           <div>
             <div className="font-semibold text-red-600 mb-2">🤖 AI Analysis Failed</div>
-            <div className="text-sm text-gray-600 mb-3">{error.message}</div>
+            <div className="text-sm text-gray-600 mb-3">{String(error?.message || 'Unexpected error')}</div>
             <Button 
               type="primary" 
               size="small"
@@ -861,7 +887,7 @@ export default function AIEmailCampaignPage() {
           Email Composer
         </span>
       ),
-      children: <EmailComposer pitchAnalysis={pitchAnalysis} />,
+      children: <EmailComposer pitchAnalysis={pitchAnalysis} autoLoadTemplate={true} />,
     },
 
 

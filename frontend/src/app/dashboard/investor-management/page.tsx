@@ -12,12 +12,26 @@ const { Search } = Input;
 const InvestorMatcher = dynamic(() => import("@/components/InvestorMatcher"), { ssr: false });
 
 
+type InvestorRow = {
+  id: number;
+  name: string;
+  email: string;
+  fund: string;
+  sector: string;
+  stage: string;
+  checkSize: string;
+  location: string;
+  score: number;
+  status: 'active' | 'pending' | 'inactive';
+  lastContact: string;
+};
+
 export default function InvestorManagementPage() {
   const [activeTab, setActiveTab] = useState("1");
-  const [investors, setInvestors] = useState([]);
+  const [investors, setInvestors] = useState<InvestorRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredInvestors, setFilteredInvestors] = useState([]);
+  const [filteredInvestors, setFilteredInvestors] = useState<InvestorRow[]>([]);
 
   // Mock data for demonstration
   useEffect(() => {
@@ -77,13 +91,13 @@ export default function InvestorManagementPage() {
     }
   }, [searchQuery, investors]);
 
-  const getScoreColor = (score) => {
+  const getScoreColor = (score: number) => {
     if (score >= 90) return 'success';
     if (score >= 80) return 'warning';
     return 'error';
   };
 
-  const getStatusColor = (status) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'active': return 'success';
       case 'pending': return 'warning';
@@ -97,7 +111,7 @@ export default function InvestorManagementPage() {
       title: 'Score',
       dataIndex: 'score',
       key: 'score',
-      render: (score) => (
+      render: (score: number) => (
         <Badge 
           count={score} 
           style={{ 
@@ -106,13 +120,13 @@ export default function InvestorManagementPage() {
           }}
         />
       ),
-      sorter: (a, b) => a.score - b.score,
+      sorter: (a: InvestorRow, b: InvestorRow) => a.score - b.score,
     },
     {
       title: 'Investor',
       dataIndex: 'name',
       key: 'name',
-      render: (name, record) => (
+      render: (name: string, record: InvestorRow) => (
         <div>
           <div className="font-medium">{name}</div>
           <div className="text-sm text-gray-500">{record.fund}</div>
@@ -120,15 +134,15 @@ export default function InvestorManagementPage() {
       ),
     },
     {
-      title: 'Contact',
+      title: 'Email',
       dataIndex: 'email',
       key: 'email',
-      render: (email) => <Text copyable>{email}</Text>,
+      render: (email: string) => <Text copyable>{email}</Text>,
     },
     {
       title: 'Focus',
       key: 'focus',
-      render: (_, record) => (
+      render: (_: any, record: InvestorRow) => (
         <div className="space-y-1">
           <Tag color="blue">{record.sector}</Tag>
           <Tag color="green">{record.stage}</Tag>
@@ -149,7 +163,7 @@ export default function InvestorManagementPage() {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (status) => (
+      render: (status: string) => (
         <Tag color={getStatusColor(status)}>
           {status.charAt(0).toUpperCase() + status.slice(1)}
         </Tag>
@@ -158,7 +172,7 @@ export default function InvestorManagementPage() {
     {
       title: 'Actions',
       key: 'actions',
-      render: (_, record) => (
+      render: (_: any, record: InvestorRow) => (
         <Space>
           <Button size="small" icon={<EyeOutlined />}>View</Button>
           <Button size="small" icon={<MailOutlined />} type="primary">Contact</Button>
@@ -170,58 +184,6 @@ export default function InvestorManagementPage() {
   const tabItems = [
     {
       key: "1",
-      label: (
-        <span>
-          <UserOutlined />
-          Investor Database
-        </span>
-      ),
-      children: (
-        <div className="space-y-6">
-          <Card>
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <Title level={4}>Investor Database</Title>
-                <Text type="secondary">Manage and track your investor relationships</Text>
-              </div>
-              <Button 
-                type="primary" 
-                icon={<PlusOutlined />}
-                onClick={() => window.location.href = '/dashboard/add-investor'}
-              >
-                Add Investor
-              </Button>
-            </div>
-            
-            <div className="mb-4">
-              <Search
-                placeholder="Search investors by name, fund, or sector..."
-                allowClear
-                enterButton={<SearchOutlined />}
-                size="large"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-
-            <Table
-              columns={columns}
-              dataSource={filteredInvestors}
-              rowKey="id"
-              loading={loading}
-              pagination={{
-                pageSize: 10,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} investors`,
-              }}
-            />
-          </Card>
-        </div>
-      ),
-    },
-    {
-      key: "2",
       label: (
         <span>
           <StarOutlined />
@@ -242,64 +204,16 @@ export default function InvestorManagementPage() {
         </div>
       ),
     },
-    {
-      key: "3",
-      label: (
-        <span>
-          <FilterOutlined />
-          Advanced Filters
-        </span>
-      ),
-      children: (
-        <div className="space-y-6">
-          <Card title="🔍 Advanced Investor Filtering" className="shadow-lg">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <Text strong>Sector Focus</Text>
-                <div className="mt-2 space-y-2">
-                  {['Technology', 'SaaS', 'Fintech', 'Healthcare', 'E-commerce'].map(sector => (
-                    <Tag key={sector} className="cursor-pointer hover:bg-blue-50">
-                      {sector}
-                    </Tag>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <Text strong>Investment Stage</Text>
-                <div className="mt-2 space-y-2">
-                  {['Seed', 'Series A', 'Series B', 'Series C', 'Growth'].map(stage => (
-                    <Tag key={stage} className="cursor-pointer hover:bg-blue-50">
-                      {stage}
-                    </Tag>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <Text strong>Check Size Range</Text>
-                <div className="mt-2 space-y-2">
-                  {['$100K - $500K', '$500K - $2M', '$2M - $5M', '$5M+'].map(size => (
-                    <Tag key={size} className="cursor-pointer hover:bg-blue-50">
-                      {size}
-                    </Tag>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </Card>
-        </div>
-      ),
-    },
-
   ];
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="mb-8">
         <Title level={1} className="text-3xl font-bold text-gray-800 mb-2">
-          🎯 Investor Management
+          🤖 Smart Investor Matching
         </Title>
         <Text className="text-lg text-gray-600">
-          Comprehensive investor database, AI-powered matching, and relationship management
+          Find the best-fit investors for your startup using AI matching
         </Text>
       </div>
 

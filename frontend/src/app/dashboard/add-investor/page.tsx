@@ -228,8 +228,8 @@ export default function AddInvestorPage() {
             </Button>
             
             <div className="text-center">
-              <Title level={2} className="mb-2">Import Contacts</Title>
-              <Text className="text-gray-600">Choose your preferred method to add contacts</Text>
+              <Title level={2} className="mb-2">Import Investors</Title>
+              <Text className="text-gray-600">Choose your preferred method to add investors</Text>
             </div>
           </div>
 
@@ -243,7 +243,7 @@ export default function AddInvestorPage() {
                 </div>
                 <Title level={3} className="mb-2">Manual Entry</Title>
                 <Text className="text-gray-600">
-                  Add contacts individually with detailed information
+                  Add investors individually with detailed information
                 </Text>
               </div>
               <div className="flex justify-center">

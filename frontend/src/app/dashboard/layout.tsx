@@ -102,11 +102,7 @@ export default function DashboardLayout({
           icon: <TeamOutlined style={{ fontSize: "14px" }} />,
           ...navItem("/dashboard/all-client", "All Clients"),
         },
-        {
-          key: "/dashboard/active-client",
-          icon: <CheckCircleOutlined style={{ fontSize: "14px" }} />,
-          ...navItem("/dashboard/active-client", "Active Clients"),
-        },
+        // Removed Active Clients per request
         {
           key: "/dashboard/add-client",
           icon: <PlusOutlined style={{ fontSize: "14px" }} />,
@@ -125,20 +121,16 @@ export default function DashboardLayout({
       icon: <MailOutlined style={{ fontSize: "16px" }} />,
       ...navItem("/dashboard/select-campaign", "Select Campaign"),
     },
-    {
-      key: "/dashboard/manage-contactsList",
-      icon: <TeamOutlined style={{ fontSize: "16px" }} />,
-      ...navItem("/dashboard/manage-contactsList", "Contact Lists"),
-    },
+    // Removed Contact Lists from navigation per request
     {
       key: "/dashboard/all-reports",
       icon: <BarChartOutlined style={{ fontSize: "16px" }} />,
       ...navItem("/dashboard/all-reports", "Reports"),
     },
     {
-      key: "/dashboard/matching-test",
+      key: "/dashboard/investor-management",
       icon: <SearchOutlined style={{ fontSize: "16px" }} />,
-      ...navItem("/dashboard/matching-test", "Smart Investor Matching"),
+      ...navItem("/dashboard/investor-management", "Smart Investor Matching"),
     },
     {
       key: "investor-management",

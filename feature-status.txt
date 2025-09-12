@@ -1,0 +1,135 @@
+
+
+Root
+- Frontend (Completed): Landing, basic routes, error/not-found pages
+- Backend (Completed): Healthcheck, base routing
+- Frontend (Pending): N/A
+- Backend (Pending): Monitoring/logging
+
+Dashboard (app/dashboard)
+- Frontend (Completed): Main layout, loading states, navigation shell
+- Backend (Completed): N/A
+- Frontend (Pending): Global breadcrumbs, shortcuts
+- Backend (Pending): Dashboard-wide analytics aggregation
+
+Dashboard → AI Email Campaign (app/dashboard/campaign/ai-email-campaign)
+- Frontend (Completed): Page UI, upload UI, analysis results UI, template display, “Send Score” modal
+- Backend (Completed/Partial): Upload handling, heuristic fallback, /email/send-score implemented
+- Frontend (Pending): Robust error banners, template library integration
+- Backend (Pending): Stable Gemini outputs; subject/content enhancement endpoints; production email config
+
+Dashboard → Campaign Email Form (app/dashboard/campaign/email-form)
+- Frontend (Completed): Basic composer layout
+- Backend (Completed): /api/email routes exist
+- Frontend (Pending): Real send flow wiring, validations, success/failure handling
+- Backend (Pending): Finalize sending provider configuration
+
+Dashboard → Investor Management (app/dashboard/investor-management)
+- Frontend (Completed): Page shell
+- Backend (Completed): N/A
+- Frontend (Pending): Real investor tools, filters, actions
+- Backend (Pending): Supporting APIs
+
+Dashboard → All Investors (app/dashboard/all-investors)
+- Frontend (Completed): Table UI, columns, “Show more/All” persistence, View/Edit/Delete
+- Backend (Completed/Partial): File-based CRUD, uploads
+- Frontend (Pending): Advanced filters/sorting, profile panels
+- Backend (Pending): Rich query/filter APIs
+
+Dashboard → Add Investor (app/dashboard/add-investor)
+- Frontend (Completed): Manual entry modal flow, improved File Import (drag & drop)
+- Backend (Completed): Upload ingestion/storage
+- Frontend (Pending): Field validations, guided tooltips
+- Backend (Pending): Data validation/normalization rules
+
+Dashboard → Active Client (app/dashboard/active-client)
+- Frontend (Completed): Page shell/loading
+- Backend (Completed): Client endpoints exist
+- Frontend (Pending): Real cards and interactions
+- Backend (Pending): Enriched client metrics endpoints
+
+Dashboard → All Client (app/dashboard/all-client)
+- Frontend (Completed): Table UI, actions
+- Backend (Completed): Clients APIs wired
+- Frontend (Pending): Advanced search/filter/sort
+- Backend (Pending): Aggregations for stats
+
+Dashboard → Add Client (app/dashboard/add-client)
+- Frontend (Completed): Form UI
+- Backend (Completed): Create client API
+- Frontend (Pending): Validations, UX polish
+- Backend (Pending): Schema enforcement
+
+Dashboard → All Campaign (app/dashboard/allCampaign)
+- Frontend (Completed): Listing shell
+- Backend (Completed): Campaign routes present
+- Frontend (Pending): Filtering, statuses, actions
+- Backend (Pending): Campaign summaries/metrics
+
+Dashboard → Select Campaign (app/dashboard/select-campaign)
+- Frontend (Completed): Page shell
+- Backend (Completed): N/A
+- Frontend (Pending): Deep linking, saved selection
+- Backend (Pending): N/A
+
+Dashboard → Editor /[id] (app/dashboard/editor/[id])
+- Frontend (Completed): Page shell
+- Backend (Completed): N/A
+- Frontend (Pending): Load/save content, real editor tools
+- Backend (Pending): Storage API
+
+Dashboard → Manage Contact Lists (app/dashboard/manage-contactsList)
+- Frontend (Completed): Page shell
+- Backend (Completed): Basic routes present
+- Frontend (Pending): Real list UI, import/export
+- Backend (Pending): List CRUD endpoints
+
+Dashboard → Add Incubator (app/dashboard/add-incubator)
+- Frontend (Completed): Upload UI
+- Backend (Completed): /api/incubators/upload-file
+- Frontend (Pending): Validations/results view
+- Backend (Pending): Data normalization/validation
+
+Dashboard → All Incubators (app/dashboard/all-incubators)
+- Frontend (Completed): Listing shell
+- Backend (Completed): Fetch/delete endpoints exist
+- Frontend (Pending): Filters/sorting, detail view
+- Backend (Pending): Aggregated stats
+
+Dashboard → All Reports (app/dashboard/all-reports)
+- Frontend (Completed): Page shell
+- Backend (Completed): N/A
+- Frontend (Pending): Real report cards/list
+- Backend (Pending): Report generation endpoints
+
+Reports → [id] (app/reports/[id])
+- Frontend (Completed): Page shell
+- Backend (Completed): N/A
+- Frontend (Pending): Load and render report content
+- Backend (Pending): Report data source
+
+Dashboard → [id]/campaigns (app/dashboard/[id]/campaigns)
+- Frontend (Completed): Page shell
+- Backend (Completed): N/A
+- Frontend (Pending): Bind to real campaigns of the client
+- Backend (Pending): Client-scoped campaign APIs
+
+Global → Email Composer (component use and campaign/email-form)
+- Frontend (Completed): Composer UI with enhance buttons
+- Backend (Completed): Email endpoints
+- Frontend (Pending): Connect enhance buttons to real AI
+- Backend (Pending): Enhance-email and optimize-subject stable AI responses
+
+Global → Service Worker (public/sw.js)
+- Frontend (Completed): Adjusted to bypass POST and avoid upload interception
+- Backend (N/A)
+
+Global → Deployment/Config
+- Frontend (Pending): Ensure NEXT_PUBLIC_BACKEND_URL correctly set for live
+- Backend (Pending): Vercel/GitHub private repo limitation or CLI deploy; robust CORS; ENV (GEMINI_API_KEY, SendGrid)
+
+Summary
+- Completed (Frontend): Most UI shells; AI Campaign UI; uploads; results/scorecard; investors pages; Send Score modal; SW POST bypass
+- Completed (Backend): Upload ingestion; file DB; heuristic fallback; /email/send-score; diagnostics endpoints
+- Pending (Frontend): Real AI enhance in composer; template library; advanced matching filters; analytics
+- Pending (Backend): Stable Gemini outputs; email provider config; real matching + datasets; analytics APIs; deployment fixes
