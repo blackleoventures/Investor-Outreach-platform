@@ -291,38 +291,13 @@ export default function InvestorManagementPage() {
         </div>
       ),
     },
-    {
-      key: "2",
-      label: (
-        <span>
-          <UserOutlined />
-          Best Matches
-        </span>
-      ),
-      children: <BestMatchesOverview />,
-    },
   ];
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="mb-8">
-        <Title level={1} className="text-3xl font-bold text-gray-800 mb-2">
-          🤖 Smart Investor Matching
-        </Title>
-        <Text className="text-lg text-gray-600">
-          Find the best-fit investors for your startup using AI matching
-        </Text>
+      <div>
+        <InvestorMatcher />
       </div>
-
-      <Card className="shadow-xl">
-        <Tabs 
-          activeKey={activeTab} 
-          onChange={setActiveTab} 
-          items={tabItems}
-          size="large"
-          type="card"
-        />
-      </Card>
     </div>
   );
 }

@@ -22,21 +22,12 @@ export type IncubatorRecord = Record<string, any> & {
   country?: string;
   stateCity?: string;
   stage?: string;
+  ticket_size?: any;
 };
 
-// Rule weights (updated per new requirements)
-const WEIGHTS_INVESTOR = {
-  sector: 40,
-  stage: 30,
-  location: 20,
-  ticket: 10,
-} as const;
-
-const WEIGHTS_INCUBATOR = {
-  sector: 40,
-  stage: 30,
-  location: 20,
-} as const;
+// Rule weights: +25 each criterion
+const WEIGHTS_INVESTOR = { sector: 25, stage: 25, location: 25, ticket: 25 } as const;
+const WEIGHTS_INCUBATOR = { sector: 25, stage: 25, location: 25, ticket: 25 } as const;
 
 const normalize = (v?: string) => (v || "").toString().trim().toLowerCase();
 
@@ -90,51 +81,38 @@ export function scoreInvestorMatch(client: ClientProfile, investor: InvestorReco
     amount: 0,
   } as { sector: number; stage: number; location: number; amount: number };
 
-  // Sector (full or half)
+  // Sector (exact only)
   const clientSector = normalize(client.sector);
   const investorSectors = parseSectors(investor.sector_focus);
   if (clientSector && investorSectors.length) {
-    if (investorSectors.includes(clientSector)) {
-      breakdown.sector = WEIGHTS_INVESTOR.sector;
-    } else if (investorSectors.some((s) => s && (s.includes(clientSector) || clientSector.includes(s)))) {
-      breakdown.sector = Math.round(WEIGHTS_INVESTOR.sector / 2);
-    }
+    if (investorSectors.includes(clientSector)) breakdown.sector = WEIGHTS_INVESTOR.sector;
   }
   score += breakdown.sector;
 
-  // Stage (full or partial by distance)
+  // Stage (exact only)
   const clientStage = normalize(client.stage);
   const investorStage = normalize(investor.fund_stage);
-  const stageOrder = ["pre-seed","seed","series a","series b","series c","growth","late"];
   if (clientStage && investorStage) {
-    if (investorStage === clientStage) {
-      breakdown.stage = WEIGHTS_INVESTOR.stage;
-    } else {
-      const ci = stageOrder.indexOf(clientStage);
-      const ii = stageOrder.indexOf(investorStage);
-      if (ci !== -1 && ii !== -1) {
-        const d = Math.abs(ci - ii);
-        if (d === 1) breakdown.stage = Math.round(WEIGHTS_INVESTOR.stage / 2);
-      }
-    }
+    if (investorStage === clientStage) breakdown.stage = WEIGHTS_INVESTOR.stage;
   }
   score += breakdown.stage;
 
-  // Location (full for exact country/city, half for Global)
+  // Location (exact country/city; treat Global as match as well)
   const clientLoc = normalize(client.location);
   const invCountry = normalize(investor.country);
   const invState = normalize((investor as any).state);
   const invCity = normalize((investor as any).city);
   if (clientLoc) {
-    if ((invCountry && clientLoc === invCountry) || (invState && clientLoc === invState) || (invCity && clientLoc === invCity)) {
-      breakdown.location = WEIGHTS_INVESTOR.location;
-    } else if (normalize(String(investor.country)) === 'global') {
-      breakdown.location = Math.round(WEIGHTS_INVESTOR.location / 2);
-    }
+    if (
+      (invCountry && clientLoc === invCountry) ||
+      (invState && clientLoc === invState) ||
+      (invCity && clientLoc === invCity) ||
+      normalize(String(investor.country)) === 'global'
+    ) breakdown.location = WEIGHTS_INVESTOR.location;
   }
   score += breakdown.location;
 
-  // Amount (full if within range, else 0)
+  // Amount (within range → full, else 0)
   const desired = parseAmountToNumber(client.fundingAmount || '');
   const { min, max } = extractTicketMinMax(investor.ticket_size);
   if (desired && (min != null || max != null)) {
@@ -154,48 +132,42 @@ export function scoreIncubatorMatch(client: ClientProfile, incubator: IncubatorR
     location: 0,
   } as { sector: number; stage: number; location: number };
 
-  // Sector (full or half)
+  // Sector (exact only)
   const clientSector = normalize(client.sector);
   const incSectors = parseSectors(incubator.sectorFocus);
   if (clientSector && incSectors.length) {
-    if (incSectors.includes(clientSector)) {
-      breakdown.sector = WEIGHTS_INCUBATOR.sector;
-    } else if (incSectors.some((s) => s && (s.includes(clientSector) || clientSector.includes(s)))) {
-      breakdown.sector = Math.round(WEIGHTS_INCUBATOR.sector / 2);
-    }
+    if (incSectors.includes(clientSector)) breakdown.sector = WEIGHTS_INCUBATOR.sector;
   }
   score += breakdown.sector;
 
-  // Stage (full or half by distance)
+  // Stage (exact only)
   const clientStage = normalize(client.stage);
   const incStage = normalize(incubator.stage);
-  const stageOrder = ["pre-seed","seed","series a","series b","series c","growth","late"];
   if (clientStage && incStage) {
-    if (incStage === clientStage) {
-      breakdown.stage = WEIGHTS_INCUBATOR.stage;
-    } else {
-      const ci = stageOrder.indexOf(clientStage);
-      const ii = stageOrder.indexOf(incStage);
-      if (ci !== -1 && ii !== -1) {
-        const d = Math.abs(ci - ii);
-        if (d === 1) breakdown.stage = Math.round(WEIGHTS_INCUBATOR.stage / 2);
-      }
-    }
+    if (incStage === clientStage) breakdown.stage = WEIGHTS_INCUBATOR.stage;
   }
   score += breakdown.stage;
 
-  // Location (full for exact country/city)
+  // Location (exact country/city; treat Global as match if present on country)
   const clientLoc = normalize(client.location);
   const incCountry = normalize(incubator.country);
   const incStateCity = normalize(incubator.stateCity);
   if (clientLoc && (incCountry || incStateCity)) {
-    if (clientLoc === incCountry || clientLoc === incStateCity) {
+    if (clientLoc === incCountry || clientLoc === incStateCity || normalize(String(incubator.country)) === 'global') {
       breakdown.location = WEIGHTS_INCUBATOR.location;
     }
   }
   score += breakdown.location;
 
-  return { score, breakdown, weights: WEIGHTS_INCUBATOR };
+  // Amount (within range → full, else 0). Incubators may not have ticket_size; if absent, 0.
+  const desired = parseAmountToNumber(client.fundingAmount || '');
+  const { min, max } = extractTicketMinMax((incubator as any).ticket_size);
+  if (desired && (min != null || max != null)) {
+    const inRange = (min == null || desired >= min) && (max == null || desired <= max);
+    if (inRange) score += WEIGHTS_INCUBATOR.ticket;
+  }
+
+  return { score, breakdown: { ...breakdown, amount: 0 }, weights: WEIGHTS_INCUBATOR };
 }
 
  

@@ -200,7 +200,7 @@ export default function InvestorMatcher() {
 
       {/* AI matching removed: using rule-based matching only */}
 
-      <Card title="Rule-based Matching (Local)">
+      <Card title="Match">
         <div className="mb-4 flex gap-3 items-center">
           <span className="text-sm text-gray-600">Match with:</span>
           <Select
@@ -250,6 +250,7 @@ export default function InvestorMatcher() {
           <div className="text-center">
             <Button
               type="primary"
+              style={{ backgroundColor: '#1677ff', borderColor: '#1677ff', color: '#fff' }}
               loading={ruleLoading}
               onClick={async () => {
                 try {
@@ -277,7 +278,7 @@ export default function InvestorMatcher() {
                 }
               }}
             >
-              Rule-based Match
+              Match
             </Button>
           </div>
         </Form>
@@ -289,21 +290,6 @@ export default function InvestorMatcher() {
             columns={columns}
             pagination={{ pageSize: 10 }}
             scroll={{ x: 800 }}
-            expandable={{
-              expandedRowRender: (record) => {
-                const b = record.breakdown || {};
-                return (
-                  <div className="text-sm grid grid-cols-2 md:grid-cols-4 gap-2">
-                    <div>Sector Match: <strong>{b.sector ?? 0}</strong></div>
-                    <div>Stage Match: <strong>{b.stage ?? 0}</strong></div>
-                    <div>Location Match: <strong>{b.location ?? 0}</strong></div>
-                    {mode === 'investor' && (
-                      <div>Amount Match: <strong>{b.amount ?? 0}</strong></div>
-                    )}
-                  </div>
-                );
-              }
-            }}
           />
         )}
       </Card>

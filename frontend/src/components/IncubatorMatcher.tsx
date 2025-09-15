@@ -134,7 +134,7 @@ export default function IncubatorMatcher() {
 
       {/* AI matching removed: using rule-based matching only */}
 
-      <Card title="Rule-based Matching (Local)">
+      <Card title="Match">
         <Form form={ruleForm} layout="vertical" className="mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Form.Item name="sector" label="Sector" rules={[{ required: true }]}>
@@ -195,7 +195,7 @@ export default function IncubatorMatcher() {
                 }
               }}
             >
-              Rule-based Match
+              Match
             </Button>
           </div>
         </Form>

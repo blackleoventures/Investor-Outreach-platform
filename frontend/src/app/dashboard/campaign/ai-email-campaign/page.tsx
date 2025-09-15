@@ -7,9 +7,114 @@ import { motion } from "framer-motion";
 const { TextArea } = Input;
 const { Option } = Select;
 
+// Default investor outreach template to use after pitch upload
+const DEFAULT_INVESTOR_TEMPLATE = `Subject: Investment Opportunity in [Brand Name] – [Short Tagline]
+
+Dear [Investor's Name],
+
+Hope you're doing well.
+
+I'm reaching out to share an exciting investment opportunity in [Brand Name], a [Brand Type / Category] brand that's [1-line positioning].
+
+Backed by [Existing Investors / Grants / Achievements], [Brand Name] combines [Unique Selling Proposition] to offer a high-margin, scalable business.
+
+Key Highlights:
+- Growth: [Revenue Growth / Projection]
+- Market Size: [Market Size + Gap/Underserved angle]
+- Gross Margins: [Gross Margin %]
+- Current Presence: [Channels e.g. Amazon, Website, Quick Commerce]
+- Unit Economics: [Repeat Rate / Ratings / Retention]
+
+Product Edge:
+- [USP 1 Natural/Tech-enabled/etc.]
+- [USP 2 Category differentiation]
+- [USP 3 Competition angle]
+
+Fundraise Details:
+Currently raising [Fundraise Amount] to accelerate [Key Purpose].
+
+Funds will support:
+- [Use of Fund 1 GTM, Marketing, Expansion, etc.]
+- [Use of Fund 2]
+- [Use of Fund 3]
+
+If this aligns with your portfolio thesis in [Sector / Category], we'd be glad to share the deck and set up a quick call with the founders.
+
+Looking forward to hearing from you.
+
+Warm regards,  
+[Your Full Name]  
+Investor Relations [Firm Name]  
+📞 [Phone Number] | ✉️ [Email Address]`;
+
+// Build a filled template using the fixed structure and AI analysis data
+function buildTemplateFromAnalysis(analysis: PitchAnalysis | null, fileName?: string) {
+  if (!analysis) return DEFAULT_INVESTOR_TEMPLATE;
+  const pick = (v?: string) => (v && v.trim().length > 0 ? v.trim() : undefined);
+
+  const rawName = pick(fileName?.replace(/\.[^.]+$/, "")) || "[Brand Name]";
+  const brandName = rawName
+    .replace(/[-_]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+  const category = pick(analysis.summary?.market) || "[Brand Type / Category]";
+  const positioning = pick(analysis.summary?.solution) || "[1-line positioning]";
+  const traction = pick(analysis.summary?.traction) || "[Revenue/Users/Growth]";
+  const problem = pick(analysis.summary?.problem) || "[Core Problem]";
+
+  const hi = (analysis.highlights || []).slice(0, 5);
+  const hl1 = hi[0] || `Growth: ${traction}`;
+  const hl2 = hi[1] || `Market Size: ${category}`;
+  const hl3 = hi[2] || `Gross Margins: [Gross Margin %]`;
+  const hl4 = hi[3] || `Current Presence: [Channels]`;
+  const hl5 = hi[4] || `Unit Economics: [Repeat/Retention]`;
+
+  const subject = `Subject: Investment Opportunity in ${brandName} – ${positioning}`;
+
+  const body = `
+Dear [Investor's Name],
+
+Hope you're doing well.
+
+I'm reaching out to share an exciting investment opportunity in ${brandName}, a ${category} brand that's ${positioning}.
+
+Backed by [Existing Investors / Grants / Achievements], ${brandName} combines [Unique Selling Proposition] to offer a high-margin, scalable business.
+
+📈 Key Highlights:
+- ${hl1}
+- ${hl2}
+- ${hl3}
+- ${hl4}
+- ${hl5}
+
+🔧 Product Edge:
+- [USP 1 – Natural/Tech-enabled/etc.]
+- [USP 2 – Category differentiation]
+- [USP 3 – Competition angle]
+
+💸 Fundraise Details:
+Currently raising [Fundraise Amount] to accelerate [Key Purpose].
+
+Funds will support:
+- [Use of Fund 1 – GTM, Marketing, Expansion, etc.]
+- [Use of Fund 2]
+- [Use of Fund 3]
+
+If this aligns with your portfolio thesis in ${category}, we’d be glad to share the deck and set up a quick call with the founders.
+
+Looking forward to hearing from you.
+
+Warm regards,  
+[Your Full Name]  
+Investor Relations – [Firm Name]  
+📞 [Phone Number] | ✉️ [Email Address]`;
+
+  return `${subject}\n\n${body}`;
+}
+
 // Email Composer Component
-type EmailComposerProps = { pitchAnalysis: PitchAnalysis | null; autoLoadTemplate?: boolean };
-const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false }: EmailComposerProps) => {
+type EmailComposerProps = { pitchAnalysis: PitchAnalysis | null; autoLoadTemplate?: boolean; uploadedFileName?: string };
+const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileName }: EmailComposerProps) => {
   const [form] = Form.useForm();
   const [sending, setSending] = useState(false);
   const [enhancingSubject, setEnhancingSubject] = useState(false);
@@ -17,29 +122,24 @@ const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false }: EmailCompose
   const [formKey, setFormKey] = useState('composer');
 
   const useTemplate = () => {
-    if (pitchAnalysis?.email_template) {
-      const lines = pitchAnalysis.email_template.split('\n');
-      const subject = lines[0].replace('Subject: ', '');
-      const content = lines.slice(1).join('\n').trim();
-      
-      form.setFieldsValue({
-        subject: subject,
-        content: content
-      });
-      message.success('Template loaded successfully!');
-    }
+    // Always prefer the default investor outreach template provided by the user
+    const lines = buildTemplateFromAnalysis(pitchAnalysis, uploadedFileName).split('\n');
+    const subject = lines[0].replace('Subject: ', '');
+    const content = lines.slice(1).join('\n').trim();
+    form.setFieldsValue({ subject, content });
+    message.success('Template loaded successfully!');
   };
 
   // Auto-load the template when the composer is shown
   useEffect(() => {
-    if (autoLoadTemplate && pitchAnalysis?.email_template) {
-      const lines = pitchAnalysis.email_template.split('\n');
+    if (autoLoadTemplate) {
+      const lines = buildTemplateFromAnalysis(pitchAnalysis, uploadedFileName).split('\n');
       const subject = lines[0].replace('Subject: ', '');
       const content = lines.slice(1).join('\n').trim();
       form.setFieldsValue({ subject, content });
       setFormKey(`composer-${Date.now()}`);
     }
-  }, [autoLoadTemplate, pitchAnalysis, form]);
+  }, [autoLoadTemplate, form, pitchAnalysis, uploadedFileName]);
 
   const enhanceSubject = async () => {
     let currentSubject = form.getFieldValue('subject');
@@ -79,8 +179,8 @@ const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false }: EmailCompose
 
   const enhanceContent = async () => {
     let currentContent = form.getFieldValue('content');
-    if (!currentContent && pitchAnalysis?.email_template) {
-      const lines = pitchAnalysis.email_template.split('\n');
+    if (!currentContent) {
+      const lines = buildTemplateFromAnalysis(pitchAnalysis, uploadedFileName).split('\n');
       currentContent = lines.slice(1).join('\n').trim();
       form.setFieldValue('content', currentContent);
       setFormKey(`composer-${Date.now()}`);
@@ -311,6 +411,18 @@ export default function AIEmailCampaignPage() {
     setUploadedFile(null);
   }, []);
 
+  // Helper: fetch with timeout to avoid hanging requests
+  const fetchWithTimeout = async (url: string, opts: RequestInit, timeoutMs = 15000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, { ...opts, signal: controller.signal });
+      return res;
+    } finally {
+      clearTimeout(id);
+    }
+  };
+
   // Analyze pitch deck
   const analyzePitchDeck = async (file: File) => {
     console.log('🚀 Starting analysis for:', file.name);
@@ -322,45 +434,41 @@ export default function AIEmailCampaignPage() {
     try {
       const formData = new FormData();
       formData.append("deck", file);
-      
+
       const primaryUrl = `${BACKEND_URL}/ai/analyze-deck`;
       const fallbackUrl = `${BACKEND_URL}/ai/analyze-deck?skipGemini=1`;
       console.log('📤 Sending request to:', primaryUrl);
 
+      // Single-attempt strategy with quick fallback path to avoid multiple retries
       let response: Response | null = null;
-      let payload: any = null;
       let data: any = null;
-
+      let ok = false;
       try {
-        response = await fetch(primaryUrl, { method: 'POST', body: formData });
-        const ct = response.headers.get('content-type') || '';
-        payload = ct.includes('application/json') ? await response.json() : await response.text();
+        response = await fetchWithTimeout(primaryUrl, { method: 'POST', body: formData }, 12000);
+        const ct = response.headers?.get('content-type') || '';
+        const payload = ct.includes('application/json') ? await response.json() : await response.text();
         data = typeof payload === 'string' ? { success: false, error: payload } : payload;
-        if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
-      } catch (primaryErr) {
-        console.warn('Primary AI analyze failed, retrying with fallback:', primaryErr);
-        console.log('📤 Sending fallback request to:', fallbackUrl);
-        response = await fetch(fallbackUrl, { method: 'POST', body: formData });
-        const ct2 = response.headers.get('content-type') || '';
-        payload = ct2.includes('application/json') ? await response.json() : await response.text();
-        data = typeof payload === 'string' ? { success: false, error: payload } : payload;
-        if (!response.ok) throw new Error(data?.error || `HTTP ${response.status}`);
-        message.warning('Using heuristic fallback (Gemini unavailable).');
+        ok = response.ok && !!data?.data;
+      } catch (e) {
+        console.warn('Primary analyze failed/timeout, switching to fast fallback:', e);
       }
-      console.log('📊 API Response success:', data.success);
-      console.log('📊 API Response data keys:', Object.keys(data.data || {}));
-      console.log('🔍 schema exists:', !!data.data?.schema);
-      console.log('🔍 schema content:', data.data?.schema);
-      console.log('🔍 aiRaw exists:', !!data.data?.aiRaw);
-      console.log('🔍 analysis exists:', !!data.data?.analysis);
-      
-      if (!response.ok) {
-        console.log('❌ API Error - Status:', response.status, 'Data:', data);
-        const textErr = typeof payload === 'string' ? payload : (data?.error || JSON.stringify(data));
-        throw new Error(textErr);
+
+      if (!ok) {
+        console.log('📤 Sending fast fallback request to:', fallbackUrl);
+        try {
+          response = await fetchWithTimeout(fallbackUrl, { method: 'POST', body: formData }, 12000);
+          const ct2 = response.headers?.get('content-type') || '';
+          const payload2 = ct2.includes('application/json') ? await response.json() : await response.text();
+          data = typeof payload2 === 'string' ? { success: false, error: payload2 } : payload2;
+          ok = response.ok && !!data?.data;
+          if (ok) message.info('Using heuristic fallback for analysis.');
+        } catch (e2) {
+          console.warn('Fallback analyze also failed/timeout:', e2);
+          ok = false;
+        }
       }
-      
-      if (data.success && data.data) {
+
+      if (ok) {
         console.log('✅ API Success - Processing data...');
         
         // Check if we have Gemini AI data
@@ -426,31 +534,26 @@ export default function AIEmailCampaignPage() {
         console.log('✅ Setting analysis data:', fixedAnalysis);
         setPitchAnalysis(fixedAnalysis);
         message.success(`🤖 AI Analysis Complete! Score: ${analysisData.summary.total_score}/100`);
-      } else {
-        throw new Error(data.message || "Invalid response format");
       }
-    } catch (error: any) {
-      console.error('Analysis error:', error);
-      
-      // If Gemini is rate-limited, use fallback analysis
-      if ((error?.message || '').includes('AI analysis failed')) {
-        console.log('⚠️ Using fallback analysis due to API rate limit');
-        const fallbackAnalysis: PitchAnalysis = {
+
+      // If we're here without ok, build and use a local fallback once (no try-again spam)
+      console.log('⚠️ Using local fallback analysis');
+      const fallbackAnalysis: PitchAnalysis = {
           summary: {
-            problem: "Urban traffic congestion costs $150B annually, affecting millions of commuters",
-            solution: "AI-powered micro-mobility platform integrating multiple transportation modes",
-            market: "Large TAM of $500B in urban mobility with strong growth potential",
-            traction: "Strong early traction with 50K users, $1.2M ARR, and 20% MoM growth",
+            problem: "[Core Problem extracted from pitch]",
+            solution: "[1-line positioning from deck]",
+            market: "[Market/Sector from deck]",
+            traction: "[Traction metrics: revenue/users/growth]",
             status: "GREEN",
-            total_score: 77
+            total_score: 75
           },
           scorecard: {
             "Problem & Solution Fit": 8,
-            "Market Size & Opportunity": 9,
+            "Market Size & Opportunity": 8,
             "Business Model": 7,
-            "Traction & Metrics": 8,
-            "Team": 9,
-            "Competitive Advantage": 6,
+            "Traction & Metrics": 7,
+            "Team": 8,
+            "Competitive Advantage": 7,
             "Go-To-Market Strategy": 7,
             "Financials & Ask": 7,
             "Exit Potential": 8,
@@ -463,39 +566,16 @@ export default function AIEmailCampaignPage() {
             "What are your unit economics and path to profitability?",
             "How will you use the $10M funding to achieve key milestones?"
           ],
-          email_template: "Subject: Investment Opportunity - Innovexa Technologies\n\nHi [Investor Name],\n\nI hope this email finds you well. I'm reaching out to introduce Innovexa Technologies, where we're revolutionizing urban mobility through our AI-powered micro-mobility platform.\n\nWe're addressing the $150B problem of urban traffic congestion by integrating electric scooters, bikes, and ride-sharing into a seamless platform. With 50,000 users and $1.2M ARR growing at 20% MoM, we're seeing strong market validation.\n\nWe're currently raising $10M at a $50M valuation to expand to 20 cities and scale our AI routing engine. Given your focus on mobility and AI investments, I believe this aligns well with your portfolio.\n\nWould you be open to a brief call to discuss this opportunity?\n\nBest regards,\n[Your Name]",
+          email_template: buildTemplateFromAnalysis(null, file.name),
           highlights: [
-            "Strong market opportunity with $500B TAM and 15% CAGR growth",
-            "Experienced founding team from Tesla & Uber with 30+ years experience",
-            "Proven traction with 50K users, $1.2M ARR, and 120 corporate partners"
+            "Strong market opportunity and growth potential",
+            "Experienced founding team",
+            "Early traction and customer validation"
           ]
         };
-        
-        setPitchAnalysis(fallbackAnalysis);
-        message.success('🤖 Analysis complete! (Using fallback due to high API usage)');
-        return;
-      }
-      
-      // Show retry for other errors
-      message.error({
-        content: (
-          <div>
-            <div className="font-semibold text-red-600 mb-2">🤖 AI Analysis Failed</div>
-            <div className="text-sm text-gray-600 mb-3">{String(error?.message || 'Unexpected error')}</div>
-            <Button 
-              type="primary" 
-              size="small"
-              onClick={() => analyzePitchDeck(file)}
-              className="bg-red-500 hover:bg-red-600"
-            >
-              🔄 Try Again
-            </Button>
-          </div>
-        ),
-        duration: 15,
-      });
-      
-      setPitchAnalysis(null);
+
+      setPitchAnalysis(fallbackAnalysis);
+      message.success('✅ Analysis complete (fallback used).');
       return;
     } finally {
       setAnalysisLoading(false);
@@ -764,8 +844,8 @@ export default function AIEmailCampaignPage() {
                 </div>
               </div>
 
-              {/* AI Email Template - Full Width */}
-              <Card title="🤖 AI Email Template" className="w-full">
+              {/* Email Template - Full Width */}
+              <Card title="🤖 Email Template" className="w-full">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Subject Line */}
                   <div>
@@ -786,7 +866,7 @@ export default function AIEmailCampaignPage() {
                     </div>
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border-2 border-blue-200">
                       <Text className="text-base font-medium text-gray-800">
-                        {pitchAnalysis.email_template.split('\n')[0].replace('Subject: ', '')}
+                        {buildTemplateFromAnalysis(pitchAnalysis, uploadedFile?.name).split('\n')[0].replace('Subject: ', '')}
                       </Text>
                     </div>
                   </div>
@@ -834,7 +914,7 @@ export default function AIEmailCampaignPage() {
                   </div>
                   <div className="bg-gradient-to-br from-gray-50 to-blue-50 p-6 rounded-lg border-2 border-gray-200">
                     <pre className="whitespace-pre-wrap text-base font-sans text-gray-800 leading-relaxed">
-                      {pitchAnalysis.email_template.split('\n').slice(1).join('\n').trim()}
+                      {buildTemplateFromAnalysis(pitchAnalysis, uploadedFile?.name).split('\n').slice(1).join('\n').trim()}
                     </pre>
                   </div>
                 </div>

@@ -183,25 +183,7 @@ export default function IncubatorManagementPage() {
         </div>
       ),
     },
-    {
-      key: "2",
-      label: (
-        <span>
-          <StarOutlined />
-          Smart Matching
-        </span>
-      ),
-      children: (
-        <div className="space-y-6">
-          <Card title="Incubator Matching" className="shadow-lg">
-            <div className="mb-4">
-              <Text>Find suitable incubators using rule-based scoring.</Text>
-            </div>
-            <IncubatorMatcher />
-          </Card>
-        </div>
-      ),
-    },
+    // Removed extra nested matching layout; we will render matcher directly below
     {
       key: "3",
       label: (
@@ -252,9 +234,11 @@ export default function IncubatorManagementPage() {
         <Text className="text-lg text-gray-600">Incubator database, AI matching, and discovery tools</Text>
       </div>
 
-      <Card className="shadow-xl">
-        <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} size="large" type="card" />
-      </Card>
+      <div className="space-y-6">
+        <div className="mb-6">
+          <IncubatorMatcher />
+        </div>
+      </div>
     </div>
   );
 }

@@ -130,7 +130,7 @@ export default function DashboardLayout({
     {
       key: "/dashboard/investor-management",
       icon: <SearchOutlined style={{ fontSize: "16px" }} />,
-      ...navItem("/dashboard/investor-management", "Smart Investor Matching"),
+      ...navItem("/dashboard/investor-management", "Match Making"),
     },
     {
       key: "investor-management",
