@@ -135,7 +135,7 @@ const Campaigns = () => {
           <Button
             type="primary"
             icon={<PlusOutlined />}
-            onClick={() => router.push("/dashboard/campaign/email-form")}
+            onClick={() => router.push("/dashboard/campaign/ai-email-campaign")}
             style={{ backgroundColor: "#ac6a1e" }}
           >
             Create Campaign

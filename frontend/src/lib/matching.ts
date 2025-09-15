@@ -25,7 +25,7 @@ export type IncubatorRecord = Record<string, any> & {
   ticket_size?: any;
 };
 
-// Rule weights: +25 each criterion
+// Rule weights: +25 each criterion  
 const WEIGHTS_INVESTOR = { sector: 25, stage: 25, location: 25, ticket: 25 } as const;
 const WEIGHTS_INCUBATOR = { sector: 25, stage: 25, location: 25, ticket: 25 } as const;
 
@@ -130,7 +130,8 @@ export function scoreIncubatorMatch(client: ClientProfile, incubator: IncubatorR
     sector: 0,
     stage: 0,
     location: 0,
-  } as { sector: number; stage: number; location: number };
+    amount: 0,
+  } as { sector: number; stage: number; location: number; amount: number };
 
   // Sector (exact only)
   const clientSector = normalize(client.sector);
@@ -164,10 +165,11 @@ export function scoreIncubatorMatch(client: ClientProfile, incubator: IncubatorR
   const { min, max } = extractTicketMinMax((incubator as any).ticket_size);
   if (desired && (min != null || max != null)) {
     const inRange = (min == null || desired >= min) && (max == null || desired <= max);
-    if (inRange) score += WEIGHTS_INCUBATOR.ticket;
+    if (inRange) breakdown.amount = WEIGHTS_INCUBATOR.ticket;
   }
+  score += breakdown.amount;
 
-  return { score, breakdown: { ...breakdown, amount: 0 }, weights: WEIGHTS_INCUBATOR };
+  return { score, breakdown, weights: WEIGHTS_INCUBATOR };
 }
 
  

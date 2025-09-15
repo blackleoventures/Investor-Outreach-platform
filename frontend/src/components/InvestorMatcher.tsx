@@ -148,20 +148,21 @@ export default function InvestorMatcher() {
             title: "Incubator",
             key: "incubator",
             render: (record: any) => (
-              <div>
-                <div className="font-semibold">{record.incubatorName || record.name}</div>
-                <div className="text-sm text-gray-600">{record.sectorFocus || record.focus}</div>
-              </div>
+              <span className="font-semibold">{record.incubatorName || record.name}</span>
             ),
           },
           {
             title: "Partner",
             key: "partner",
             render: (record: any) => (
-              <div>
-                <div className="font-medium">{record.partnerName}</div>
-                <div className="text-sm text-gray-600">{record.partnerEmail}</div>
-              </div>
+              <div className="font-medium">{record.partnerName}</div>
+            ),
+          },
+          {
+            title: "Partner Email",
+            key: "partnerEmail",
+            render: (record: any) => (
+              <span className="text-sm text-gray-700">{record.partnerEmail || '—'}</span>
             ),
           },
           {
@@ -259,20 +260,26 @@ export default function InvestorMatcher() {
                   const url = mode === 'investor'
                     ? `${BACKEND_URL}/api/investors?limit=100000&page=1`
                     : `${BACKEND_URL}/api/incubators`;
+                  console.log('Fetching from:', url);
                   const res = await fetch(url, { cache: 'no-store' });
                   const json = await res.json().catch(() => ({} as any));
+                  console.log('API Response:', json);
                   const docs = json.docs || json.data || [];
+                  console.log('Docs found:', docs.length);
                   const scored = docs.map((row: any) => {
-                    const { score } = mode === 'investor'
+                    const result = mode === 'investor'
                       ? scoreInvestorMatch(values as ClientProfile, row)
                       : scoreIncubatorMatch(values as ClientProfile, row);
-                    return { ...row, matchScore: score };
+                    return { ...row, matchScore: result.score };
                   });
+                  // Show ALL results including 0 scores, sorted by score descending
                   scored.sort((a: any, b: any) => (b.matchScore || 0) - (a.matchScore || 0));
                   setRuleResults(scored);
+                  console.log('Final scored results:', scored.length);
                   message.success(`Computed ${scored.length} ${mode === 'investor' ? 'investor' : 'incubator'} matches`);
                 } catch (e) {
-                  // validation or fetch error already surfaced
+                  console.error('Match error:', e);
+                  message.error('Failed to fetch data');
                 } finally {
                   setRuleLoading(false);
                 }
