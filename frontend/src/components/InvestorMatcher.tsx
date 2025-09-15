@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Card, Input, Button, Table, Select, Form, message, Progress, Tag, Tooltip, Space } from "antd";
-import { SearchOutlined, RobotOutlined, UserOutlined, MailOutlined } from "@ant-design/icons";
+import { Card, Button, Table, Select, Form, message, Tag } from "antd";
+import { scoreInvestorMatch, scoreIncubatorMatch, type ClientProfile } from "@/lib/matching";
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL as string) || "/api";
  
@@ -16,23 +16,15 @@ interface CompanyProfile {
 }
 
 export default function InvestorMatcher() {
-  const [companyId, setCompanyId] = useState("");
   const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [aiMatching, setAiMatching] = useState(false);
   const [form] = Form.useForm();
+  const [ruleForm] = Form.useForm<ClientProfile>();
+  const [ruleLoading, setRuleLoading] = useState(false);
+  const [ruleResults, setRuleResults] = useState<any[]>([]);
+  const [mode, setMode] = useState<'investor' | 'incubator'>("investor");
 
-  const fetchMatches = async () => {
-    if (!companyId) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`${BACKEND_URL}/match/${companyId}/scored`, { cache: "no-store" });
-      const json = await res.json();
-      setData(json || []);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // removed legacy fetchMatches and companyId
 
   const aiMatchInvestors = async () => {
     const values = await form.validateFields();
@@ -72,77 +64,156 @@ export default function InvestorMatcher() {
     }
   };
 
-  const columns = [
-    {
-      title: "Match Score",
-      dataIndex: "matchScore",
-      key: "matchScore",
-      width: 120,
-      render: (score: number) => (
-        <Progress 
-          type="circle" 
-          percent={score || 0} 
-          size={40}
-          strokeColor={score >= 70 ? "#52c41a" : score >= 50 ? "#faad14" : "#ff4d4f"}
-        />
-      ),
-      sorter: (a: any, b: any) => (b.matchScore || b.score || 0) - (a.matchScore || a.score || 0),
-    },
-    {
-      title: "Investor",
-      key: "investor",
-      render: (record: any) => (
-        <div>
-          <div className="font-semibold">{record.investor_name || record.firm_name}</div>
-          <div className="text-sm text-gray-600">{record.fund_type}</div>
-        </div>
-      ),
-    },
-    {
-      title: "Partner",
-      key: "partner",
-      render: (record: any) => (
-        <div>
-          <div className="font-medium">{record.partner_name}</div>
-          <div className="text-sm text-gray-600">{record.partner_email}</div>
-        </div>
-      ),
-    },
-    {
-      title: "Focus",
-      dataIndex: "sector_focus",
-      key: "sector_focus",
-      render: (sectors: string[]) => (
-        <div>
-          {(sectors || []).slice(0, 2).map((sector, index) => (
-            <Tag key={index}>{sector}</Tag>
-          ))}
-        </div>
-      ),
-    },
-    {
-      title: "Can Contact",
-      dataIndex: "canContact",
-      key: "canContact",
-      render: (canContact: boolean) => (
-        <Tag color={canContact ? "green" : "red"}>
-          {canContact ? "Yes" : "No"}
-        </Tag>
-      ),
-    },
-  ];
+  const columns = (
+    mode === 'investor'
+      ? [
+          {
+            title: "Sr. No.",
+            key: "serial",
+            width: 70,
+            align: "center" as const,
+            render: (_: any, __: any, index: number) => index + 1,
+          },
+          {
+            title: "Investor",
+            key: "investor",
+            render: (record: any) => (
+              <span className="font-semibold">{record.investor_name || record.firm_name}</span>
+            ),
+          },
+          {
+            title: "Partner",
+            key: "partner",
+            render: (record: any) => (
+              <div className="font-medium">{record.partner_name}</div>
+            ),
+          },
+          {
+            title: "Partner Email",
+            key: "partnerEmail",
+            render: (record: any) => (
+              <span className="text-sm text-gray-700">{record.partner_email || '—'}</span>
+            ),
+          },
+          {
+            title: "Focus",
+            key: "focus",
+            render: (record: any) => {
+              const rawPrimary = record.sector_focus ?? record.sectorFocus ?? record.focus ?? record.fund_focus ?? record.sectors;
+              let list = Array.isArray(rawPrimary)
+                ? rawPrimary
+                : typeof rawPrimary === "string"
+                ? rawPrimary.split(/[,;\/]+/).map((s) => s.trim()).filter(Boolean)
+                : [];
+              // Fallbacks if sector focus missing
+              if (!list.length) {
+                const fallback = record.fund_type ?? record.fundType ?? record.fund_category ?? record.vertical;
+                if (fallback && typeof fallback === 'string') {
+                  list = fallback.split(/[,;\/]+/).map((s: string) => s.trim()).filter(Boolean);
+                }
+              }
+              if (!list.length) {
+                const stage = record.fund_stage ?? record.stage;
+                if (stage && typeof stage === 'string') {
+                  list = [stage];
+                }
+              }
+              if (!list.length) return <span className="text-gray-400">—</span>;
+              return (
+                <div>
+                  {list.slice(0, 2).map((sector: string, index: number) => (
+                    <Tag key={index}>{sector}</Tag>
+                  ))}
+                </div>
+              );
+            },
+          },
+          {
+            title: "Score",
+            key: "score",
+            width: 100,
+            render: (record: any) => Math.round(record.matchScore ?? record.score ?? 0),
+            sorter: (a: any, b: any) => (Math.round(a.matchScore ?? a.score ?? 0)) - (Math.round(b.matchScore ?? b.score ?? 0)),
+          },
+        ]
+      : [
+          {
+            title: "Sr. No.",
+            key: "serial",
+            width: 70,
+            align: "center" as const,
+            render: (_: any, __: any, index: number) => index + 1,
+          },
+          {
+            title: "Incubator",
+            key: "incubator",
+            render: (record: any) => (
+              <div>
+                <div className="font-semibold">{record.incubatorName || record.name}</div>
+                <div className="text-sm text-gray-600">{record.sectorFocus || record.focus}</div>
+              </div>
+            ),
+          },
+          {
+            title: "Partner",
+            key: "partner",
+            render: (record: any) => (
+              <div>
+                <div className="font-medium">{record.partnerName}</div>
+                <div className="text-sm text-gray-600">{record.partnerEmail}</div>
+              </div>
+            ),
+          },
+          {
+            title: "Focus",
+            key: "focus",
+            render: (record: any) => {
+              const raw = record.sectorFocus ?? record.sector_focus ?? record.focus ?? record.sectors;
+              const list = Array.isArray(raw)
+                ? raw
+                : typeof raw === "string"
+                ? raw.split(/[,;]+/).map((s) => s.trim()).filter(Boolean)
+                : [];
+              if (!list.length) return <span className="text-gray-400">—</span>;
+              return (
+                <div>
+                  {list.slice(0, 2).map((sector: string, index: number) => (
+                    <Tag key={index}>{sector}</Tag>
+                  ))}
+                </div>
+              );
+            },
+          },
+          {
+            title: "Score",
+            key: "score",
+            width: 100,
+            render: (record: any) => Math.round(record.matchScore ?? record.score ?? 0),
+            sorter: (a: any, b: any) => (Math.round(a.matchScore ?? a.score ?? 0)) - (Math.round(b.matchScore ?? b.score ?? 0)),
+          },
+        ]
+  );
 
   return (
     <div className="space-y-6">
-      <Card title="Legacy Matching" size="small">
-        <div className="flex items-center gap-2 mb-3">
-          <Input placeholder="Company ID" value={companyId} onChange={(e: any) => setCompanyId(e.target.value)} />
-          <Button onClick={fetchMatches} loading={loading}>Match</Button>
-        </div>
-      </Card>
+      {/* Legacy Matching removed */}
 
-      <Card title="AI-Powered Matching">
-        <Form form={form} layout="vertical" className="mb-4" onValuesChange={handleValuesChange}>
+      {/* AI matching removed: using rule-based matching only */}
+
+      <Card title="Rule-based Matching (Local)">
+        <div className="mb-4 flex gap-3 items-center">
+          <span className="text-sm text-gray-600">Match with:</span>
+          <Select
+            value={mode}
+            onChange={(v) => setMode(v)}
+            options={[
+              { value: 'investor', label: 'Investors' },
+              { value: 'incubator', label: 'Incubators' },
+            ]}
+            style={{ width: 180 }}
+          />
+        </div>
+        <Form form={ruleForm} layout="vertical" className="mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Form.Item name="sector" label="Sector" rules={[{ required: true }]}>
               <Select placeholder="Select sector" options={[
@@ -155,27 +226,86 @@ export default function InvestorMatcher() {
             <Form.Item name="stage" label="Stage" rules={[{ required: true }]}>
               <Select placeholder="Select stage" options={[
                 { value: 'seed', label: 'Seed' },
-                { value: 'series-a', label: 'Series A' },
-                { value: 'series-b', label: 'Series B' }
+                { value: 'series a', label: 'Series A' },
+                { value: 'series b', label: 'Series B' }
               ]} />
             </Form.Item>
             <Form.Item name="location" label="Location" rules={[{ required: true }]}>
               <Select placeholder="Location" options={[
                 { value: 'us', label: 'US' },
-                { value: 'eu', label: 'Europe' },
-                { value: 'asia', label: 'Asia' }
+                { value: 'europe', label: 'Europe' },
+                { value: 'asia', label: 'Asia' },
+                { value: 'india', label: 'India' },
+                { value: 'global', label: 'Global' },
               ]} />
             </Form.Item>
             <Form.Item name="fundingAmount" label="Amount" rules={[{ required: true }]}>
               <Select placeholder="Amount" options={[
+                { value: '200k', label: '$200K' },
                 { value: '500k', label: '$500K' },
-                { value: '1m', label: '$1M' },
-                { value: '5m', label: '$5M' }
+                { value: '1m', label: '$1M' }
               ]} />
             </Form.Item>
           </div>
-          {/* Removed explicit AI Match button; auto-run on field change */}
+          <div className="text-center">
+            <Button
+              type="primary"
+              loading={ruleLoading}
+              onClick={async () => {
+                try {
+                  const values = await ruleForm.validateFields();
+                  setRuleLoading(true);
+                  const url = mode === 'investor'
+                    ? `${BACKEND_URL}/api/investors?limit=100000&page=1`
+                    : `${BACKEND_URL}/api/incubators`;
+                  const res = await fetch(url, { cache: 'no-store' });
+                  const json = await res.json().catch(() => ({} as any));
+                  const docs = json.docs || json.data || [];
+                  const scored = docs.map((row: any) => {
+                    const { score } = mode === 'investor'
+                      ? scoreInvestorMatch(values as ClientProfile, row)
+                      : scoreIncubatorMatch(values as ClientProfile, row);
+                    return { ...row, matchScore: score };
+                  });
+                  scored.sort((a: any, b: any) => (b.matchScore || 0) - (a.matchScore || 0));
+                  setRuleResults(scored);
+                  message.success(`Computed ${scored.length} ${mode === 'investor' ? 'investor' : 'incubator'} matches`);
+                } catch (e) {
+                  // validation or fetch error already surfaced
+                } finally {
+                  setRuleLoading(false);
+                }
+              }}
+            >
+              Rule-based Match
+            </Button>
+          </div>
         </Form>
+
+        {ruleResults.length > 0 && (
+          <Table
+            rowKey={(r: any, index) => String(index ?? 0)}
+            dataSource={ruleResults}
+            columns={columns}
+            pagination={{ pageSize: 10 }}
+            scroll={{ x: 800 }}
+            expandable={{
+              expandedRowRender: (record) => {
+                const b = record.breakdown || {};
+                return (
+                  <div className="text-sm grid grid-cols-2 md:grid-cols-4 gap-2">
+                    <div>Sector Match: <strong>{b.sector ?? 0}</strong></div>
+                    <div>Stage Match: <strong>{b.stage ?? 0}</strong></div>
+                    <div>Location Match: <strong>{b.location ?? 0}</strong></div>
+                    {mode === 'investor' && (
+                      <div>Amount Match: <strong>{b.amount ?? 0}</strong></div>
+                    )}
+                  </div>
+                );
+              }
+            }}
+          />
+        )}
       </Card>
 
       {data.length > 0 && (

@@ -3,13 +3,12 @@
 import { useEffect, useState } from "react";
 import { Card, Tabs, Typography, Button, Input, Table, Tag, Badge, Space } from "antd";
 import { TeamOutlined, SearchOutlined, StarOutlined, EyeOutlined, MailOutlined, PlusOutlined, FilterOutlined } from "@ant-design/icons";
-import dynamic from "next/dynamic";
+import IncubatorMatcher from "../../../components/IncubatorMatcher";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 
-// Lazy-load matcher
-const IncubatorMatcher = dynamic(() => import("@/components/IncubatorMatcher"), { ssr: false });
+// Using direct import to avoid dynamic import factory issues
 
 export default function IncubatorManagementPage() {
   const [activeTab, setActiveTab] = useState("1");
@@ -194,11 +193,9 @@ export default function IncubatorManagementPage() {
       ),
       children: (
         <div className="space-y-6">
-          <Card title="🤖 AI-Powered Incubator Matching" className="shadow-lg">
+          <Card title="Incubator Matching" className="shadow-lg">
             <div className="mb-4">
-              <Text>
-                Use AI to find the best incubators based on sector, stage, and geography.
-              </Text>
+              <Text>Find suitable incubators using rule-based scoring.</Text>
             </div>
             <IncubatorMatcher />
           </Card>

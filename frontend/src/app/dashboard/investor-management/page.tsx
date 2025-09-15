@@ -3,13 +3,13 @@
 import { useState, useEffect } from "react";
 import { Card, Tabs, Typography, Button, Input, Table, Tag, Badge, Space, message, Spin } from "antd";
 import { UserOutlined, SearchOutlined, FilterOutlined, StarOutlined, MailOutlined, EyeOutlined, PlusOutlined } from "@ant-design/icons";
-import dynamic from "next/dynamic";
+import InvestorMatcher from "../../../components/InvestorMatcher";
+import { scoreInvestorMatch, scoreIncubatorMatch } from "@/lib/matching";
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 
-// Dynamic imports for better performance
-const InvestorMatcher = dynamic(() => import("@/components/InvestorMatcher"), { ssr: false });
+// Using direct import to avoid dynamic import factory issues
 
 
 type InvestorRow = {
@@ -181,6 +181,98 @@ export default function InvestorManagementPage() {
     },
   ];
 
+  const BestMatchesOverview = () => {
+    const [loadingBM, setLoadingBM] = useState(false);
+    const [rows, setRows] = useState<any[]>([]);
+
+    const loadData = async () => {
+      setLoadingBM(true);
+      try {
+        // Fetch clients, investors, incubators
+        const [cRes, iRes, incRes] = await Promise.all([
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/clients?limit=100000&page=1`, { cache: 'no-store' }).catch(() => null),
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/investors?limit=100000&page=1`, { cache: 'no-store' }).catch(() => null),
+          fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/incubators`, { cache: 'no-store' }).catch(() => null),
+        ]);
+
+        const clientsJson = await (cRes ? cRes.json().catch(() => ({} as any)) : ({} as any));
+        const investorsJson = await (iRes ? iRes.json().catch(() => ({} as any)) : ({} as any));
+        const incubatorsJson = await (incRes ? incRes.json().catch(() => ({} as any)) : ({} as any));
+
+        const clients: any[] = clientsJson.docs || clientsJson.data || [
+          { companyName: 'TechStartup Inc', stage: 'seed', sector: 'fintech', location: 'us', fundingAmount: '500k' },
+          { companyName: 'FinTech Solutions', stage: 'series a', sector: 'fintech', location: 'india', fundingAmount: '700k' },
+        ];
+        const investorsArr: any[] = investorsJson.docs || investorsJson.data || [];
+        const incubatorsArr: any[] = incubatorsJson.docs || incubatorsJson.data || [];
+
+        const computed = clients.map((client) => {
+          const scoredInvestors = investorsArr.map((inv) => ({
+            item: inv,
+            score: scoreInvestorMatch({
+              companyName: client.companyName,
+              stage: client.stage,
+              sector: client.sector,
+              location: client.location,
+              fundingAmount: client.fundingAmount,
+            }, inv).score,
+          })).sort((a, b) => b.score - a.score);
+          const bestInv = scoredInvestors[0]?.item;
+          const bestInvScore = scoredInvestors[0]?.score || 0;
+
+          const scoredIncubators = incubatorsArr.map((inc) => ({
+            item: inc,
+            score: scoreIncubatorMatch({
+              companyName: client.companyName,
+              stage: client.stage,
+              sector: client.sector,
+              location: client.location,
+              fundingAmount: client.fundingAmount,
+            }, inc).score,
+          })).sort((a, b) => b.score - a.score);
+          const bestInc = scoredIncubators[0]?.item;
+          const bestIncScore = scoredIncubators[0]?.score || 0;
+
+          return {
+            client: client.companyName || client.name || 'Client',
+            bestInvestor: bestInv?.investor_name || bestInv?.firm_name || bestInv?.name || '—',
+            investorScore: bestInvScore,
+            bestIncubator: bestInc?.incubatorName || bestInc?.name || '—',
+            incubatorScore: bestIncScore,
+          };
+        });
+
+        setRows(computed);
+      } catch (e) {
+        message.error('Failed to compute best matches');
+      } finally {
+        setLoadingBM(false);
+      }
+    };
+
+    useEffect(() => {
+      loadData();
+    }, []);
+
+    return (
+      <Card title="Best Matches Overview">
+        <Table
+          loading={loadingBM}
+          dataSource={rows}
+          rowKey={(r, idx) => String(idx)}
+          columns={[
+            { title: 'Client', dataIndex: 'client', key: 'client' },
+            { title: 'Best Match Investor', dataIndex: 'bestInvestor', key: 'bestInvestor' },
+            { title: 'Score', dataIndex: 'investorScore', key: 'investorScore', width: 100 },
+            { title: 'Best Match Incubator', dataIndex: 'bestIncubator', key: 'bestIncubator' },
+            { title: 'Score', dataIndex: 'incubatorScore', key: 'incubatorScore', width: 100 },
+          ]}
+          pagination={{ pageSize: 10 }}
+        />
+      </Card>
+    );
+  };
+
   const tabItems = [
     {
       key: "1",
@@ -192,17 +284,22 @@ export default function InvestorManagementPage() {
       ),
       children: (
         <div className="space-y-6">
-          <Card title="🤖 AI-Powered Investor Matching" className="shadow-lg">
-            <div className="mb-4">
-              <Text>
-                Use our AI matching algorithm to find the best investors for your startup based on sector, 
-                stage, check size, and other criteria.
-              </Text>
-            </div>
+          <Card title="Investor Matching" className="shadow-lg">
+            <div className="mb-2" />
             <InvestorMatcher />
           </Card>
         </div>
       ),
+    },
+    {
+      key: "2",
+      label: (
+        <span>
+          <UserOutlined />
+          Best Matches
+        </span>
+      ),
+      children: <BestMatchesOverview />,
     },
   ];
 

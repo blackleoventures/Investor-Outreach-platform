@@ -123,9 +123,9 @@ export default function AddIncubatorPage() {
 
       if (response.ok) {
         message.success('Incubator added successfully');
-        form.resetFields();
+      form.resetFields();
         setShowManualForm(false);
-        router.push('/dashboard/all-incubators');
+      router.push('/dashboard/all-incubators');
       } else {
         const err = await response.json().catch(() => ({} as any));
         message.error(err.error || 'Failed to add incubator');
