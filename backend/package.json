@@ -9,7 +9,9 @@
     "build": "echo 'No build step required'",
     "vercel-build": "echo 'Building for Vercel'",
     "test:upload": "node src/scripts/test-upload.js",
-    "test:gemini": "node src/scripts/test-gemini.js"
+    "test:gemini": "node src/scripts/test-gemini.js",
+    "test:send": "node src/scripts/test-send-email.js",
+    "test:investors": "node src/scripts/test-investors.js"
   },
   "keywords": [],
   "author": "",

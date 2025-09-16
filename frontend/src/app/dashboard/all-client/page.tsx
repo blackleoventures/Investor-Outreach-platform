@@ -2,12 +2,12 @@
 "use client";
 
 import { CheckCircleOutlined, CloseCircleOutlined, DeleteOutlined, EditOutlined, EyeOutlined, InboxOutlined, PlusOutlined, SearchOutlined, UploadOutlined } from "@ant-design/icons";
-import { Button, Card, Descriptions, Input, message, Modal, Popconfirm, Popover, Space, Table, Tag, Tooltip, Typography } from "antd";
+import { Button, Card, Descriptions, Input, message, Modal, Popconfirm, Popover, Space, Table, Tag, Tooltip, Typography, Form, Select } from "antd";
 import { ChevronDown, Settings } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL as string;
+import { getApiBase } from "@/lib/api";
 // Lazy-load axios to reduce initial bundle size
 let lazyAxios: typeof import("axios") | null = null;
 
@@ -18,11 +18,13 @@ const columnOptions = [
     key: "companyName",
     label: "Company Name",
     default: true,
+    permanent: true,
     render: (_, record) => <Text>{record.company_name || "N/A"}</Text>,
   },
   {
     key: "founderName",
     label: "Founder Name",
+    permanent: true,
     render: (_, record) => (
       <Text>{`${record.first_name || ""} ${record.last_name || ""}`}</Text>
     ),
@@ -31,11 +33,13 @@ const columnOptions = [
     key: "companyEmail",
     label: "Company Email",
     default: true,
+    permanent: true,
     render: (_, record) => <Text>{record.email || "N/A"}</Text>,
   },
   {
     key: "contact",
     label: "Contact",
+    permanent: true,
     render: (_, record) => <Text>{record.phone || "N/A"}</Text>,
   },
   {
@@ -60,6 +64,7 @@ const columnOptions = [
     key: "fund_stage",
     label: "Fund Stage",
     default: true,
+    permanent: true,
     render: (_, record) => (
       <Tag color="purple">{record.fund_stage || "N/A"}</Tag>
     ),
@@ -68,16 +73,19 @@ const columnOptions = [
     key: "revenue",
     label: "Revenue",
     default: true,
+    permanent: true,
     render: (_, record) => <Text>{record.revenue || 0}</Text>,
   },
   {
     key: "investmentAsk",
     label: "Investment Ask",
+    permanent: true,
     render: (_, record) => <Text>{record.investment_ask || 0}</Text>,
   },
   {
     key: "sector",
     label: "Sector",
+    permanent: true,
     render: (_, record) => <Tag color="blue">{record.industry || "N/A"}</Tag>,
   },
   {
@@ -109,12 +117,14 @@ const ClientsData = () => {
   const { token } = useAuth();
   const router = useRouter();
   const [clients, setClients] = useState([]);
+  const [apiBase, setApiBase] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [selectedClient, setSelectedClient] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [searchEmail, setSearchEmail] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editForm] = Form.useForm();
   const [visibleColumns, setVisibleColumns] = useState(
     Object.fromEntries(
       columnOptions.map((option) => [
@@ -126,8 +136,20 @@ const ClientsData = () => {
   const [popoverVisible, setPopoverVisible] = useState(false);
 
   useEffect(() => {
-    loadClients();
+    (async () => {
+      const base = await getApiBase();
+      setApiBase(base);
+      await loadClients();
+    })();
   }, [showAll]);
+
+  // Debounced search: filter by email/company/contact as user types
+  useEffect(() => {
+    const t = setTimeout(() => {
+      loadClients(searchEmail);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchEmail]);
 
   const loadClients = async (email = "") => {
     setLoading(true);
@@ -135,10 +157,16 @@ const ClientsData = () => {
       if (!lazyAxios) {
         lazyAxios = await import("axios");
       }
-      const filter = showAll ? "all" : "archived";
-      const baseUrl = `${BACKEND_URL}/clients?filter=${filter}`;
+      const filter = showAll ? "all" : "active";
+      const base = apiBase || (await getApiBase());
+      const baseUrl = `${base}/api/clients?filter=${filter}`;
 
-      const url = email ? `${baseUrl}&email=${email}` : baseUrl;
+      let url = baseUrl;
+      if (email && email.trim()) {
+        const q = encodeURIComponent(email.trim());
+        // backend supports email query; for company/phone we will filter client-side after fetch
+        url = `${baseUrl}&email=${q}`;
+      }
 
       const response = await lazyAxios.default.get(url, {
         headers: {
@@ -146,195 +174,24 @@ const ClientsData = () => {
         },
       });
 
-      setClients(
-        Array.isArray(response?.data?.clients) ? response.data.clients : []
-      );
+      const serverClients = Array.isArray(response?.data?.clients) ? response.data.clients : [];
+      let filtered = serverClients;
+      if (email && email.trim()) {
+        const q = email.trim().toLowerCase();
+        filtered = serverClients.filter((c) => {
+          const emailStr = (c.email || "").toLowerCase();
+          const companyStr = (c.company_name || "").toLowerCase();
+          const phoneStr = (c.phone || "").toLowerCase();
+          return (
+            emailStr.includes(q) || companyStr.includes(q) || phoneStr.includes(q)
+          );
+        });
+      }
+      setClients(filtered);
     } catch (error) {
       console.error("Error fetching clients:", error);
-      // Demo data fallback
-      const demoClients = [
-        {
-          _id: "1",
-          first_name: "John",
-          last_name: "Smith",
-          email: "john@techstartup.com",
-          phone: "+1-555-0101",
-          company_name: "TechStartup Inc",
-          position: "CEO",
-          industry: "Technology",
-          employees: "50-100",
-          website: "techstartup.com",
-          revenue: "$2M",
-          investment_ask: "$5M",
-          fund_stage: "Series A",
-          email_verified: true,
-          archive: false,
-          createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          _id: "2",
-          first_name: "Sarah",
-          last_name: "Johnson",
-          email: "sarah@fintechco.com",
-          phone: "+1-555-0102",
-          company_name: "FinTech Solutions",
-          position: "Founder",
-          industry: "Fintech",
-          employees: "10-25",
-          website: "fintechsolutions.com",
-          revenue: "$500K",
-          investment_ask: "$2M",
-          fund_stage: "Seed",
-          email_verified: true,
-          archive: false,
-          createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          _id: "3",
-          first_name: "Michael",
-          last_name: "Chen",
-          email: "michael@healthtech.com",
-          phone: "+1-555-0103",
-          company_name: "HealthTech Innovations",
-          position: "CTO",
-          industry: "Healthcare",
-          employees: "25-50",
-          website: "healthtech.com",
-          revenue: "$1.5M",
-          investment_ask: "$3M",
-          fund_stage: "Series A",
-          email_verified: false,
-          archive: false,
-          createdAt: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          _id: "4",
-          first_name: "Emily",
-          last_name: "Davis",
-          email: "emily@ecommerce.com",
-          phone: "+1-555-0104",
-          company_name: "E-Commerce Plus",
-          position: "CEO",
-          industry: "E-commerce",
-          employees: "100-250",
-          website: "ecommerceplus.com",
-          revenue: "$5M",
-          investment_ask: "$10M",
-          fund_stage: "Series B",
-          email_verified: true,
-          archive: false,
-          createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          _id: "5",
-          first_name: "David",
-          last_name: "Wilson",
-          email: "david@aicompany.com",
-          phone: "+1-555-0105",
-          company_name: "AI Solutions Ltd",
-          position: "Founder",
-          industry: "AI/ML",
-          employees: "5-10",
-          website: "aisolutions.com",
-          revenue: "$200K",
-          investment_ask: "$1M",
-          fund_stage: "Seed",
-          email_verified: true,
-          archive: false,
-          createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          _id: "6",
-          first_name: "Lisa",
-          last_name: "Brown",
-          email: "lisa@cleantech.com",
-          phone: "+1-555-0106",
-          company_name: "CleanTech Energy",
-          position: "CEO",
-          industry: "CleanTech",
-          employees: "75-100",
-          website: "cleantech.com",
-          revenue: "$3M",
-          investment_ask: "$7M",
-          fund_stage: "Series A",
-          email_verified: true,
-          archive: false,
-          createdAt: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          _id: "7",
-          first_name: "Robert",
-          last_name: "Taylor",
-          email: "robert@saasplatform.com",
-          phone: "+1-555-0107",
-          company_name: "SaaS Platform Co",
-          position: "CTO",
-          industry: "SaaS",
-          employees: "30-50",
-          website: "saasplatform.com",
-          revenue: "$1M",
-          investment_ask: "$4M",
-          fund_stage: "Series A",
-          email_verified: false,
-          archive: false,
-          createdAt: new Date(Date.now() - 35 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          _id: "8",
-          first_name: "Jennifer",
-          last_name: "Martinez",
-          email: "jennifer@edtech.com",
-          phone: "+1-555-0108",
-          company_name: "EdTech Solutions",
-          position: "Founder",
-          industry: "Education",
-          employees: "15-25",
-          website: "edtechsolutions.com",
-          revenue: "$800K",
-          investment_ask: "$2.5M",
-          fund_stage: "Seed",
-          email_verified: true,
-          archive: false,
-          createdAt: new Date(Date.now() - 25 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          _id: "9",
-          first_name: "James",
-          last_name: "Anderson",
-          email: "james@mobility.com",
-          phone: "+1-555-0109",
-          company_name: "Mobility Tech",
-          position: "CEO",
-          industry: "Transportation",
-          employees: "60-75",
-          website: "mobilitytech.com",
-          revenue: "$2.5M",
-          investment_ask: "$6M",
-          fund_stage: "Series A",
-          email_verified: true,
-          archive: false,
-          createdAt: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString()
-        },
-        {
-          _id: "10",
-          first_name: "Amanda",
-          last_name: "Garcia",
-          email: "amanda@foodtech.com",
-          phone: "+1-555-0110",
-          company_name: "FoodTech Innovations",
-          position: "Founder",
-          industry: "Food & Beverage",
-          employees: "20-30",
-          website: "foodtech.com",
-          revenue: "$1.2M",
-          investment_ask: "$3.5M",
-          fund_stage: "Series A",
-          email_verified: false,
-          archive: false,
-          createdAt: new Date(Date.now() - 50 * 24 * 60 * 60 * 1000).toISOString()
-        }
-      ];
-      setClients(demoClients);
+      message.error("Failed to load clients. Please check if backend server is running.");
+      setClients([]);
     } finally {
       setLoading(false);
     }
@@ -345,13 +202,14 @@ const ClientsData = () => {
       if (!lazyAxios) {
         lazyAxios = await import("axios");
       }
-      await lazyAxios.default.delete(`${BACKEND_URL}/clients/${id}`, {
+      const base = apiBase || (await getApiBase());
+      await lazyAxios.default.delete(`${base}/api/clients/${id}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
       message.success("Client deleted successfully.");
-      setClients(clients.filter((client) => client._id !== id));
+      setClients((prev) => prev.filter((client) => client.id !== id && client._id !== id));
     } catch (error) {
       console.error("Delete error:", error);
       // Silently handle delete errors
@@ -368,6 +226,19 @@ const ClientsData = () => {
     setSelectedClient(client);
     setModalVisible(false);
     setEditModalVisible(true);
+    // seed form
+    editForm.setFieldsValue({
+      first_name: client.first_name || "",
+      last_name: client.last_name || "",
+      email: client.email || "",
+      phone: client.phone || "",
+      company_name: client.company_name || "",
+      industry: client.industry || "",
+      fund_stage: client.fund_stage || "",
+      revenue: client.revenue || "",
+      investment_ask: client.investment_ask || "",
+      archive: !!client.archive,
+    });
   };
 
   const handleUnArchive = async (id) => {
@@ -375,8 +246,9 @@ const ClientsData = () => {
       if (!lazyAxios) {
         lazyAxios = await import("axios");
       }
+      const base = apiBase || (await getApiBase());
       await lazyAxios.default.put(
-        `${BACKEND_URL}/clients/${id}`,
+        `${base}/api/clients/${id}`,
         {
           archive: false,
         },
@@ -399,9 +271,23 @@ const ClientsData = () => {
       if (!lazyAxios) {
         lazyAxios = await import("axios");
       }
+      const base = apiBase || (await getApiBase());
+      const payload = {
+        id: selectedClient.id,
+        firstName: updatedClient.first_name,
+        lastName: updatedClient.last_name,
+        email: updatedClient.email,
+        phone: updatedClient.phone,
+        companyName: updatedClient.company_name,
+        industry: updatedClient.industry,
+        fundingStage: updatedClient.fund_stage,
+        revenue: updatedClient.revenue,
+        investment: updatedClient.investment_ask,
+        archive: updatedClient.archive,
+      };
       const response = await lazyAxios.default.put(
-        `${BACKEND_URL}/clients/${updatedClient.id}`,
-        updatedClient,
+        `${base}/api/clients/${selectedClient.id}`,
+        payload,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -411,7 +297,7 @@ const ClientsData = () => {
       message.success("Client updated successfully.");
       setClients(
         clients.map((client) =>
-          client.id === updatedClient.id ? response.data : client
+          client.id === selectedClient.id ? response.data : client
         )
       );
       setEditModalVisible(false);
@@ -471,18 +357,23 @@ const ClientsData = () => {
             </Tooltip>
           )}
 
-          <Popconfirm
-            title="Delete this client?"
-            description="This action cannot be undone."
-            onConfirm={() => handleDelete(record._id)}
-            okText="Delete"
-            cancelText="Cancel"
-            okButtonProps={{ danger: true }}
-          >
-            <Tooltip title="Delete client">
-              <Button shape="circle" icon={<DeleteOutlined />} danger />
-            </Tooltip>
-          </Popconfirm>
+          <Tooltip title="Delete client">
+            <Button
+              shape="circle"
+              icon={<DeleteOutlined />}
+              danger
+              onClick={() =>
+                Modal.confirm({
+                  title: "Delete this client?",
+                  content: "This action cannot be undone.",
+                  okText: "Delete",
+                  cancelText: "Cancel",
+                  okButtonProps: { danger: true },
+                  onOk: () => handleDelete(record._id || record.id),
+                })
+              }
+            />
+          </Tooltip>
         </Space>
       ),
     },
@@ -551,27 +442,21 @@ const ClientsData = () => {
           </div>
         }
       >
-        <div className="mb-6">
+        <div className="mb-6 flex items-center gap-2 flex-wrap">
           <Input
-            placeholder="Search clients by email..."
+            placeholder="Search by email, company or contact..."
             suffix={<SearchOutlined />}
             value={searchEmail}
             onChange={(e) => setSearchEmail(e.target.value)}
-            onPressEnter={() => loadClients(searchEmail)}
             allowClear
-            style={{ maxWidth: 400 }}
+            style={{ maxWidth: 420 }}
           />
           <Button
-            className="ml-2"
-            onClick={() => {
-              setSearchEmail("");
-              loadClients();
-            }}
+            onClick={() => setSearchEmail("")}
           >
             Reset
           </Button>
           <Button
-            className="ml-2"
             type={!showAll ? "default" : "primary"}
             onClick={() => setShowAll(!showAll)}
             icon={showAll ? <EyeOutlined /> : <InboxOutlined />}
@@ -602,121 +487,212 @@ const ClientsData = () => {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
-        width={800}
+        width={980}
+        style={{ top: 40 }}
+        styles={{ body: { padding: 16, maxHeight: '72vh', overflowY: 'auto' } }}
       >
-        {selectedClient && (
-          <Descriptions
-            bordered
-            column={2}
-            size="middle"
-            className="mt-4"
-            extra={
-              <Button
-                icon={<EditOutlined />}
-                onClick={() => handleEdit(selectedClient)}
-              >
-                Edit Profile
-              </Button>
-            }
-          >
-            <Descriptions.Item label="Full Name" span={2}>
-              {selectedClient.first_name || ""} {selectedClient.last_name || ""}
-            </Descriptions.Item>
-            <Descriptions.Item label="Email">
-              <div className="flex items-center">
-                {selectedClient.email || "N/A"}
-                {selectedClient.email && (
-                  <div className="ml-2">
-                    <Button
-                      size="small"
-                      type={"default"}
-                      icon={
-                        selectedClient.email_verified ? (
-                          <CheckCircleOutlined />
-                        ) : (
-                          <CloseCircleOutlined />
-                        )
-                      }
-                      style={{
-                        backgroundColor: selectedClient.email_verified
-                          ? "#f6ffed"
-                          : "#fff1f0",
-                        color: selectedClient.email_verified
-                          ? "#52c41a"
-                          : "#cf1322",
-                        borderColor: selectedClient.email_verified
-                          ? "#b7eb8f"
-                          : "#ffa39e",
-                      }}
-                      disabled
-                    >
-                      {selectedClient.email_verified
-                        ? "Verified"
-                        : "Not Verified"}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </Descriptions.Item>
-            <Descriptions.Item label="Phone">
-              {selectedClient.phone || "N/A"}
-            </Descriptions.Item>
-            <Descriptions.Item label="Company" span={2}>
-              <div>
-                <Text strong>{selectedClient.company_name || "N/A"}</Text>
-                <br />
-                <Text type="secondary">{selectedClient.position || "N/A"}</Text>
-              </div>
-            </Descriptions.Item>
-            <Descriptions.Item label="Industry">
-              <Tag color="blue">{selectedClient.industry || "N/A"}</Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label="Employees">
-              {selectedClient.employees || "N/A"}
-            </Descriptions.Item>
-            <Descriptions.Item label="Website">
-              {selectedClient.website ? (
-                <a
-                  href={selectedClient.website}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {selectedClient.website}
-                </a>
-              ) : (
-                "N/A"
+        {selectedClient && (() => {
+          const hasName = Boolean((selectedClient.first_name || "").trim() || (selectedClient.last_name || "").trim());
+          const hasPhone = Boolean((selectedClient.phone || "").trim());
+          const hasCompany = Boolean((selectedClient.company_name || "").trim());
+          const hasPosition = Boolean((selectedClient.position || "").trim());
+          const hasIndustry = Boolean((selectedClient.industry || "").trim());
+          const hasEmployees = selectedClient.employees !== undefined && selectedClient.employees !== null && String(selectedClient.employees).trim() !== "";
+          const hasWebsite = Boolean((selectedClient.website || "").trim());
+          const addressParts = [selectedClient.address, selectedClient.city, selectedClient.state, selectedClient.postalcode].filter(Boolean);
+          const hasAddress = addressParts.length > 0;
+          const hasRevenue = Boolean((selectedClient.revenue ?? "").toString().trim());
+          const hasInvestment = Boolean((selectedClient.investment_ask ?? "").toString().trim());
+          const hasFundStage = Boolean((selectedClient.fund_stage || "").trim());
+          const hasAnyFinancial = hasRevenue || hasInvestment || hasFundStage;
+
+          return (
+            <Descriptions
+              bordered
+              column={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}
+              size="middle"
+              className="mt-2"
+              labelStyle={{ width: 180, padding: '12px 16px' }}
+              contentStyle={{ padding: '12px 16px', whiteSpace: 'normal', wordBreak: 'break-word' }}
+              extra={
+                undefined
+              }
+            >
+              {hasName && (
+                <Descriptions.Item label="Full Name" span={2}>
+                  {(selectedClient.first_name || "").trim()} {(selectedClient.last_name || "").trim()}
+                </Descriptions.Item>
               )}
-            </Descriptions.Item>
-            <Descriptions.Item label="Address" span={2}>
-              {[
-                selectedClient.address,
-                selectedClient.city,
-                selectedClient.state,
-                selectedClient.postalcode,
-              ]
-                .filter(Boolean)
-                .join(", ") || "N/A"}
-            </Descriptions.Item>
-            <Descriptions.Item label="Financial Info" span={2}>
-              <Space>
-                <StatCard
-                  title="Revenue"
-                  value={selectedClient.revenue || "N/A"}
-                />
-                <StatCard
-                  title="Investment"
-                  value={selectedClient.investment_ask || "N/A"}
-                />
-                <StatCard
-                  title="Fund Stage"
-                  value={selectedClient.fund_stage || "N/A"}
-                />
-              </Space>
-            </Descriptions.Item>
-          </Descriptions>
-        )}
+
+              {selectedClient.email && (
+                <Descriptions.Item label="Email" span={2}>
+                  <div className="flex items-center" style={{ gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ overflowWrap: 'anywhere' }}>{selectedClient.email}</span>
+                    <div className="ml-2">
+                      <Button
+                        size="small"
+                        type={"default"}
+                        icon={
+                          selectedClient.email_verified ? (
+                            <CheckCircleOutlined />
+                          ) : (
+                            <CloseCircleOutlined />
+                          )
+                        }
+                        style={{
+                          backgroundColor: selectedClient.email_verified
+                            ? "#f6ffed"
+                            : "#fff1f0",
+                          color: selectedClient.email_verified
+                            ? "#52c41a"
+                            : "#cf1322",
+                          borderColor: selectedClient.email_verified
+                            ? "#b7eb8f"
+                            : "#ffa39e",
+                        }}
+                        disabled
+                      >
+                        {selectedClient.email_verified ? "Verified" : "Not Verified"}
+                      </Button>
+                    </div>
+                  </div>
+                </Descriptions.Item>
+              )}
+
+              {hasPhone && (
+                <Descriptions.Item label="Phone">
+                  {selectedClient.phone}
+                </Descriptions.Item>
+              )}
+
+              {(hasCompany || hasPosition) && (
+                <Descriptions.Item label="Company" span={2}>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {hasCompany && <Text strong>{selectedClient.company_name}</Text>}
+                    {hasPosition && <Text type="secondary">{selectedClient.position}</Text>}
+                  </div>
+                </Descriptions.Item>
+              )}
+
+              {hasIndustry && (
+                <Descriptions.Item label="Industry">
+                  <Tag color="blue">{selectedClient.industry}</Tag>
+                </Descriptions.Item>
+              )}
+
+              {hasEmployees && (
+                <Descriptions.Item label="Employees">
+                  {selectedClient.employees}
+                </Descriptions.Item>
+              )}
+
+              {hasWebsite && (
+                <Descriptions.Item label="Website">
+                  <a href={selectedClient.website} target="_blank" rel="noreferrer">
+                    {selectedClient.website}
+                  </a>
+                </Descriptions.Item>
+              )}
+
+              {hasAddress && (
+                <Descriptions.Item label="Address" span={2}>
+                  <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
+                    {addressParts.join(", ")}
+                  </span>
+                </Descriptions.Item>
+              )}
+
+              {/* Financial values shown as individual fields (no 'Financial Info' group) */}
+              {hasRevenue && (
+                <Descriptions.Item label="Revenue">
+                  {selectedClient.revenue}
+                </Descriptions.Item>
+              )}
+              {hasInvestment && (
+                <Descriptions.Item label="Investment">
+                  {selectedClient.investment_ask}
+                </Descriptions.Item>
+              )}
+              {hasFundStage && (
+                <Descriptions.Item label="Fund Stage">
+                  {selectedClient.fund_stage}
+                </Descriptions.Item>
+              )}
+
+              {/* Onboarding Info */}
+              {selectedClient.createdAt && (
+                <Descriptions.Item label="Onboarding Info">
+                  {(() => {
+                    const onboardedDate = new Date(selectedClient.createdAt);
+                    const today = new Date();
+                    const diffDays = Math.floor((today as any - onboardedDate as any) / (1000 * 60 * 60 * 24));
+                    return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+                  })()}
+                </Descriptions.Item>
+              )}
+
+              {/* Is Archived */}
+              {typeof selectedClient.archive !== 'undefined' && (
+                <Descriptions.Item label="Is Archived">
+                  <Tag color={selectedClient.archive ? 'red' : 'green'}>
+                    {selectedClient.archive ? 'Yes' : 'No'}
+                  </Tag>
+                </Descriptions.Item>
+              )}
+            </Descriptions>
+          );
+        })()}
       </Modal>
-      {/* TODO: Re-add EditClientModal when implemented in current codebase */}
+      <Modal
+        title={<span className="text-lg font-semibold">Edit Client</span>}
+        open={editModalVisible}
+        onCancel={() => setEditModalVisible(false)}
+        onOk={() => editForm.submit()}
+        okText="Save"
+      >
+        <Form form={editForm} layout="vertical" onFinish={handleEditSubmit}>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Form.Item name="first_name" label="First Name">
+              <Input />
+            </Form.Item>
+            <Form.Item name="last_name" label="Last Name">
+              <Input />
+            </Form.Item>
+            <Form.Item name="email" label="Email" rules={[{ type: 'email' }] }>
+              <Input />
+            </Form.Item>
+            <Form.Item name="phone" label="Contact">
+              <Input />
+            </Form.Item>
+            <Form.Item name="company_name" label="Company Name">
+              <Input />
+            </Form.Item>
+            <Form.Item name="industry" label="Sector">
+              <Input />
+            </Form.Item>
+            <Form.Item name="fund_stage" label="Fund Stage">
+              <Select
+                options={[
+                  { value: 'Pre-seed', label: 'Pre-seed' },
+                  { value: 'Seed', label: 'Seed' },
+                  { value: 'Series A', label: 'Series A' },
+                  { value: 'Series B', label: 'Series B' },
+                  { value: 'Growth', label: 'Growth' },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item name="revenue" label="Revenue">
+              <Input />
+            </Form.Item>
+            <Form.Item name="investment_ask" label="Investment Ask">
+              <Input />
+            </Form.Item>
+            <Form.Item name="archive" label="Archive" valuePropName="checked">
+              <Input type="checkbox" />
+            </Form.Item>
+          </div>
+        </Form>
+      </Modal>
     </div>
   );
 };

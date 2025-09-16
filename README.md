@@ -2,16 +2,47 @@
 
 A comprehensive email campaign management system built with Next.js, featuring client management, contact lists, email campaigns, and AI-powered email generation.
 
-## 🚀 Features
+## ✅ Completed Features
 
-- **Client Management**: Add, edit, and manage client information
-- **Contact Lists**: Import and manage contact lists via CSV
-- **Email Campaigns**: Create and send email campaigns
-- **AI Email Generation**: AI-powered email content creation using Google Gemini
-- **Campaign Reports**: Track and analyze campaign performance
-- **Investor Matching**: Match clients with potential investors
-- **Authentication**: Firebase-based user authentication
+### Frontend
+- **Authentication & Layout**: Login page, main layout, navigation, loading states
+- **Client Management**: Add client form, view all clients, basic CRUD operations
+- **Incubator Management**: View all incubators, file upload, basic listing
+- **Investor Matching**: Smart matching interface with scoring system
+- **Campaign Management**: Basic campaign listing and selection
+- **File Upload**: Drag & drop file upload for incubators and contacts
 - **Responsive Design**: Modern UI built with Ant Design and Tailwind CSS
+- **Error Handling**: Basic error pages and loading states
+
+### Backend
+- **API Infrastructure**: Express.js server with basic routing
+- **File-based Storage**: Excel/CSV file handling for incubators and investors
+- **Client APIs**: CRUD operations for client management
+- **Incubator APIs**: Upload, fetch, and basic CRUD operations
+- **Upload Handling**: Multer-based file processing
+- **Health Check**: Basic server monitoring endpoint
+
+## 🚧 Pending Features
+
+### Frontend
+- **Advanced Filtering**: Search, sort, and filter functionality
+- **Real-time Validation**: Form validations and guided tooltips
+- **Email Composer**: Rich text editor with AI enhancement
+- **Campaign Reports**: Detailed analytics and performance tracking
+- **Template Library**: Email template management
+- **Advanced Matching**: Profile panels and detailed investor tools
+- **Contact List Management**: Import/export and list management UI
+- **Deep Linking**: Saved selections and URL state management
+
+### Backend
+- **Database Integration**: MongoDB connection and data persistence
+- **Email Service**: AWS SES integration for sending emails
+- **AI Integration**: Google Gemini API for content generation
+- **Authentication**: Firebase Admin SDK integration
+- **Data Validation**: Schema enforcement and normalization
+- **Analytics**: Aggregated stats and reporting endpoints
+- **Campaign Management**: Full campaign lifecycle APIs
+- **Production Config**: Environment setup and CORS configuration
 
 ## 🛠️ Tech Stack
 
@@ -57,9 +88,10 @@ send-email-nextjs-full/
 
 ### Prerequisites
 - Node.js 18+ 
-- MongoDB
-- Firebase project
-- AWS account (for SES)
+- MongoDB (for future database integration)
+- Firebase project (for future authentication)
+- AWS account (for future SES integration)
+- Google Gemini API key (for future AI features)
 
 ### Installation
 
@@ -86,23 +118,20 @@ send-email-nextjs-full/
    
    **Backend (.env)**
    ```env
-   MONGODB_URI=your_mongodb_connection_string
-   FIREBASE_PROJECT_ID=your_firebase_project_id
-   FIREBASE_PRIVATE_KEY=your_firebase_private_key
-   FIREBASE_CLIENT_EMAIL=your_firebase_client_email
-   AWS_ACCESS_KEY_ID=your_aws_access_key
-   AWS_SECRET_ACCESS_KEY=your_aws_secret_key
-   AWS_REGION=your_aws_region
    PORT=5000
+   # Future integrations (not yet implemented)
+   # MONGODB_URI=your_mongodb_connection_string
+   # FIREBASE_PROJECT_ID=your_firebase_project_id
+   # AWS_ACCESS_KEY_ID=your_aws_access_key
+   # AWS_SECRET_ACCESS_KEY=your_aws_secret_key
    ```
    
    **Frontend (.env.local)**
    ```env
    NEXT_PUBLIC_BACKEND_URL=http://localhost:5000
-   NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
-   NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_firebase_auth_domain
-   NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_firebase_project_id
-   NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
+   # Future integrations (not yet implemented)
+   # NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
+   # NEXT_PUBLIC_GEMINI_API_KEY=your_gemini_api_key
    ```
 
 4. **Start the servers**
@@ -122,23 +151,26 @@ send-email-nextjs-full/
 
 ## 📱 Available Routes
 
-### Frontend Routes
+### Frontend Routes (Implemented)
 - `/` - Login page
 - `/dashboard` - Main dashboard
-- `/dashboard/manage-client` - Client management
-- `/dashboard/all-client` - View all clients
 - `/dashboard/add-client` - Add new client
-- `/dashboard/select-campaign` - Campaign selection
-- `/dashboard/allCampaign` - All campaigns
-- `/dashboard/reports` - Campaign reports
+- `/dashboard/all-client` - View all clients
+- `/dashboard/investor-management` - Investor matching interface
+- `/dashboard/all-incubators` - View all incubators
+- `/dashboard/add-incubator` - Add new incubator
+- `/dashboard/select-campaign` - Campaign selection (redirects to AI campaign)
+- `/dashboard/campaign/ai-email-campaign` - AI email campaign interface
 
-### Backend API Routes
-- `POST /api/auth/login` - User authentication
+### Backend API Routes (Implemented)
+- `GET /api/health` - Health check endpoint
 - `GET /api/clients` - Get all clients
 - `POST /api/clients` - Create new client
-- `GET /api/campaigns` - Get all campaigns
-- `POST /api/campaigns` - Create new campaign
-- `POST /api/send-email` - Send email campaign
+- `GET /api/incubators` - Get all incubators
+- `POST /api/incubators` - Create new incubator
+- `POST /api/incubators/upload-file` - Upload incubator file
+- `GET /api/investors` - Get all investors
+- `POST /api/investors/upload-file` - Upload investor file
 
 ## 🔧 Development
 

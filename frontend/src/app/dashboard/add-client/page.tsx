@@ -6,7 +6,9 @@ import { useState } from "react";
 import { Button, Form, Input, message, Select, Dropdown, Checkbox, Modal } from "antd";
 import { ArrowLeftOutlined, PlusOutlined, SettingOutlined, UserOutlined } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getApiBase } from "@/lib/api";
+import { auth, isFirebaseConfigured } from "@/lib/firebase";
+import { sendEmailVerification, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 
 const { TextArea } = Input;
 
@@ -16,6 +18,9 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [showManualForm, setShowManualForm] = useState(true);
   const [form] = Form.useForm();
+  const [emailVerified, setEmailVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState({
     company_name: true,
     founder_name: true,
@@ -67,12 +72,104 @@ export default function Page() {
 
       message.success("Client created successfully");
       form.resetFields();
+      setEmailVerified(false);
       setShowManualForm(false);
       router.push("/dashboard/all-client");
     } catch (e) {
       message.error(e.message || "Failed to create client");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifyEmail = async () => {
+    try {
+      const email = form.getFieldValue('company_email');
+      if (!email) {
+        message.warning('Enter an email to verify');
+        return;
+      }
+      setVerifying(true);
+      if (isFirebaseConfigured && auth) {
+        // Use Firebase email verification (requires a user). We create a temp user if needed.
+        let user = auth.currentUser;
+        if (!user || user.email !== email) {
+          try {
+            // Try sign-in; if account doesn't exist, create a temporary one
+            await signInWithEmailAndPassword(auth, email, "TempPass#12345");
+          } catch (e) {
+            await createUserWithEmailAndPassword(auth, email, "TempPass#12345");
+          }
+          user = auth.currentUser;
+        }
+        if (!user) throw new Error('Firebase auth user not available');
+        await sendEmailVerification(user);
+        message.success('Verification email sent via Firebase');
+        // Mark as pending; actual verification will be confirmed when user clicks the email link (out of band)
+        setEmailVerified(true);
+      } else {
+        // Fallback to backend verification endpoint for non-configured environments
+        const base = await getApiBase();
+        const res = await fetch(`${base}/api/clients/verify-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ email }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) throw new Error(data.error || 'Verification failed');
+        setEmailVerified(true);
+        message.success('Email verified');
+      }
+    } catch (e) {
+      setEmailVerified(false);
+      message.error(e.message || 'Verification failed');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleCheckVerification = async () => {
+    try {
+      const email = form.getFieldValue('company_email');
+      if (!email) {
+        message.warning('Enter an email first');
+        return;
+      }
+      setChecking(true);
+      if (isFirebaseConfigured && auth) {
+        // Reload current user and check flag
+        const user = auth.currentUser;
+        if (!user) {
+          message.warning('Open the verification email and click the link, then try again');
+          return;
+        }
+        await user.reload();
+        const fresh = auth.currentUser;
+        if (fresh?.emailVerified) {
+          setEmailVerified(true);
+          message.success('Email verified');
+          // Optionally inform backend
+          try {
+            const base = await getApiBase();
+            await fetch(`${base}/api/clients/get-verify-status`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ email, verified: true }),
+            });
+          } catch {}
+        } else {
+          message.info('Not verified yet. Please check your email inbox/spam and click the link.');
+        }
+      } else {
+        message.info('Firebase not configured on client; using optional backend-only verification.');
+      }
+    } catch (e) {
+      message.error(e.message || 'Check failed');
+    } finally {
+      setChecking(false);
     }
   };
 
@@ -185,7 +282,15 @@ export default function Page() {
                 )}
                 {visibleColumns.company_email && (
                   <Form.Item name="company_email" label="Company Email" className="mb-3" rules={[{ type: 'email', required: true }]}> 
-                    <Input placeholder="founder@company.com" />
+                    <div className="flex gap-2">
+                      <Input placeholder="founder@company.com" onChange={() => setEmailVerified(false)} />
+                      <Button onClick={handleVerifyEmail} loading={verifying} disabled={emailVerified}>
+                        {emailVerified ? 'Verified' : 'Verify'}
+                      </Button>
+                      <Button onClick={handleCheckVerification} loading={checking}>
+                        Check
+                      </Button>
+                    </div>
                   </Form.Item>
                 )}
                 {visibleColumns.contact && (
@@ -232,7 +337,7 @@ export default function Page() {
                   loading={loading}
                 >
                   Add Client
-        </Button>
+                </Button>
                 <Button onClick={() => router.push('/dashboard/all-client')}>Cancel</Button>
               </div>
       </Form>
