@@ -357,7 +357,7 @@ const ClientsData = () => {
             </Tooltip>
           )}
 
-          <Tooltip title="Delete client">
+            <Tooltip title="Delete client">
             <Button
               shape="circle"
               icon={<DeleteOutlined />}
@@ -373,7 +373,7 @@ const ClientsData = () => {
                 })
               }
             />
-          </Tooltip>
+            </Tooltip>
         </Space>
       ),
     },
@@ -507,90 +507,90 @@ const ClientsData = () => {
           const hasAnyFinancial = hasRevenue || hasInvestment || hasFundStage;
 
           return (
-            <Descriptions
-              bordered
+          <Descriptions
+            bordered
               column={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}
-              size="middle"
+            size="middle"
               className="mt-2"
               labelStyle={{ width: 180, padding: '12px 16px' }}
               contentStyle={{ padding: '12px 16px', whiteSpace: 'normal', wordBreak: 'break-word' }}
-              extra={
+            extra={
                 undefined
               }
             >
               {hasName && (
-                <Descriptions.Item label="Full Name" span={2}>
+            <Descriptions.Item label="Full Name" span={2}>
                   {(selectedClient.first_name || "").trim()} {(selectedClient.last_name || "").trim()}
-                </Descriptions.Item>
+            </Descriptions.Item>
               )}
 
-              {selectedClient.email && (
+                {selectedClient.email && (
                 <Descriptions.Item label="Email" span={2}>
                   <div className="flex items-center" style={{ gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ overflowWrap: 'anywhere' }}>{selectedClient.email}</span>
-                    <div className="ml-2">
-                      <Button
-                        size="small"
-                        type={"default"}
-                        icon={
-                          selectedClient.email_verified ? (
-                            <CheckCircleOutlined />
-                          ) : (
-                            <CloseCircleOutlined />
-                          )
-                        }
-                        style={{
-                          backgroundColor: selectedClient.email_verified
-                            ? "#f6ffed"
-                            : "#fff1f0",
-                          color: selectedClient.email_verified
-                            ? "#52c41a"
-                            : "#cf1322",
-                          borderColor: selectedClient.email_verified
-                            ? "#b7eb8f"
-                            : "#ffa39e",
-                        }}
-                        disabled
-                      >
+                  <div className="ml-2">
+                    <Button
+                      size="small"
+                      type={"default"}
+                      icon={
+                        selectedClient.email_verified ? (
+                          <CheckCircleOutlined />
+                        ) : (
+                          <CloseCircleOutlined />
+                        )
+                      }
+                      style={{
+                        backgroundColor: selectedClient.email_verified
+                          ? "#f6ffed"
+                          : "#fff1f0",
+                        color: selectedClient.email_verified
+                          ? "#52c41a"
+                          : "#cf1322",
+                        borderColor: selectedClient.email_verified
+                          ? "#b7eb8f"
+                          : "#ffa39e",
+                      }}
+                      disabled
+                    >
                         {selectedClient.email_verified ? "Verified" : "Not Verified"}
-                      </Button>
+                    </Button>
                     </div>
                   </div>
                 </Descriptions.Item>
-              )}
+                )}
 
               {hasPhone && (
-                <Descriptions.Item label="Phone">
+            <Descriptions.Item label="Phone">
                   {selectedClient.phone}
-                </Descriptions.Item>
+            </Descriptions.Item>
               )}
 
               {(hasCompany || hasPosition) && (
-                <Descriptions.Item label="Company" span={2}>
+            <Descriptions.Item label="Company" span={2}>
                   <div className="flex items-center gap-3 flex-wrap">
                     {hasCompany && <Text strong>{selectedClient.company_name}</Text>}
                     {hasPosition && <Text type="secondary">{selectedClient.position}</Text>}
-                  </div>
-                </Descriptions.Item>
+              </div>
+            </Descriptions.Item>
               )}
 
               {hasIndustry && (
-                <Descriptions.Item label="Industry">
+            <Descriptions.Item label="Industry">
                   <Tag color="blue">{selectedClient.industry}</Tag>
-                </Descriptions.Item>
+            </Descriptions.Item>
               )}
 
               {hasEmployees && (
-                <Descriptions.Item label="Employees">
+            <Descriptions.Item label="Employees">
                   {selectedClient.employees}
-                </Descriptions.Item>
+            </Descriptions.Item>
               )}
 
               {hasWebsite && (
-                <Descriptions.Item label="Website">
+            <Descriptions.Item label="Website">
                   <a href={selectedClient.website} target="_blank" rel="noreferrer">
-                    {selectedClient.website}
-                  </a>
+                  {selectedClient.website}
+                </a>
                 </Descriptions.Item>
               )}
 
@@ -616,7 +616,7 @@ const ClientsData = () => {
               {hasFundStage && (
                 <Descriptions.Item label="Fund Stage">
                   {selectedClient.fund_stage}
-                </Descriptions.Item>
+            </Descriptions.Item>
               )}
 
               {/* Onboarding Info */}
@@ -628,7 +628,7 @@ const ClientsData = () => {
                     const diffDays = Math.floor((today as any - onboardedDate as any) / (1000 * 60 * 60 * 24));
                     return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
                   })()}
-                </Descriptions.Item>
+            </Descriptions.Item>
               )}
 
               {/* Is Archived */}
@@ -637,9 +637,9 @@ const ClientsData = () => {
                   <Tag color={selectedClient.archive ? 'red' : 'green'}>
                     {selectedClient.archive ? 'Yes' : 'No'}
                   </Tag>
-                </Descriptions.Item>
+            </Descriptions.Item>
               )}
-            </Descriptions>
+          </Descriptions>
           );
         })()}
       </Modal>

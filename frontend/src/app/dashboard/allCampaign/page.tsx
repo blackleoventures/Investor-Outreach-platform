@@ -2,7 +2,7 @@
 "use client";
 
 import { Card, Table, Typography, Button, Space, Tag, Tooltip, Modal, Descriptions, message, Form, Input, Select, Switch } from "antd";
-import { EyeOutlined, EditOutlined, DeleteOutlined, PlusOutlined, MailOutlined } from "@ant-design/icons";
+import { EyeOutlined, EditOutlined, DeleteOutlined, PlusOutlined, MailOutlined, UserAddOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -154,7 +154,7 @@ const Campaigns = () => {
         open={createOpen}
         onCancel={() => setCreateOpen(false)}
         onOk={() => createForm.submit()}
-        okText="Create"
+        okText="Save & Next"
         okButtonProps={{ type: 'primary', style: { backgroundColor: '#1677ff' } }}
         title={<span className="text-lg font-semibold">Create Campaign</span>}
         width={720}
@@ -162,31 +162,34 @@ const Campaigns = () => {
         styles={{ body: { maxHeight: '70vh', overflowY: 'auto', paddingRight: 12 } }}
         maskClosable={false}
       >
-        <Form form={createForm} layout="vertical" onFinish={async (values) => {
+        <Form form={createForm} layout="vertical" onValuesChange={(changed, all)=>{
+          if (Object.prototype.hasOwnProperty.call(changed,'audience')) {
+            console.log('[CreateForm] audience changed ->', all.audience);
+          }
+        }} onFinish={async (values) => {
           try {
             const base = await getApiBase();
             const payload = {
               name: values.name,
               clientName: values.clientName,
-              audience: (values.audience || []).map((v: string) => ({ email: v })),
-              subject: values.subject,
-              body: values.body,
-              schedule: values.schedule,
-              status: values.launchNow ? 'active' : 'draft',
+              status: 'draft',
               type: 'Email',
-              recipients: (values.audience || []).length,
-              attachments: values.pitchDeckUrl ? [{ url: values.pitchDeckUrl, name: 'Pitch Deck' }] : undefined,
             };
+            console.log('[CreateCampaign] payload ->', payload);
             const res = await fetch(`${base}/api/campaign`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
               body: JSON.stringify(payload),
             });
-            if (!res.ok) throw new Error('Failed to create');
+            if (!res.ok) {
+              const err = await res.json().catch(()=>({}));
+              throw new Error(err?.error || `Failed to create (${res.status})`);
+            }
             message.success('Campaign created');
             setCreateOpen(false);
             createForm.resetFields();
-            loadCampaigns();
+            // Navigate to Investor Matching as step 2
+            router.push('/dashboard/investor-management');
           } catch (e) {
             message.error(e.message || 'Create failed');
           }
@@ -197,71 +200,7 @@ const Campaigns = () => {
           <Form.Item name="clientName" label="Client/Startup Name" rules={[{ required: true }]}>
             <Input placeholder="Acme Inc." />
           </Form.Item>
-          <Form.Item name="audience" label="Audience Emails">
-            <div className="flex gap-2">
-              <Select
-                mode="tags"
-                style={{ flex: 1 }}
-                placeholder="Type emails or use Select Investors"
-                tokenSeparators={[',', ' ']}
-              />
-              <Button onClick={async () => {
-                setInvOpen(true);
-                setInvLoading(true);
-                try {
-                  const response = await apiFetch(`/api/investors?limit=100000&page=1`);
-                  const result = await response.json();
-                  const investorData = result.docs || result.data || [];
-                  console.log('Raw investor data:', investorData.slice(0, 3));
-                  
-                  // Use same normalization as all-investors page
-                  const seen = new Set();
-                  const unique = [];
-                  for (const item of investorData) {
-                    const key = `${item.id ?? ''}-${(item.partner_email ?? '').toString().toLowerCase()}`;
-                    if (!seen.has(key)) { seen.add(key); unique.push(item); }
-                  }
-                  
-                  const normalized = unique.map((r:any) => ({
-                    ...r,
-                    id: r.id ?? r._id ?? undefined,
-                    investor_name: r.investor_name || r.firm_name || r.investorName || r.name || r.investor || r.investor_name || r.company || r.fund_name || r.organization || r.fund || 'Investor',
-                    partner_name: r.partner_name || r.partnerName || r.partner || r.contact_name || r.name || r.first_name || r.contact || r.person || 'Partner',
-                    partner_email: r.partner_email || r.email || r.partnerEmail || r.email_id || r.emailId || r.emailAddress || r.contact_email || r.primary_email,
-                  }));
-                  
-                  console.log('Normalized data:', normalized.slice(0, 3));
-                  setInvestors(normalized);
-                  message.success(`Loaded ${normalized.length} investors`);
-                } catch (e) {
-                  console.error('Load error:', e);
-                  message.error('Failed to load investors');
-                } finally { setInvLoading(false); }
-              }}>Select Investors</Button>
-            </div>
-          </Form.Item>
-          <Form.Item name="subject" label="Email Subject" rules={[{ required: true }]}>
-            <Input placeholder="Intro: Seed round for Acme Inc" />
-          </Form.Item>
-          <Form.Item name="body" label="Email Body" rules={[{ required: true }]}>
-            <Input.TextArea rows={6} placeholder="Pitch, highlights, USP, fundraise, CTA" />
-          </Form.Item>
-          <Form.Item name="pitchDeckUrl" label="Pitch Deck URL">
-            <Input placeholder="https://drive.google.com/... or https://your-site.com/deck.pdf" />
-          </Form.Item>
-          <Form.Item name="schedule" label="Schedule Options" initialValue="Immediate">
-            <Select
-              options={[
-                { value: 'Immediate', label: 'Immediate' },
-                { value: 'Daily', label: 'Daily' },
-                { value: 'Weekly', label: 'Weekly' },
-                { value: 'Custom', label: 'Custom' },
-              ]}
-            />
-          </Form.Item>
-          <Form.Item name="launchNow" label="Activate after create" valuePropName="checked" initialValue={false}>
-            <Switch />
-          </Form.Item>
+          {/* Next steps: Investor Matching -> Email Composer -> Reports */}
         </Form>
       </Modal>
 
@@ -269,17 +208,59 @@ const Campaigns = () => {
         open={invOpen}
         onCancel={() => setInvOpen(false)}
         onOk={() => {
-          const current: string[] = createForm.getFieldValue('audience') || [];
-          const merged = Array.from(new Set([...(current||[]), ...selectedInvestorEmails]));
-          createForm.setFieldsValue({ audience: merged });
+          const current: string[] = (createForm.getFieldValue('audience') || []).filter(Boolean);
+          const already = new Set(current.map((e:string)=> e.toLowerCase()));
+          const additions = (selectedInvestorEmails || []).filter(e => e && !already.has(e.toLowerCase()));
+          const allowed = Math.max(0, 10 - current.length);
+          let next = current;
+          if (additions.length > allowed) {
+            message.warning(`Only ${allowed} more can be added (max 10)`);
+            next = [...current, ...additions.slice(0, allowed)];
+          } else {
+            next = [...current, ...additions];
+          }
+          console.log('[SelectInvestors] onOk merge', { currentCount: current.length, selectedCount: (selectedInvestorEmails||[]).length, additions: additions.length, allowed, finalCount: next.length, next });
+          createForm.setFieldsValue({ audience: next });
+          // Force antd Select to refresh its tags immediately
+          createForm.validateFields(['audience']).catch(() => {});
+          if (additions.length === 0) {
+            message.info('No new emails to add');
+          } else {
+            message.success(`Added ${Math.min(additions.length, allowed)} emails`);
+          }
+          setSelectedInvestorEmails([]);
           setInvOpen(false);
         }}
-        okText={`Add Selected (${selectedInvestorEmails.length})`}
-        okButtonProps={{ type: 'primary', style: { backgroundColor: '#1677ff' } }}
+        okText={(
+          () => {
+            const current: string[] = (createForm.getFieldValue('audience') || []).filter(Boolean);
+            const already = new Set(current.map((e:string)=> e.toLowerCase()));
+            const additions = (selectedInvestorEmails || []).filter(e => e && !already.has(e.toLowerCase()));
+            const allowed = Math.max(0, 10 - current.length);
+            const count = Math.min(allowed, additions.length);
+            return `Add Investors (${count})`;
+          }
+        )()}
+        okButtonProps={(
+          () => {
+            const current: string[] = (createForm.getFieldValue('audience') || []).filter(Boolean);
+            const already = new Set(current.map((e:string)=> e.toLowerCase()));
+            const additions = (selectedInvestorEmails || []).filter(e => e && !already.has(e.toLowerCase()));
+            const allowed = Math.max(0, 10 - current.length);
+            const count = Math.min(allowed, additions.length);
+            return {
+              type: 'primary',
+              style: { backgroundColor: '#1677ff', borderRadius: 6, padding: '0 16px' },
+              disabled: count === 0,
+            } as any;
+          }
+        )()}
         title={
           <div className="flex items-center justify-between w-full">
             <span className="text-lg font-semibold">Select Investors</span>
-            <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">Total: {investors.length}</span>
+            <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+              Total: {investors.length} · Selected: {selectedInvestorEmails.length}
+            </span>
           </div>
         }
         width={900}
@@ -289,23 +270,27 @@ const Campaigns = () => {
         <Table
           loading={invLoading}
           dataSource={investors}
-          rowKey={(r:any)=> r.id || r._id || r.partner_email || r.email}
+          rowKey={(r:any)=> r.id || r._id || r.displayEmail || r.partner_email || r.email}
           rowSelection={{
             onChange: (_keys, rows:any[]) => {
-              const emails = rows.map(r => r.partner_email || r.email).filter(Boolean);
-              if (emails.length > 10) {
-                message.warning('You can select up to 10 investors');
-                setSelectedInvestorEmails(emails.slice(0,10));
+              const current: string[] = (createForm.getFieldValue('audience') || []).filter(Boolean);
+              const currentCount = current.length;
+              const allowed = Math.max(0, 10 - currentCount);
+              const emails = rows.map(r => r.displayEmail || r.partner_email || r.email).filter(Boolean);
+              console.log('[SelectInvestors] rowSelection change', { currentCount, allowed, picked: emails.length });
+              if (emails.length > allowed) {
+                message.warning(`You can select ${allowed} more (max 10 in total)`);
+                setSelectedInvestorEmails(emails.slice(0, allowed));
               } else {
                 setSelectedInvestorEmails(emails);
               }
             },
-            getCheckboxProps: (record:any) => ({ disabled: !(record.partner_email || record.email) })
+            getCheckboxProps: (record:any) => ({ disabled: !(record.displayEmail || record.partner_email || record.email) })
           }}
           columns={[
             { title: 'S.No.', key: 'serial', width: 70, align: 'center' as const, render: (_:any, __:any, idx:number)=> (idx + 1) + (invPageCurrent - 1) * invPageSize },
-            { title: 'Name', key: 'name', render: (_:any, r:any)=> r.partner_name || r.name || r.fullName || `${r.first_name||''} ${r.last_name||''}`.trim() || '-' },
-            { title: 'Email', key: 'email', render: (_:any, r:any)=> r.partner_email || r.email || '-' },
+            { title: 'Investor Name', key: 'name', render: (_:any, r:any)=> r.investor_name || r.displayName || r.name || r.fullName || `${r.first_name||''} ${r.last_name||''}`.trim() || '-' },
+            { title: 'Investor Email', key: 'email', render: (_:any, r:any)=> r.displayEmail || r.partner_email || r.email || '-' },
             { title: 'Score', key: 'score', render: (_:any, r:any)=> (r.score ?? r.matchScore ?? '-') },
           ]}
           pagination={{ 
