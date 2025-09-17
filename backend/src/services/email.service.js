@@ -53,7 +53,10 @@ async function sendEmail({ to, from, subject, html, messageId, headers = {}, cat
     throw new Error("to, subject, html are required");
   }
 
-  const sender = from || DEFAULT_FROM_EMAIL;
+  // Ensure Gmail SPF alignment: sender must match authenticated account
+  const sender = (EMAIL_PROVIDER === "gmail")
+    ? (GMAIL_USER || from || DEFAULT_FROM_EMAIL)
+    : (from || DEFAULT_FROM_EMAIL);
 
   // Gmail SMTP
   if (EMAIL_PROVIDER === "gmail" && gmailTransporter) {
@@ -70,6 +73,7 @@ async function sendEmail({ to, from, subject, html, messageId, headers = {}, cat
     };
 
     const result = await gmailTransporter.sendMail(mailOptions);
+    console.log('[gmail] sendMail response:', result?.response || result);
     return {
       statusCode: 200,
       messageId: result.messageId,

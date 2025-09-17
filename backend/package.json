@@ -11,6 +11,7 @@
     "test:upload": "node src/scripts/test-upload.js",
     "test:gemini": "node src/scripts/test-gemini.js",
     "test:send": "node src/scripts/test-send-email.js",
+    "test:send-live": "node src/scripts/test-send-live-email.js",
     "test:investors": "node src/scripts/test-investors.js"
   },
   "keywords": [],
