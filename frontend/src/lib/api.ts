@@ -72,7 +72,17 @@ export const getApiBase = async (forceRescan: boolean = false): Promise<string> 
 };
 
 export const apiFetch = async (path: string, init?: RequestInit) => {
-  const buildUrl = (base: string) => base ? `${base}${path.startsWith('/') ? '' : '/'}${path}` : path;
+  const buildUrl = (base: string) => {
+    if (!base) return path;
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${base}${cleanPath}`;
+  };
+
+  // Force localhost for development
+  if (typeof window !== 'undefined' && window.location.origin.includes('localhost')) {
+    const url = buildUrl('http://localhost:5000');
+    return fetch(url, init);
+  }
 
   // First attempt with current/base
   let base = await getApiBase();
