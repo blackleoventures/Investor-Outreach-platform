@@ -1,0 +1,19 @@
+Email Test Configuration:
+
+FROM: priyanshusingh99p@gmail.com
+TO: priyanshuchouhan185@gmail.com
+
+Test Subject: Investment Opportunity - Test Email from Composer
+Test Content: 
+Hi Priyanshu,
+
+This is a test email from the investor outreach platform email composer.
+
+Testing if emails are being sent successfully through the system.
+
+Best regards,
+Platform Team
+
+---
+Test Status: Ready for testing
+Date: $(date)

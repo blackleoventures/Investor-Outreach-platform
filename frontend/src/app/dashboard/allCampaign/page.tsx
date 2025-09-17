@@ -11,7 +11,7 @@ import { getApiBase, apiFetch } from "@/lib/api";
 const { Title, Text } = Typography;
 
 const Campaigns = () => {
-  const { token } = useAuth();
+  const { currentUser, login } = useAuth();
   const router = useRouter();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -26,17 +26,45 @@ const Campaigns = () => {
   const [invPageCurrent, setInvPageCurrent] = useState(1);
   const invPageSize = 10;
 
-  useEffect(() => { loadCampaigns(); }, []);
+  useEffect(() => { 
+    loadCampaigns(); 
+    // Load selected investors from localStorage
+    const saved = localStorage.getItem('selectedInvestors');
+    if (saved) {
+      try {
+        const investors = JSON.parse(saved);
+        setInvestors(investors);
+        message.info(`${investors.length} investors loaded from matching`);
+      } catch (e) {
+        console.error('Failed to load saved investors:', e);
+      }
+    }
+  }, []);
 
   const loadCampaigns = async () => {
     setLoading(true);
     try {
-      const base = await getApiBase();
-      const res = await fetch(`${base}/api/campaign`, { headers: { Authorization: `Bearer ${token}` } });
-      const data = await res.json();
-      setCampaigns(Array.isArray(data.campaigns) ? data.campaigns : []);
+      // Load from localStorage first (real campaigns)
+      const localCampaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
+      
+      // Load from sessionStorage for current campaign
+      const savedCampaign = sessionStorage.getItem('currentCampaign');
+      if (savedCampaign) {
+        try {
+          const campaignData = JSON.parse(savedCampaign);
+          // Add to campaigns if not already present
+          const exists = localCampaigns.find(c => c.id === campaignData.id);
+          if (!exists) {
+            localCampaigns.unshift(campaignData);
+          }
+        } catch (e) {
+          console.error('Failed to load saved campaign:', e);
+        }
+      }
+      
+      setCampaigns(localCampaigns);
     } catch (e) {
-      message.error('Failed to load campaigns');
+      console.error('Failed to load campaigns:', e);
       setCampaigns([]);
     } finally {
       setLoading(false);
@@ -65,7 +93,9 @@ const Campaigns = () => {
         try {
           const base = await getApiBase();
           const id = campaign.id || campaign._id;
-          await fetch(`${base}/api/campaign/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+          const idToken = currentUser ? await currentUser.getIdToken(true) : undefined;
+          const headers: any = idToken ? { Authorization: `Bearer ${idToken}` } : {};
+          await fetch(`${base}/api/campaign/${id}`, { method: 'DELETE', headers });
           setCampaigns(prev => prev.filter(c => (c.id || c._id) !== id));
           message.success('Campaign deleted');
         } catch {
@@ -99,8 +129,45 @@ const Campaigns = () => {
     <div className="p-6">
       <Card
         title={<Title level={4} className="!mb-0"><MailOutlined className="mr-2"/>Campaign Management</Title>}
-        extra={<Button type="primary" icon={<PlusOutlined/>} onClick={() => setCreateOpen(true)} style={{backgroundColor:'#ac6a1e'}}>Create Campaign</Button>}
+        extra={
+          <div className="flex gap-2">
+            <Button icon={<UserAddOutlined/>} onClick={() => router.push('/dashboard/add-client')}>Add Client</Button>
+            <Button onClick={() => {
+              sessionStorage.removeItem('currentCampaign');
+              sessionStorage.removeItem('currentClient');
+              localStorage.removeItem('campaigns');
+              localStorage.removeItem('clients');
+              loadCampaigns();
+              message.success('All data cleared');
+            }} size="small">Clear All</Button>
+            <Button type="primary" icon={<PlusOutlined/>} onClick={() => setCreateOpen(true)} style={{backgroundColor:'#ac6a1e'}}>Create Campaign</Button>
+          </div>
+        }
       >
+        {investors.length > 0 && (
+          <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+            <div className="flex justify-between items-center mb-2">
+              <span className="font-semibold text-blue-800">Selected Investors ({investors.length})</span>
+              <Button size="small" onClick={() => {
+                localStorage.removeItem('selectedInvestors');
+                setInvestors([]);
+                message.success('Investors cleared');
+              }}>Clear</Button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {investors.slice(0, 6).map((inv, idx) => (
+                <div key={idx} className="text-sm bg-white p-2 rounded border">
+                  <div className="font-medium">{inv.name}</div>
+                  <div className="text-gray-600">{inv.email}</div>
+                  <div className="text-xs text-blue-600">Score: {inv.score}</div>
+                </div>
+              ))}
+              {investors.length > 6 && (
+                <div className="text-sm text-gray-500 p-2">+{investors.length - 6} more...</div>
+              )}
+            </div>
+          </div>
+        )}
         <Table
           columns={columns}
           dataSource={campaigns}
@@ -154,7 +221,7 @@ const Campaigns = () => {
         open={createOpen}
         onCancel={() => setCreateOpen(false)}
         onOk={() => createForm.submit()}
-        okText="Save & Next"
+        okText="Create Campaign"
         okButtonProps={{ type: 'primary', style: { backgroundColor: '#1677ff' } }}
         title={<span className="text-lg font-semibold">Create Campaign</span>}
         width={720}
@@ -168,6 +235,11 @@ const Campaigns = () => {
           }
         }} onFinish={async (values) => {
           try {
+            if (!currentUser) {
+              message.error('Please sign in to create a campaign');
+              try { await login?.(); } catch {}
+              return;
+            }
             const base = await getApiBase();
             const payload = {
               name: values.name,
@@ -176,9 +248,14 @@ const Campaigns = () => {
               type: 'Email',
             };
             console.log('[CreateCampaign] payload ->', payload);
+            const idToken = currentUser ? await currentUser.getIdToken(true) : undefined;
+            const headers: any = {
+              'Content-Type': 'application/json',
+              ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
+            };
             const res = await fetch(`${base}/api/campaign`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              headers,
               body: JSON.stringify(payload),
             });
             if (!res.ok) {
@@ -188,6 +265,26 @@ const Campaigns = () => {
             message.success('Campaign created');
             setCreateOpen(false);
             createForm.resetFields();
+            // Store campaign data and navigate to workflow
+            const campaignData = {
+              id: Date.now().toString(),
+              name: values.name,
+              clientName: values.clientName,
+              type: 'Email',
+              status: 'Draft',
+              recipients: 0,
+              createdAt: new Date().toISOString(),
+              subject: values.subject,
+              body: values.body
+            };
+            
+            // Save to both session and local storage
+            sessionStorage.setItem('currentCampaign', JSON.stringify(campaignData));
+            const existingCampaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
+            existingCampaigns.unshift(campaignData);
+            localStorage.setItem('campaigns', JSON.stringify(existingCampaigns));
+            
+            loadCampaigns(); // Refresh the list
             // Navigate to Investor Matching as step 2
             router.push('/dashboard/investor-management');
           } catch (e) {
@@ -200,7 +297,44 @@ const Campaigns = () => {
           <Form.Item name="clientName" label="Client/Startup Name" rules={[{ required: true }]}>
             <Input placeholder="Acme Inc." />
           </Form.Item>
-          {/* Next steps: Investor Matching -> Email Composer -> Reports */}
+          <Form.Item name="audience" label="Audience Emails">
+            <div className="flex gap-2">
+              <Select
+                mode="tags"
+                style={{ flex: 1 }}
+                placeholder="Type emails or use Select Investors"
+                tokenSeparators={[',', ' ']}
+                value={investors.map(inv => inv.email)}
+                onChange={(emails) => {
+                  const investorData = emails.map(email => ({ email, name: 'Investor', score: 0 }));
+                  setInvestors(investorData);
+                }}
+              />
+              <Button onClick={() => setInvOpen(true)}>Select Investors ({investors.length})</Button>
+            </div>
+          </Form.Item>
+          <Form.Item name="subject" label="Email Subject" rules={[{ required: true }]}>
+            <Input placeholder="Intro: Seed round for Acme Inc" />
+          </Form.Item>
+          <Form.Item name="body" label="Email Body" rules={[{ required: true }]}>
+            <Input.TextArea rows={6} placeholder="Pitch, highlights, USP, fundraise, CTA" />
+          </Form.Item>
+          <Form.Item name="pitchDeckUrl" label="Pitch Deck URL">
+            <Input placeholder="https://drive.google.com/... or https://your-site.com/deck.pdf" />
+          </Form.Item>
+          <Form.Item name="schedule" label="Schedule Options" initialValue="Immediate">
+            <Select
+              options={[
+                { value: 'Immediate', label: 'Immediate' },
+                { value: 'Daily', label: 'Daily' },
+                { value: 'Weekly', label: 'Weekly' },
+                { value: 'Custom', label: 'Custom' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="launchNow" label="Activate after create" valuePropName="checked" initialValue={false}>
+            <Switch />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -289,8 +423,8 @@ const Campaigns = () => {
           }}
           columns={[
             { title: 'S.No.', key: 'serial', width: 70, align: 'center' as const, render: (_:any, __:any, idx:number)=> (idx + 1) + (invPageCurrent - 1) * invPageSize },
-            { title: 'Investor Name', key: 'name', render: (_:any, r:any)=> r.investor_name || r.displayName || r.name || r.fullName || `${r.first_name||''} ${r.last_name||''}`.trim() || '-' },
-            { title: 'Investor Email', key: 'email', render: (_:any, r:any)=> r.displayEmail || r.partner_email || r.email || '-' },
+            { title: 'Investor Name', key: 'name', render: (_:any, r:any)=> r.name || r.investor_name || r.displayName || r.fullName || `${r.first_name||''} ${r.last_name||''}`.trim() || '-' },
+            { title: 'Investor Email', key: 'email', render: (_:any, r:any)=> r.email || r.displayEmail || r.partner_email || '-' },
             { title: 'Score', key: 'score', render: (_:any, r:any)=> (r.score ?? r.matchScore ?? '-') },
           ]}
           pagination={{ 

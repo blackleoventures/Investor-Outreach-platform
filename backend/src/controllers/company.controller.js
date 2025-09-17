@@ -39,10 +39,11 @@ exports.addClientData = async (req, res) => {
       website,
       state,
       city,
+      location: req.body.location || city,
       postalcode: postalCode ? parseInt(postalCode) : undefined,
       company_desc: companyDescription,
-      investment_ask: investment ? parseFloat(investment) : undefined,
-      revenue: revenue ? parseFloat(revenue) : undefined,
+      investment_ask: investment || undefined,
+      revenue: revenue || undefined,
       fund_stage: fundingStage,
       employees: employees ? parseInt(employees) : undefined,
       archive: false,
@@ -51,7 +52,8 @@ exports.addClientData = async (req, res) => {
     const savedClient = await dbHelpers.create('companies', clientData);
 
     res.status(201).json({
-      id: savedClient.id,
+      success: true,
+      client: { id: savedClient.id, ...clientData },
       message: "Client added successfully",
     });
   } catch (error) {
@@ -162,10 +164,11 @@ exports.updateClientData = async (req, res) => {
       website,
       address,
       city,
+      location: req.body.location || city,
       state,
       postalcode: postalCode ? parseInt(postalCode) : undefined,
-      revenue: revenue ? parseFloat(revenue) : undefined,
-      investment_ask: investment ? parseFloat(investment) : undefined,
+      revenue: revenue || undefined,
+      investment_ask: investment || undefined,
       fund_stage: fundingStage,
     };
 

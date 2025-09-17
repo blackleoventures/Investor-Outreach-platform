@@ -120,6 +120,7 @@ const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileNa
   const [enhancingSubject, setEnhancingSubject] = useState(false);
   const [enhancingContent, setEnhancingContent] = useState(false);
   const [formKey, setFormKey] = useState('composer');
+  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
 
   const useTemplate = () => {
     // Always prefer the default investor outreach template provided by the user
@@ -129,6 +130,23 @@ const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileNa
     form.setFieldsValue({ subject, content });
     message.success('Template loaded successfully!');
   };
+
+  // Check backend status
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const response = await fetch('/api/email/send-direct', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ to: 'test@test.com', subject: 'test', html: 'test' })
+        });
+        setBackendStatus(response.status < 500 ? 'online' : 'offline');
+      } catch {
+        setBackendStatus('offline');
+      }
+    };
+    checkBackend();
+  }, []);
 
   // Auto-load the template when the composer is shown
   useEffect(() => {
@@ -234,12 +252,40 @@ Best regards,
   const sendEmail = async (values: any) => {
     setSending(true);
     try {
-      // Simulate sending email
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      message.success('Email sent successfully!');
-      form.resetFields();
+      const payload = {
+        to: values.to,
+        subject: values.subject,
+        html: values.content,
+        from: 'priyanshusingh99p@gmail.com'
+      };
+      
+      const response = await fetch('/api/email/send-direct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Backend server is not responding properly. Please check if the backend is running.');
+      }
+      
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        message.success('Email sent successfully!');
+        form.resetFields();
+      } else {
+        throw new Error(result.error || 'Failed to send email');
+      }
     } catch (error) {
-      message.error('Failed to send email');
+      console.error('Email send error:', error);
+      if (error.message.includes('fetch')) {
+        message.error('Cannot connect to backend server. Please ensure the backend is running on port 5000.');
+      } else {
+        message.error(error.message || 'Failed to send email');
+      }
     } finally {
       setSending(false);
     }
@@ -256,6 +302,19 @@ Best regards,
           <p className="text-gray-600 mb-4">
             Compose and send personalized investor outreach emails with AI assistance
           </p>
+          
+          {/* Backend Status Indicator */}
+          <div className="mb-4">
+            {backendStatus === 'checking' && (
+              <Tag color="blue">🔄 Checking backend connection...</Tag>
+            )}
+            {backendStatus === 'online' && (
+              <Tag color="green">✅ Backend connected</Tag>
+            )}
+            {backendStatus === 'offline' && (
+              <Tag color="red">❌ Backend offline - Start backend server: cd backend && npm start</Tag>
+            )}
+          </div>
           {pitchAnalysis && (
             <Button 
               type="primary" 
@@ -274,23 +333,14 @@ Best regards,
           onFinish={sendEmail}
           className="max-w-4xl mx-auto"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <Form.Item
-              label="📧 To Email"
-              name="to"
-              rules={[{ required: true, type: 'email', message: 'Please enter valid email!' }]}
-            >
-              <Input placeholder="investor@example.com" size="large" />
-            </Form.Item>
-            
-            <Form.Item
-              label="👤 From Name"
-              name="fromName"
-              rules={[{ required: true, message: 'Please enter your name!' }]}
-            >
-              <Input placeholder="Your Name" size="large" />
-            </Form.Item>
-          </div>
+          <Form.Item
+            label="📧 To Email"
+            name="to"
+            rules={[{ required: true, type: 'email', message: 'Please enter valid email!' }]}
+            className="mb-4"
+          >
+            <Input placeholder="investor@example.com" size="large" />
+          </Form.Item>
 
           <Form.Item
             label="📝 Subject Line"
@@ -349,9 +399,10 @@ Best regards,
               htmlType="submit"
               size="large"
               loading={sending}
+              disabled={backendStatus === 'offline'}
               className="bg-gradient-to-r from-green-500 to-blue-600 border-0 px-8"
             >
-              {sending ? '📤 Sending...' : '🚀 Send Email'}
+              {sending ? '📤 Sending...' : backendStatus === 'offline' ? '❌ Backend Offline' : '🚀 Send Email'}
             </Button>
           </div>
         </Form>
@@ -377,7 +428,7 @@ const { Title, Text } = Typography;
 const RAW_BACKEND = (process.env.NEXT_PUBLIC_BACKEND_URL as string | undefined)?.trim();
 const BACKEND_URL = RAW_BACKEND && RAW_BACKEND !== ''
   ? RAW_BACKEND.replace(/\/$/, '') + (RAW_BACKEND.endsWith('/api') ? '' : '/api')
-  : '/api';
+  : 'http://localhost:5000/api';
 
 interface PitchAnalysis {
   summary: {
@@ -438,6 +489,7 @@ export default function AIEmailCampaignPage() {
       const primaryUrl = `${BACKEND_URL}/ai/analyze-deck`;
       const fallbackUrl = `${BACKEND_URL}/ai/analyze-deck?skipGemini=1`;
       console.log('📤 Sending request to:', primaryUrl);
+      console.log('🔧 Backend URL configured as:', BACKEND_URL);
 
       // Single-attempt strategy with quick fallback path to avoid multiple retries
       let response: Response | null = null;

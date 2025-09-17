@@ -1,16 +1,17 @@
 "use client";
 
-import { Card, Table, Typography, Button, Space, Tag } from "antd";
-import { EyeOutlined, FileTextOutlined } from "@ant-design/icons";
+import { Card, Table, Typography, Button, Space, Tag, Statistic, Row, Col } from "antd";
+import { EyeOutlined, FileTextOutlined, EditOutlined, BarChartOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useSearchParams } from "next/navigation";
 
 const { Title } = Typography;
 
 const AllReports = () => {
-  const { currentUser } = useAuth();
-  const [reports, setReports] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+  const campaignId = searchParams.get('campaignId');
 
   const columns = [
     {
@@ -101,15 +102,15 @@ const AllReports = () => {
       >
         <Table
           columns={columns}
-          dataSource={reports}
+          dataSource={campaigns}
           loading={loading}
           rowKey="id"
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
-            showTotal: (total) => `Total ${total} reports`,
+            showTotal: (total) => `Total ${total} campaigns`,
           }}
-          locale={{ emptyText: "No reports found" }}
+          locale={{ emptyText: "No campaigns found" }}
         />
       </Card>
     </div>

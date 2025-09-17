@@ -136,6 +136,10 @@ send-email-nextjs-full/
 
 4. **Start the servers**
    ```bash
+   # Option 1: Use the startup script (Windows)
+   start-dev.cmd
+   
+   # Option 2: Manual start
    # Start backend (in one terminal)
    cd backend
    npm start
@@ -215,6 +219,27 @@ send-email-nextjs-full/
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Troubleshooting
+
+### Common Issues:
+
+**Email Composer Error: "Unexpected token... is not valid JSON"**
+- This means the backend server is not running
+- Solution: Start the backend with `cd backend && npm start`
+- Check the troubleshooting guide: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+
+**Backend Connection Issues:**
+- Verify backend is running on port 5000: http://localhost:5000/api/healthcheck
+- Check environment variables in `backend/.env` and `frontend/.env.local`
+- Use the startup script: `start-dev.cmd`
+
+**Email Sending Issues:**
+- Configure Gmail App Password in `backend/.env`
+- Or use SendGrid API key
+- Check email service logs in backend terminal
+
+For detailed troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
 
 ## 🆘 Support
 

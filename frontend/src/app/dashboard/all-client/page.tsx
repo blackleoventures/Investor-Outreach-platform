@@ -74,13 +74,20 @@ const columnOptions = [
     label: "Revenue",
     default: true,
     permanent: true,
-    render: (_, record) => <Text>{record.revenue || 0}</Text>,
+    render: (_, record) => {
+      const val = record.revenue ?? record.revenue_amount ?? record.annual_revenue;
+      return <Text>{(val !== undefined && String(val).trim()) ? String(val) : "N/A"}</Text>;
+    },
   },
   {
     key: "investmentAsk",
     label: "Investment Ask",
+    default: true,
     permanent: true,
-    render: (_, record) => <Text>{record.investment_ask || 0}</Text>,
+    render: (_, record) => {
+      const val = record.investment_ask ?? record.investment ?? record.raise_amount;
+      return <Text>{(val !== undefined && String(val).trim()) ? String(val) : "N/A"}</Text>;
+    },
   },
   {
     key: "sector",
@@ -125,14 +132,20 @@ const ClientsData = () => {
   const [showAll, setShowAll] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editForm] = Form.useForm();
-  const [visibleColumns, setVisibleColumns] = useState(
-    Object.fromEntries(
-      columnOptions.map((option) => [
-        option.key,
-        option.default || option.permanent || false,
-      ])
-    )
-  );
+  const [visibleColumns, setVisibleColumns] = useState({
+    companyName: true,
+    founderName: true,
+    companyEmail: true,
+    contact: true,
+    fund_stage: true,
+    revenue: true,
+    investmentAsk: true,
+    sector: true,
+    location: true,
+    verified: false,
+    archived: false,
+    onboarding: false,
+  });
   const [popoverVisible, setPopoverVisible] = useState(false);
 
   useEffect(() => {
@@ -175,10 +188,21 @@ const ClientsData = () => {
       });
 
       const serverClients = Array.isArray(response?.data?.clients) ? response.data.clients : [];
-      let filtered = serverClients;
+      // Merge with locally persisted clients (keep locals until explicitly deleted)
+      const localClients = JSON.parse(localStorage.getItem('clients') || '[]');
+      const byKey = new Map();
+      const makeKey = (c:any) => (c.id || c._id || c.email || `${c.company_name}-${c.first_name}-${c.last_name}`);
+      for (const c of serverClients) byKey.set(makeKey(c), c);
+      for (const c of localClients) {
+        const k = makeKey(c);
+        if (!byKey.has(k)) byKey.set(k, c);
+      }
+      let merged = Array.from(byKey.values());
+
+      let filtered = merged;
       if (email && email.trim()) {
         const q = email.trim().toLowerCase();
-        filtered = serverClients.filter((c) => {
+        filtered = merged.filter((c) => {
           const emailStr = (c.email || "").toLowerCase();
           const companyStr = (c.company_name || "").toLowerCase();
           const phoneStr = (c.phone || "").toLowerCase();
@@ -190,8 +214,9 @@ const ClientsData = () => {
       setClients(filtered);
     } catch (error) {
       console.error("Error fetching clients:", error);
-      message.error("Failed to load clients. Please check if backend server is running.");
-      setClients([]);
+      // Fallback to locally persisted clients
+      const localClients = JSON.parse(localStorage.getItem('clients') || '[]');
+      setClients(localClients);
     } finally {
       setLoading(false);
     }
@@ -199,20 +224,31 @@ const ClientsData = () => {
 
   const handleDelete = async (id) => {
     try {
-      if (!lazyAxios) {
-        lazyAxios = await import("axios");
+      // Delete from localStorage
+      const localClients = JSON.parse(localStorage.getItem('clients') || '[]');
+      const updatedClients = localClients.filter(client => client.id !== id && client._id !== id);
+      localStorage.setItem('clients', JSON.stringify(updatedClients));
+      
+      // Try to delete from API as well
+      try {
+        if (!lazyAxios) {
+          lazyAxios = await import("axios");
+        }
+        const base = apiBase || (await getApiBase());
+        await lazyAxios.default.delete(`${base}/api/clients/${id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      } catch (apiError) {
+        console.log('API delete failed, but local delete succeeded');
       }
-      const base = apiBase || (await getApiBase());
-      await lazyAxios.default.delete(`${base}/api/clients/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      
       message.success("Client deleted successfully.");
       setClients((prev) => prev.filter((client) => client.id !== id && client._id !== id));
     } catch (error) {
       console.error("Delete error:", error);
-      // Silently handle delete errors
+      message.error("Failed to delete client");
     }
   };
 
@@ -260,6 +296,10 @@ const ClientsData = () => {
       );
       message.success("Client Unarchived successfully.");
       setClients(clients.filter((client) => client.id !== id));
+      // Update local storage copy if present
+      const local = JSON.parse(localStorage.getItem('clients') || '[]');
+      const updated = local.map((c:any) => (c.id === id || c._id === id) ? { ...c, archive: false } : c);
+      localStorage.setItem('clients', JSON.stringify(updated));
     } catch (error) {
       console.error("Archive error:", error);
       // Silently handle archive errors
@@ -300,6 +340,26 @@ const ClientsData = () => {
           client.id === selectedClient.id ? response.data : client
         )
       );
+      // Persist update locally so it doesn't disappear on refresh
+      const local = JSON.parse(localStorage.getItem('clients') || '[]');
+      const updatedLocal = local.map((c:any) =>
+        (c.id === selectedClient.id || c._id === selectedClient.id)
+          ? {
+              ...c,
+              first_name: payload.firstName,
+              last_name: payload.lastName,
+              email: payload.email,
+              phone: payload.phone,
+              company_name: payload.companyName,
+              industry: payload.industry,
+              fund_stage: payload.fundingStage,
+              revenue: payload.revenue,
+              investment_ask: payload.investment,
+              archive: typeof updatedClient.archive !== 'undefined' ? updatedClient.archive : c.archive,
+            }
+          : c
+      );
+      localStorage.setItem('clients', JSON.stringify(updatedLocal));
       setEditModalVisible(false);
       setSelectedClient(null);
     } catch (error) {
@@ -599,6 +659,12 @@ const ClientsData = () => {
                   <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
                     {addressParts.join(", ")}
                   </span>
+                </Descriptions.Item>
+              )}
+
+              {(selectedClient.location || selectedClient.city) && (
+                <Descriptions.Item label="Location">
+                  <Tag color="green">{selectedClient.location || selectedClient.city}</Tag>
                 </Descriptions.Item>
               )}
 

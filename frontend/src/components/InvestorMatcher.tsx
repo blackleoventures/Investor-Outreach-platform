@@ -24,6 +24,8 @@ export default function InvestorMatcher() {
   const [ruleResults, setRuleResults] = useState<any[]>([]);
   const [mode, setMode] = useState<'investor' | 'incubator'>("investor");
   const [counts, setCounts] = useState({ clients: 0, investors: 0, incubators: 0 });
+  const [selectedInvestors, setSelectedInvestors] = useState<any[]>([]);
+  const [savingToCampaign, setSavingToCampaign] = useState(false);
 
   // Load counts on component mount
   React.useEffect(() => {
@@ -374,13 +376,57 @@ export default function InvestorMatcher() {
         </div>
 
         {ruleResults.length > 0 && (
-          <Table
-            rowKey={(r: any, index) => String(index ?? 0)}
-            dataSource={ruleResults}
-            columns={columns}
-            pagination={{ pageSize: 10 }}
-            scroll={{ x: 800 }}
-          />
+          <div>
+            <div className="mb-4 flex justify-between items-center">
+              <span className="text-sm text-gray-600">Select up to 10 investors for your campaign</span>
+              <Button 
+                type="primary" 
+                disabled={selectedInvestors.length === 0}
+                loading={savingToCampaign}
+                onClick={async () => {
+                  setSavingToCampaign(true);
+                  try {
+                    const investorData = selectedInvestors.map(inv => ({
+                      name: inv.investor_name || inv.firm_name || inv.name || 'Investor',
+                      email: inv.partner_email || inv.email || 'email@example.com',
+                      score: inv.matchScore || inv.score || 0
+                    }));
+                    localStorage.setItem('selectedInvestors', JSON.stringify(investorData));
+                    message.success(`${selectedInvestors.length} investors saved for campaign`);
+                    window.location.href = '/dashboard/allCampaign';
+                  } catch (e) {
+                    message.error('Failed to save investors');
+                  } finally {
+                    setSavingToCampaign(false);
+                  }
+                }}
+                style={{ backgroundColor: '#ac6a1e' }}
+              >
+                Save to Campaign ({selectedInvestors.length})
+              </Button>
+            </div>
+            <Table
+              rowKey={(r: any, index) => String(index ?? 0)}
+              dataSource={ruleResults}
+              columns={columns}
+              pagination={{ pageSize: 10 }}
+              scroll={{ x: 800 }}
+              rowSelection={{
+                onChange: (keys, rows) => {
+                  if (rows.length > 10) {
+                    message.warning('You can select maximum 10 investors');
+                    setSelectedInvestors(rows.slice(0, 10));
+                  } else {
+                    setSelectedInvestors(rows);
+                  }
+                },
+                selectedRowKeys: selectedInvestors.map((_, index) => String(index)),
+                getCheckboxProps: (record) => ({
+                  disabled: selectedInvestors.length >= 10 && !selectedInvestors.includes(record)
+                })
+              }}
+            />
+          </div>
         )}
       </Card>
 

@@ -45,14 +45,15 @@ export default function Page() {
         companyName: values.company_name,
         industry: values.sector,
         fundingStage: values.fund_stage,
-        revenue: values.revenue ? String(values.revenue) : undefined,
-        investment: values.investment_ask ? String(values.investment_ask) : undefined,
+        revenue: values.revenue || undefined,
+        investment: values.investment_ask || undefined,
+        city: values.location,
+        location: values.location,
         // Optional extras (kept for compatibility)
         address: undefined,
         position: undefined,
         website: undefined,
         state: undefined,
-        city: undefined,
         postalCode: undefined,
         companyDescription: undefined,
         employees: undefined,
@@ -71,10 +72,33 @@ export default function Page() {
       if (!res.ok) throw new Error(data.error || "Failed to create client");
 
       message.success("Client created successfully");
-      form.resetFields();
-      setEmailVerified(false);
-      setShowManualForm(false);
-      router.push("/dashboard/all-client");
+      
+      // Store client data in Firebase/localStorage for persistence
+      const clientData = {
+        id: data.client?.id || Date.now().toString(),
+        company_name: payload.companyName,
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        email: payload.email,
+        phone: payload.phone,
+        fund_stage: payload.fundingStage,
+        location: payload.location,
+        industry: payload.industry,
+        revenue: values.revenue, // Keep original string value
+        investment_ask: values.investment_ask, // Keep original string value
+        createdAt: new Date().toISOString(),
+        archive: false
+      };
+      
+      // Save to localStorage for persistence
+      const existingClients = JSON.parse(localStorage.getItem('clients') || '[]');
+      existingClients.unshift(clientData);
+      localStorage.setItem('clients', JSON.stringify(existingClients));
+      
+      sessionStorage.setItem('currentClient', JSON.stringify(clientData));
+      
+      // Redirect to Manage Campaigns (consistent UX)
+      router.push('/dashboard/allCampaign');
     } catch (e) {
       message.error(e.message || "Failed to create client");
     } finally {
@@ -327,6 +351,21 @@ export default function Page() {
                     <Input placeholder="Fintech, SaaS, AI, ..." />
         </Form.Item>
                 )}
+                <Form.Item name="location" label="Location" className="mb-3"> 
+                  <Select
+                    options={[
+                      { value: 'US', label: 'United States' },
+                      { value: 'India', label: 'India' },
+                      { value: 'UK', label: 'United Kingdom' },
+                      { value: 'Canada', label: 'Canada' },
+                      { value: 'Singapore', label: 'Singapore' },
+                      { value: 'Germany', label: 'Germany' },
+                      { value: 'Australia', label: 'Australia' },
+                      { value: 'Other', label: 'Other' },
+                    ]}
+                    placeholder="Select location"
+                  />
+                </Form.Item>
               </div>
 
               <div className="flex gap-4 mt-4">
@@ -336,7 +375,7 @@ export default function Page() {
                   style={{ backgroundColor: '#1677ff', color: '#fff', borderColor: '#1677ff' }}
                   loading={loading}
                 >
-                  Add Client
+                  Save Client & Create Campaign
                 </Button>
                 <Button onClick={() => router.push('/dashboard/all-client')}>Cancel</Button>
               </div>
