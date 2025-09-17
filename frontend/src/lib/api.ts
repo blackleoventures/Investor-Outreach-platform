@@ -2,13 +2,19 @@
 let resolvedApiBase: string | null = null;
 
 const candidateBases: string[] = [
+  // Environment variable first
   typeof process !== 'undefined' && process.env.NEXT_PUBLIC_BACKEND_URL
     ? process.env.NEXT_PUBLIC_BACKEND_URL
     : '',
-  'http://localhost:5001',
-  'http://127.0.0.1:5001',
+  // Local development
   'http://localhost:5000',
   'http://127.0.0.1:5000',
+  'http://localhost:5001',
+  'http://127.0.0.1:5001',
+  // Production fallback - will be set via environment
+  typeof window !== 'undefined' && window.location.origin.includes('localhost')
+    ? ''
+    : process.env.NEXT_PUBLIC_BACKEND_URL || '',
 ];
 
 const probeHealthcheck = async (base: string, timeoutMs = 800): Promise<boolean> => {
@@ -54,8 +60,14 @@ export const getApiBase = async (forceRescan: boolean = false): Promise<string> 
     }
   }
 
-  // Fallback to last known default
-  resolvedApiBase = 'http://localhost:5000';
+  // Fallback based on environment
+  if (typeof window !== 'undefined' && !window.location.origin.includes('localhost')) {
+    // Production environment - use relative path or environment variable
+    resolvedApiBase = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
+  } else {
+    // Development environment
+    resolvedApiBase = 'http://localhost:5000';
+  }
   return resolvedApiBase;
 };
 
