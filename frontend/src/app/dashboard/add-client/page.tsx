@@ -14,7 +14,7 @@ const { TextArea } = Input;
 
 export default function Page() {
   const router = useRouter();
-  const { token } = useAuth();
+  const { token, currentUser } = useAuth() as any;
   const [loading, setLoading] = useState(false);
   const [showManualForm, setShowManualForm] = useState(true);
   const [form] = Form.useForm();
@@ -97,7 +97,22 @@ export default function Page() {
       
       sessionStorage.setItem('currentClient', JSON.stringify(clientData));
       
-      // Redirect to Manage Campaigns (consistent UX)
+      // Also create a draft Campaign for this client so it appears in Manage Campaigns
+      try {
+        const base = await getApiBase();
+        const idToken = currentUser ? await currentUser.getIdToken(true) : undefined;
+        const headers: any = { 'Content-Type': 'application/json', ...(idToken ? { Authorization: `Bearer ${idToken}` } : token ? { Authorization: `Bearer ${token}` } : {}) };
+        const campaignPayload = {
+          name: `${clientData.company_name || 'Campaign'}_${payload.fundingStage || 'Seed'}_Outreach`,
+          clientName: clientData.company_name,
+          status: 'draft',
+          type: 'Email',
+          recipients: 0,
+        };
+        await fetch(`${base}/api/campaign`, { method: 'POST', headers, body: JSON.stringify(campaignPayload) }).catch(()=>null);
+      } catch {}
+
+      // Redirect to Manage Campaigns
       router.push('/dashboard/allCampaign');
     } catch (e) {
       message.error(e.message || "Failed to create client");

@@ -130,18 +130,7 @@ const Campaigns = () => {
       <Card
         title={<Title level={4} className="!mb-0"><MailOutlined className="mr-2"/>Campaign Management</Title>}
         extra={
-          <div className="flex gap-2">
-            <Button icon={<UserAddOutlined/>} onClick={() => router.push('/dashboard/add-client')}>Add Client</Button>
-            <Button onClick={() => {
-              sessionStorage.removeItem('currentCampaign');
-              sessionStorage.removeItem('currentClient');
-              localStorage.removeItem('campaigns');
-              localStorage.removeItem('clients');
-              loadCampaigns();
-              message.success('All data cleared');
-            }} size="small">Clear All</Button>
-            <Button type="primary" icon={<PlusOutlined/>} onClick={() => setCreateOpen(true)} style={{backgroundColor:'#ac6a1e'}}>Create Campaign</Button>
-          </div>
+          <Button type="primary" icon={<PlusOutlined/>} onClick={() => setCreateOpen(true)} style={{backgroundColor:'#ac6a1e'}}>Create Campaign</Button>
         }
       >
         {investors.length > 0 && (
@@ -285,8 +274,8 @@ const Campaigns = () => {
             localStorage.setItem('campaigns', JSON.stringify(existingCampaigns));
             
             loadCampaigns(); // Refresh the list
-            // Navigate to Investor Matching as step 2
-            router.push('/dashboard/investor-management');
+            // Navigate to Email Composer
+            router.push('/dashboard/campaign/email-composer');
           } catch (e) {
             message.error(e.message || 'Create failed');
           }
