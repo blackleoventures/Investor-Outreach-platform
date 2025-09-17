@@ -17,7 +17,7 @@ const AllReports = () => {
     {
       title: "S.No.",
       key: "serial",
-      render: (_, __, index) => index + 1,
+      render: (_: any, __: any, index: number) => index + 1,
       width: 60,
     },
     {
