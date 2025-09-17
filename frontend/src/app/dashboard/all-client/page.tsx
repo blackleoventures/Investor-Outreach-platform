@@ -188,14 +188,26 @@ const ClientsData = () => {
       });
 
       const serverClients = Array.isArray(response?.data?.clients) ? response.data.clients : [];
-      // Merge with locally persisted clients (keep locals until explicitly deleted)
+      // Merge with locally persisted clients (prefer local values to preserve exact input like "$2M")
       const localClients = JSON.parse(localStorage.getItem('clients') || '[]');
-      const byKey = new Map();
       const makeKey = (c:any) => (c.id || c._id || c.email || `${c.company_name}-${c.first_name}-${c.last_name}`);
-      for (const c of serverClients) byKey.set(makeKey(c), c);
-      for (const c of localClients) {
-        const k = makeKey(c);
-        if (!byKey.has(k)) byKey.set(k, c);
+      const byKey = new Map<string, any>();
+      // Seed with locals first
+      for (const c of localClients) byKey.set(makeKey(c), c);
+      // Overlay server docs, but do not overwrite non-empty local revenue/investment strings
+      for (const s of serverClients) {
+        const k = makeKey(s);
+        const existing = byKey.get(k);
+        if (!existing) {
+          byKey.set(k, s);
+        } else {
+          byKey.set(k, {
+            ...s,
+            // Preserve local formatted values if present
+            revenue: (existing.revenue !== undefined && String(existing.revenue).trim() !== '') ? existing.revenue : s.revenue,
+            investment_ask: (existing.investment_ask !== undefined && String(existing.investment_ask).trim() !== '') ? existing.investment_ask : s.investment_ask,
+          });
+        }
       }
       let merged = Array.from(byKey.values());
 

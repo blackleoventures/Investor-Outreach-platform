@@ -84,8 +84,8 @@ export default function Page() {
         fund_stage: payload.fundingStage,
         location: payload.location,
         industry: payload.industry,
-        revenue: values.revenue, // Keep original string value
-        investment_ask: values.investment_ask, // Keep original string value
+        revenue: values.revenue, // Preserve exact string (e.g., "$2M")
+        investment_ask: values.investment_ask, // Preserve exact string
         createdAt: new Date().toISOString(),
         archive: false
       };
