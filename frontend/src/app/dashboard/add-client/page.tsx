@@ -97,7 +97,7 @@ export default function Page() {
       
       sessionStorage.setItem('currentClient', JSON.stringify(clientData));
       
-      // Also create a draft Campaign for this client so it appears in Manage Campaigns
+      // Create a draft campaign once and persist it
       try {
         const base = await getApiBase();
         const idToken = currentUser ? await currentUser.getIdToken(true) : undefined;
@@ -105,14 +105,38 @@ export default function Page() {
         const campaignPayload = {
           name: `${clientData.company_name || 'Campaign'}_${payload.fundingStage || 'Seed'}_Outreach`,
           clientName: clientData.company_name,
+          clientId: clientData.id,
           status: 'draft',
           type: 'Email',
           recipients: 0,
+          createdAt: new Date().toISOString(),
+          audience: [],
+          emailTemplate: { subject: '', content: '' },
+          schedule: null
         };
-        await fetch(`${base}/api/campaign`, { method: 'POST', headers, body: JSON.stringify(campaignPayload) }).catch(()=>null);
+        
+        let createdCampaign = campaignPayload;
+        try {
+          const resp = await fetch(`${base}/api/campaign`, { method: 'POST', headers, body: JSON.stringify(campaignPayload) });
+          if (resp.ok) {
+            const result = await resp.json();
+            if (result?.campaign) createdCampaign = result.campaign;
+          }
+        } catch {}
+        
+        // Save to localStorage and sessionStorage
+        const existingCampaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
+        // Avoid duplicates by name+clientId
+        const exists = existingCampaigns.some((c:any)=> (c.name===createdCampaign.name) && (c.clientId===createdCampaign.clientId));
+        if (!exists) {
+          existingCampaigns.unshift(createdCampaign);
+          localStorage.setItem('campaigns', JSON.stringify(existingCampaigns));
+        }
+        sessionStorage.setItem('currentCampaign', JSON.stringify(createdCampaign));
       } catch {}
 
-      // Redirect to Manage Campaigns
+      // Redirect to Manage Campaigns with success message
+      message.success("Client created and campaign initialized successfully!");
       router.push('/dashboard/allCampaign');
     } catch (e) {
       message.error(e.message || "Failed to create client");
@@ -260,9 +284,23 @@ export default function Page() {
           </div>
         </div>
       ) : (
-        <Modal
-          title={
-            <div className="flex items-center gap-2">
+        <div className="max-w-5xl mx-auto">
+          <div className="mb-8">
+            <Button 
+              type="text" 
+              icon={<ArrowLeftOutlined />}
+              onClick={() => router.back()}
+              className="mb-6 text-gray-600 hover:text-gray-800"
+            >
+              Back to Previous Page
+            </Button>
+            
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-3">Add New Client</h1>
+                <p className="text-lg text-gray-600">Fill in the client details to create a new client profile</p>
+              </div>
+              
               <Dropdown
                 menu={{
                   items: [
@@ -293,110 +331,178 @@ export default function Page() {
                 trigger={["click"]}
                 placement="bottomRight"
               >
-                <Button type="text" icon={<SettingOutlined />} size="small">
-                  Customize Columns
+                <Button type="default" icon={<SettingOutlined />}>
+                  Customize Fields
                 </Button>
               </Dropdown>
             </div>
-          }
-          open={true}
-          onCancel={() => router.push('/dashboard/all-client')}
-          footer={null}
-          width={900}
-          style={{ top: 20 }}
-          styles={{ body: { padding: 0, maxHeight: '70vh', overflowX: 'hidden', overflowY: 'auto' } }}
-        >
-          <div className="p-4" style={{ maxWidth: '100%', width: '100%', boxSizing: 'border-box' }}>
-            <Form form={form} onFinish={onFinish} layout="vertical">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {visibleColumns.company_name && (
-                  <Form.Item name="company_name" label="Company Name" className="mb-3" rules={[{ required: true }]}> 
-          <Input placeholder="Acme Inc" />
-        </Form.Item>
-                )}
-                {visibleColumns.founder_name && (
-                  <Form.Item name="founder_name" label="Founder Name" className="mb-3" rules={[{ required: true }]}> 
-                    <Input placeholder="John Doe" />
-                  </Form.Item>
-                )}
-                {visibleColumns.company_email && (
-                  <Form.Item name="company_email" label="Company Email" className="mb-3" rules={[{ type: 'email', required: true }]}> 
-                    <div className="flex gap-2">
-                      <Input placeholder="founder@company.com" onChange={() => setEmailVerified(false)} />
-                      <Button onClick={handleVerifyEmail} loading={verifying} disabled={emailVerified}>
-                        {emailVerified ? 'Verified' : 'Verify'}
-                      </Button>
-                      <Button onClick={handleCheckVerification} loading={checking}>
-                        Check
-                      </Button>
-                    </div>
-                  </Form.Item>
-                )}
-                {visibleColumns.contact && (
-                  <Form.Item name="contact" label="Contact" className="mb-3"> 
-                    <Input placeholder="+1 555 000 000" />
-                  </Form.Item>
-                )}
-                {visibleColumns.fund_stage && (
-                  <Form.Item name="fund_stage" label="Fund Stage" className="mb-3"> 
+          </div>
+
+          <div className="bg-white rounded-xl shadow-xl border border-gray-100">
+            <div className="p-10">
+              <Form form={form} onFinish={onFinish} layout="vertical" size="large">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {visibleColumns.company_name && (
+                    <Form.Item 
+                      name="company_name" 
+                      label={<span className="text-base font-semibold text-gray-800">Company Name *</span>} 
+                      rules={[{ required: true, message: 'Please enter company name' }]}
+                      className="mb-6"
+                    > 
+                      <Input placeholder="Acme Inc" className="h-14 text-base" />
+                    </Form.Item>
+                  )}
+                  
+                  {visibleColumns.founder_name && (
+                    <Form.Item 
+                      name="founder_name" 
+                      label={<span className="text-base font-semibold text-gray-800">Founder Name *</span>} 
+                      rules={[{ required: true, message: 'Please enter founder name' }]}
+                      className="mb-6"
+                    > 
+                      <Input placeholder="John Doe" className="h-14 text-base" />
+                    </Form.Item>
+                  )}
+                  
+                  {visibleColumns.company_email && (
+                    <Form.Item 
+                      name="company_email" 
+                      label={<span className="text-base font-semibold text-gray-800">Company Email *</span>} 
+                      rules={[{ type: 'email', required: true, message: 'Please enter valid email' }]}
+                      className="mb-6"
+                    > 
+                      <div className="flex gap-3">
+                        <Input 
+                          placeholder="founder@company.com" 
+                          className="h-14 flex-1 text-base" 
+                          onChange={() => setEmailVerified(false)} 
+                        />
+                        <Button 
+                          onClick={handleVerifyEmail} 
+                          loading={verifying} 
+                          disabled={emailVerified}
+                          className="h-14 px-6"
+                          type={emailVerified ? 'default' : 'primary'}
+                        >
+                          {emailVerified ? 'Verified' : 'Verify'}
+                        </Button>
+                        <Button 
+                          onClick={handleCheckVerification} 
+                          loading={checking}
+                          className="h-14 px-4"
+                        >
+                          Check
+                        </Button>
+                      </div>
+                    </Form.Item>
+                  )}
+                  
+                  {visibleColumns.contact && (
+                    <Form.Item 
+                      name="contact" 
+                      label={<span className="text-base font-semibold text-gray-800">Contact</span>}
+                      className="mb-6"
+                    > 
+                      <Input placeholder="+1 555 000 000" className="h-14 text-base" />
+                    </Form.Item>
+                  )}
+                  
+                  {visibleColumns.fund_stage && (
+                    <Form.Item 
+                      name="fund_stage" 
+                      label={<span className="text-base font-semibold text-gray-800">Fund Stage</span>}
+                      className="mb-6"
+                    > 
+                      <Select
+                        options={[
+                          { value: 'Pre-seed', label: 'Pre-seed' },
+                          { value: 'Seed', label: 'Seed' },
+                          { value: 'Series A', label: 'Series A' },
+                          { value: 'Series B', label: 'Series B' },
+                          { value: 'Growth', label: 'Growth' },
+                        ]}
+                        placeholder="Select stage"
+                        size="large"
+                        className="h-14"
+                      />
+                    </Form.Item>
+                  )}
+                  
+                  {visibleColumns.revenue && (
+                    <Form.Item 
+                      name="revenue" 
+                      label={<span className="text-base font-semibold text-gray-800">Revenue</span>}
+                      className="mb-6"
+                    > 
+                      <Input placeholder="$1.5M or 1500000" className="h-14 text-base" />
+                    </Form.Item>
+                  )}
+                  
+                  {visibleColumns.investment_ask && (
+                    <Form.Item 
+                      name="investment_ask" 
+                      label={<span className="text-base font-semibold text-gray-800">Investment Ask</span>}
+                      className="mb-6"
+                    > 
+                      <Input placeholder="$2M or 2000000" className="h-14 text-base" />
+                    </Form.Item>
+                  )}
+                  
+                  {visibleColumns.sector && (
+                    <Form.Item 
+                      name="sector" 
+                      label={<span className="text-base font-semibold text-gray-800">Sector</span>}
+                      className="mb-6"
+                    > 
+                      <Input placeholder="Fintech, SaaS, AI, ..." className="h-14 text-base" />
+                    </Form.Item>
+                  )}
+                  
+                  <Form.Item 
+                    name="location" 
+                    label={<span className="text-base font-semibold text-gray-800">Location</span>}
+                    className="mb-6"
+                  > 
                     <Select
                       options={[
-                        { value: 'Pre-seed', label: 'Pre-seed' },
-                        { value: 'Seed', label: 'Seed' },
-                        { value: 'Series A', label: 'Series A' },
-                        { value: 'Series B', label: 'Series B' },
-                        { value: 'Growth', label: 'Growth' },
+                        { value: 'US', label: 'United States' },
+                        { value: 'India', label: 'India' },
+                        { value: 'UK', label: 'United Kingdom' },
+                        { value: 'Canada', label: 'Canada' },
+                        { value: 'Singapore', label: 'Singapore' },
+                        { value: 'Germany', label: 'Germany' },
+                        { value: 'Australia', label: 'Australia' },
+                        { value: 'Other', label: 'Other' },
                       ]}
-                      placeholder="Select stage"
+                      placeholder="Select location"
+                      size="large"
+                      className="h-14"
                     />
                   </Form.Item>
-                )}
-                {visibleColumns.revenue && (
-                  <Form.Item name="revenue" label="Revenue" className="mb-3"> 
-                    <Input placeholder="$1.5M or 1500000" />
-        </Form.Item>
-                )}
-                {visibleColumns.investment_ask && (
-                  <Form.Item name="investment_ask" label="Investment Ask" className="mb-3"> 
-                    <Input placeholder="$2M or 2000000" />
-        </Form.Item>
-                )}
-                {visibleColumns.sector && (
-                  <Form.Item name="sector" label="Sector" className="mb-3"> 
-                    <Input placeholder="Fintech, SaaS, AI, ..." />
-        </Form.Item>
-                )}
-                <Form.Item name="location" label="Location" className="mb-3"> 
-                  <Select
-                    options={[
-                      { value: 'US', label: 'United States' },
-                      { value: 'India', label: 'India' },
-                      { value: 'UK', label: 'United Kingdom' },
-                      { value: 'Canada', label: 'Canada' },
-                      { value: 'Singapore', label: 'Singapore' },
-                      { value: 'Germany', label: 'Germany' },
-                      { value: 'Australia', label: 'Australia' },
-                      { value: 'Other', label: 'Other' },
-                    ]}
-                    placeholder="Select location"
-                  />
-                </Form.Item>
-              </div>
+                </div>
 
-              <div className="flex gap-4 mt-4">
-                <Button 
-                  type="primary" 
-                  htmlType="submit"
-                  style={{ backgroundColor: '#1677ff', color: '#fff', borderColor: '#1677ff' }}
-                  loading={loading}
-                >
-                  Save Client & Create Campaign
-                </Button>
-                <Button onClick={() => router.push('/dashboard/all-client')}>Cancel</Button>
-              </div>
-      </Form>
+                <div className="flex gap-6 mt-10 pt-8 border-t border-gray-200">
+                  <Button 
+                    type="primary" 
+                    htmlType="submit"
+                    loading={loading}
+                    size="large"
+                    className="bg-blue-600 hover:bg-blue-700 border-blue-600 h-14 px-10 font-semibold text-base"
+                  >
+                    Save Client & Create Campaign
+                  </Button>
+                  <Button 
+                    onClick={() => router.push('/dashboard/all-client')}
+                    size="large"
+                    className="h-14 px-8 text-base border-gray-300 hover:border-gray-400"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </Form>
+            </div>
           </div>
-        </Modal>
+        </div>
       )}
     </div>
   );
