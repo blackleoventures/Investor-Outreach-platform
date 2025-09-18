@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { Users, List, Briefcase, Plus, X, Mail, UserPlus, TrendingUp, Activity } from "lucide-react";
+import { Users, List, Plus, X, Mail, UserPlus, TrendingUp, Activity } from "lucide-react";
 import { FileTextOutlined } from "@ant-design/icons";
 // Charts are dynamically loaded to speed up initial render
 // Faster fetch helper with timeout and no-cache for dynamic endpoints
@@ -23,8 +23,7 @@ import dynamic from "next/dynamic";
 const MonthlyEmailBarChart = dynamic(() => import("@/components/charts/MonthlyEmailBarChart"), { ssr: false });
 const EmailDistributionPie = dynamic(() => import("@/components/charts/EmailDistributionPie"), { ssr: false });
 import { Button, Form, Input } from "antd";
-import QuickEmailSender from "@/components/QuickEmailSender";
-import BulkEmailSender from "@/components/BulkEmailSender";
+
 
 
 // Lazy-load heavy components
@@ -605,141 +604,7 @@ const Profile = () => {
           />
         </motion.div>
 
-        {/* Quick Actions Section */}
-        <motion.div 
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15, duration: 0.4 }}
-          className="mt-8"
-        >
-          <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Briefcase className="w-5 h-5 text-purple-600" />
-              </div>
-              <h2 className="text-xl font-semibold text-gray-800">Quick Actions</h2>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              <motion.div
-                whileHover={{ y: -3, scale: 1.02 }}
-                transition={{ duration: 0.2 }}
-                className="p-4 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl border border-blue-200 cursor-pointer hover:shadow-md transition-all duration-300"
-                onClick={() => router.push("/dashboard/add-client")}
-              >
-                <div className="text-center">
-                  <div className="p-2 bg-blue-500 rounded-lg mx-auto w-fit mb-2">
-                    <UserPlus className="w-4 h-4 text-white" />
-                  </div>
-                  <h3 className="font-semibold text-blue-800 text-sm">1. Client Onboarding</h3>
-                  <p className="text-xs text-blue-600">Add client details</p>
-                </div>
-              </motion.div>
 
-              <motion.div
-                whileHover={{ y: -3, scale: 1.02 }}
-                transition={{ duration: 0.2 }}
-                className="p-4 bg-gradient-to-br from-green-50 to-emerald-100 rounded-xl border border-green-200 cursor-pointer hover:shadow-md transition-all duration-300"
-                onClick={() => router.push("/dashboard/allCampaign")}
-              >
-                <div className="text-center">
-                  <div className="p-2 bg-green-500 rounded-lg mx-auto w-fit mb-2">
-                    <Mail className="w-4 h-4 text-white" />
-                  </div>
-                  <h3 className="font-semibold text-green-800 text-sm">2. Create Campaign</h3>
-                  <p className="text-xs text-green-600">Setup campaign</p>
-                </div>
-              </motion.div>
-
-              <motion.div
-                whileHover={{ y: -3, scale: 1.02 }}
-                transition={{ duration: 0.2 }}
-                className="p-4 bg-gradient-to-br from-purple-50 to-pink-100 rounded-xl border border-purple-200 cursor-pointer hover:shadow-md transition-all duration-300"
-                onClick={() => router.push("/dashboard/investor-management")}
-              >
-                <div className="text-center">
-                  <div className="p-2 bg-purple-500 rounded-lg mx-auto w-fit mb-2">
-                    <Users className="w-4 h-4 text-white" />
-                  </div>
-                  <h3 className="font-semibold text-purple-800 text-sm">3. Matchmaking</h3>
-                  <p className="text-xs text-purple-600">Find investors</p>
-                </div>
-              </motion.div>
-
-              <motion.div
-                whileHover={{ y: -3, scale: 1.02 }}
-                transition={{ duration: 0.2 }}
-                className="p-4 bg-gradient-to-br from-orange-50 to-red-100 rounded-xl border border-orange-200 cursor-pointer hover:shadow-md transition-all duration-300"
-                onClick={() => router.push("/dashboard/campaign/ai-email-campaign")}
-              >
-                <div className="text-center">
-                  <div className="p-2 bg-orange-500 rounded-lg mx-auto w-fit mb-2">
-                    <FileTextOutlined className="w-4 h-4 text-white" />
-                  </div>
-                  <h3 className="font-semibold text-orange-800 text-sm">4. Email Template</h3>
-                  <p className="text-xs text-orange-600">Create content</p>
-                </div>
-              </motion.div>
-
-              <motion.div
-                whileHover={{ y: -3, scale: 1.02 }}
-                transition={{ duration: 0.2 }}
-                className="p-4 bg-gradient-to-br from-red-50 to-pink-100 rounded-xl border border-red-200 cursor-pointer hover:shadow-md transition-all duration-300"
-                onClick={() => router.push("/dashboard/select-campaign")}
-              >
-                <div className="text-center">
-                  <div className="p-2 bg-red-500 rounded-lg mx-auto w-fit mb-2">
-                    <TrendingUp className="w-4 h-4 text-white" />
-                  </div>
-                  <h3 className="font-semibold text-red-800 text-sm">5. Schedule & Send</h3>
-                  <p className="text-xs text-red-600">Launch campaign</p>
-                </div>
-              </motion.div>
-
-              <motion.div
-                whileHover={{ y: -3, scale: 1.02 }}
-                transition={{ duration: 0.2 }}
-                className="p-4 bg-gradient-to-br from-cyan-50 to-blue-100 rounded-xl border border-cyan-200 cursor-pointer hover:shadow-md transition-all duration-300"
-                onClick={() => router.push("/dashboard/all-reports")}
-              >
-                <div className="text-center">
-                  <div className="p-2 bg-cyan-500 rounded-lg mx-auto w-fit mb-2">
-                    <Activity className="w-4 h-4 text-white" />
-                  </div>
-                  <h3 className="font-semibold text-cyan-800 text-sm">6. Reports</h3>
-                  <p className="text-xs text-cyan-600">Track & share</p>
-                </div>
-              </motion.div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* Quick Email Sender */}
-        <motion.div 
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.18, duration: 0.4 }}
-          className="mt-8"
-        >
-          <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Mail className="w-5 h-5 text-green-600" />
-              </div>
-              <h2 className="text-xl font-semibold text-gray-800">Quick Email Sender</h2>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Single Email</h3>
-                <QuickEmailSender />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Bulk Email to Investors</h3>
-                <BulkEmailSender />
-              </div>
-            </div>
-          </div>
-        </motion.div>
 
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
