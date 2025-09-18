@@ -11,8 +11,8 @@ const { Title, Text } = Typography;
 export default function ScheduleSendPage() {
   const [loading, setLoading] = useState(false);
   const [scheduleType, setScheduleType] = useState('custom');
-  const [selectedDate, setSelectedDate] = useState(null);
-  const [selectedTime, setSelectedTime] = useState(null);
+  const [selectedDate, setSelectedDate] = useState<any>(null);
+  const [selectedTime, setSelectedTime] = useState<any>(null);
   const [campaignId, setCampaignId] = useState<string>('');
   const [clientName, setClientName] = useState<string>('');
   const [location, setLocation] = useState<string>('');
@@ -52,7 +52,7 @@ export default function ScheduleSendPage() {
             
             // Update in localStorage too
             const campaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
-            const index = campaigns.findIndex(c => c.id === campaignData.id);
+            const index = campaigns.findIndex((c: any) => c.id === campaignData.id);
             if (index !== -1) {
               campaigns[index].status = 'Active';
               localStorage.setItem('campaigns', JSON.stringify(campaigns));

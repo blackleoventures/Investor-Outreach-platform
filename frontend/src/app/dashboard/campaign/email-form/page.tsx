@@ -55,7 +55,7 @@ export default function EmailTemplatePage() {
       if (response.ok) {
         // Update campaign with email template in localStorage
         const campaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
-        const index = campaigns.findIndex(c => c.id === campaignId);
+        const index = campaigns.findIndex((c: any) => c.id === campaignId);
         if (index !== -1) {
           campaigns[index].subject = values.subject;
           campaigns[index].body = values.content;

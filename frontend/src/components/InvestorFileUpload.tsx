@@ -85,7 +85,7 @@ const InvestorFileUpload: React.FC = () => {
       handleUpload(file);
       return false; // Prevent default upload
     },
-    onDrop(e) {
+    onDrop(e: any) {
       console.log('Dropped files', e.dataTransfer.files);
     },
   };

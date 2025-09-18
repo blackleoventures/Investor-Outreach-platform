@@ -7,8 +7,16 @@ import { useSearchParams } from "next/navigation";
 
 const { Title } = Typography;
 
+interface Report {
+  id: number;
+  name: string;
+  type: string;
+  createdAt: string;
+  status: string;
+}
+
 const AllReports = () => {
-  const [reports, setReports] = useState([]);
+  const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(false);
   const searchParams = useSearchParams();
   const campaignId = searchParams.get('campaignId');
@@ -35,13 +43,13 @@ const AllReports = () => {
       title: "Created Date",
       dataIndex: "createdAt",
       key: "createdAt",
-      render: (date) => new Date(date).toLocaleDateString(),
+      render: (date: string) => new Date(date).toLocaleDateString(),
     },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      render: (status) => (
+      render: (status: string) => (
         <Tag color={status === "completed" ? "green" : "orange"}>
           {status}
         </Tag>
@@ -50,7 +58,7 @@ const AllReports = () => {
     {
       title: "Actions",
       key: "actions",
-      render: (_, record) => (
+      render: (_: any, record: Report) => (
         <Space>
           <Button
             type="primary"
@@ -65,7 +73,7 @@ const AllReports = () => {
     },
   ];
 
-  const handleView = (report) => {
+  const handleView = (report: Report) => {
     console.log("Viewing report:", report);
     // TODO: Implement report viewing logic
   };
@@ -108,7 +116,7 @@ const AllReports = () => {
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
-            showTotal: (total) => `Total ${total} reports`,
+            showTotal: (total: number) => `Total ${total} reports`,
           }}
           locale={{ emptyText: "No reports found" }}
         />

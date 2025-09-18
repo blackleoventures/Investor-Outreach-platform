@@ -19,7 +19,7 @@ import { prepareMobileAuth, handleMobileBackButton } from '@/lib/mobile-auth-fix
 
 interface AuthContextType {
   currentUser: User | null;
-  login: () => Promise<void>;
+  login: () => Promise<any>;
   logout: () => Promise<void>;
   loading: boolean;
   authError: string | null;
@@ -156,6 +156,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Enhanced redirect result handling
     const handleRedirectResult = async () => {
+      if (!auth) return;
+      
       try {
         console.log('Checking for redirect result...');
         const result = await getRedirectResult(auth);

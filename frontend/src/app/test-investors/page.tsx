@@ -8,11 +8,11 @@ import { useAuth } from "@/contexts/AuthContext";
 const { Title } = Typography;
 
 export default function TestInvestors() {
-  const { token } = useAuth();
+  const { currentUser } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [apiFetchData, setApiFetchData] = useState([]);
-  const [fetchData, setFetchData] = useState([]);
-  const [normalized, setNormalized] = useState([]);
+  const [apiFetchData, setApiFetchData] = useState<any[]>([]);
+  const [fetchData, setFetchData] = useState<any[]>([]);
+  const [normalized, setNormalized] = useState<any[]>([]);
 
   const testApiFetch = async () => {
     setLoading(true);
@@ -35,9 +35,7 @@ export default function TestInvestors() {
     setLoading(true);
     try {
       const base = await getApiBase();
-      const res = await fetch(`${base}/api/investors?limit=100000&page=1`, { 
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await fetch(`${base}/api/investors?limit=100000&page=1`);
       const data = await res.json();
       const investors = data.docs || data.data || [];
       setFetchData(investors);
@@ -111,7 +109,7 @@ export default function TestInvestors() {
     { title: 'Investor Name', dataIndex: 'investor_name', key: 'investor_name', width: 150 },
     { title: 'Partner Name', dataIndex: 'partner_name', key: 'partner_name', width: 150 },
     { title: 'Email', dataIndex: 'partner_email', key: 'partner_email', width: 200 },
-    { title: 'Raw Data', key: 'raw', width: 300, render: (_, record) => JSON.stringify(record).substring(0, 100) + '...' },
+    { title: 'Raw Data', key: 'raw', width: 300, render: (_: any, record: any) => JSON.stringify(record).substring(0, 100) + '...' },
   ];
 
   const normColumns = [

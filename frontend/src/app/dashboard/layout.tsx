@@ -61,9 +61,9 @@ export default function DashboardLayout({
     return () => window.removeEventListener('resize', debouncedResize);
   }, []);
 
-  const debounce = (func, wait) => {
-    let timeout;
-    return function executedFunction(...args) {
+  const debounce = (func: (...args: any[]) => void, wait: number) => {
+    let timeout: NodeJS.Timeout;
+    return function executedFunction(...args: any[]) {
       const later = () => {
         clearTimeout(timeout);
         func(...args);

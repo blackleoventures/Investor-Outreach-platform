@@ -150,7 +150,7 @@ export default function ConversationTimeline({ dealRoomId, investorId }: Convers
               <div className="flex items-center gap-2 mb-2">
                 <Avatar size="small" icon={<UserOutlined />} />
                 <span className="font-medium text-gray-800">{event.investorName}</span>
-                <Tag color={getEventColor(event.type)} size="small">
+                <Tag color={getEventColor(event.type)}>
                   {event.type.replace('_', ' ').toUpperCase()}
                 </Tag>
                 <span className="text-xs text-gray-500">{formatTimestamp(event.timestamp)}</span>
@@ -184,7 +184,7 @@ export default function ConversationTimeline({ dealRoomId, investorId }: Convers
                     <div className="flex items-center gap-2">
                       <span className="text-xs text-gray-500">Attachments:</span>
                       {event.metadata.attachments.map((attachment, i) => (
-                        <Tag key={i} size="small">{attachment}</Tag>
+                        <Tag key={i}>{attachment}</Tag>
                       ))}
                     </div>
                   )}

@@ -26,6 +26,7 @@ type InvestorRow = {
 };
 
 export default function InvestorManagementPage() {
+  const router = useRouter();
   const [matches, setMatches] = useState<any[]>([]);
   const [selectedMatches, setSelectedMatches] = useState<any[]>([]);
   const MAX_SELECT = 20;
@@ -104,7 +105,7 @@ export default function InvestorManagementPage() {
       if (response.ok) {
         // Update campaign with audience in localStorage
         const campaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
-        const index = campaigns.findIndex(c => c.id === campaignId);
+        const index = campaigns.findIndex((c: any) => c.id === campaignId);
         if (index !== -1) {
           campaigns[index].recipients = selectedMatches.length;
           campaigns[index].audience = selectedMatches;
