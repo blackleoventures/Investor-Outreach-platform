@@ -10,7 +10,7 @@ const { Title, Text } = Typography;
 
 export default function ScheduleSendPage() {
   const [loading, setLoading] = useState(false);
-  const [scheduleType, setScheduleType] = useState('now');
+  const [scheduleType, setScheduleType] = useState('custom');
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
   const [campaignId, setCampaignId] = useState<string>('');
@@ -96,7 +96,6 @@ export default function ScheduleSendPage() {
             
             <Radio.Group value={scheduleType} onChange={(e) => setScheduleType(e.target.value)}>
               <div className="space-y-3">
-                <Radio value="now">Send Now</Radio>
                 <Radio value="custom">Custom Date & Time</Radio>
                 <Radio value="daily">Daily (Coming Soon)</Radio>
                 <Radio value="weekly">Weekly (Coming Soon)</Radio>
@@ -125,19 +124,17 @@ export default function ScheduleSendPage() {
             )}
           </div>
 
-          <div className="mt-8 flex justify-between items-center">
-            <div className="flex gap-2">
-              <Button onClick={() => router.push('/dashboard/allCampaign')}>All Campaigns</Button>
-              <Button onClick={() => router.push('/dashboard/all-reports')}>View Reports</Button>
-            </div>
+          <div className="mt-8 flex justify-end items-center gap-4">
+            <Button onClick={() => router.push('/dashboard/allCampaign')}>All Campaigns</Button>
+            <Button onClick={() => router.push('/dashboard/all-reports')}>View Reports</Button>
             <Button 
               type="primary" 
               size="large" 
-              icon={scheduleType === 'now' ? <SendOutlined /> : <ClockCircleOutlined />}
+              icon={<ClockCircleOutlined />}
               loading={loading}
               onClick={handleSend}
             >
-              {scheduleType === 'now' ? '🚀 Send Campaign Now' : '⏰ Schedule Campaign'}
+              ⏰ Schedule Campaign
             </Button>
           </div>
         </Card>

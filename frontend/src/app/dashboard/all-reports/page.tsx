@@ -8,7 +8,7 @@ import { useSearchParams } from "next/navigation";
 const { Title } = Typography;
 
 const AllReports = () => {
-  const [campaigns, setCampaigns] = useState([]);
+  const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(false);
   const searchParams = useSearchParams();
   const campaignId = searchParams.get('campaignId');
@@ -29,7 +29,7 @@ const AllReports = () => {
       title: "Type",
       dataIndex: "type",
       key: "type",
-      render: (type) => <Tag color="blue">{type}</Tag>,
+      render: (type: string) => <Tag color="blue">{type}</Tag>,
     },
     {
       title: "Created Date",
@@ -102,15 +102,15 @@ const AllReports = () => {
       >
         <Table
           columns={columns}
-          dataSource={campaigns}
+          dataSource={reports}
           loading={loading}
           rowKey="id"
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
-            showTotal: (total) => `Total ${total} campaigns`,
+            showTotal: (total) => `Total ${total} reports`,
           }}
-          locale={{ emptyText: "No campaigns found" }}
+          locale={{ emptyText: "No reports found" }}
         />
       </Card>
     </div>

@@ -3,21 +3,21 @@ const { sendEmail } = require('../services/email.service');
 
 exports.createCampaign = async (req, res) => {
   try {
-    const { clientId, clientName, stage, location } = req.body;
+    const { clientId, clientName, stage, location, name, status, type, recipients } = req.body;
     
-    if (!clientId || !clientName) {
-      return res.status(400).json({ error: 'Missing required fields: clientId, clientName' });
+    if (!clientName) {
+      return res.status(400).json({ error: 'Missing required field: clientName' });
     }
 
     const campaignData = {
       id: Date.now().toString(),
-      name: `${clientName}_${stage || 'Seed'}_Outreach`,
-      clientId,
+      name: name || `${clientName}_${stage || 'Seed'}_Outreach`,
+      clientId: clientId || null,
       clientName,
       location: location || 'US',
-      type: 'Email',
-      status: 'Draft',
-      recipients: 0,
+      type: type || 'Email',
+      status: status || 'draft',
+      recipients: recipients || 0,
       createdAt: new Date().toISOString(),
       audience: [],
       emailTemplate: { subject: '', content: '' },
@@ -29,6 +29,7 @@ exports.createCampaign = async (req, res) => {
       campaign: campaignData
     });
   } catch (error) {
+    console.error('Campaign creation error:', error);
     res.status(500).json({ error: error.message });
   }
 };

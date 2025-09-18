@@ -28,6 +28,7 @@ type InvestorRow = {
 export default function InvestorManagementPage() {
   const [matches, setMatches] = useState<any[]>([]);
   const [selectedMatches, setSelectedMatches] = useState<any[]>([]);
+  const MAX_SELECT = 20;
   const [loading, setLoading] = useState(false);
   const [campaignId, setCampaignId] = useState<string>('');
   const [clientName, setClientName] = useState<string>('');
@@ -73,6 +74,10 @@ export default function InvestorManagementPage() {
 
   const handleSelectMatch = (match: any, selected: boolean) => {
     if (selected) {
+      if (selectedMatches.length >= MAX_SELECT) {
+        message.warning(`You can select up to ${MAX_SELECT} investors`);
+        return;
+      }
       setSelectedMatches([...selectedMatches, match]);
     } else {
       setSelectedMatches(selectedMatches.filter(m => m.id !== match.id));
@@ -106,8 +111,8 @@ export default function InvestorManagementPage() {
           localStorage.setItem('campaigns', JSON.stringify(campaigns));
         }
         
-        message.success(`${selectedMatches.length} matches selected!`);
-        window.location.href = `/dashboard/campaign/email-form?campaignId=${campaignId}&clientName=${clientName}&location=${location}`;
+        message.success(`${selectedMatches.length} investors selected!`);
+        window.location.href = `/dashboard/campaign/ai-email-campaign?campaignId=${encodeURIComponent(campaignId)}&clientName=${encodeURIComponent(clientName)}&location=${encodeURIComponent(location)}`;
       }
     } catch (error) {
       message.error('Failed to update campaign');
@@ -197,7 +202,7 @@ export default function InvestorManagementPage() {
         
         <div className="mt-6 flex justify-between items-center">
           <div className="flex gap-2 items-center">
-            <Text>Selected: <strong>{selectedMatches.length}</strong> matches</Text>
+            <Text>Selected: <strong>{selectedMatches.length}</strong> / {MAX_SELECT} investors</Text>
             <Button size="small" onClick={() => router.push('/dashboard/all-reports')}>View Reports</Button>
           </div>
           <Button type="primary" size="large" onClick={handleNext} disabled={selectedMatches.length === 0}>

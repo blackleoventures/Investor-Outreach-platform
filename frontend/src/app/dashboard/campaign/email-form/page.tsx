@@ -90,15 +90,15 @@ export default function EmailTemplatePage() {
               <div className="flex justify-between items-center">
                 <Button onClick={() => router.push('/dashboard/allCampaign')}>All Campaigns</Button>
                 <Button type="primary" htmlType="submit" loading={loading} size="large">
-                  Next: Schedule & Send →
+                  Schedule & Send →
                 </Button>
               </div>
             </Form>
           </Card>
         </div>
         
-        <div>
-          <Card title="🎯 Selected Audience" size="small">
+        <div className="lg:col-span-1">
+          <Card title="🎯 Selected Audience" size="small" className="h-fit">
             <List
               dataSource={audience}
               renderItem={(item: any) => (

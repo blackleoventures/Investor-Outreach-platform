@@ -17,6 +17,9 @@ const Campaigns = () => {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
   const [viewOpen, setViewOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editIndex, setEditIndex] = useState<number | null>(null);
+  const [editForm] = Form.useForm();
 
 
   const [invOpen, setInvOpen] = useState(false);
@@ -45,7 +48,21 @@ const Campaigns = () => {
     setLoading(true);
     try {
       // Load from localStorage first (real campaigns)
-      const localCampaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
+      let localCampaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
+
+      // Strip any previously-seeded demo/placeholder items
+      if (Array.isArray(localCampaigns)) {
+        const cleaned = localCampaigns.filter((c:any) => {
+          const name = (c?.name || '').toString();
+          const isKnownDemo = (c?.id === '1' && name === 'TechStartup_Seed_Outreach')
+            || (name === 'TechStartup_Seed_Outreach' && (c?.recipients === 15 || c?.stats));
+          return !isKnownDemo;
+        });
+        if (cleaned.length !== localCampaigns.length) {
+          localCampaigns = cleaned;
+          try { localStorage.setItem('campaigns', JSON.stringify(localCampaigns)); } catch {}
+        }
+      }
       
       // Load from sessionStorage for current campaign
       const savedCampaign = sessionStorage.getItem('currentCampaign');
@@ -62,6 +79,20 @@ const Campaigns = () => {
         }
       }
       
+      // If nothing in local, attempt restore from backup
+      if (!Array.isArray(localCampaigns) || localCampaigns.length === 0) {
+        try {
+          const backup = JSON.parse(localStorage.getItem('campaigns_backup') || '[]');
+          if (Array.isArray(backup) && backup.length > 0) {
+            // Also strip demo from backup
+            const cleanedBackup = backup.filter((c:any) => (c?.id !== '1' && (c?.name || '') !== 'TechStartup_Seed_Outreach'));
+            localCampaigns = cleanedBackup;
+            try { localStorage.setItem('campaigns', JSON.stringify(localCampaigns)); } catch {}
+            if (localCampaigns.length > 0) message.success('Restored campaigns from backup');
+          }
+        } catch {}
+      }
+
       setCampaigns(localCampaigns);
     } catch (e) {
       console.error('Failed to load campaigns:', e);
@@ -76,13 +107,21 @@ const Campaigns = () => {
     setViewOpen(true);
   };
 
-  const handleEdit = (campaign) => {
-    if ((campaign.status || '').toLowerCase() !== 'draft') return;
-    const id = campaign.id || campaign._id;
-    router.push(`/dashboard/campaign/email-form?id=${id}`);
+  const handleEdit = (campaign, index) => {
+    setSelected(campaign);
+    setEditIndex(index);
+    try {
+      editForm.setFieldsValue({
+        name: campaign.name,
+        type: campaign.type || 'Email',
+        status: campaign.status || 'draft',
+        recipients: campaign.recipients ?? (campaign.audience?.length || 0),
+      });
+    } catch {}
+    setEditOpen(true);
   };
 
-  const handleDelete = (campaign) => {
+  const handleDelete = (campaign, index) => {
     Modal.confirm({
       title: 'Delete this campaign?',
       content: 'This action cannot be undone.',
@@ -91,12 +130,31 @@ const Campaigns = () => {
       cancelText: 'Cancel',
       onOk: async () => {
         try {
-          const base = await getApiBase();
           const id = campaign.id || campaign._id;
-          const idToken = currentUser ? await currentUser.getIdToken(true) : undefined;
-          const headers: any = idToken ? { Authorization: `Bearer ${idToken}` } : {};
-          await fetch(`${base}/api/campaign/${id}`, { method: 'DELETE', headers });
-          setCampaigns(prev => prev.filter(c => (c.id || c._id) !== id));
+          // Create a backup before mutating
+          try { localStorage.setItem('campaigns_backup', localStorage.getItem('campaigns') || '[]'); } catch {}
+          if (id) {
+            // Use Next.js API route to avoid CORS and attach auth implicitly from browser
+            const idToken = currentUser ? await currentUser.getIdToken(true) : undefined;
+            const headers: any = idToken ? { Authorization: `Bearer ${idToken}` } : {};
+            await fetch(`/api/campaign/${id}`, { method: 'DELETE', headers });
+          }
+          setCampaigns(prev => {
+            const updated = id
+              ? prev.filter(c => (c.id || c._id) !== id)
+              : prev.filter((_, i) => i !== index);
+            try {
+              localStorage.setItem('campaigns', JSON.stringify(updated));
+              const current = sessionStorage.getItem('currentCampaign');
+              if (current) {
+                const parsed = JSON.parse(current);
+                if (id && (parsed?.id || parsed?._id) === id) {
+                  sessionStorage.removeItem('currentCampaign');
+                }
+              }
+            } catch {}
+            return updated;
+          });
           message.success('Campaign deleted');
         } catch {
           message.error('Delete failed');
@@ -113,13 +171,15 @@ const Campaigns = () => {
     { title: 'Recipients', dataIndex: 'recipients', key: 'recipients', render: (r, rec) => r ?? rec?.audience?.length ?? 0 },
     { title: 'Created Date', dataIndex: 'createdAt', key: 'createdAt', render: (d) => d ? new Date(d.seconds ? d.seconds*1000 : d).toLocaleDateString() : '-' },
     {
-      title: 'Actions', key: 'actions', render: (_, record) => (
+      title: 'Actions', key: 'actions', render: (_, record, index) => (
         <Space>
-          <Tooltip title="View"><Button size="small" type="primary" icon={<EyeOutlined/>} onClick={() => handleView(record)} /></Tooltip>
-          <Tooltip title={(record.status||'').toLowerCase()==='draft'? 'Edit Campaign' : 'Edit (Draft only)'}>
-            <Button size="small" icon={<EditOutlined/>} disabled={(record.status||'').toLowerCase()!=='draft'} onClick={() => handleEdit(record)} />
+          <Tooltip title="View">
+            <Button size="small" type="text" icon={<EyeOutlined style={{ color: '#1677ff' }} />} onClick={() => handleView(record)} />
           </Tooltip>
-          <Tooltip title="Delete"><Button size="small" danger icon={<DeleteOutlined/>} onClick={() => handleDelete(record)} /></Tooltip>
+          <Tooltip title={(record.status||'').toLowerCase()==='draft'? 'Edit Campaign' : 'Edit (Draft only)'}>
+            <Button size="small" icon={<EditOutlined/>} onClick={() => handleEdit(record, index)} />
+          </Tooltip>
+          <Tooltip title="Delete"><Button size="small" danger icon={<DeleteOutlined/>} onClick={() => handleDelete(record, index)} /></Tooltip>
         </Space>
       )
     }
@@ -130,7 +190,7 @@ const Campaigns = () => {
       <Card
         title={<Title level={4} className="!mb-0"><MailOutlined className="mr-2"/>Campaign Management</Title>}
         extra={
-          <Button type="primary" icon={<PlusOutlined/>} onClick={() => router.push('/dashboard/campaign/email-form')} style={{backgroundColor:'#ac6a1e'}}>Create Campaign</Button>
+          <Button type="primary" icon={<PlusOutlined/>} onClick={() => router.push('/dashboard/campaign/ai-email-campaign')} style={{backgroundColor:'#ac6a1e'}}>Create Campaign</Button>
         }
       >
         {investors.length > 0 && (
@@ -161,10 +221,48 @@ const Campaigns = () => {
           columns={columns}
           dataSource={campaigns}
           loading={loading}
-          rowKey={(r)=> r.id || r._id}
+          rowKey={(r, idx)=> r.id || r._id || `${r.name||'campaign'}-${idx}`}
           pagination={{ pageSize: 10, showSizeChanger: true, showTotal: t=>`Total ${t} campaigns` }}
         />
       </Card>
+
+      <Modal
+        open={editOpen}
+        onCancel={() => setEditOpen(false)}
+        okText="Save"
+        okButtonProps={{ type: 'primary', style: { backgroundColor: '#1677ff' } }}
+        onOk={async () => {
+          try {
+            const values = await editForm.validateFields();
+            setCampaigns(prev => {
+              const list = [...prev];
+              if (editIndex !== null) {
+                list[editIndex] = { ...list[editIndex], ...values };
+              }
+              try { localStorage.setItem('campaigns', JSON.stringify(list)); } catch {}
+              return list;
+            });
+            setEditOpen(false);
+            message.success('Campaign updated');
+          } catch {}
+        }}
+        title={<span className="text-lg font-semibold">Edit Campaign</span>}
+      >
+        <Form form={editForm} layout="vertical">
+          <Form.Item name="name" label="Campaign Name" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="type" label="Type">
+            <Select options={[{ value: 'Email', label: 'Email' }]} />
+          </Form.Item>
+          <Form.Item name="status" label="Status">
+            <Select options={[{ value: 'draft', label: 'draft' }, { value: 'active', label: 'active' }]} />
+          </Form.Item>
+          <Form.Item name="recipients" label="Recipients">
+            <Input type="number" min={0} />
+          </Form.Item>
+        </Form>
+      </Modal>
 
       <Modal open={viewOpen} onCancel={()=>setViewOpen(false)} footer={null} width={980} title={<span className="text-lg font-semibold">Campaign Details</span>}>
         {selected && (

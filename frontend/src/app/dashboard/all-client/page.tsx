@@ -75,7 +75,17 @@ const columnOptions = [
     default: true,
     permanent: true,
     render: (_, record) => {
-      const val = record.revenue ?? record.revenue_amount ?? record.annual_revenue;
+      const candidates = [
+        record.revenue,
+        record.revenue_amount,
+        record.annual_revenue,
+        record.revenueAmount,
+        record.revenue_value,
+        record.revenueVal,
+        record.revenueStr,
+      ];
+      const val = candidates.find((v:any)=> typeof v !== 'undefined' && String(v).trim() !== '');
+      console.log('Revenue render for', record.company_name, ':', { candidates, val, record });
       return <Text>{(val !== undefined && String(val).trim()) ? String(val) : "N/A"}</Text>;
     },
   },
@@ -85,7 +95,17 @@ const columnOptions = [
     default: true,
     permanent: true,
     render: (_, record) => {
-      const val = record.investment_ask ?? record.investment ?? record.raise_amount;
+      const candidates = [
+        record.investment_ask,
+        record.investment,
+        record.raise_amount,
+        record.raiseAmount,
+        record.investmentAsk,
+        record.investment_amount,
+        record.investmentAmount,
+      ];
+      const val = candidates.find((v:any)=> typeof v !== 'undefined' && String(v).trim() !== '');
+      console.log('Investment render for', record.company_name, ':', { candidates, val, record });
       return <Text>{(val !== undefined && String(val).trim()) ? String(val) : "N/A"}</Text>;
     },
   },
@@ -94,6 +114,13 @@ const columnOptions = [
     label: "Sector",
     permanent: true,
     render: (_, record) => <Tag color="blue">{record.industry || "N/A"}</Tag>,
+  },
+  {
+    key: "location",
+    label: "Location",
+    default: true,
+    permanent: true,
+    render: (_, record) => <Text>{record.location || record.city || "N/A"}</Text>,
   },
   {
     key: "onboarding",
@@ -167,68 +194,124 @@ const ClientsData = () => {
   const loadClients = async (email = "") => {
     setLoading(true);
     try {
-      if (!lazyAxios) {
-        lazyAxios = await import("axios");
-      }
-      const filter = showAll ? "all" : "active";
-      const base = apiBase || (await getApiBase());
-      const baseUrl = `${base}/api/clients?filter=${filter}`;
-
-      let url = baseUrl;
-      if (email && email.trim()) {
-        const q = encodeURIComponent(email.trim());
-        // backend supports email query; for company/phone we will filter client-side after fetch
-        url = `${baseUrl}&email=${q}`;
-      }
-
-      const response = await lazyAxios.default.get(url, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const serverClients = Array.isArray(response?.data?.clients) ? response.data.clients : [];
-      // Merge with locally persisted clients (prefer local values to preserve exact input like "$2M")
-      const localClients = JSON.parse(localStorage.getItem('clients') || '[]');
-      const makeKey = (c:any) => (c.id || c._id || c.email || `${c.company_name}-${c.first_name}-${c.last_name}`);
-      const byKey = new Map<string, any>();
-      // Seed with locals first
-      for (const c of localClients) byKey.set(makeKey(c), c);
-      // Overlay server docs, but do not overwrite non-empty local revenue/investment strings
-      for (const s of serverClients) {
-        const k = makeKey(s);
-        const existing = byKey.get(k);
-        if (!existing) {
-          byKey.set(k, s);
-        } else {
-          byKey.set(k, {
-            ...s,
-            // Preserve local formatted values if present
-            revenue: (existing.revenue !== undefined && String(existing.revenue).trim() !== '') ? existing.revenue : s.revenue,
-            investment_ask: (existing.investment_ask !== undefined && String(existing.investment_ask).trim() !== '') ? existing.investment_ask : s.investment_ask,
-          });
+      // First, always load from localStorage (this is the primary source)
+      let localClients = JSON.parse(localStorage.getItem('clients') || '[]');
+      // Seed from sessionStorage if nothing in local yet
+      if ((!Array.isArray(localClients) || localClients.length === 0)) {
+        const currentClient = sessionStorage.getItem('currentClient');
+        if (currentClient) {
+          try {
+            const parsed = JSON.parse(currentClient);
+            localClients = [parsed];
+            localStorage.setItem('clients', JSON.stringify(localClients));
+          } catch {}
         }
       }
-      let merged = Array.from(byKey.values());
+      
+      // Try to fetch from backend API as well
+      try {
+        if (!lazyAxios) {
+          lazyAxios = await import("axios");
+        }
+        const filter = showAll ? "all" : "active";
+        const base = apiBase || (await getApiBase());
+        const baseUrl = `${base}/api/clients?filter=${filter}`;
 
-      let filtered = merged;
-      if (email && email.trim()) {
-        const q = email.trim().toLowerCase();
-        filtered = merged.filter((c) => {
-          const emailStr = (c.email || "").toLowerCase();
-          const companyStr = (c.company_name || "").toLowerCase();
-          const phoneStr = (c.phone || "").toLowerCase();
-          return (
-            emailStr.includes(q) || companyStr.includes(q) || phoneStr.includes(q)
-          );
+        let url = baseUrl;
+        if (email && email.trim()) {
+          const q = encodeURIComponent(email.trim());
+          url = `${baseUrl}&email=${q}`;
+        }
+
+        const response = await lazyAxios.default.get(url, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         });
+
+        const serverClients = Array.isArray(response?.data?.clients) ? response.data.clients : [];
+        
+        // Merge local and server data (prefer local for formatting)
+        const makeKey = (c:any) => (c.id || c._id || c.email || `${c.company_name}-${c.first_name}-${c.last_name}`);
+        const byKey = new Map<string, any>();
+        
+        // Start with local clients
+        for (const c of localClients) {
+          byKey.set(makeKey(c), c);
+        }
+        
+        // Add server clients that don't exist locally
+        for (const s of serverClients) {
+          const k = makeKey(s);
+          if (!byKey.has(k)) {
+            byKey.set(k, s);
+          }
+        }
+        
+        let merged = Array.from(byKey.values());
+        
+        // Debug: Log the data to see what's actually there
+        console.log('Local clients data:', localClients.slice(0, 2));
+        console.log('Server clients data:', serverClients.slice(0, 2));
+        
+        // Normalize: ensure revenue/investment_ask preserve any raw strings from the latest added client
+        try {
+          const currentClientStr = sessionStorage.getItem('currentClient');
+          const currentClient = currentClientStr ? JSON.parse(currentClientStr) : null;
+          console.log('Current client from session:', currentClient);
+          if (currentClient) {
+            merged = merged.map((c:any) => {
+              const same = (c.id && currentClient.id && (c.id === currentClient.id))
+                || (c.email && currentClient.email && (c.email === currentClient.email))
+                || (c.company_name && currentClient.company_name && (c.company_name === currentClient.company_name));
+              if (!same) return c;
+              console.log('Merging client data:', { original: c, current: currentClient });
+              return {
+                ...c,
+                revenue: (typeof c.revenue !== 'undefined' && String(c.revenue).trim() !== '') ? c.revenue : currentClient.revenue,
+                investment_ask: (typeof c.investment_ask !== 'undefined' && String(c.investment_ask).trim() !== '') ? c.investment_ask : currentClient.investment_ask,
+              };
+            });
+          }
+        } catch {}
+        // Persist merged snapshot so refresh never loses the list
+        try { localStorage.setItem('clients', JSON.stringify(merged)); } catch {}
+        
+        // Filter by email/company/phone if search term provided
+        let filtered = merged;
+        if (email && email.trim()) {
+          const q = email.trim().toLowerCase();
+          filtered = merged.filter((c) => {
+            const emailStr = (c.email || "").toLowerCase();
+            const companyStr = (c.company_name || "").toLowerCase();
+            const phoneStr = (c.phone || "").toLowerCase();
+            return (
+              emailStr.includes(q) || companyStr.includes(q) || phoneStr.includes(q)
+            );
+          });
+        }
+        
+        setClients(filtered);
+      } catch (apiError) {
+        console.log('API fetch failed, using local data only:', apiError);
+        // Use only local data if API fails
+        let filtered = localClients;
+        if (email && email.trim()) {
+          const q = email.trim().toLowerCase();
+          filtered = localClients.filter((c) => {
+            const emailStr = (c.email || "").toLowerCase();
+            const companyStr = (c.company_name || "").toLowerCase();
+            const phoneStr = (c.phone || "").toLowerCase();
+            return (
+              emailStr.includes(q) || companyStr.includes(q) || phoneStr.includes(q)
+            );
+          });
+        }
+        setClients(filtered);
       }
-      setClients(filtered);
     } catch (error) {
-      console.error("Error fetching clients:", error);
-      // Fallback to locally persisted clients
-      const localClients = JSON.parse(localStorage.getItem('clients') || '[]');
-      setClients(localClients);
+      console.error("Error loading clients:", error);
+      setClients([]);
     } finally {
       setLoading(false);
     }
