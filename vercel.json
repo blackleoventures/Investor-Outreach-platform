@@ -3,5 +3,13 @@
   "outputDirectory": ".next",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "rootDirectory": "frontend"
+  "rootDirectory": "frontend",
+  "env": {
+    "NEXT_PUBLIC_BACKEND_URL": "https://your-backend-url.com"
+  },
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_BACKEND_URL": "https://your-backend-url.com"
+    }
+  }
 }
