@@ -277,11 +277,38 @@ const ClientsData = () => {
         // Persist merged snapshot so refresh never loses the list
         try { localStorage.setItem('clients', JSON.stringify(merged)); } catch {}
         
+        // Utility: determine if a client has at least one of revenue or investment values
+        const hasFinancialValues = (c:any) => {
+          const revenueCandidates = [
+            c.revenue,
+            c.revenue_amount,
+            c.annual_revenue,
+            c.revenueAmount,
+            c.revenue_value,
+            c.revenueVal,
+            c.revenueStr,
+          ];
+          const investmentCandidates = [
+            c.investment_ask,
+            c.investment,
+            c.raise_amount,
+            c.raiseAmount,
+            c.investmentAsk,
+            c.investment_amount,
+            c.investmentAmount,
+          ];
+          const hasRevenue = revenueCandidates.some((v:any) => typeof v !== 'undefined' && String(v).trim() !== '');
+          const hasInvestment = investmentCandidates.some((v:any) => typeof v !== 'undefined' && String(v).trim() !== '');
+          return hasRevenue || hasInvestment;
+        };
+
+        // First hide rows with no revenue and no investment ask
+        let filtered = merged.filter(hasFinancialValues);
+        
         // Filter by email/company/phone if search term provided
-        let filtered = merged;
         if (email && email.trim()) {
           const q = email.trim().toLowerCase();
-          filtered = merged.filter((c) => {
+          filtered = filtered.filter((c) => {
             const emailStr = (c.email || "").toLowerCase();
             const companyStr = (c.company_name || "").toLowerCase();
             const phoneStr = (c.phone || "").toLowerCase();
@@ -295,10 +322,34 @@ const ClientsData = () => {
       } catch (apiError) {
         console.log('API fetch failed, using local data only:', apiError);
         // Use only local data if API fails
-        let filtered = localClients;
+        // Hide rows with no revenue and no investment ask
+        const hasFinancialValues = (c:any) => {
+          const revenueCandidates = [
+            c.revenue,
+            c.revenue_amount,
+            c.annual_revenue,
+            c.revenueAmount,
+            c.revenue_value,
+            c.revenueVal,
+            c.revenueStr,
+          ];
+          const investmentCandidates = [
+            c.investment_ask,
+            c.investment,
+            c.raise_amount,
+            c.raiseAmount,
+            c.investmentAsk,
+            c.investment_amount,
+            c.investmentAmount,
+          ];
+          const hasRevenue = revenueCandidates.some((v:any) => typeof v !== 'undefined' && String(v).trim() !== '');
+          const hasInvestment = investmentCandidates.some((v:any) => typeof v !== 'undefined' && String(v).trim() !== '');
+          return hasRevenue || hasInvestment;
+        };
+        let filtered = localClients.filter(hasFinancialValues);
         if (email && email.trim()) {
           const q = email.trim().toLowerCase();
-          filtered = localClients.filter((c) => {
+          filtered = filtered.filter((c) => {
             const emailStr = (c.email || "").toLowerCase();
             const companyStr = (c.company_name || "").toLowerCase();
             const phoneStr = (c.phone || "").toLowerCase();

@@ -1,8 +1,11 @@
 "use client";
 
 import React, { useState } from "react";
-import { Select, Input, Button, message, Card, Tabs, Progress, Tag, Switch } from "antd";
-import { RobotOutlined, SendOutlined, BulbOutlined, ThunderboltOutlined } from "@ant-design/icons";
+import { Select, Input, Button, message, Card, Tabs, Progress, Tag, Switch, Upload, Alert, Space, Typography } from "antd";
+import { RobotOutlined, SendOutlined, BulbOutlined, ThunderboltOutlined, UploadOutlined, FileTextOutlined, CheckCircleOutlined } from "@ant-design/icons";
+
+const { Text } = Typography;
+const { Dragger } = Upload;
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL as string) || "/api";
 
@@ -21,6 +24,8 @@ export default function EmailComposer() {
   const [enhanceOptions, setEnhanceOptions] = useState<EnhanceOption[]>([]);
   const [enableFollowUp, setEnableFollowUp] = useState(false);
   const [activeTab, setActiveTab] = useState("compose");
+  const [documentUploaded, setDocumentUploaded] = useState(false);
+  const [extractedData, setExtractedData] = useState<any>(null);
 
   const optimizeSubject = async () => {
     setLoading(true);
@@ -55,6 +60,43 @@ export default function EmailComposer() {
       message.success("Email enhanced with AI!");
     } catch (e: any) {
       message.error(e.message || "Enhancement failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDocumentUpload = async (file: File) => {
+    setLoading(true);
+    try {
+      const formData = new FormData();
+      formData.append("document", file);
+      formData.append("investorName", "[Investor Name]");
+
+      const res = await fetch(`${BACKEND_URL}/ai/extract-and-prefill`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Failed to process document");
+      }
+
+      const result = await res.json();
+      
+      if (result.success) {
+        setExtractedData(result.data.extractedData);
+        setSubject(result.data.emailTemplate.subject);
+        setBody(result.data.emailTemplate.body);
+        setDocumentUploaded(true);
+        
+        message.success("Document processed! Email pre-filled with extracted data.");
+      } else {
+        throw new Error("Failed to extract data from document");
+      }
+    } catch (error: any) {
+      message.error(error.message || "Failed to process document");
+      console.error("Document upload error:", error);
     } finally {
       setLoading(false);
     }
@@ -150,6 +192,38 @@ export default function EmailComposer() {
             onChange={(e) => setRecipients(e.target.value)} 
           />
           
+          {/* Document Upload Section */}
+          <Card size="small" className="bg-blue-50 border-blue-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <Text strong>Quick Start: Upload Document</Text>
+                <div className="text-sm text-gray-600">Upload your pitch deck or business document to auto-fill email content</div>
+              </div>
+              <Upload
+                accept=".pdf,.pptx,.docx,.txt,.md"
+                beforeUpload={(file) => {
+                  handleDocumentUpload(file);
+                  return false;
+                }}
+                showUploadList={false}
+              >
+                <Button icon={<UploadOutlined />} loading={loading}>
+                  Upload Document
+                </Button>
+              </Upload>
+            </div>
+            {documentUploaded && (
+              <Alert
+                message="Document processed successfully!"
+                description="Email content has been pre-filled with extracted company information."
+                type="success"
+                showIcon
+                icon={<CheckCircleOutlined />}
+                className="mt-3"
+              />
+            )}
+          </Card>
+
           <div className="flex items-center gap-4">
             <Input 
               placeholder="Email Subject" 
@@ -203,6 +277,11 @@ export default function EmailComposer() {
               >
                 Generate Follow-ups
               </Button>
+              {documentUploaded && (
+                <Tag color="green" icon={<CheckCircleOutlined />}>
+                  Auto-filled from document
+                </Tag>
+              )}
             </div>
             
             <div className="flex items-center gap-4">

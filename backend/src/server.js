@@ -23,6 +23,10 @@ try {
   console.log('Excel service not available in this environment');
 }
 
+// Initialize Cron service for scheduled emails
+const cronService = require('./services/cron.service');
+cronService.startCronJobs();
+
 const app = express();
 
 // Enable gzip/deflate compression for faster responses
@@ -68,6 +72,8 @@ const investorRoutes = require("./routes/investor.route");
 const incubatorRoutes = require("./routes/incubator.route");
 const matchRoutes = require("./routes/match.route");
 const excelRoutes = require("./routes/excel.route");
+const documentRoutes = require("./routes/document.route");
+const scheduledEmailRoutes = require("./routes/scheduledEmail.route");
 
 
 
@@ -92,6 +98,8 @@ app.use("/api/investors", investorRoutes);
 app.use("/api/incubators", incubatorRoutes);
 app.use("/api/match", matchRoutes);
 app.use("/api/excel", excelRoutes);
+app.use("/api/document", documentRoutes);
+app.use("/api/scheduled-emails", scheduledEmailRoutes);
 app.use("/api/deck-activity", deckActivityRoutes);
 app.use("/api/deal-rooms", dealRoomRoutes);
 

@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const FormData = require('form-data');
 
 async function main() {
   const backend = process.env.BACKEND_URL || 'http://localhost:5000';
@@ -16,24 +15,8 @@ async function main() {
   const url = `${backend}/api/ai/analyze-deck?skipGemini=1`; // use fast heuristic by default
   console.log('POST', url, 'with', path.basename(filePath));
 
-  const res = await fetch(url, { 
-    method: 'POST', 
-    body: form,
-    headers: form.getHeaders()
-  });
-  
-  const text = await res.text();
-  console.log('Response status:', res.status);
-  console.log('Response text:', text.substring(0, 200));
-  
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch (e) {
-    console.error('Failed to parse JSON response:', text);
-    process.exit(1);
-  }
-  
+  const res = await fetch(url, { method: 'POST', body: form });
+  const json = await res.json();
   if (!res.ok) {
     console.error('Request failed:', json);
     process.exit(1);

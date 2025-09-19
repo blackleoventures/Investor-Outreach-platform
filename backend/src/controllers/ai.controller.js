@@ -295,55 +295,36 @@ exports.analyzeDeck = async (req, res) => {
     // Log extracted text for debugging
     console.log('📄 Text extraction result:', text.includes('Startup Pitch Deck') ? 'Using fallback content' : 'Original content extracted');
 
-    // Build Gemini 1.5 Pro prompt to extract REAL company data from ANY file format
-    const prompt = `You are an expert VC analyst. Analyze this business document content and create a detailed, professional investor outreach email using REAL extracted data.
+    // Enhanced prompt for better data extraction and email pre-filling
+    const prompt = `Analyze this pitch deck and extract company information. Return ONLY valid JSON:
 
-CRITICAL INSTRUCTIONS:
-1. EXTRACT ALL SPECIFIC DETAILS: Find actual company name, numbers, revenue projections, team credentials, market presence, patents, funding amounts, etc.
-2. USE REAL COMPANY NAME: Whatever company name is mentioned, use it throughout (Cosmedream, TechCorp, etc.)
-3. INCLUDE ALL SPECIFIC METRICS: Revenue numbers, growth rates, market size, countries, experience years, patents, user numbers, etc.
-4. CREATE DETAILED EMAIL: Include specific funding allocation percentages, competitive positioning, detailed highlights with real data
-5. NO GENERIC PLACEHOLDERS: Use actual data from the document - replace ALL [placeholders] with real information
-6. WORK WITH ANY FORMAT: Whether PDF, Word, PPT, or Text - extract maximum detail available
-
-EMAIL TEMPLATE REQUIREMENTS:
-- Subject: "Investment Opportunity in [REAL COMPANY] – [SPECIFIC POSITIONING]"
-- Include founder credentials with years of experience and achievements
-- Add specific revenue projections with actual numbers
-- Include detailed funding allocation (Marketing %, R&D %, Operations %, Technology %)
-- Mention specific competitors and market positioning
-- Add patent/trademark numbers if available
-- Include specific market presence (number of countries)
-
-Analysis Steps:
-1. Extract company information:
-   - Company name, founder details, experience years
-   - Specific revenue numbers and projections
-   - Market presence (countries, partnerships)
-   - Patents, trademarks, certifications
-   - Funding allocation breakdown
-
-2. Score the pitch on these 10 criteria (1–10 each):
-   - Problem & Solution Fit
-   - Market Size & Opportunity  
-   - Business Model
-   - Traction & Metrics
-   - Team
-   - Competitive Advantage
-   - Go-To-Market Strategy
-   - Financials & Ask
-   - Exit Potential
-   - Alignment with Investor
-
-3. Generate DETAILED email template with SPECIFIC data
-
-Return ONLY this JSON format:
 {
+  "extractedData": {
+    "companyName": "actual company name or null",
+    "founderName": "founder/CEO name or null",
+    "founderTitle": "founder title or null",
+    "problem": "problem being solved or null",
+    "solution": "solution description or null",
+    "market": "target market with size or null",
+    "traction": "key metrics/traction or null",
+    "fundingAmount": "funding amount or null",
+    "useOfFunds": "use of funds or null",
+    "teamBackground": "team experience or null",
+    "revenue": "revenue numbers/projections or null",
+    "customers": "customer info or null",
+    "sector": "industry sector or null",
+    "email": "contact email or null",
+    "phone": "contact phone or null",
+    "website": "website URL or null",
+    "address": "company address or null",
+    "globalPresence": "international presence or null",
+    "patents": "patents/IP information or null"
+  },
   "summary": {
-    "problem": "[REAL problem from content]",
-    "solution": "[REAL solution from content]", 
-    "market": "[REAL market/industry from content]",
-    "traction": "[REAL traction metrics from content]",
+    "problem": "extracted problem",
+    "solution": "extracted solution",
+    "market": "extracted market",
+    "traction": "extracted traction",
     "status": "GREEN",
     "total_score": 75
   },
@@ -359,21 +340,14 @@ Return ONLY this JSON format:
     "Exit Potential": 8,
     "Alignment with Investor": 8
   },
-  "suggested_questions": ["What is your customer acquisition cost and lifetime value?", "How do you plan to scale your technology platform?", "What are your key competitive advantages?", "What milestones will the funding help you achieve?", "What is your go-to-market strategy for expansion?"],
-  "email_template": "Subject: Investment Opportunity in [REAL_COMPANY_NAME] – [REAL_POSITIONING_FROM_DOCUMENT]\n\nDear [Investor's Name],\n\nHope you're doing well.\n\nI'm reaching out to share an exciting investment opportunity in [REAL_COMPANY_NAME], a [REAL_MARKET_CATEGORY] in the rapidly growing [REAL_MARKET_SECTOR]. [REAL_COMPANY_NAME] offers [REAL_PRODUCT_DESCRIPTION] — combining [REAL_COMPETITIVE_ADVANTAGES].\n\nBacked by [REAL_FOUNDER_CREDENTIALS] ([REAL_EXPERIENCE_YEARS]+ years, [REAL_ACHIEVEMENTS], [REAL_MARKET_PRESENCE]), [REAL_COMPANY_NAME] is building a high-margin, scalable business with [REAL_GROWTH_POTENTIAL].\n\n📈 Key Highlights:\n\n[REAL_HIGHLIGHT_1_WITH_NUMBERS]\n\n[REAL_HIGHLIGHT_2_WITH_METRICS]\n\n[REAL_REVENUE_PROJECTIONS_WITH_NUMBERS]\n\n[REAL_INNOVATION_PATENTS_DETAILS]\n\n[REAL_TEAM_TRACK_RECORD]\n\n🔧 Product Edge:\n\n[REAL_PRODUCT_ADVANTAGE_1_DETAILED]\n\n[REAL_PRODUCT_ADVANTAGE_2_DETAILED]\n\n[REAL_COMPETITIVE_POSITIONING_VS_COMPETITORS]\n\n💸 Fundraise Details:\nCurrently raising [REAL_FUNDING_AMOUNT] to [REAL_USE_OF_FUNDS], with allocations planned as:\n\n[REAL_PERCENTAGE_1]% [REAL_ALLOCATION_1]\n\n[REAL_PERCENTAGE_2]% [REAL_ALLOCATION_2]\n\n[REAL_PERCENTAGE_3]% [REAL_ALLOCATION_3]\n\n[REAL_PERCENTAGE_4]% [REAL_ALLOCATION_4]\n\nIf this aligns with your portfolio thesis in [REAL_SECTOR_FROM_DOCUMENT], we'd be glad to share the full [DOCUMENT_TYPE] and schedule a quick call with the founders.\n\nLooking forward to your thoughts.\n\nWarm regards,\n[Your Full Name]\nInvestor Relations – [REAL_COMPANY_NAME]\n📞 [Phone Number] | ✉️ [Email Address]",
-  "highlights": ["[REAL HIGHLIGHT 1 from content]", "[REAL HIGHLIGHT 2 from content]", "[REAL HIGHLIGHT 3 from content]"]
+  "suggested_questions": ["What is your customer acquisition strategy?", "How do you plan to scale?", "What are your competitive advantages?"],
+  "highlights": ["Key highlight 1", "Key highlight 2", "Key highlight 3"]
 }
 
-DOCUMENT CONTENT TO ANALYZE:
+Document content:
 ${text}
 
-REMEMBER: 
-- Extract REAL company data from above content (any format: PDF, Word, PPT, Text)
-- Do not use generic placeholders - use actual data found in document
-- Find real company name, numbers, metrics, revenue projections, team details
-- Include specific percentages, growth rates, market presence, funding amounts
-- Create detailed professional email with all extracted real information
-- Replace ALL [placeholders] with actual data from the document`;
+Extract REAL data only. Use null for missing fields.`;
 
     // Short-circuit path to help diagnose crashes: skip external AI if requested
     if (String(req.query.skipGemini || '').trim() === '1') {
@@ -506,12 +480,80 @@ REMEMBER:
       savedId = doc.id;
     } catch {}
 
-    // Process email template from Gemini
-    const finalEmail = {
-      subject: aiResult.email_template.split('\n')[0].replace('Subject: ', ''),
-      body: aiResult.email_template.split('\n').slice(1).join('\n').trim(),
+    // Process email template with extracted data
+    let finalEmail = {
+      subject: "Investment Opportunity - [Company Name]",
+      body: `Hi [Investor Name],
+
+I hope you are well. I'm reaching out to share a brief overview of [Company Name], where we are solving [Core Problem] in the [Market] space.
+
+In the past [timeframe], we've achieved:
+• Traction: [key metrics — users, revenue, growth]
+• Product: [brief product/tech edge]
+• Team: [notable credentials]
+
+We're currently raising [Amount] to [use of funds], and we believe this aligns with your focus on [sector/stage]. I'd appreciate the chance to share our deck and get your feedback.
+
+Would you be open to a 15-minute call this week or next?
+
+Best regards,
+[Your Name]
+[Title], [Company Name]
+[Contact Information]`,
       highlights: aiResult.highlights || []
     };
+
+    // Generate professional email template with extracted data
+    if (aiResult.extractedData) {
+      const data = aiResult.extractedData;
+      
+      // Generate subject line
+      let subject = `Investment Opportunity - ${data.companyName || '[Company Name]'}`;
+      if (data.sector && data.globalPresence) {
+        subject += ` | ${data.sector} with Global Presence`;
+      } else if (data.problem && data.market) {
+        subject += ` | ${data.problem} in ${data.market}`;
+      }
+      
+      // Generate professional email body
+      let body = `Hi [Investor Name],
+
+I hope you are well. I'm ${data.founderName || '[Your Name]'}${data.founderTitle ? `, ${data.founderTitle}` : ''}, reaching out about ${data.companyName || '[Company Name]'}${data.problem ? ` - ${data.problem}` : ''} in the ${data.market || '[market]'} space.
+
+Key Highlights:`;
+      
+      if (data.teamBackground) body += `\n• Experienced Leadership: ${data.teamBackground}`;
+      if (data.globalPresence) body += `\n• Global Presence: ${data.globalPresence}`;
+      if (data.traction) body += `\n• Traction: ${data.traction}`;
+      if (data.market) body += `\n• Market Opportunity: ${data.market}`;
+      if (data.revenue) body += `\n• Revenue: ${data.revenue}`;
+      if (data.patents) body += `\n• IP Portfolio: ${data.patents}`;
+      
+      if (data.solution) {
+        body += `\n\n${data.solution}`;
+      }
+      
+      body += `\n\nWe're currently seeking strategic investors to accelerate our growth${data.useOfFunds ? ` and ${data.useOfFunds.toLowerCase()}` : ''}.
+
+I'd appreciate the opportunity to share our detailed pitch deck and discuss how this aligns with your investment focus.
+
+Would you be available for a 15-minute call this week to explore this opportunity?
+
+Best regards,
+${data.founderName || '[Your Name]'}${data.founderTitle ? `\n${data.founderTitle}` : ''}
+${data.companyName || '[Company Name]'}`;
+      
+      // Add contact information if available
+      if (data.email || data.phone || data.website) {
+        body += '\n';
+        if (data.email) body += `\nEmail: ${data.email}`;
+        if (data.phone) body += `\nPhone: ${data.phone}`;
+        if (data.website) body += `\nWebsite: ${data.website}`;
+        if (data.address) body += `\nAddress: ${data.address}`;
+      }
+      
+      finalEmail = { subject, body, highlights: aiResult.highlights || [] };
+    }
 
     res.json({
       success: true,
@@ -852,6 +894,475 @@ exports.matchInvestors = async (req, res) => {
 };
 
 
+
+// New endpoint for document-based email pre-filling
+exports.extractAndPrefill = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded. Use field name 'document'" });
+    }
+
+    const text = await extractTextFromFile(req.file.path, req.file.originalname);
+    console.log('Extracted text length:', text.length);
+
+    // Enhanced prompt for comprehensive data extraction
+    const prompt = `Extract comprehensive company information from this document. Return ONLY valid JSON:
+
+{
+  "extractedData": {
+    "companyName": "actual company name or null",
+    "founderName": "founder/CEO name or null",
+    "founderTitle": "founder title or null",
+    "problem": "problem being solved or null",
+    "solution": "solution description or null",
+    "market": "target market with size or null",
+    "marketSize": "market size with numbers or null",
+    "traction": "key metrics/traction or null",
+    "fundingAmount": "funding amount or null",
+    "fundingStage": "funding stage or null",
+    "useOfFunds": "use of funds or null",
+    "teamBackground": "team experience or null",
+    "revenue": "revenue numbers/projections or null",
+    "customers": "customer count/info or null",
+    "growth": "growth metrics or null",
+    "sector": "industry sector or null",
+    "email": "contact email or null",
+    "phone": "contact phone or null",
+    "website": "website URL or null",
+    "address": "company address or null",
+    "globalPresence": "international presence/countries or null",
+    "patents": "patents/trademarks/IP info or null",
+    "businessModel": "business model description or null",
+    "partnerships": "key partnerships or null"
+  }
+}
+
+Document content:
+${text}
+
+Extract REAL data only. Use null for missing information.`;
+
+    // Call Gemini API
+    const geminiKey = process.env.GEMINI_API_KEY;
+    if (!geminiKey) {
+      return res.status(500).json({ error: "Gemini API key not configured" });
+    }
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }]
+        })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Gemini API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const content = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    
+    let aiResult = null;
+    try {
+      const jsonStart = content.indexOf("{");
+      const jsonEnd = content.lastIndexOf("}");
+      if (jsonStart !== -1 && jsonEnd !== -1) {
+        aiResult = JSON.parse(content.slice(jsonStart, jsonEnd + 1));
+      }
+    } catch (parseError) {
+      console.error('JSON parse error:', parseError);
+    }
+
+    // Helper: build the fixed investor email template you want, filled with extracted data
+    const buildFixedTemplate = (info = {}, originalName = '') => {
+      const pick = (v) => (v && String(v).trim().length > 0 ? String(v).trim() : undefined);
+      // Clean common suffixes like "Deck", parenthesized counters, and dashes/underscores
+      const cleanedBase = (pick(originalName?.replace(/\.[^.]+$/, "")) || "[Brand Name]")
+        .replace(/\bdeck\b/gi, '')
+        .replace(/\(\d+\)/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      const humanName = (pick(info.companyName) || cleanedBase)
+        .replace(/[-_]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+      const category = pick(info.sector || info.market) || "[Brand Type / Category]";
+      const rawPositioning = pick(info.solution) || "[1-line positioning]";
+      const sanitizeSnippet = (s = "") => {
+        let out = s.replace(new RegExp(`^${humanName}[:,]?\s*`, 'i'), '');
+        out = out.replace(/^a[n]?\s+/i, '').replace(/^brand\s+/i, '');
+        out = out.replace(/\s*[,;]\s*$/g, '').replace(/\.+$/g, '');
+        out = out.replace(/\s{2,}/g, ' ').trim();
+        // truncate at word boundary ~100 chars
+        if (out.length > 100) {
+          const cut = out.slice(0, 100);
+          const lastSpace = cut.lastIndexOf(' ');
+          out = (lastSpace > 60 ? cut.slice(0, lastSpace) : cut).trim() + '...';
+        }
+        return out;
+      };
+      const positioningShort = sanitizeSnippet(rawPositioning);
+      // Build presence/channels line if any
+      const channels = Array.isArray(info.channels)
+        ? info.channels.join(', ')
+        : pick(info.channels);
+      const presence = channels || (pick(info.website) ? `Website: ${info.website}` : undefined);
+
+      const highlights = [
+        pick(info.teamBackground) ? `Team: ${pick(info.teamBackground)}` : undefined,
+        pick(info.globalPresence) ? `Global Presence: ${pick(info.globalPresence)}` : undefined,
+        pick(info.growth) ? `Growth: ${pick(info.growth)}` : (pick(info.traction) ? `Traction: ${pick(info.traction)}` : undefined),
+        pick(info.marketSize || info.market) ? `Market Size: ${pick(info.marketSize || info.market)}` : undefined,
+        pick(info.revenue) ? `Revenue: ${pick(info.revenue)}` : undefined,
+        pick(info.patents) ? `IP: ${pick(info.patents)}` : undefined,
+        presence ? `Current Presence: ${presence}` : undefined,
+      ].filter(Boolean).slice(0, 5);
+
+      // Keep subject short and clean - max 50 chars
+      let subject = `Investment – ${humanName}`;
+      if (subject.length > 50) {
+        const shortName = humanName.length > 25 ? humanName.slice(0, 25) + '...' : humanName;
+        subject = `Investment – ${shortName}`;
+      }
+
+      const uspRaw = pick(info.uniqueSellingProposition) || pick(info.businessModel) || '[Unique Selling Proposition]';
+      const usp = sanitizeSnippet(uspRaw).slice(0, 120);
+
+      let body = `Dear ${req.body.investorName || '[Investor\'s Name]'},\n\nHope you're doing well.\n\nI'm reaching out to share an exciting investment opportunity in ${humanName}, an ${category} brand with ${positioningShort}.\n\nBacked by ${pick(info.existingInvestors) || pick(info.patents) || 'strong industry expertise and proven track record'}, ${humanName} combines ${usp} to build a high-margin, scalable business.\n\n`;
+
+      body += `📈 Key Highlights:`;
+      highlights.forEach(highlight => {
+        if (highlight) body += `\n- ${highlight}`;
+      });
+      
+      // Add fallback highlights if none extracted
+      if (highlights.length === 0) {
+        body += `\n- Strong market opportunity and growth potential`;
+        body += `\n- Experienced team with proven track record`;
+        body += `\n- Scalable business model with high margins`;
+      }
+
+      body += `\n\n🔧 Product Edge:`;
+      const productEdges = [
+        pick(info.usp1) || pick(info.solution) || pick(info.businessModel),
+        pick(info.usp2) || pick(info.patents) || pick(info.uniqueSellingProposition),
+        pick(info.usp3) || pick(info.teamBackground) || pick(info.globalPresence)
+      ].filter(Boolean);
+      
+      if (productEdges.length > 0) {
+        productEdges.forEach(edge => body += `\n- ${sanitizeSnippet(edge)}`);
+      } else {
+        body += `\n- Innovative and science-backed formulations`;
+        body += `\n- Category differentiation and competitive advantage`;
+        body += `\n- Strong market positioning and growth potential`;
+      }
+      body += `\n\n`;
+
+      body += `💸 Fundraise Details:\nCurrently raising ${pick(info.fundingAmount) || '[Fundraise Amount]'} to accelerate ${pick(info.useOfFunds) || 'growth and expansion'}.\n\nFunds will support:`;
+      
+      const fundUses = [
+        pick(info.useOfFund1) || (pick(info.useOfFunds) && pick(info.useOfFunds).includes('marketing') ? 'Marketing and customer acquisition' : null),
+        pick(info.useOfFund2) || (pick(info.useOfFunds) && pick(info.useOfFunds).includes('operations') ? 'Operations and technology' : null),
+        pick(info.useOfFund3) || (pick(info.useOfFunds) && pick(info.useOfFunds).includes('r&d') ? 'R&D and product development' : null)
+      ].filter(Boolean);
+      
+      if (fundUses.length > 0) {
+        fundUses.forEach(use => body += `\n- ${use}`);
+      } else {
+        body += `\n- Marketing and customer acquisition`;
+        body += `\n- Operations and technology enhancement`;
+        body += `\n- Product development and R&D`;
+      }
+      body += `\n\n`;
+
+      body += `If this aligns with your portfolio thesis in ${category}, we'd be glad to share the deck and set up a quick call with the founders.\n\nLooking forward to hearing from you.\n\nWarm regards,  \n${pick(info.founderName) || '[Your Full Name]'}  \nInvestor Relations – ${humanName}  \n📞 ${pick(info.phone) || '[Phone Number]'} | ✉️ ${pick(info.email) || '[Email Address]'}\n`;
+
+      const tidy = (s) => s
+        .replace(/\s+\./g, '.')
+        .replace(/\.\./g, '.')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\n\s+\n/g, '\n\n')
+        .trim();
+
+      return { subject: tidy(subject), body: tidy(body) };
+    };
+
+    // Generate email template with extracted data using fixed format
+    const investorName = req.body.investorName || "[Investor Name]";
+    let emailTemplate = buildFixedTemplate({}, req.file.originalname);
+
+    // Always try to extract data from text even if AI fails
+    const extractBasicData = (text) => {
+      const lowerText = text.toLowerCase();
+      const matchFirst = (re) => (text.match(re) || [])[0] || null;
+      const matchGroup = (re, idx = 1) => {
+        const m = text.match(re);
+        return m && m[idx] ? m[idx].trim() : null;
+      };
+
+      // Channels / presence
+      const channels = [];
+      if (lowerText.includes('amazon')) channels.push('Amazon');
+      if (lowerText.includes('flipkart')) channels.push('Flipkart');
+      if (lowerText.includes('nykaa')) channels.push('Nykaa');
+      if (lowerText.includes('quick commerce') || lowerText.includes('quick-commerce')) channels.push('Quick Commerce');
+      if (lowerText.includes('website') || lowerText.includes('direct-to-consumer') || lowerText.includes('d2c')) channels.push('Website/D2C');
+
+      // Growth / traction
+      const growth = matchFirst(/projected\s+revenue[^\n\r]{0,120}/i) || matchFirst(/\b(?:growth|traction)[^\n\r]{0,120}/i);
+
+      // Market size
+      const marketSize = matchFirst(/\$?\s?\d+[\d,\.]*\s*(?:bn|billion|mn|million)\s+market/i) || matchFirst(/market\s+size[^\n\r]{0,120}/i);
+
+      // Team background / experience
+      const teamBackground = matchFirst(/\b\d{1,2}\+?\s*years?[^\n\r]{0,80}(?:experience|exp)/i) || matchFirst(/founder[^\n\r]{0,120}experience/i);
+
+      // Patents / trademarks / IP
+      const patents = matchFirst(/\d+\+?\s*(?:patents?|trademarks?)[^\n\r]{0,80}/i) || matchFirst(/intellectual\s+propert/i);
+
+      // Global presence line
+      const globalPresence = matchFirst(/\b\d+\s*countries?[^\n\r]{0,80}/i) || (lowerText.includes('global') ? 'Presence in multiple countries' : null);
+
+      // Revenue
+      const revenue = matchFirst(/₹\s*\d+[\d\.,]*\s*crores?/i) || matchFirst(/\$\s*\d+[\d\.,]*\s*(?:k|m|b)?/i);
+
+      // Funding ask / use of funds
+      const fundingAmount = matchGroup(/(?:raising|seeking)\s+([^\n\r]{2,60})/i);
+      const useOfFunds = matchGroup(/use\s+of\s+funds[:\-\s]*([^\n\r]{2,140})/i);
+
+      // Solution / positioning
+      const solution = matchGroup(/(?:positioning|solution)[:\-\s]*([^\n\r]{5,200})/i) || matchFirst(/house\s+of\s+brands[^\n\r]{0,140}/i);
+
+      // Company / founder
+      const companyName = matchFirst(/cosme\s*dream/i) ? 'Cosme Dream' : matchGroup(/company(?:\s*name)?[:\s-]+([^\n\r]{2,60})/i);
+      const founderName = matchFirst(/parikshit\s+sethi/i) ? 'Parikshit Sethi' : matchGroup(/founder[:\s-]+([^\n\r]{2,60})/i);
+      
+      // USP extraction - more comprehensive
+      const usp1 = matchFirst(/innovative[^\n\r]{0,100}/i) || matchFirst(/science[^\n\r]{0,100}/i) || matchFirst(/herbal[^\n\r]{0,100}/i) || matchFirst(/natural[^\n\r]{0,100}/i);
+      const usp2 = matchFirst(/category[^\n\r]{0,100}/i) || matchFirst(/differentiation[^\n\r]{0,100}/i) || matchFirst(/unique[^\n\r]{0,100}/i) || matchFirst(/advantage[^\n\r]{0,100}/i);
+      const usp3 = matchFirst(/competitive[^\n\r]{0,100}/i) || matchFirst(/positioning[^\n\r]{0,100}/i) || matchFirst(/market[^\n\r]{0,100}/i) || matchFirst(/brand[^\n\r]{0,100}/i);
+      
+      // Use of funds extraction - more detailed
+      const useOfFund1 = matchFirst(/50%[^\n\r]*marketing/i) || matchFirst(/marketing[^\n\r]{0,80}/i) || matchFirst(/gtm[^\n\r]{0,80}/i);
+      const useOfFund2 = matchFirst(/15%[^\n\r]*operations/i) || matchFirst(/operations[^\n\r]{0,80}/i) || matchFirst(/10%[^\n\r]*technology/i) || matchFirst(/technology[^\n\r]{0,80}/i);
+      const useOfFund3 = matchFirst(/25%[^\n\r]*r&d/i) || matchFirst(/r&d[^\n\r]{0,80}/i) || matchFirst(/research[^\n\r]{0,80}/i) || matchFirst(/product development/i);
+      
+      // Business model extraction
+      const businessModel = matchFirst(/direct[^\n\r]{0,100}consumer/i) || matchFirst(/d2c[^\n\r]{0,100}/i) || matchFirst(/marketplace[^\n\r]{0,100}/i) || matchFirst(/online[^\n\r]{0,100}offline/i);
+      
+      // Sector extraction
+      const sector = lowerText.includes('fmcg') ? 'FMCG' : lowerText.includes('cosmetics') ? 'Cosmetics' : lowerText.includes('beauty') ? 'Beauty' : matchGroup(/sector[:\s-]+([^\n\r]{5,40})/i);
+
+      // Contacts
+      const email = matchFirst(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      const phone = matchFirst(/\+?\d[\d\s\-]{9,}/);
+      const website = matchFirst(/(?:https?:\/\/)?(?:www\.)?[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[\w\-._~:\/?#\[\]@!$&'()*+,;=.]+)?/);
+
+      // Market / sector
+      const market = lowerText.includes('fmcg') || lowerText.includes('cosmetics')
+        ? 'FMCG/Cosmetics market'
+        : matchGroup(/market[:\s-]+([^\n\r]{10,120})/i);
+
+      return {
+        companyName,
+        founderName,
+        founderTitle: null,
+        market,
+        marketSize,
+        traction: growth,
+        growth,
+        revenue,
+        email,
+        phone,
+        website,
+        globalPresence,
+        patents,
+        channels: channels.length ? channels : undefined,
+        teamBackground,
+        fundingAmount,
+        useOfFunds,
+        solution,
+        businessModel,
+        sector,
+        uniqueSellingProposition: solution,
+        usp1,
+        usp2,
+        usp3,
+        useOfFund1,
+        useOfFund2,
+        useOfFund3
+      };
+    };
+
+    const basicData = extractBasicData(text);
+    const extractedInfo = aiResult?.extractedData || basicData;
+    
+    if (extractedInfo && (extractedInfo.companyName || extractedInfo.founderName)) {
+      emailTemplate = buildFixedTemplate(extractedInfo, req.file.originalname);
+    } else if (aiResult?.emailTemplate) {
+      // If AI provided a template, still convert it to fixed structure using extracted fields
+      emailTemplate = buildFixedTemplate(aiResult.extractedData || {}, req.file.originalname);
+    } else {
+      // Final fallback: fixed structure with minimal data
+      emailTemplate = buildFixedTemplate({}, req.file.originalname);
+    }
+
+    res.json({
+      success: true,
+      data: {
+        extractedData: extractedInfo,
+        emailTemplate,
+        rawTextPreview: text.slice(0, 1000),
+        aiProcessed: !!aiResult?.extractedData,
+        fallbackUsed: !aiResult?.extractedData
+      }
+    });
+
+  } catch (error) {
+    console.error("Extract and prefill error:", error);
+    res.status(500).json({ error: error.message || "Failed to process document" });
+  } finally {
+    try {
+      if (req.file && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+    } catch (cleanupError) {
+      console.warn("File cleanup failed:", cleanupError.message);
+    }
+  }
+};
+
+// New endpoint for regenerating email templates with updated data
+exports.regenerateTemplate = async (req, res) => {
+  try {
+    const { extractedData, investorName, originalName } = req.body;
+    
+    if (!extractedData) {
+      return res.status(400).json({ error: "Extracted data is required" });
+    }
+
+    // Use the same buildFixedTemplate function from extractAndPrefill
+    const buildFixedTemplate = (info = {}, originalName = '') => {
+      const pick = (v) => (v && String(v).trim().length > 0 ? String(v).trim() : undefined);
+      const cleanedBase = (pick(originalName?.replace(/\.[^.]+$/, "")) || "[Brand Name]")
+        .replace(/\bdeck\b/gi, '')
+        .replace(/\(\d+\)/g, '')
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+      const humanName = (pick(info.companyName) || cleanedBase)
+        .replace(/[-_]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .replace(/\b\w/g, (c) => c.toUpperCase());
+      const category = pick(info.sector || info.market) || "[Brand Type / Category]";
+      const rawPositioning = pick(info.solution) || "[1-line positioning]";
+      const sanitizeSnippet = (s = "") => {
+        let out = s.replace(new RegExp(`^${humanName}[:,]?\s*`, 'i'), '');
+        out = out.replace(/^a[n]?\s+/i, '').replace(/^brand\s+/i, '');
+        out = out.replace(/\s*[,;]\s*$/g, '').replace(/\.+$/g, '');
+        out = out.replace(/\s{2,}/g, ' ').trim();
+        if (out.length > 100) {
+          const cut = out.slice(0, 100);
+          const lastSpace = cut.lastIndexOf(' ');
+          out = (lastSpace > 60 ? cut.slice(0, lastSpace) : cut).trim() + '...';
+        }
+        return out;
+      };
+      const positioningShort = sanitizeSnippet(rawPositioning);
+      const channels = Array.isArray(info.channels) ? info.channels.join(', ') : pick(info.channels);
+      const presence = channels || (pick(info.website) ? `Website: ${info.website}` : undefined);
+
+      const highlights = [
+        pick(info.teamBackground) ? `Team: ${pick(info.teamBackground)}` : undefined,
+        pick(info.globalPresence) ? `Global Presence: ${pick(info.globalPresence)}` : undefined,
+        pick(info.growth) ? `Growth: ${pick(info.growth)}` : (pick(info.traction) ? `Traction: ${pick(info.traction)}` : undefined),
+        pick(info.marketSize || info.market) ? `Market Size: ${pick(info.marketSize || info.market)}` : undefined,
+        pick(info.revenue) ? `Revenue: ${pick(info.revenue)}` : undefined,
+        pick(info.patents) ? `IP: ${pick(info.patents)}` : undefined,
+        presence ? `Current Presence: ${presence}` : undefined,
+      ].filter(Boolean).slice(0, 5);
+
+      let subject = `Investment Opportunity in ${humanName} – ${positioningShort}`;
+      if (subject.length > 120) subject = subject.slice(0, 117) + '...';
+
+      const uspRaw = pick(info.uniqueSellingProposition) || pick(info.businessModel) || '[Unique Selling Proposition]';
+      const usp = sanitizeSnippet(uspRaw).slice(0, 120);
+
+      let body = `Dear ${investorName || '[Investor\'s Name]'},\n\nHope you're doing well.\n\nI'm reaching out to share an exciting investment opportunity in ${humanName}, an ${category} brand with ${positioningShort}.\n\nBacked by ${pick(info.existingInvestors) || pick(info.patents) || 'strong industry expertise and proven track record'}, ${humanName} combines ${usp} to build a high-margin, scalable business.\n\n`;
+
+      body += `📈 Key Highlights:`;
+      highlights.forEach(highlight => {
+        if (highlight) body += `\n- ${highlight}`;
+      });
+      
+      if (highlights.length === 0) {
+        body += `\n- Strong market opportunity and growth potential`;
+        body += `\n- Experienced team with proven track record`;
+        body += `\n- Scalable business model with high margins`;
+      }
+
+      body += `\n\n🔧 Product Edge:`;
+      const productEdges = [
+        pick(info.usp1) || pick(info.solution) || pick(info.businessModel),
+        pick(info.usp2) || pick(info.patents) || pick(info.uniqueSellingProposition),
+        pick(info.usp3) || pick(info.teamBackground) || pick(info.globalPresence)
+      ].filter(Boolean);
+      
+      if (productEdges.length > 0) {
+        productEdges.forEach(edge => body += `\n- ${sanitizeSnippet(edge)}`);
+      } else {
+        body += `\n- Innovative and science-backed formulations`;
+        body += `\n- Category differentiation and competitive advantage`;
+        body += `\n- Strong market positioning and growth potential`;
+      }
+      body += `\n\n`;
+
+      body += `💸 Fundraise Details:\nCurrently raising ${pick(info.fundingAmount) || '[Fundraise Amount]'} to accelerate ${pick(info.useOfFunds) || 'growth and expansion'}.\n\nFunds will support:`;
+      
+      const fundUses = [
+        pick(info.useOfFund1) || (pick(info.useOfFunds) && pick(info.useOfFunds).includes('marketing') ? 'Marketing and customer acquisition' : null),
+        pick(info.useOfFund2) || (pick(info.useOfFunds) && pick(info.useOfFunds).includes('operations') ? 'Operations and technology' : null),
+        pick(info.useOfFund3) || (pick(info.useOfFunds) && pick(info.useOfFunds).includes('r&d') ? 'R&D and product development' : null)
+      ].filter(Boolean);
+      
+      if (fundUses.length > 0) {
+        fundUses.forEach(use => body += `\n- ${use}`);
+      } else {
+        body += `\n- Marketing and customer acquisition`;
+        body += `\n- Operations and technology enhancement`;
+        body += `\n- Product development and R&D`;
+      }
+      body += `\n\n`;
+
+      body += `If this aligns with your portfolio thesis in ${category}, we'd be glad to share the deck and set up a quick call with the founders.\n\nLooking forward to hearing from you.\n\nWarm regards,  \n${pick(info.founderName) || '[Your Full Name]'}  \nInvestor Relations – ${humanName}  \n📞 ${pick(info.phone) || '[Phone Number]'} | ✉️ ${pick(info.email) || '[Email Address]'}\n`;
+
+      const tidy = (s) => s
+        .replace(/\s+\./g, '.')
+        .replace(/\.\./g, '.')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\n\s+\n/g, '\n\n')
+        .trim();
+
+      return { subject: tidy(subject), body: tidy(body) };
+    };
+
+    const emailTemplate = buildFixedTemplate(extractedData, originalName || 'document');
+
+    res.json({
+      success: true,
+      data: {
+        emailTemplate
+      }
+    });
+
+  } catch (error) {
+    console.error("Regenerate template error:", error);
+    res.status(500).json({ error: error.message || "Failed to regenerate template" });
+  }
+};
 
 function escapeHtml(str = "") {
   return String(str)

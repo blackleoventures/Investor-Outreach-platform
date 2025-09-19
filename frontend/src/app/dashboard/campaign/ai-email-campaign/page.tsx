@@ -53,60 +53,53 @@ function buildTemplateFromAnalysis(analysis: PitchAnalysis | null, fileName?: st
   if (!analysis) return DEFAULT_INVESTOR_TEMPLATE;
   const pick = (v?: string) => (v && v.trim().length > 0 ? v.trim() : undefined);
 
-  // Extract company name from filename
-  let brandName = "Cosmedream";
-  if (fileName && fileName.toLowerCase().includes('cosmedream')) {
-    brandName = 'Cosmedream';
-  } else if (fileName) {
-    const rawName = fileName.replace(/\.[^.]+$/, "").replace(/[-_]/g, ' ');
-    brandName = rawName.replace(/\s+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-  }
-  
-  // Extract market category (shortened)
-  let category = "Beauty & Cosmetics";
-  if (analysis.summary?.market) {
-    const market = analysis.summary.market;
-    if (market.toLowerCase().includes('beauty') || market.toLowerCase().includes('cosmetic')) {
-      category = 'Beauty & Cosmetics';
-    } else if (market.toLowerCase().includes('fmcg')) {
-      category = 'FMCG';
-    } else if (market.length > 50) {
-      category = market.substring(0, 50) + '...';
-    } else {
-      category = market;
+  // Clean and humanize brand name from fileName
+  const rawName = pick(fileName?.replace(/\.[^.]+$/, "")) || "[Brand Name]";
+  const cleanedBase = rawName
+    .replace(/\bdeck\b/gi, '')
+    .replace(/\(\d+\)/g, '')
+    .replace(/[-_]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  const brandName = cleanedBase.replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const category = pick(analysis.summary?.market) || "[Brand Type / Category]";
+  const sanitizeSnippet = (s: string = "") => {
+    let out = s.replace(new RegExp(`^${brandName}[:,]?\\s*`, 'i'), '');
+    out = out.replace(/^a[n]?\s+/i, '').replace(/^brand\s+/i, '');
+    out = out.replace(/\s*[,;]\s*$/g, '').replace(/\.+$/g, '');
+    out = out.replace(/\s{2,}/g, ' ').trim();
+    if (out.length > 100) {
+      const cut = out.slice(0, 100);
+      const lastSpace = cut.lastIndexOf(' ');
+      out = (lastSpace > 60 ? cut.slice(0, lastSpace) : cut).trim() + '...';
     }
-  }
-  
-  // Extract positioning (shortened)
-  let positioning = "AI-powered personalized skincare";
-  if (analysis.summary?.solution) {
-    const solution = analysis.summary.solution;
-    if (solution.length > 80) {
-      positioning = solution.substring(0, 80) + '...';
-    } else {
-      positioning = solution;
-    }
-  }
-  
-  const traction = analysis.summary?.traction || "Strong market presence in 20+ countries";
+    return out;
+  };
+
+  const positioning = sanitizeSnippet(pick(analysis.summary?.solution) || "[1-line positioning]");
+  const traction = pick(analysis.summary?.traction) || "[Revenue/Users/Growth]";
 
   const hi = (analysis.highlights || []).slice(0, 5);
-  const hl1 = hi[0] || "Diverse product portfolio";
-  const hl2 = hi[1] || "Multi-country presence";
-  const hl3 = hi[2] || "Innovative formulations";
-  const hl4 = hi[3] || "Strong brand partnerships";
-  const hl5 = hi[4] || "Experienced leadership team";
+  const hl1 = hi[0] || `Growth: ${traction}`;
+  const hl2 = hi[1] || `Market Size: ${category}`;
+  const hl3 = hi[2] || `Gross Margins: [Gross Margin %]`;
+  const hl4 = hi[3] || `Current Presence: [Channels]`;
+  const hl5 = hi[4] || `Unit Economics: [Repeat/Retention]`;
 
-  const subject = `Subject: Investment Opportunity in ${brandName} – ${positioning}`;
+  // Concise subject (no "Deck (1)") and capped
+  let subjectText = `Investment Opportunity in ${brandName} – ${positioning}`;
+  if (subjectText.length > 120) subjectText = subjectText.slice(0, 117) + '...';
+  const subject = `Subject: ${subjectText}`;
 
   const body = `
 Dear [Investor's Name],
 
 Hope you're doing well.
 
-I'm reaching out to share an exciting investment opportunity in ${brandName}, a ${category} company that's ${positioning}.
+I'm reaching out to share an exciting investment opportunity in ${brandName}, an ${category} brand with ${positioning}.
 
-Backed by experienced leadership and proven market presence, ${brandName} offers a high-margin, scalable business in the growing ${category} sector.
+Backed by [Existing Investors / Grants / Achievements], ${brandName} combines [Unique Selling Proposition] to build a high-margin, scalable business.
 
 📈 Key Highlights:
 - ${hl1}
@@ -116,17 +109,17 @@ Backed by experienced leadership and proven market presence, ${brandName} offers
 - ${hl5}
 
 🔧 Product Edge:
-- Innovative product formulations with herbal ingredients
-- Strong brand portfolio with French fragrances
-- Multi-market presence and partnerships
+- [USP 1 – Natural/Tech-enabled/etc.]
+- [USP 2 – Category differentiation]
+- [USP 3 – Competition angle]
 
 💸 Fundraise Details:
-Currently raising funds to accelerate expansion and growth initiatives.
+Currently raising [Fundraise Amount] to accelerate [Key Purpose].
 
 Funds will support:
-- Market expansion and penetration
-- Product development and innovation
-- Team scaling and operations
+- [Use of Fund 1 – GTM, Marketing, Expansion, etc.]
+- [Use of Fund 2]
+- [Use of Fund 3]
 
 If this aligns with your portfolio thesis in ${category}, we’d be glad to share the deck and set up a quick call with the founders.
 
@@ -134,15 +127,15 @@ Looking forward to hearing from you.
 
 Warm regards,  
 [Your Full Name]  
-Investor Relations – ${brandName}  
+Investor Relations – [Firm Name]  
 📞 [Phone Number] | ✉️ [Email Address]`;
 
   return `${subject}\n\n${body}`;
 }
 
 // Email Composer Component
-type EmailComposerProps = { pitchAnalysis: PitchAnalysis | null; autoLoadTemplate?: boolean; uploadedFileName?: string; onScheduleLabelChange?: (label: string) => void };
-const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileName, onScheduleLabelChange }: EmailComposerProps) => {
+type EmailComposerProps = { pitchAnalysis: PitchAnalysis | null; autoLoadTemplate?: boolean; uploadedFileName?: string; onScheduleLabelChange?: (label: string) => void; generatedEmailTemplate?: { subject: string; body: string } | null };
+const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileName, onScheduleLabelChange, generatedEmailTemplate }: EmailComposerProps) => {
   const [form] = Form.useForm();
   const [sending, setSending] = useState(false);
   const [enhancingSubject, setEnhancingSubject] = useState(false);
@@ -160,12 +153,17 @@ const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileNa
   // MAX_RECIPIENTS defined above
 
   const useTemplate = () => {
-    // Use Gemini AI template if available, otherwise fallback to buildTemplateFromAnalysis
-    const template = pitchAnalysis?.email_template || buildTemplateFromAnalysis(pitchAnalysis, uploadedFileName);
-    const lines = template.split('\n');
-    const subject = lines[0].replace('Subject: ', '');
-    const content = lines.slice(1).join('\n').trim();
-    form.setFieldsValue({ subject, content });
+    if (generatedEmailTemplate) {
+      form.setFieldsValue({ 
+        subject: generatedEmailTemplate.subject, 
+        content: generatedEmailTemplate.body 
+      });
+    } else {
+      const lines = DEFAULT_INVESTOR_TEMPLATE.split('\n');
+      const subject = lines[0].replace('Subject: ', '');
+      const content = lines.slice(1).join('\n').trim();
+      form.setFieldsValue({ subject, content });
+    }
     message.success('Template loaded successfully!');
   };
 
@@ -188,16 +186,14 @@ const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileNa
 
   // Auto-load the template when the composer is shown
   useEffect(() => {
-    if (autoLoadTemplate && pitchAnalysis) {
-      // Use Gemini AI template if available, otherwise fallback to buildTemplateFromAnalysis
-      const template = pitchAnalysis.email_template || buildTemplateFromAnalysis(pitchAnalysis, uploadedFileName);
-      const lines = template.split('\n');
-      const subject = lines[0].replace('Subject: ', '');
-      const content = lines.slice(1).join('\n').trim();
-      form.setFieldsValue({ subject, content });
+    if (autoLoadTemplate && generatedEmailTemplate) {
+      form.setFieldsValue({ 
+        subject: generatedEmailTemplate.subject, 
+        content: generatedEmailTemplate.body 
+      });
       setFormKey(`composer-${Date.now()}`);
     }
-  }, [autoLoadTemplate, form, pitchAnalysis, uploadedFileName]);
+  }, [autoLoadTemplate, form, generatedEmailTemplate]);
 
   // Prefill recipients from selections (Match Making or All Investors)
   useEffect(() => {
@@ -258,9 +254,7 @@ const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileNa
   const enhanceContent = async () => {
     let currentContent = form.getFieldValue('content');
     if (!currentContent) {
-      // Use Gemini AI template if available, otherwise fallback to buildTemplateFromAnalysis
-      const template = pitchAnalysis?.email_template || buildTemplateFromAnalysis(pitchAnalysis, uploadedFileName);
-      const lines = template.split('\n');
+      const lines = buildTemplateFromAnalysis(pitchAnalysis, uploadedFileName).split('\n');
       currentContent = lines.slice(1).join('\n').trim();
       form.setFieldValue('content', currentContent);
       setFormKey(`composer-${Date.now()}`);
@@ -320,15 +314,38 @@ Best regards,
         .map((s: string) => s.trim())
         .filter((s: string) => s.includes('@'));
       const deduped = Array.from(new Set(toList)).slice(0, MAX_RECIPIENTS);
-      if (scheduleType === 'scheduled') {
-        const jobs = JSON.parse(localStorage.getItem('scheduledEmails') || '[]');
-        jobs.push({ id: Date.now().toString(), to: deduped, subject: values.subject, html: values.content, scheduleAt: scheduleDate ? new Date(scheduleDate).toISOString() : null });
-        localStorage.setItem('scheduledEmails', JSON.stringify(jobs));
-        message.success('Email scheduled successfully');
+      
+      if (scheduleType === 'scheduled' && scheduleDate) {
+        // Schedule email using backend API
+        const payload = {
+          to: deduped,
+          subject: values.subject,
+          html: values.content,
+          scheduleAt: new Date(scheduleDate).toISOString(),
+          from: 'priyanshusingh99p@gmail.com'
+        };
+        
+        const response = await fetch(`${BACKEND_URL}/scheduled-emails`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to schedule email');
+        }
+        
+        const result = await response.json();
+        message.success(`Email scheduled for ${selectedScheduleLabel || 'selected time'}`);
         form.resetFields();
+        setScheduleType('immediate');
+        setScheduleDate(null);
+        setSelectedScheduleLabel('');
         return;
       }
 
+      // Send immediately
       const payload = { to: deduped.join(', '), subject: values.subject, html: values.content, from: 'priyanshusingh99p@gmail.com' };
       const response = await fetch('/api/email/send-direct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       const contentType = response.headers.get('content-type');
@@ -367,6 +384,13 @@ Best regards,
       // Reuse logic by calling sendEmail with scheduleType already set
       sendEmail(fakeValues);
     } catch {}
+  };
+
+  const removeSchedule = () => {
+    setScheduleType('immediate');
+    setScheduleDate(null);
+    setSelectedScheduleLabel('');
+    message.success('Schedule removed - email will be sent immediately');
   };
 
   // Helpers for schedule presets (IST display)
@@ -527,6 +551,16 @@ Best regards,
             >
               🗑️ Clear
             </Button>
+            {scheduleType === 'scheduled' && selectedScheduleLabel && (
+              <Button 
+                type="default" 
+                size="large"
+                onClick={removeSchedule}
+                className="bg-orange-500 hover:bg-orange-600 text-white border-0"
+              >
+                🗑️ Remove Schedule
+              </Button>
+            )}
             <Button 
               type="primary" 
               htmlType="submit"
@@ -535,7 +569,10 @@ Best regards,
               disabled={backendStatus === 'offline'}
               className="bg-gradient-to-r from-green-500 to-blue-600 border-0 px-8"
             >
-              {sending ? '📤 Sending...' : backendStatus === 'offline' ? '❌ Backend Offline' : '🚀 Send Email'}
+              {sending ? '📤 Sending...' : 
+               backendStatus === 'offline' ? '❌ Backend Offline' : 
+               scheduleType === 'scheduled' ? `📅 Schedule for ${selectedScheduleLabel}` : 
+               '🚀 Send Email'}
             </Button>
           </div>
         </Form>
@@ -702,6 +739,7 @@ export default function AIEmailCampaignPage() {
   const [matchingLoading, setMatchingLoading] = useState(false);
   const [showAnalysisModal, setShowAnalysisModal] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   
   // Force clear all data on component mount
   useEffect(() => {
@@ -723,15 +761,43 @@ export default function AIEmailCampaignPage() {
     }
   };
 
+  // Store the generated email template from backend
+  const [generatedEmailTemplate, setGeneratedEmailTemplate] = useState<{ subject: string; body: string } | null>(null);
+
   // Analyze pitch deck
   const analyzePitchDeck = async (file: File) => {
     console.log('🚀 Starting analysis for:', file.name);
     setUploadedFile(file);
+    setAiError(null);
     setAnalysisLoading(true);
     setPitchAnalysis(null); // Clear previous analysis
     setMatchedInvestors([]); // Clear previous matches
+    setGeneratedEmailTemplate(null); // Clear previous template
     
     try {
+      // First, generate the email template using extract-and-prefill
+      const templateFormData = new FormData();
+      templateFormData.append("document", file);
+      templateFormData.append("investorName", "[Investor's Name]");
+
+      try {
+        const templateResponse = await fetch(`${BACKEND_URL}/ai/extract-and-prefill`, {
+          method: "POST",
+          body: templateFormData,
+        });
+
+        if (templateResponse.ok) {
+          const templateResult = await templateResponse.json();
+          if (templateResult.success && templateResult.data.emailTemplate) {
+            setGeneratedEmailTemplate(templateResult.data.emailTemplate);
+            console.log('✅ Email template generated successfully');
+          }
+        }
+      } catch (templateError) {
+        console.warn('Template generation failed, will use fallback:', templateError);
+      }
+
+      // Then proceed with analysis
       const formData = new FormData();
       formData.append("deck", file);
 
@@ -750,6 +816,7 @@ export default function AIEmailCampaignPage() {
         const payload = ct.includes('application/json') ? await response.json() : await response.text();
         data = typeof payload === 'string' ? { success: false, error: payload } : payload;
         ok = response.ok && !!data?.data;
+        if (!ok && data?.error) setAiError('AI service is busy. Please try again.');
       } catch (e) {
         console.warn('Primary analyze failed/timeout, switching to fast fallback:', e);
       }
@@ -763,9 +830,11 @@ export default function AIEmailCampaignPage() {
           data = typeof payload2 === 'string' ? { success: false, error: payload2 } : payload2;
           ok = response.ok && !!data?.data;
           if (ok) message.info('Using heuristic fallback for analysis.');
+          else if (data?.error) setAiError('AI failed to analyze the deck. Please try again.');
         } catch (e2) {
           console.warn('Fallback analyze also failed/timeout:', e2);
           ok = false;
+          setAiError('Network or AI timeout. Please check your connection and try again.');
         }
       }
 
@@ -878,6 +947,7 @@ export default function AIEmailCampaignPage() {
 
       setPitchAnalysis(fallbackAnalysis);
       message.success('✅ Analysis complete (fallback used).');
+      setAiError(null);
       return;
     } finally {
       setAnalysisLoading(false);
@@ -993,6 +1063,14 @@ export default function AIEmailCampaignPage() {
       ),
       children: (
         <div className="space-y-6">
+          {aiError && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-sm text-yellow-800 flex items-center justify-between">
+              <span>{aiError} – Try again.</span>
+              <Button size="small" onClick={() => uploadedFile && analyzePitchDeck(uploadedFile)}>
+                Try Again
+              </Button>
+            </div>
+          )}
           <Card>
             <div className="text-center py-12">
               <div className="mb-6">
@@ -1154,7 +1232,7 @@ export default function AIEmailCampaignPage() {
                         type="primary"
                         size="small"
                         onClick={() => {
-                          const subject = pitchAnalysis.email_template ? pitchAnalysis.email_template.split('\n')[0].replace('Subject: ', '') : buildTemplateFromAnalysis(pitchAnalysis, uploadedFile?.name).split('\n')[0].replace('Subject: ', '');
+                          const subject = buildTemplateFromAnalysis(pitchAnalysis, uploadedFile?.name).split('\n')[0].replace('Subject: ', '');
                           navigator.clipboard.writeText(subject);
                           message.success('Subject copied to clipboard!');
                         }}
@@ -1165,7 +1243,7 @@ export default function AIEmailCampaignPage() {
                     </div>
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border-2 border-blue-200">
                       <Text className="text-base font-medium text-gray-800">
-                        {pitchAnalysis.email_template ? pitchAnalysis.email_template.split('\n')[0].replace('Subject: ', '') : buildTemplateFromAnalysis(pitchAnalysis, uploadedFile?.name).split('\n')[0].replace('Subject: ', '')}
+                        {generatedEmailTemplate?.subject || 'Investment Opportunity - [Company Name]'}
                       </Text>
                     </div>
                   </div>
@@ -1178,7 +1256,7 @@ export default function AIEmailCampaignPage() {
                     <Button 
                       type="primary"
                       onClick={() => {
-                        const emailContent = pitchAnalysis.email_template ? pitchAnalysis.email_template.split('\n').slice(1).join('\n').trim() : buildTemplateFromAnalysis(pitchAnalysis, uploadedFile?.name).split('\n').slice(1).join('\n').trim();
+                        const emailContent = generatedEmailTemplate?.body || DEFAULT_INVESTOR_TEMPLATE;
                         navigator.clipboard.writeText(emailContent);
                         message.success('Email content copied to clipboard!');
                       }}
@@ -1188,9 +1266,15 @@ export default function AIEmailCampaignPage() {
                     </Button>
                   </div>
                   <div className="bg-gradient-to-br from-gray-50 to-blue-50 p-6 rounded-lg border-2 border-gray-200">
-                    <pre className="whitespace-pre-wrap text-base font-sans text-gray-800 leading-relaxed">
-                      {pitchAnalysis.email_template ? pitchAnalysis.email_template.split('\n').slice(1).join('\n').trim() : buildTemplateFromAnalysis(pitchAnalysis, uploadedFile?.name).split('\n').slice(1).join('\n').trim()}
-                    </pre>
+                    <div className="text-base font-sans text-gray-800 leading-relaxed whitespace-pre-line">
+                      {(generatedEmailTemplate?.body || DEFAULT_INVESTOR_TEMPLATE)
+                        .replace(/📈 Key Highlights:/g, '\n📈 KEY HIGHLIGHTS:')
+                        .replace(/🔧 Product Edge:/g, '\n🔧 PRODUCT EDGE:')
+                        .replace(/💸 Fundraise Details:/g, '\n💸 FUNDRAISE DETAILS:')
+                        .replace(/- /g, '\n• ')
+                        .replace(/Contact:/g, '\nContact:')
+                      }
+                    </div>
                   </div>
                 </div>
 
@@ -1242,7 +1326,7 @@ export default function AIEmailCampaignPage() {
           Email Composer
         </span>
       ),
-      children: <EmailComposer pitchAnalysis={pitchAnalysis} autoLoadTemplate={true} onScheduleLabelChange={(l)=> setSelectedScheduleLabel(l)} />,
+      children: <EmailComposer pitchAnalysis={pitchAnalysis} uploadedFileName={uploadedFile?.name} autoLoadTemplate={true} onScheduleLabelChange={(l)=> setSelectedScheduleLabel(l)} generatedEmailTemplate={generatedEmailTemplate} />,
     },
 
 
