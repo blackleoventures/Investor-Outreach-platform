@@ -1,9 +1,5 @@
 {
+  "buildCommand": "npm run build",
   "outputDirectory": ".next",
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/"
-    }
-  ]
+  "installCommand": "npm install"
 }
