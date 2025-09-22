@@ -7,7 +7,9 @@ const transformFrontendToDB = require('../utils/functions');
 
 class ExcelService {
   constructor() {
-    this.excelFilePath = path.join('/tmp', 'investors.xlsx');
+    // Use local data directory instead of /tmp
+    this.excelFilePath = path.join(__dirname, '../../data/investors.xlsx');
+    this.incubatorsFilePath = path.join(__dirname, '../../data/incubators.xlsx');
     this.isWatching = false;
     this.watcher = null;
   }
@@ -45,21 +47,46 @@ class ExcelService {
   }
 
   // Read data from Excel file
-  readExcelData() {
+  readExcelData(filePath = null) {
     try {
-      if (!fs.existsSync(this.excelFilePath)) {
+      const targetPath = filePath || this.excelFilePath;
+      if (!fs.existsSync(targetPath)) {
+        console.log(`Excel file not found: ${targetPath}`);
         return [];
       }
 
-      const workbook = xlsx.readFile(this.excelFilePath);
+      const workbook = xlsx.readFile(targetPath);
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       const data = xlsx.utils.sheet_to_json(worksheet);
       
-      return data.filter(row => row.partner_email); // Filter out empty rows
+      return data.filter(row => {
+        // More flexible filtering for different file types
+        return row.partner_email || row.email || row.contact_email || 
+               Object.values(row).some(val => 
+                 typeof val === 'string' && val.includes('@')
+               );
+      });
     } catch (error) {
       console.error('Error reading Excel file:', error);
       return [];
+    }
+  }
+
+  // Read both investors and incubators data
+  readAllExcelData() {
+    try {
+      const investorsData = this.readExcelData(this.excelFilePath);
+      const incubatorsData = this.readExcelData(this.incubatorsFilePath);
+      
+      return {
+        investors: investorsData,
+        incubators: incubatorsData,
+        total: investorsData.length + incubatorsData.length
+      };
+    } catch (error) {
+      console.error('Error reading all Excel data:', error);
+      return { investors: [], incubators: [], total: 0 };
     }
   }
 
@@ -198,7 +225,7 @@ class ExcelService {
     }
   }
 
-  // Start watching Excel file for changes
+  // Start watching Excel files for changes
   startWatching() {
     // Skip file watching in serverless environment
     if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
@@ -207,19 +234,22 @@ class ExcelService {
     }
     
     if (this.isWatching) {
-      console.log('Already watching Excel file');
+      console.log('Already watching Excel files');
       return;
     }
 
     try {
-      this.watcher = chokidar.watch(this.excelFilePath, {
+      // Watch both investors and incubators files
+      const filesToWatch = [this.excelFilePath, this.incubatorsFilePath];
+      
+      this.watcher = chokidar.watch(filesToWatch, {
         ignored: /^\./, 
         persistent: true,
         ignoreInitial: true
       });
 
-      this.watcher.on('change', async () => {
-        console.log('Excel file changed, syncing to Firebase...');
+      this.watcher.on('change', async (filePath) => {
+        console.log(`Excel file changed: ${filePath}, syncing to Firebase...`);
         // Add a small delay to ensure file is fully written
         setTimeout(async () => {
           await this.syncExcelToFirebase();
@@ -228,7 +258,7 @@ class ExcelService {
       });
 
       this.isWatching = true;
-      console.log('Started watching Excel file:', this.excelFilePath);
+      console.log('Started watching Excel files:', filesToWatch);
     } catch (error) {
       console.log('File watching not available in this environment');
     }

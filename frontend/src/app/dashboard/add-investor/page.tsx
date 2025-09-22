@@ -25,7 +25,8 @@ export default function AddInvestorPage() {
     country: true,
     state: true,
     city: true,
-    ticketSize: true
+    ticketSize: true,
+    fundFocusSectors: true
   });
 
   const handleManualEntry = () => {
@@ -84,8 +85,14 @@ export default function AddInvestorPage() {
 
   const handleSubmit = async (values: any) => {
     try {
+      // Map fund focus field to sector_focus expected by list pages
+      const payloadObj = { ...values } as any;
+      if (payloadObj.fund_focus_sectors) {
+        payloadObj.sector_focus = payloadObj.fund_focus_sectors;
+        delete payloadObj.fund_focus_sectors;
+      }
       // Send as an array of one object to existing bulk endpoint
-      const payload = [values];
+      const payload = [payloadObj];
       const response = await apiFetch(`/api/investors/bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -204,6 +211,14 @@ export default function AddInvestorPage() {
                   onChange={(e) => handleColumnVisibilityChange('ticketSize', e.target.checked)}
                 >
                   Ticket Size (Optional)
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
+                  checked={visibleColumns.fundFocusSectors}
+                  onChange={(e) => handleColumnVisibilityChange('fundFocusSectors', e.target.checked)}
+                >
+                  Fund Focus (Sectors)
                 </Checkbox>
               </div>
             </div>
@@ -413,6 +428,15 @@ export default function AddInvestorPage() {
                     className="mb-3"
                   >
                     <Input placeholder="Enter ticket size" />
+                  </Form.Item>
+                )}
+                {visibleColumns.fundFocusSectors && (
+                  <Form.Item 
+                    name="fund_focus_sectors" 
+                    label="Fund Focus (Sectors)"
+                    className="mb-3"
+                  >
+                    <Input placeholder="e.g. FinTech, SaaS, AI" />
                   </Form.Item>
                 )}
               </div>

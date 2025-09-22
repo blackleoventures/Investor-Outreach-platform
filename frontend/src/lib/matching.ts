@@ -25,9 +25,9 @@ export type IncubatorRecord = Record<string, any> & {
   ticket_size?: any;
 };
 
-// Rule weights: +25 each criterion  
-const WEIGHTS_INVESTOR = { sector: 25, stage: 25, location: 25, ticket: 25 } as const;
-const WEIGHTS_INCUBATOR = { sector: 25, stage: 25, location: 25, ticket: 25 } as const;
+// Rule weights: Sector 40, Stage 30, Location 20, Amount 10
+const WEIGHTS_INVESTOR = { sector: 40, stage: 30, location: 20, ticket: 10 } as const;
+const WEIGHTS_INCUBATOR = { sector: 40, stage: 30, location: 20, ticket: 10 } as const;
 
 const normalize = (v?: string) => (v || "").toString().trim().toLowerCase();
 
@@ -97,7 +97,7 @@ export function scoreInvestorMatch(client: ClientProfile, investor: InvestorReco
   }
   score += breakdown.stage;
 
-  // Location (exact country/city; treat Global as match as well)
+  // Location (exact country/state/city; treat Global as match as well)
   const clientLoc = normalize(client.location);
   const invCountry = normalize(investor.country);
   const invState = normalize((investor as any).state);

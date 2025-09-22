@@ -419,7 +419,7 @@ export default function Page() {
                           { value: 'Seed', label: 'Seed' },
                           { value: 'Series A', label: 'Series A' },
                           { value: 'Series B', label: 'Series B' },
-                          { value: 'Growth', label: 'Growth' },
+                          { value: 'Last Stage', label: 'Last Stage' },
                         ]}
                         placeholder="Select stage"
                         size="large"

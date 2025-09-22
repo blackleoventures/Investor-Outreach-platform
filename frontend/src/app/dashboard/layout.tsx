@@ -128,9 +128,9 @@ export default function DashboardLayout({
       ...navItem("/dashboard/all-reports", "Reports"),
     },
     {
-      key: "/dashboard/investor-management",
+      key: "/dashboard/matchmaker",
       icon: <SearchOutlined style={{ fontSize: "16px" }} />,
-      ...navItem("/dashboard/investor-management", "Match Making"),
+      ...navItem("/dashboard/matchmaker", "Matchmaker"),
     },
     {
       key: "investor-management",

@@ -1015,7 +1015,7 @@ Extract REAL data only. Use null for missing information.`;
       const highlights = [
         pick(info.teamBackground) ? `Team: ${pick(info.teamBackground)}` : undefined,
         pick(info.globalPresence) ? `Global Presence: ${pick(info.globalPresence)}` : undefined,
-        pick(info.growth) ? `Growth: ${pick(info.growth)}` : (pick(info.traction) ? `Traction: ${pick(info.traction)}` : undefined),
+        pick(info.growth) ? `Last Stage: ${pick(info.growth)}` : (pick(info.traction) ? `Traction: ${pick(info.traction)}` : undefined),
         pick(info.marketSize || info.market) ? `Market Size: ${pick(info.marketSize || info.market)}` : undefined,
         pick(info.revenue) ? `Revenue: ${pick(info.revenue)}` : undefined,
         pick(info.patents) ? `IP: ${pick(info.patents)}` : undefined,
@@ -1278,7 +1278,7 @@ exports.regenerateTemplate = async (req, res) => {
       const highlights = [
         pick(info.teamBackground) ? `Team: ${pick(info.teamBackground)}` : undefined,
         pick(info.globalPresence) ? `Global Presence: ${pick(info.globalPresence)}` : undefined,
-        pick(info.growth) ? `Growth: ${pick(info.growth)}` : (pick(info.traction) ? `Traction: ${pick(info.traction)}` : undefined),
+        pick(info.growth) ? `Last Stage: ${pick(info.growth)}` : (pick(info.traction) ? `Traction: ${pick(info.traction)}` : undefined),
         pick(info.marketSize || info.market) ? `Market Size: ${pick(info.marketSize || info.market)}` : undefined,
         pick(info.revenue) ? `Revenue: ${pick(info.revenue)}` : undefined,
         pick(info.patents) ? `IP: ${pick(info.patents)}` : undefined,

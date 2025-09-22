@@ -1,5 +1,8 @@
 const Papa = require('papaparse');
 const fileDB = require('../services/file-db.service');
+const excelService = require('../services/excel.service');
+const path = require('path');
+const fs = require('fs');
 
 // Download Excel template/current data
 exports.downloadExcel = async (req, res) => {
@@ -254,5 +257,52 @@ exports.getSyncStatus = async (req, res) => {
   } catch (error) {
     console.error('Error in getSyncStatus:', error);
     res.status(500).json({ error: 'Failed to get sync status', details: error.message });
+  }
+};
+
+// Read Excel data directly (fallback for Google Sheets API issues)
+exports.readExcelData = async (req, res) => {
+  try {
+    const { type = 'all' } = req.query;
+    
+    if (type === 'all') {
+      const allData = excelService.readAllExcelData();
+      res.json({
+        success: true,
+        data: [...allData.investors, ...allData.incubators],
+        investors: allData.investors,
+        incubators: allData.incubators,
+        totalRecords: allData.total,
+        source: 'excel_files'
+      });
+    } else if (type === 'investors') {
+      const investorsData = excelService.readExcelData();
+      res.json({
+        success: true,
+        data: investorsData,
+        totalRecords: investorsData.length,
+        source: 'excel_files'
+      });
+    } else if (type === 'incubators') {
+      const incubatorsData = excelService.readExcelData(excelService.incubatorsFilePath);
+      res.json({
+        success: true,
+        data: incubatorsData,
+        totalRecords: incubatorsData.length,
+        source: 'excel_files'
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        error: 'Invalid type. Use: all, investors, or incubators'
+      });
+    }
+  } catch (error) {
+    console.error('Error reading Excel data:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to read Excel data',
+      details: error.message
+    });
   }
 };

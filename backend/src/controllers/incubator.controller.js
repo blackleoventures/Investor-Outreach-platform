@@ -1,72 +1,52 @@
 const updateIncubator = async (req, res) => {
-  try {
-    const updated = await incubatorFileDB.updateIncubator(req.params.id, req.body);
-    res.status(200).json({ success: true, data: updated });
-  } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
-  }
+  res.status(400).json({ 
+    success: false,
+    error: "Update functionality disabled for Excel-only mode",
+    message: "Please update the Excel file and re-upload to make changes"
+  });
 };
 
 const deleteIncubator = async (req, res) => {
-  try {
-    const result = await incubatorFileDB.deleteIncubator(req.params.id);
-    res.status(200).json({ success: true, data: result });
-  } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
-  }
+  res.status(400).json({ 
+    success: false,
+    error: "Delete functionality disabled for Excel-only mode",
+    message: "Please update the Excel file and re-upload to make changes"
+  });
 };
-const Incubator = require('../models/incubator.model');
-const incubatorFileDB = require('../services/incubator-file-db.service');
+const excelService = require('../services/excel.service');
 
-// Get all incubators
+// Get all incubators from Excel files
 const getAllIncubators = async (req, res) => {
   try {
-    // Mirror investor list behavior by reading from local Excel store
-    const incubators = await incubatorFileDB.getAllIncubators();
-    res.json({ success: true, data: incubators });
+    const incubators = excelService.readExcelData(excelService.incubatorsFilePath);
+    res.json({ 
+      success: true, 
+      data: incubators,
+      docs: incubators,
+      totalCount: incubators.length,
+      source: 'excel_files'
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
 };
 
-// Add single incubator
+// Add single incubator (disabled for Excel-only mode)
 const addIncubator = async (req, res) => {
-  try {
-    const created = await incubatorFileDB.addIncubator(req.body);
-    res.status(201).json({ success: true, data: created });
-  } catch (error) {
-    res.status(400).json({ success: false, message: error.message });
-  }
+  res.status(400).json({ 
+    success: false, 
+    error: "Manual addition disabled. Please use Excel file upload instead.",
+    message: "Use /api/excel/upload endpoint to add incubators via Excel files"
+  });
 };
 
-// Upload incubators from file
+// Redirect to Excel upload endpoint
 const uploadIncubators = async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ success: false, error: 'No file uploaded' });
-    }
-
-    const originalExtension = req.file.originalname.split('.').pop().toLowerCase();
-    if (!['csv', 'xlsx', 'xls'].includes(originalExtension)) {
-      return res.status(400).json({ success: false, error: 'Only CSV and Excel files are supported' });
-    }
-
-    // Store using same file-based approach as investors
-    const count = await incubatorFileDB.uploadFile(req.file.path, originalExtension);
-    if (count === 0) {
-      return res.status(400).json({ success: false, error: 'File is empty or has no valid data' });
-    }
-    return res.status(201).json({
-      success: true,
-      message: `${count} incubators uploaded successfully`,
-      count,
-      recordsProcessed: count,
-      fileType: originalExtension,
-      uploadedAt: new Date().toISOString(),
-    });
-  } catch (error) {
-    return res.status(400).json({ success: false, error: error.message });
-  }
+  res.status(400).json({ 
+    success: false,
+    error: "Please use /api/excel/upload endpoint for file uploads",
+    message: "File upload functionality moved to Excel service"
+  });
 };
 
 module.exports = {

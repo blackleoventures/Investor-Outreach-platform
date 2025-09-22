@@ -17,7 +17,8 @@ export default function AllIncubators() {
   const [loading, setLoading] = useState(false);
   const [activeKey, setActiveKey] = useState('1');
   const [search, setSearch] = useState('');
-  const [visibleCount, setVisibleCount] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [visibleColumns, setVisibleColumns] = useState({
     serialNumber: true,
     incubatorName: true,
@@ -52,7 +53,7 @@ export default function AllIncubators() {
       title: 'Sr. No.',
       width: 80,
       align: 'center',
-      render: (_: any, __: any, index: number) => index + 1,
+      render: (_: any, __: any, index: number) => (currentPage - 1) * pageSize + index + 1,
     },
     {
       title: 'Incubator Name',
@@ -127,32 +128,21 @@ export default function AllIncubators() {
     }
   };
 
-  useEffect(() => {
-    fetchIncubators();
-  }, []);
+  useEffect(() => { fetchIncubators(); }, []);
 
   useEffect(() => {
     const q = search.trim().toLowerCase();
-    if (!q) {
-      setFiltered(incubators);
-      setVisibleCount(10);
-      return;
-    }
-    const next = incubators.filter(r => (
-      (r.incubatorName || '').toLowerCase().includes(q) ||
-      (r.partnerName || '').toLowerCase().includes(q) ||
-      (r.partnerEmail || '').toLowerCase().includes(q) ||
-      (r.phoneNumber || '').toLowerCase().includes(q)
-    ));
+    const next = q
+      ? incubators.filter(r => (
+          (r.incubatorName || '').toLowerCase().includes(q) ||
+          (r.partnerName || '').toLowerCase().includes(q) ||
+          (r.partnerEmail || '').toLowerCase().includes(q) ||
+          (r.phoneNumber || '').toLowerCase().includes(q)
+        ))
+      : incubators;
     setFiltered(next);
-    setVisibleCount(10);
+    setCurrentPage(1);
   }, [search, incubators]);
-
-  const handleUploadSuccess = () => {
-    // After successful upload, switch to table tab and refresh
-    setActiveKey('1');
-    fetchIncubators();
-  };
 
   const handleSaveEdit = async () => {
     try {
@@ -219,13 +209,7 @@ export default function AllIncubators() {
         extra={
           <Space>
             <Dropdown menu={menuItems} placement="bottomRight">
-              <Button
-                type="primary"
-                style={{ backgroundColor: '#ac6a1e', color: '#fff' }}
-                icon={<PlusOutlined />}
-              >
-                Add Incubators
-              </Button>
+              <Button type="primary" style={{ backgroundColor: '#ac6a1e', color: '#fff' }} icon={<PlusOutlined />}>Add Incubators</Button>
             </Dropdown>
             <Button icon={<SettingOutlined />} onClick={() => setColumnsModalOpen(true)}>Customize Columns</Button>
           </Space>
@@ -246,64 +230,44 @@ export default function AllIncubators() {
               children: (
                 <>
                   <div className="mb-4">
-                    <Input
-                      size="large"
-                      placeholder="Search by name, email, or phone..."
-                      prefix={<SearchOutlined />}
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                      style={{ maxWidth: 400 }}
-                    />
+                    <Input size="large" placeholder="Search by name, email, or phone..." prefix={<SearchOutlined />} value={search} onChange={(e) => setSearch(e.target.value)} style={{ maxWidth: 400 }} />
                   </div>
                   <Table
                     columns={columns}
-                    dataSource={filtered.slice(0, visibleCount)}
+                    dataSource={filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
                     loading={loading}
                     rowKey={(r) => `${r.id ?? 'noid'}-${(r.partnerEmail ?? r.incubatorName ?? '').toLowerCase()}`}
                     scroll={{ x: 1200 }}
-                    pagination={false}
+                    pagination={{
+                      position: ['bottomRight'],
+                      size: 'small',
+                      current: currentPage,
+                      pageSize,
+                      total: filtered.length,
+                      onChange: (p, ps) => { setCurrentPage(p); setPageSize(ps || 10); },
+                      showSizeChanger: true,
+                      pageSizeOptions: ['10','20','50','100'],
+                      showQuickJumper: true,
+                      locale: { jump_to: '', page: '' } as any,
+                      showTotal: (total, range) => `${range[0]}-${range[1]} of ${total}`,
+                    }}
                   />
-                  <div className="flex justify-between items-center mt-4">
-                    <div className="text-sm text-gray-600">Total: {filtered.length} incubators • Showing {Math.min(visibleCount, filtered.length)}</div>
-                    <div className="space-x-2">
-                      <Button onClick={() => setVisibleCount(filtered.length)}>All</Button>
-                      <Button type="primary" style={{ backgroundColor: '#1890ff', borderColor: '#1890ff', color: '#fff' }} disabled={visibleCount >= filtered.length} onClick={() => setVisibleCount(c => Math.min(c + 10, filtered.length))}>Show more</Button>
-                    </div>
-                  </div>
                 </>
               ),
             },
           ]}
         />
-        <Modal
-          title="Customize columns"
-          open={columnsModalOpen}
-          onOk={() => setColumnsModalOpen(false)}
-          onCancel={() => setColumnsModalOpen(false)}
-          okText="Done"
-          okButtonProps={{ type: 'primary' }}
-        >
+        <Modal title="Customize columns" open={columnsModalOpen} onOk={() => setColumnsModalOpen(false)} onCancel={() => setColumnsModalOpen(false)} okText="Done" okButtonProps={{ type: 'primary' }}>
           <Space direction="vertical">
             {allColumns.map((col: any) => (
-              <Checkbox
-                key={col.key ?? 'serialNumber'}
-                checked={visibleColumns[col.key ?? 'serialNumber']}
-                onChange={(e) => setVisibleColumns((prev: any) => ({ ...prev, [col.key ?? 'serialNumber']: e.target.checked }))}
-                disabled={(col.key ?? 'serialNumber') === 'serialNumber'}
-              >
+              <Checkbox key={col.key ?? 'serialNumber'} checked={visibleColumns[col.key ?? 'serialNumber']} onChange={(e) => setVisibleColumns((prev: any) => ({ ...prev, [col.key ?? 'serialNumber']: e.target.checked }))} disabled={(col.key ?? 'serialNumber') === 'serialNumber'}>
                 {col.title || 'Sr. No.'}
               </Checkbox>
             ))}
           </Space>
         </Modal>
 
-        <Modal
-          title="Incubator details"
-          open={viewOpen}
-          onCancel={() => { setViewOpen(false); setSelected(null); }}
-          footer={null}
-          width={800}
-        >
+        <Modal title="Incubator details" open={viewOpen} onCancel={() => { setViewOpen(false); setSelected(null); }} footer={null} width={800}>
           {selected && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div><b>Incubator Name</b><div className="text-gray-700">{selected.incubatorName || '-'}</div></div>
@@ -317,20 +281,7 @@ export default function AllIncubators() {
           )}
         </Modal>
 
-        <Modal
-          title="Edit incubator"
-          open={editOpen}
-          onCancel={() => { setEditOpen(false); setSelected(null); }}
-          footer={[
-            <Button key="cancel" onClick={() => { setEditOpen(false); setSelected(null); }}>
-              Cancel
-            </Button>,
-            <Button key="save" type="primary" onClick={handleSaveEdit}>
-              Save
-            </Button>
-          ]}
-          width={800}
-        >
+        <Modal title="Edit incubator" open={editOpen} onCancel={() => { setEditOpen(false); setSelected(null); }} footer={[<Button key="cancel" onClick={() => { setEditOpen(false); setSelected(null); }}>Cancel</Button>, <Button key="save" type="primary" onClick={handleSaveEdit}>Save</Button>]} width={800}>
           <Form layout="vertical" form={form}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Form.Item label="Incubator Name" name="incubatorName" rules={[{ required: true, message: 'Please enter incubator name' }]}>

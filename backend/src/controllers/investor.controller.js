@@ -1,18 +1,36 @@
 const fs = require("fs").promises;
-const fileDB = require('../services/file-db.service');
+const excelService = require('../services/excel.service');
+
+// Get investors from Excel files only
+const getInvestorsFromExcel = async () => {
+  try {
+    return excelService.readExcelData();
+  } catch (error) {
+    console.error('Error reading investors from Excel:', error);
+    return [];
+  }
+};
 
 exports.getPaginatedInvestors = async (req, res) => {
   try {
+    // Add cache-busting headers
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     const { page = 1, limit = 10, search = "" } = req.query;
-    let investors = await fileDB.getAllInvestors();
+    let investors = await getInvestorsFromExcel();
 
     // Apply search filter
     if (search.trim()) {
       const searchTerm = search.trim().toLowerCase();
       investors = investors.filter(investor =>
-        investor.partner_name?.toLowerCase().includes(searchTerm) ||
-        investor.partner_email?.toLowerCase().includes(searchTerm) ||
-        investor.firm_name?.toLowerCase().includes(searchTerm)
+        investor['Partner name']?.toLowerCase().includes(searchTerm) ||
+        investor['partner_name']?.toLowerCase().includes(searchTerm) ||
+        investor['Partner email']?.toLowerCase().includes(searchTerm) ||
+        investor['partner_email']?.toLowerCase().includes(searchTerm) ||
+        investor['Investor name']?.toLowerCase().includes(searchTerm) ||
+        investor['investor_name']?.toLowerCase().includes(searchTerm)
       );
     }
 
@@ -28,66 +46,29 @@ exports.getPaginatedInvestors = async (req, res) => {
       page: parseInt(page),
       totalPages: Math.ceil(investors.length / parseInt(limit)),
       hasNextPage: endIndex < investors.length,
-      hasPrevPage: parseInt(page) > 1
+      hasPrevPage: parseInt(page) > 1,
+      source: 'excel_files',
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// Controller to add investors data manually
+// Controller to add investors data manually (disabled for Excel-only mode)
 exports.bulkAddInvestors = async (req, res) => {
-  try {
-    const investorData = req.body;
-    if (!Array.isArray(investorData) || investorData.length === 0) {
-      return res.status(400).json({ error: "Array of investor data is required" });
-    }
-
-    const results = [];
-    for (const investor of investorData) {
-      const newInvestor = await fileDB.addInvestor(investor);
-      results.push(newInvestor);
-    }
-
-    res.status(201).json({
-      message: `Successfully added ${results.length} investors`,
-      count: results.length
-    });
-  } catch (error) {
-    res.status(500).json({ error: "Failed to add investors", details: error.message });
-  }
+  res.status(400).json({ 
+    error: "Manual addition disabled. Please use Excel file upload instead.",
+    message: "Use /api/excel/upload endpoint to add investors via Excel files"
+  });
 };
 
-// Universal file upload handler for CSV, Excel, and JSON
+// Redirect to Excel upload endpoint
 exports.uploadInvestorFile = async (req, res) => {
-  try {
-    const file = req.files?.[0] || req.file;
-    if (!file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
-
-    const filePath = file.path;
-    const fileExtension = file.originalname.split('.').pop().toLowerCase();
-
-    if (!['csv', 'xlsx', 'xls'].includes(fileExtension)) {
-      await fs.unlink(filePath).catch(console.error);
-      return res.status(400).json({ error: "Only CSV and Excel files are supported" });
-    }
-
-    const count = await fileDB.uploadFile(filePath, fileExtension);
-
-    res.status(201).json({
-      success: true,
-      message: `${count} investors uploaded successfully`,
-      count,
-      recordsProcessed: count,
-      fileType: fileExtension,
-      uploadedAt: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ error: "Upload failed", details: error.message });
-  }
+  res.status(400).json({ 
+    error: "Please use /api/excel/upload endpoint for file uploads",
+    message: "File upload functionality moved to Excel service"
+  });
 };
 
 // Legacy CSV upload (kept for backward compatibility)
@@ -97,8 +78,13 @@ exports.uploadCSV = async (req, res) => {
 
 exports.getAllInvestors = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
-    const allInvestors = await fileDB.getAllInvestors();
+    // Add cache-busting headers
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
+    const { page = 1, limit = 10000 } = req.query;
+    const allInvestors = await getInvestorsFromExcel();
     
     const parsedPage = parseInt(page);
     const parsedLimit = parseInt(limit);
@@ -106,11 +92,14 @@ exports.getAllInvestors = async (req, res) => {
     const investors = allInvestors.slice(skip, skip + parsedLimit);
 
     res.status(200).json({
-      message: "Successfully retrieved investors",
+      message: "Successfully retrieved investors from Excel files",
       totalCount: allInvestors.length,
       currentPage: parsedPage,
       totalPages: Math.ceil(allInvestors.length / parsedLimit),
       data: investors,
+      docs: investors,
+      source: 'excel_files',
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to retrieve investors", details: error.message });
@@ -118,51 +107,37 @@ exports.getAllInvestors = async (req, res) => {
 };
 
 exports.updateInvestor = async (req, res) => {
-  try {
-    const investorId = req.params.id;
-    const updateData = req.body;
-
-    const updatedInvestor = await fileDB.updateInvestor(investorId, updateData);
-    res.status(200).json({
-      message: `Investor ${investorId} updated successfully`,
-      data: updatedInvestor
-    });
-  } catch (error) {
-    if (error.message === 'Investor not found') {
-      return res.status(404).json({ error: error.message });
-    }
-    res.status(500).json({ error: "Failed to update investor", details: error.message });
-  }
+  res.status(400).json({ 
+    error: "Update functionality disabled for Excel-only mode",
+    message: "Please update the Excel file and re-upload to make changes"
+  });
 };
 
 exports.deleteInvestor = async (req, res) => {
-  try {
-    const investorId = req.params.id;
-    await fileDB.deleteInvestor(investorId);
-    res.status(200).json({ message: `Successfully deleted investor with ID: ${investorId}` });
-  } catch (error) {
-    if (error.message === 'Investor not found') {
-      return res.status(404).json({ error: error.message });
-    }
-    res.status(500).json({ error: "Failed to delete investor", details: error.message });
-  }
+  res.status(400).json({ 
+    error: "Delete functionality disabled for Excel-only mode",
+    message: "Please update the Excel file and re-upload to make changes"
+  });
 };
 
 exports.getFilterOptions = async (req, res) => {
   try {
-    const investors = await fileDB.getAllInvestors();
+    const investors = await getInvestorsFromExcel();
 
-    const fund_stage = [...new Set(investors.flatMap(inv => 
-      Array.isArray(inv.fund_stage) ? inv.fund_stage : [inv.fund_stage]
-    ).filter(Boolean))].sort();
+    const fund_stage = [...new Set(investors.flatMap(inv => {
+      const stage = inv['Fund stage'] || inv['fund_stage'] || '';
+      return Array.isArray(stage) ? stage : [stage];
+    }).filter(Boolean))].sort();
 
-    const fund_type = [...new Set(investors.flatMap(inv => 
-      Array.isArray(inv.fund_type) ? inv.fund_type : [inv.fund_type]
-    ).filter(Boolean))].sort();
+    const fund_type = [...new Set(investors.flatMap(inv => {
+      const type = inv['Fund type'] || inv['fund_type'] || '';
+      return Array.isArray(type) ? type : [type];
+    }).filter(Boolean))].sort();
 
-    const sector_focus = [...new Set(investors.flatMap(inv => 
-      Array.isArray(inv.sector_focus) ? inv.sector_focus : [inv.sector_focus]
-    ).filter(Boolean))].sort();
+    const sector_focus = [...new Set(investors.flatMap(inv => {
+      const sector = inv['Sector focus'] || inv['sector_focus'] || '';
+      return Array.isArray(sector) ? sector : [sector];
+    }).filter(Boolean))].sort();
 
     res.status(200).json({ fund_stage, fund_type, sector_focus });
   } catch (error) {
@@ -172,10 +147,11 @@ exports.getFilterOptions = async (req, res) => {
 
 exports.getUploadStats = async (req, res) => {
   try {
-    const investors = await fileDB.getAllInvestors();
+    const investors = await getInvestorsFromExcel();
     res.status(200).json({
       totalInvestors: investors.length,
-      message: `Total ${investors.length} investors in database`
+      message: `Total ${investors.length} investors in Excel files`,
+      source: 'excel_files'
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to get stats" });
@@ -184,10 +160,11 @@ exports.getUploadStats = async (req, res) => {
 
 exports.getUniqueFundSectors = async (req, res) => {
   try {
-    const investors = await fileDB.getAllInvestors();
-    const sectors = [...new Set(investors.flatMap(inv => 
-      Array.isArray(inv.sector_focus) ? inv.sector_focus : [inv.sector_focus]
-    ).filter(Boolean))].sort();
+    const investors = await getInvestorsFromExcel();
+    const sectors = [...new Set(investors.flatMap(inv => {
+      const sector = inv['Sector focus'] || inv['sector_focus'] || '';
+      return Array.isArray(sector) ? sector : [sector];
+    }).filter(Boolean))].sort();
 
     res.status(200).json({ sector_focus: sectors });
   } catch (error) {
@@ -197,10 +174,11 @@ exports.getUniqueFundSectors = async (req, res) => {
 
 exports.getUniqueFundTypes = async (req, res) => {
   try {
-    const investors = await fileDB.getAllInvestors();
-    const fundTypes = [...new Set(investors.flatMap(inv => 
-      Array.isArray(inv.fund_type) ? inv.fund_type : [inv.fund_type]
-    ).filter(Boolean))].sort();
+    const investors = await getInvestorsFromExcel();
+    const fundTypes = [...new Set(investors.flatMap(inv => {
+      const type = inv['Fund type'] || inv['fund_type'] || '';
+      return Array.isArray(type) ? type : [type];
+    }).filter(Boolean))].sort();
 
     res.status(200).json({ fund_type: fundTypes });
   } catch (error) {

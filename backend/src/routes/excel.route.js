@@ -34,6 +34,7 @@ const upload = multer({
 
 // Routes
 router.get('/download', excelController.downloadExcel);
+router.get('/read', excelController.readExcelData);
 router.post('/upload', upload.single('excel'), excelController.uploadFile);
 router.post('/sync/excel-to-firebase', excelController.syncExcelToFirebase);
 router.post('/sync/firebase-to-excel', excelController.syncFirebaseToExcel);

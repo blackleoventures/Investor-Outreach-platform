@@ -23,6 +23,28 @@ try {
   console.log('Excel service not available in this environment');
 }
 
+// Initialize Google Sheets with fallback
+try {
+  const sheetsController = require('./controllers/sheets.controller');
+  // Test Google Sheets connection on startup
+  sheetsController.readSheetData({ query: {} }, {
+    json: (data) => {
+      if (data.success) {
+        console.log('Google Sheets connection successful');
+      } else if (data.source === 'excel_fallback') {
+        console.log('Using Excel files as fallback for Google Sheets');
+      }
+    },
+    status: () => ({ json: () => {} })
+  }).catch(err => {
+    if (err.message.includes('403') || err.message.includes('API has not been used')) {
+      console.log('Google Sheets API not enabled - using Excel files as fallback');
+    }
+  });
+} catch (error) {
+  console.log('Google Sheets service initialization failed:', error.message);
+}
+
 // Initialize Cron service for scheduled emails
 const cronService = require('./services/cron.service');
 cronService.startCronJobs();
@@ -54,11 +76,11 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-// Optional small cache for safe GETs (tweak per endpoint if needed)
+// Disable caching for all API responses to ensure fresh data
 app.use((req, res, next) => {
-  if (req.method === "GET") {
-    res.setHeader("Cache-Control", "private, max-age=30");
-  }
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   next();
 });
 
@@ -74,6 +96,7 @@ const matchRoutes = require("./routes/match.route");
 const excelRoutes = require("./routes/excel.route");
 const documentRoutes = require("./routes/document.route");
 const scheduledEmailRoutes = require("./routes/scheduledEmail.route");
+const sheetsRoutes = require("./routes/sheets.route");
 
 
 
@@ -100,6 +123,7 @@ app.use("/api/match", matchRoutes);
 app.use("/api/excel", excelRoutes);
 app.use("/api/document", documentRoutes);
 app.use("/api/scheduled-emails", scheduledEmailRoutes);
+app.use("/api/sheets", sheetsRoutes);
 app.use("/api/deck-activity", deckActivityRoutes);
 app.use("/api/deal-rooms", dealRoomRoutes);
 

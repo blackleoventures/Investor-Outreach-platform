@@ -43,6 +43,7 @@ export default function AllInvestorsPage() {
     city: true,
     ticketSize: true,
     sectorFocus: false,
+    fundFocusSectors: true,
     website: false,
     location: false,
     foundedYear: false,
@@ -242,10 +243,18 @@ export default function AllInvestorsPage() {
   const fetchInvestors = async () => {
     setLoading(true);
     try {
-      // Fetch a large page from the paginated endpoint so we have the full dataset client-side
-      const response = await apiFetch(`/api/investors?limit=100000&page=1`);
+      // Add cache-busting parameter to ensure fresh data
+      const cacheBuster = `_t=${Date.now()}`;
+      const response = await apiFetch(`/api/investors?limit=100000&page=1&${cacheBuster}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
       if (response.ok) {
         const result = await response.json();
+        console.log('API Response:', { source: result.source, timestamp: result.timestamp, count: result.totalCount });
         const investorData = result.docs || result.data || [];
         // De-duplicate rows defensively by id/email
         const seen = new Set();
@@ -342,14 +351,19 @@ export default function AllInvestorsPage() {
 
   // Initialize data and sync status
   useEffect(() => {
+    // Clear any existing data first
+    setInvestors([]);
+    setFilteredInvestors([]);
+    
+    // Fetch fresh data immediately
     fetchInvestors();
     fetchSyncStatus();
     
-    // Set up polling for real-time updates
+    // Set up polling for real-time updates (reduced interval)
     const interval = setInterval(() => {
       fetchInvestors();
       fetchSyncStatus();
-    }, 5000); // Poll every 5 seconds
+    }, 2000); // Poll every 2 seconds for faster updates
     
     return () => clearInterval(interval);
   }, []);
@@ -612,6 +626,27 @@ export default function AllInvestorsPage() {
       render: (stage) => stage ? <Tag color="blue">{stage}</Tag> : 'N/A',
     },
     {
+      key: 'fundFocusSectors',
+      title: 'Fund Focus (Sectors)',
+      width: 220,
+      render: (record) => {
+        const raw = record.sector_focus || record.fund_focus || record.focus || record.sectors || record.industry;
+        let sectors: any[] = [];
+        if (Array.isArray(raw)) sectors = raw;
+        else if (typeof raw === 'string') sectors = raw.split(/[,;]+/).map((s: string) => s.trim()).filter(Boolean);
+        else if (raw && typeof raw === 'object') sectors = Object.values(raw).filter(Boolean) as any[];
+        if (!sectors.length) return 'N/A';
+        return (
+          <div className="flex flex-wrap gap-1">
+            {sectors.slice(0, 3).map((s, idx) => (
+              <Tag key={idx} color="green">{String(s)}</Tag>
+            ))}
+            {sectors.length > 3 && <Tag>+{sectors.length - 3}</Tag>}
+          </div>
+        );
+      }
+    },
+    {
       key: 'country',
       title: 'Country (Required)',
       dataIndex: 'country',
@@ -708,7 +743,7 @@ export default function AllInvestorsPage() {
     title: 'Sr. No.',
     width: 80,
     align: 'center' as const,
-    render: (_: any, __: any, index: number) => index + 1,
+    render: (_: any, __: any, index: number) => (currentPage - 1) * pageSize + index + 1,
   };
   const finalColumns = [serialColumn, ...visibleColumnsArray, actionsColumn];
 
@@ -773,6 +808,14 @@ export default function AllInvestorsPage() {
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
+                  checked={visibleColumns.fundFocusSectors}
+                  onChange={(e) => handleColumnVisibilityChange('fundFocusSectors', e.target.checked)}
+                >
+                  Fund Focus (Sectors)
+                </Checkbox>
+              </div>
+              <div className="flex items-center py-1">
+                <Checkbox
                   checked={visibleColumns.country}
                   onChange={(e) => handleColumnVisibilityChange('country', e.target.checked)}
                 >
@@ -820,6 +863,17 @@ export default function AllInvestorsPage() {
         }
         extra={
           <Space>
+            <Button 
+              icon={<SyncOutlined spin={loading} />} 
+              onClick={() => {
+                setInvestors([]);
+                setFilteredInvestors([]);
+                fetchInvestors();
+              }}
+              title="Refresh data from Excel files"
+            >
+              Refresh
+            </Button>
             <Dropdown
               menu={customizeColumnsMenu}
               trigger={['click']}
@@ -882,19 +936,24 @@ export default function AllInvestorsPage() {
       >
 
 
-        <div className="mb-6">
-          <Search
-            placeholder="Search investors by name, email, or focus..."
-            allowClear
-            enterButton
-            size="large"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ 
-              maxWidth: 400,
-            }}
-            className="custom-search"
-          />
+        <div className="mb-6 space-y-4">
+          <div className="flex justify-between items-center">
+            <Search
+              placeholder="Search investors by name, email, or focus..."
+              allowClear
+              enterButton
+              size="large"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ 
+                maxWidth: 400,
+              }}
+              className="custom-search"
+            />
+            <div className="text-sm text-gray-500">
+              Data Source: Excel Files | Last Updated: {new Date().toLocaleTimeString()}
+            </div>
+          </div>
         </div>
         
         <style jsx>{`
@@ -911,8 +970,8 @@ export default function AllInvestorsPage() {
 
         <div className="overflow-x-auto">
           <Table
-            columns={finalColumns}
-            dataSource={filteredInvestors.slice(0, visibleCount)}
+            columns={[serialColumn, ...visibleColumnsArray, actionsColumn]}
+            dataSource={filteredInvestors.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
             rowKey={(record) => {
               const id = record.id ?? record._id;
               const email = (record.partner_email ?? '').toString().toLowerCase();
@@ -921,7 +980,19 @@ export default function AllInvestorsPage() {
             }}
             loading={loading}
             scroll={{ x: 'max-content' }}
-            pagination={false}
+            pagination={{
+              position: ['bottomRight'],
+              size: 'small',
+              current: currentPage,
+              pageSize,
+              total: filteredInvestors.length,
+              onChange: (p, ps) => { setCurrentPage(p); setPageSize(ps || 10); },
+              showSizeChanger: true,
+              pageSizeOptions: ['10','20','50','100'],
+              showQuickJumper: true,
+              locale: { jump_to: '', page: '' } as any,
+              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total}`,
+            }}
           />
           <div className="flex justify-between items-center mt-4">
             <div className="text-sm text-gray-600">Total: {filteredInvestors.length} investors • Showing {Math.min(visibleCount, filteredInvestors.length)}</div>

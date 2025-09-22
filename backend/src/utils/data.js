@@ -28,7 +28,7 @@ const FUND_STAGES = [
   "Series C",
   "Series D",
   "Series E+",
-  "Growth",
+  "Last Stage",
   "Late Stage",
   "IPO"
 ];
