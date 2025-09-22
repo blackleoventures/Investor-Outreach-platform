@@ -1,10 +1,17 @@
 const cron = require('node-cron');
 const scheduledEmailService = require('./scheduledEmail.service');
 
-// Process scheduled emails every minute
-const processScheduledEmailsJob = cron.schedule('* * * * *', async () => {
+// Process scheduled emails every 5 minutes
+const processScheduledEmailsJob = cron.schedule('*/5 * * * *', async () => {
   try {
-    console.log('Processing scheduled emails...');
+    // Check if there are any scheduled emails first
+    const scheduledEmails = scheduledEmailService.getEmailsByStatus('scheduled');
+    
+    if (scheduledEmails.length === 0) {
+      return; // No scheduled emails, skip processing
+    }
+    
+    console.log(`Processing ${scheduledEmails.length} scheduled emails...`);
     const results = await scheduledEmailService.processScheduledEmails();
     
     if (results.length > 0) {
@@ -20,7 +27,7 @@ const processScheduledEmailsJob = cron.schedule('* * * * *', async () => {
 // Start the cron job
 function startCronJobs() {
   processScheduledEmailsJob.start();
-  console.log('Cron jobs started - processing scheduled emails every minute');
+  console.log('Cron jobs started - processing scheduled emails every 5 minutes');
 }
 
 // Stop the cron job

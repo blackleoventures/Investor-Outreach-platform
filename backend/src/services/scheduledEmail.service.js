@@ -79,6 +79,10 @@ async function processScheduledEmails() {
            new Date(email.scheduleAt) <= now;
   });
 
+  if (dueEmails.length === 0) {
+    return []; // No emails due, return early
+  }
+
   const results = [];
   
   for (const email of dueEmails) {
