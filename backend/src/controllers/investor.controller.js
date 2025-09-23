@@ -34,18 +34,38 @@ exports.getPaginatedInvestors = async (req, res) => {
       );
     }
 
+    // Map column names to expected format
+    const mappedInvestors = investors.map(row => ({
+      id: row.id || `investor_${Date.now()}_${Math.random()}`,
+      investor_name: row['Investor Name'] || row.investor_name || row.name,
+      partner_name: row['Partner Name'] || row.partner_name || row.partner,
+      partner_email: row['Partner Email'] || row.partner_email || row.email,
+      phone_number: row['Phone number'] || row.phone_number || row.phone,
+      fund_type: row['Fund Type'] || row.fund_type || row.type,
+      fund_stage: row['Fund Stage'] || row.fund_stage || row.stage,
+      fund_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
+      location: row['Location'] || row.location,
+      country: row.Country || row.country,
+      state: row.State || row.state,
+      city: row.City || row.city,
+      sector_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
+      ticket_size: row['Ticket Size'] || row.ticket_size,
+      website: row.Website || row.website,
+      ...row
+    }));
+
     // Apply pagination
     const startIndex = (parseInt(page) - 1) * parseInt(limit);
     const endIndex = startIndex + parseInt(limit);
-    const paginatedInvestors = investors.slice(startIndex, endIndex);
+    const paginatedInvestors = mappedInvestors.slice(startIndex, endIndex);
 
     res.status(200).json({
       docs: paginatedInvestors,
-      totalDocs: investors.length,
+      totalDocs: mappedInvestors.length,
       limit: parseInt(limit),
       page: parseInt(page),
-      totalPages: Math.ceil(investors.length / parseInt(limit)),
-      hasNextPage: endIndex < investors.length,
+      totalPages: Math.ceil(mappedInvestors.length / parseInt(limit)),
+      hasNextPage: endIndex < mappedInvestors.length,
       hasPrevPage: parseInt(page) > 1,
       source: 'excel_files',
       timestamp: new Date().toISOString()
@@ -86,16 +106,36 @@ exports.getAllInvestors = async (req, res) => {
     const { page = 1, limit = 10000 } = req.query;
     const allInvestors = await getInvestorsFromExcel();
     
+    // Map column names to expected format
+    const mappedInvestors = allInvestors.map(row => ({
+      id: row.id || `investor_${Date.now()}_${Math.random()}`,
+      investor_name: row['Investor Name'] || row.investor_name || row.name,
+      partner_name: row['Partner Name'] || row.partner_name || row.partner,
+      partner_email: row['Partner Email'] || row.partner_email || row.email,
+      phone_number: row['Phone number'] || row.phone_number || row.phone,
+      fund_type: row['Fund Type'] || row.fund_type || row.type,
+      fund_stage: row['Fund Stage'] || row.fund_stage || row.stage,
+      fund_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
+      location: row['Location'] || row.location,
+      country: row.Country || row.country,
+      state: row.State || row.state,
+      city: row.City || row.city,
+      sector_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
+      ticket_size: row['Ticket Size'] || row.ticket_size,
+      website: row.Website || row.website,
+      ...row // Include all original fields
+    }));
+    
     const parsedPage = parseInt(page);
     const parsedLimit = parseInt(limit);
     const skip = (parsedPage - 1) * parsedLimit;
-    const investors = allInvestors.slice(skip, skip + parsedLimit);
+    const investors = mappedInvestors.slice(skip, skip + parsedLimit);
 
     res.status(200).json({
       message: "Successfully retrieved investors from Excel files",
-      totalCount: allInvestors.length,
+      totalCount: mappedInvestors.length,
       currentPage: parsedPage,
-      totalPages: Math.ceil(allInvestors.length / parsedLimit),
+      totalPages: Math.ceil(mappedInvestors.length / parsedLimit),
       data: investors,
       docs: investors,
       source: 'excel_files',
