@@ -28,6 +28,7 @@ export default function AllInvestorsPage() {
   const [pageSize, setPageSize] = useState(10);
   const [visibleCount, setVisibleCount] = useState(10);
   const [userShowAll, setUserShowAll] = useState(false);
+  const [dataSourceLabel, setDataSourceLabel] = useState<string>("");
 
   const [form] = Form.useForm();
   const [visibleColumns, setVisibleColumns] = useState({
@@ -37,15 +38,11 @@ export default function AllInvestorsPage() {
     partnerEmail: true,
     fundType: true,
     fundStage: true,
-    country: true,
-    phoneNumber: true,
-    state: true,
-    city: true,
-    ticketSize: true,
-    sectorFocus: false,
     fundFocusSectors: true,
+    location: true,
+    phoneNumber: true,
+    ticketSize: true,
     website: false,
-    location: false,
     foundedYear: false,
     portfolioCompanies: false,
     twitterLink: false,
@@ -56,187 +53,9 @@ export default function AllInvestorsPage() {
     fundDescription: false
   });
 
-  // Normalize incoming records to our canonical keys used by the table
-  const normalizeInvestor = (raw) => {
-    // Build case-insensitive lookup maps for robust header matching from CSV/Excel
-    const lowerKeyToValue = {} as Record<string, any>;
-    const compactKeyToValue = {} as Record<string, any>;
-    const alnumKeyToValue = {} as Record<string, any>;
-    Object.entries(raw || {}).forEach(([key, value]) => {
-      const lower = key.toString().trim().toLowerCase();
-      const compact = lower.replace(/[\s_]/g, '');
-      const alnum = lower.replace(/[^a-z0-9]/g, '');
-      if (!(lower in lowerKeyToValue)) lowerKeyToValue[lower] = value;
-      if (!(compact in compactKeyToValue)) compactKeyToValue[compact] = value;
-      if (!(alnum in alnumKeyToValue)) alnumKeyToValue[alnum] = value;
-    });
-
-    const pick = (candidates: string[]) => {
-      for (const candidate of candidates) {
-        // 1) Exact (original case) key on the raw object
-        if (Object.prototype.hasOwnProperty.call(raw, candidate) && raw[candidate] != null && raw[candidate] !== '') {
-          return raw[candidate];
-        }
-        // 2) Case-insensitive direct match
-        const lower = candidate.toLowerCase();
-        if (lower in lowerKeyToValue) {
-          const v = lowerKeyToValue[lower];
-          if (v != null && v !== '') return v;
-        }
-        // 3) Tolerate spaces vs underscores and other minor formatting
-        const variants = [
-          lower.replace(/\s+/g, '_'), // spaces -> underscores
-          lower.replace(/_/g, ' '),    // underscores -> spaces
-          lower.replace(/[\s_]/g, ''),// remove both
-          lower.replace(/[^a-z0-9]/g, ''), // remove all punctuation
-        ];
-        for (const vkey of variants) {
-          if (vkey in lowerKeyToValue) {
-            const v = lowerKeyToValue[vkey];
-            if (v != null && v !== '') return v;
-          }
-          if (vkey in compactKeyToValue) {
-            const v = compactKeyToValue[vkey];
-            if (v != null && v !== '') return v;
-          }
-          if (vkey in alnumKeyToValue) {
-            const v = alnumKeyToValue[vkey];
-            if (v != null && v !== '') return v;
-          }
-        }
-      }
-      return undefined;
-    };
-
-    const locationRaw = (() => {
-      // Try to capture a generic location field for later parsing into city/state
-      return pick([
-        'location', 'hq_location', 'hq location', 'headquarters', 'headquarter', 'headquarter location',
-        'based in', 'base location', 'office location', 'city/state/country', 'city, state, country'
-      ]);
-    })();
-
-    // Attempt to derive city/state from a generic location string if available
-    let derivedCity: any = undefined;
-    let derivedState: any = undefined;
-    if (typeof locationRaw === 'string' && locationRaw.trim() !== '') {
-      const parts = locationRaw.split(',').map(p => p.trim()).filter(Boolean);
-      if (parts.length >= 2) {
-        // Assume format like "City, State, Country" or "City, State"
-        derivedCity = parts[0];
-        derivedState = parts[1];
-      }
-    }
-
-    // Build ticket size with robust derivation from various shapes
-    const baseTicket = pick([
-      'ticket_size', 'ticketSize', 'ticket', 'ticket size', 'cheque size', 'check size', 'ticket size ($)',
-      'ticket-size', 'average ticket size', 'avg ticket size', 'avg. ticket size', 'investment size',
-      'investment range', 'investment amount', 'checksize', 'chequesize', 'typical check size', 'typical ticket size',
-      'ticket size (optional)'
-    ]);
-    let derivedTicket: any = baseTicket;
-    // If no direct value, try min/max based composition
-    if (derivedTicket == null || derivedTicket === '') {
-      const tMin = pick([
-        'ticket_size_min', 'min_ticket_size', 'min ticket size', 'min check size', 'minimum ticket size',
-        'minimum check size', 'min investment size', 'min cheque size', 'min investment amount'
-      ]);
-      const tMax = pick([
-        'ticket_size_max', 'max_ticket_size', 'max ticket size', 'max check size', 'maximum ticket size',
-        'maximum check size', 'max investment size', 'max cheque size', 'max investment amount'
-      ]);
-      if ((tMin != null && tMin !== '') || (tMax != null && tMax !== '')) {
-        const left = (tMin != null && tMin !== '') ? tMin : '—';
-        const right = (tMax != null && tMax !== '') ? tMax : '—';
-        derivedTicket = `${left} - ${right}`;
-      }
-    }
-    // If still empty, try common alternate keys that often hold ticket size values
-    if (derivedTicket == null || derivedTicket === '') {
-      const alt = pick([
-        'avg_ticket_size', 'average_ticket_size', 'typical_ticket_size', 'typical check size',
-        'investment_range', 'investment amount', 'investment_amount', 'investment_size',
-        'cheque_size', 'check_size', 'ticket'
-      ]);
-      if (alt != null && alt !== '') derivedTicket = alt;
-    }
-    // Heuristic: last-resort search for any header that looks like ticket/cheque size or investment range/amount
-    if (derivedTicket == null || derivedTicket === '') {
-      for (const [k, v] of Object.entries(raw || {})) {
-        const lk = k.toString().toLowerCase();
-        const looksLikeTicket = (lk.includes('ticket') || lk.includes('cheque') || lk.includes('check')) && lk.includes('size');
-        const looksLikeInvestment = lk.includes('investment') && (lk.includes('range') || lk.includes('amount') || lk.includes('size'));
-        if ((looksLikeTicket || looksLikeInvestment) && v != null && v !== '') {
-          derivedTicket = v;
-          break;
-        }
-      }
-    }
-
-    // Spread raw first, then override with normalized canonical fields so normalized wins
-    return {
-      ...raw,
-      // preserve id for row key and actions
-      id: raw.id ?? raw._id ?? undefined,
-      // canonical fields with robust, case-insensitive fallbacks
-      investor_name: pick([
-        'investor_name', 'firm_name', 'investorName', 'name', 'investor', 'investor name', 'firm', 'company name'
-      ]),
-      partner_name: pick([
-        'partner_name', 'partnerName', 'partner', 'partner name', 'contact name', 'person name'
-      ]),
-      partner_email: pick([
-        'partner_email', 'email', 'partnerEmail', 'email_id', 'emailId', 'emailAddress', 'email address', 'contact email', 'primary email'
-      ]),
-      phone_number: pick([
-        'phone_number', 'phone', 'phoneNumber', 'mobile', 'mobile_number', 'mobileNumber', 'phone number', 'contact number', 'mobile no', 'mobile number'
-      ]),
-      fund_type: pick([
-        'fund_type', 'type', 'fundType', 'fund type'
-      ]),
-      fund_stage: pick([
-        'fund_stage', 'stage', 'fundStage', 'fund stage'
-      ]),
-      country: pick([
-        'country', 'Country'
-      ]),
-      state: pick([
-        'state', 'State', 'province', 'region', 'state/province', 'state or province', 'county', 'governorate',
-        'state (optional)'
-      ]) ?? derivedState,
-      city: pick([
-        'city', 'City', 'town', 'municipality', 'city/town', 'hq city', 'headquarter city',
-        'city (optional)'
-      ]) ?? derivedCity,
-      sector_focus: pick([
-        'sector_focus', 'sector focus', 'fund focus', 'focus', 'sectors', 'industry', 'industries'
-      ]),
-      // Ensure normalized ticket size is placed where table expects it
-      ticket_size: derivedTicket ?? raw.ticket_size ?? raw.ticketSize ?? raw['ticket size'],
-      website: pick([
-        'website', 'Website', 'url', 'site'
-      ]),
-      linkedIn_link: pick([
-        'linkedin', 'linkedin_link', 'linkedIn', 'linkedin url', 'linkedin profile', 'linkedIn_link'
-      ]),
-      twitter_link: pick([
-        'twitter', 'twitter_link', 'twitter url', 'x url'
-      ]),
-      facebook_link: pick([
-        'facebook', 'facebook_link', 'facebook url'
-      ]),
-      number_of_investments: pick([
-        'number_of_investments', 'no of investments', 'investments', 'num investments'
-      ]),
-      number_of_exits: pick([
-        'number_of_exits', 'no of exits', 'exits', 'num exits'
-      ]),
-      founded_year: pick([
-        'founded_year', 'founded year', 'year founded', 'established', 'established year'
-      ]),
-      location: locationRaw ?? pick(['location', 'Location']),
-    };
+  // Simple function to get value from raw data using exact column names
+  const getValue = (obj: any, key: string) => {
+    return obj[key] || obj[key.toLowerCase()] || obj[key.replace(/\s+/g, '_')] || '';
   };
 
   // Fetch investors data from API
@@ -256,29 +75,17 @@ export default function AllInvestorsPage() {
         const result = await response.json();
         console.log('API Response:', { source: result.source, timestamp: result.timestamp, count: result.totalCount });
         const investorData = result.docs || result.data || [];
-        // De-duplicate rows defensively by id/email
-        const seen = new Set();
-        const unique = [] as any[];
-        for (const item of investorData) {
-          const key = `${item.id ?? ''}-${(item.partner_email ?? '').toString().toLowerCase()}`;
-          if (!seen.has(key)) { seen.add(key); unique.push(item); }
-        }
-        const normalized = unique.map(normalizeInvestor);
-        setInvestors(normalized);
-        setFilteredInvestors(normalized);
+        // Use raw data directly from Excel
+        setInvestors(investorData);
+        setFilteredInvestors(investorData);
+        setDataSourceLabel(result.source === 'google_sheets' ? 'Google Sheets' : (result.source || ''));
         
-        // Update visible columns based on available data
         if (investorData.length > 0) {
-          const firstRecord = normalized[0];
-          const availableColumns = {} as any;
-          
-          Object.keys(firstRecord).forEach(key => {
-            if (key !== 'id' && key !== 'createdAt' && key !== 'uploadedAt') {
-              availableColumns[key] = true;
-            }
-          });
-          
-          setVisibleColumns(prev => ({ ...prev, ...availableColumns }));
+          console.log('=== DEBUGGING INVESTOR DATA ===');
+          console.log('Sample investor data:', investorData[0]);
+          console.log('All column names:', Object.keys(investorData[0]));
+          console.log('First 3 records:', investorData.slice(0, 3));
+          console.log('=== END DEBUG ===');
         }
       } else {
         console.error('API Error:', response.status);
@@ -358,29 +165,15 @@ export default function AllInvestorsPage() {
     // Fetch fresh data immediately
     fetchInvestors();
     fetchSyncStatus();
-    
-    // Set up polling for real-time updates (reduced interval)
-    const interval = setInterval(() => {
-      fetchInvestors();
-      fetchSyncStatus();
-    }, 2000); // Poll every 2 seconds for faster updates
-    
-    return () => clearInterval(interval);
+    // Removed auto-refresh polling; refresh happens only on button click
   }, []);
 
   useEffect(() => {
     const q = searchQuery.trim().toLowerCase();
 
     const candidateKeys = [
-      // Names
-      'investor_name', 'investorName', 'name',
-      'partner_name', 'partnerName', 'partner',
-      // Emails
-      'partner_email', 'email', 'email_id', 'emailId', 'emailAddress',
-      // Phones
-      'phone_number', 'phone', 'phoneNumber', 'mobile', 'mobile_number', 'mobileNumber',
-      // Extras commonly searched
-      'sector_focus', 'focus', 'country', 'city', 'state'
+      'Investor Name', 'Partner Name', 'Partner Email', 'Phone number',
+      'Fund Type', 'Fund Stage', 'Fund Focus (Sectors)', 'Location', 'Ticket Size'
     ];
 
     const stringIncludes = (value: unknown, query: string) => {
@@ -413,8 +206,8 @@ export default function AllInvestorsPage() {
     const toKey = (r: any) => {
       return JSON.stringify({
         id: r.id ?? r._id ?? null,
-        email: (r.partner_email ?? r.email ?? '').toString().toLowerCase(),
-        name: (r.investor_name ?? r.name ?? '').toString().toLowerCase(),
+        email: (r['Partner Email'] ?? r.email ?? '').toString().toLowerCase(),
+        name: (r['Investor Name'] ?? r.name ?? '').toString().toLowerCase(),
       });
     };
     const seen = new Set<string>();
@@ -580,126 +373,97 @@ export default function AllInvestorsPage() {
   const staticColumnDefinitions = [
     {
       key: 'investorName',
-      title: 'Investor Name (Required)',
-      dataIndex: 'investor_name',
+      title: 'Investor Name',
       width: 180,
-      render: (name) => (
-        <div className="flex items-center space-x-2">
-          <Avatar size="small" icon={<UserOutlined />} />
-          <Text strong className="truncate">{name || 'N/A'}</Text>
-        </div>
-      ),
-    },
-    {
-      key: 'partnerName',
-      title: 'Partner Name (Required)',
-      dataIndex: 'partner_name',
-      width: 140,
-      render: (name) => name || 'N/A',
-    },
-    {
-      key: 'partnerEmail',
-      title: 'Partner Email (Required)',
-      dataIndex: 'partner_email',
-      width: 200,
-      render: (email) => email ? <Text copyable ellipsis>{email}</Text> : 'N/A',
-    },
-    {
-      key: 'phoneNumber',
-      title: 'Phone Number (Optional)',
-      dataIndex: 'phone_number',
-      width: 140,
-      render: (phone) => phone || 'N/A',
-    },
-    {
-      key: 'fundType',
-      title: 'Fund Type (Required)',
-      dataIndex: 'fund_type',
-      width: 120,
-      render: (type) => type || 'N/A',
-    },
-    {
-      key: 'fundStage',
-      title: 'Fund Stage (Required)',
-      dataIndex: 'fund_stage',
-      width: 140,
-      render: (stage) => stage ? <Tag color="blue">{stage}</Tag> : 'N/A',
-    },
-    {
-      key: 'fundFocusSectors',
-      title: 'Fund Focus (Sectors)',
-      width: 220,
-      render: (record) => {
-        const raw = record.sector_focus || record.fund_focus || record.focus || record.sectors || record.industry;
-        let sectors: any[] = [];
-        if (Array.isArray(raw)) sectors = raw;
-        else if (typeof raw === 'string') sectors = raw.split(/[,;]+/).map((s: string) => s.trim()).filter(Boolean);
-        else if (raw && typeof raw === 'object') sectors = Object.values(raw).filter(Boolean) as any[];
-        if (!sectors.length) return 'N/A';
+      render: (_, record) => {
+        const name = record['Investor Name'];
         return (
-          <div className="flex flex-wrap gap-1">
-            {sectors.slice(0, 3).map((s, idx) => (
-              <Tag key={idx} color="green">{String(s)}</Tag>
-            ))}
-            {sectors.length > 3 && <Tag>+{sectors.length - 3}</Tag>}
-          </div>
-        );
-      }
-    },
-    {
-      key: 'country',
-      title: 'Country (Required)',
-      dataIndex: 'country',
-      width: 120,
-      render: (country) => country || 'N/A',
-    },
-    {
-      key: 'sectorFocus',
-      title: 'Sector Focus (Optional)',
-      dataIndex: 'sector_focus',
-      width: 200,
-      render: (focus) => {
-        if (!focus) return 'N/A';
-        const sectors = typeof focus === 'string' ? focus.split(', ') : (Array.isArray(focus) ? focus : [focus]);
-        return (
-          <div className="flex flex-wrap gap-1">
-            {sectors.slice(0, 2).map((sector, index) => (
-              <Tag key={index} color="green">{sector}</Tag>
-            ))}
-            {sectors.length > 2 && <Tag>+{sectors.length - 2}</Tag>}
+          <div className="flex items-center space-x-2">
+            <Avatar size="small" icon={<UserOutlined />} />
+            <Text strong className="truncate">{name || 'N/A'}</Text>
           </div>
         );
       },
     },
     {
-      key: 'state',
-      title: 'State (Optional)',
-      dataIndex: 'state',
-      width: 100,
-      render: (state) => state || 'N/A',
+      key: 'partnerName',
+      title: 'Partner Name',
+      width: 140,
+      render: (_, record) => {
+        const name = record['Partner Name'];
+        return name || 'N/A';
+      },
     },
     {
-      key: 'city',
-      title: 'City (Optional)',
-      dataIndex: 'city',
-      width: 100,
-      render: (city) => city || 'N/A',
+      key: 'partnerEmail',
+      title: 'Partner Email',
+      width: 200,
+      render: (_, record) => {
+        const email = record['Partner Email'];
+        return email ? <Text copyable ellipsis>{email}</Text> : 'N/A';
+      },
+    },
+    {
+      key: 'fundType',
+      title: 'Fund Type',
+      width: 120,
+      render: (_, record) => {
+        const type = record['Fund Type'];
+        return type || 'N/A';
+      },
+    },
+    {
+      key: 'fundStage',
+      title: 'Fund Stage',
+      width: 140,
+      render: (_, record) => {
+        const stage = record['Fund Stage'];
+        return stage ? <Tag color="blue">{stage}</Tag> : 'N/A';
+      },
+    },
+    {
+      key: 'fundFocusSectors',
+      title: 'Fund Focus (Sectors)',
+      width: 220,
+      render: (_, record) => {
+        const sectors = record['Fund Focus (Sectors)'];
+        if (!sectors) return 'N/A';
+        const sectorList = typeof sectors === 'string' ? sectors.split(',').map(s => s.trim()) : [sectors];
+        return (
+          <div className="flex flex-wrap gap-1">
+            {sectorList.slice(0, 3).map((s, idx) => (
+              <Tag key={idx} color="green">{String(s)}</Tag>
+            ))}
+            {sectorList.length > 3 && <Tag>+{sectorList.length - 3}</Tag>}
+          </div>
+        );
+      }
+    },
+    {
+      key: 'location',
+      title: 'Location',
+      width: 180,
+      render: (_, record) => {
+        const location = record['Location'];
+        return location || 'N/A';
+      },
+    },
+    {
+      key: 'phoneNumber',
+      title: 'Phone Number (Optional)',
+      width: 140,
+      render: (_, record) => {
+        const phone = record['Phone number'];
+        return phone || 'N/A';
+      },
     },
     {
       key: 'ticketSize',
       title: 'Ticket Size (Optional)',
-      dataIndex: 'ticket_size',
       width: 120,
-      render: (size) => {
-        if (size == null || size === '') return 'N/A';
-        if (Array.isArray(size)) return size.join(', ');
-        if (typeof size === 'object') {
-          const min = (size.min ?? size.minimum ?? size.minTicket ?? size.min_ticket_size);
-          const max = (size.max ?? size.maximum ?? size.maxTicket ?? size.max_ticket_size);
-          if (min || max) return `${min ?? '—'} - ${max ?? '—'}`;
-          try { return JSON.stringify(size); } catch { return 'N/A'; }
-        }
-        return size.toString();
+      render: (_, record) => {
+        const size = record['Ticket Size'];
+        return size || 'N/A';
       },
     },
     // Keep any extra fields off by default for this view
@@ -816,26 +580,10 @@ export default function AllInvestorsPage() {
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
-                  checked={visibleColumns.country}
-                  onChange={(e) => handleColumnVisibilityChange('country', e.target.checked)}
+                  checked={visibleColumns.location}
+                  onChange={(e) => handleColumnVisibilityChange('location', e.target.checked)}
                 >
-                  Country
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.state}
-                  onChange={(e) => handleColumnVisibilityChange('state', e.target.checked)}
-                >
-                  State (Optional)
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.city}
-                  onChange={(e) => handleColumnVisibilityChange('city', e.target.checked)}
-                >
-                  City (Optional)
+                  Location
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
@@ -951,7 +699,7 @@ export default function AllInvestorsPage() {
               className="custom-search"
             />
             <div className="text-sm text-gray-500">
-              Data Source: Excel Files | Last Updated: {new Date().toLocaleTimeString()}
+              {dataSourceLabel ? `Data Source: ${dataSourceLabel}` : 'Data Source: —'} | Last Updated: {new Date().toLocaleTimeString()}
             </div>
           </div>
         </div>
@@ -972,11 +720,10 @@ export default function AllInvestorsPage() {
           <Table
             columns={[serialColumn, ...visibleColumnsArray, actionsColumn]}
             dataSource={filteredInvestors.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
-            rowKey={(record) => {
-              const id = record.id ?? record._id;
-              const email = (record.partner_email ?? '').toString().toLowerCase();
-              const name = (record.investor_name ?? '').toString().toLowerCase();
-              return `${id ?? 'noid'}-${email || name}`;
+            rowKey={(record, index) => {
+              const email = (record['Partner Email'] ?? '').toString().toLowerCase();
+              const name = (record['Investor Name'] ?? '').toString().toLowerCase();
+              return `${index}-${email || name || Math.random()}`;
             }}
             loading={loading}
             scroll={{ x: 'max-content' }}
@@ -995,18 +742,7 @@ export default function AllInvestorsPage() {
             }}
           />
           <div className="flex justify-between items-center mt-4">
-            <div className="text-sm text-gray-600">Total: {filteredInvestors.length} investors • Showing {Math.min(visibleCount, filteredInvestors.length)}</div>
-            <div className="space-x-2">
-              <Button onClick={() => { setUserShowAll(true); setVisibleCount(filteredInvestors.length); }}>All</Button>
-              <Button 
-                type="primary"
-                disabled={visibleCount >= filteredInvestors.length}
-                onClick={() => { setUserShowAll(false); setVisibleCount(c => Math.min(c + 10, filteredInvestors.length)); }}
-                style={{ backgroundColor: '#1890ff', borderColor: '#1890ff', color: '#fff' }}
-              >
-                Show more
-              </Button>
-            </div>
+            <div className="text-sm text-gray-600">Total: {filteredInvestors.length} investors</div>
           </div>
         </div>
       </Card>
@@ -1021,16 +757,15 @@ export default function AllInvestorsPage() {
       >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {selectedInvestor && Object.entries({
-            'Investor name': (selectedInvestor as any).investor_name,
-            'Partner name': (selectedInvestor as any).partner_name,
-            'Email': (selectedInvestor as any).partner_email,
-            'Phone number': (selectedInvestor as any).phone_number,
-            'Fund type': (selectedInvestor as any).fund_type,
-            'Fund stage': (selectedInvestor as any).fund_stage,
-            'Country': (selectedInvestor as any).country,
-            'State': (selectedInvestor as any).state,
-            'City': (selectedInvestor as any).city,
-            'Ticket size': (selectedInvestor as any).ticket_size,
+            'Investor Name': (selectedInvestor as any)['Investor Name'],
+            'Partner Name': (selectedInvestor as any)['Partner Name'],
+            'Partner Email': (selectedInvestor as any)['Partner Email'],
+            'Phone Number': (selectedInvestor as any)['Phone number'],
+            'Fund Type': (selectedInvestor as any)['Fund Type'],
+            'Fund Stage': (selectedInvestor as any)['Fund Stage'],
+            'Fund Focus (Sectors)': (selectedInvestor as any)['Fund Focus (Sectors)'],
+            'Location': (selectedInvestor as any)['Location'],
+            'Ticket Size': (selectedInvestor as any)['Ticket Size'],
           }).map(([label, value]) => (
             <div key={label} className="border rounded p-2">
               <div className="text-xs text-gray-500">{label}</div>
@@ -1051,34 +786,31 @@ export default function AllInvestorsPage() {
         <div className="p-2">
           <Form form={form} onFinish={handleEditInvestor} layout="vertical" initialValues={selectedInvestor || {}}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Form.Item name="investor_name" label="Investor Name">
+              <Form.Item name="Investor Name" label="Investor Name">
                 <Input placeholder="Investor Name" />
               </Form.Item>
-              <Form.Item name="partner_name" label="Partner Name">
+              <Form.Item name="Partner Name" label="Partner Name">
                 <Input placeholder="Partner Name" />
               </Form.Item>
-              <Form.Item name="partner_email" label="Email" rules={[{ type: 'email', message: 'Enter a valid email' }]}>
-                <Input placeholder="Email" />
+              <Form.Item name="Partner Email" label="Partner Email" rules={[{ type: 'email', message: 'Enter a valid email' }]}>
+                <Input placeholder="Partner Email" />
               </Form.Item>
-              <Form.Item name="phone_number" label="Phone Number">
+              <Form.Item name="Phone number" label="Phone Number">
                 <Input placeholder="Phone Number" />
               </Form.Item>
-              <Form.Item name="fund_type" label="Fund Type">
+              <Form.Item name="Fund Type" label="Fund Type">
                 <Input placeholder="Fund Type" />
               </Form.Item>
-              <Form.Item name="fund_stage" label="Fund Stage">
+              <Form.Item name="Fund Stage" label="Fund Stage">
                 <Input placeholder="Fund Stage" />
               </Form.Item>
-              <Form.Item name="country" label="Country">
-                <Input placeholder="Country" />
+              <Form.Item name="Location" label="Location">
+                <Input placeholder="Location" />
               </Form.Item>
-              <Form.Item name="state" label="State (Optional)">
-                <Input placeholder="State" />
+              <Form.Item name="Fund Focus (Sectors)" label="Fund Focus (Sectors)">
+                <Input placeholder="Fund Focus (Sectors)" />
               </Form.Item>
-              <Form.Item name="city" label="City (Optional)">
-                <Input placeholder="City" />
-              </Form.Item>
-              <Form.Item name="ticket_size" label="Ticket Size (Optional)">
+              <Form.Item name="Ticket Size" label="Ticket Size (Optional)">
                 <Input placeholder="Ticket Size" />
               </Form.Item>
             </div>
