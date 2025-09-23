@@ -22,9 +22,7 @@ export default function AddInvestorPage() {
     phoneNumber: true,
     fundType: true,
     fundStage: true,
-    country: true,
-    state: true,
-    city: true,
+    location: true,
     ticketSize: true,
     fundFocusSectors: true
   });
@@ -183,26 +181,10 @@ export default function AddInvestorPage() {
               </div>
               <div className="flex items-center py-1">
                 <Checkbox
-                  checked={visibleColumns.country}
-                  onChange={(e) => handleColumnVisibilityChange('country', e.target.checked)}
+                  checked={visibleColumns.location}
+                  onChange={(e) => handleColumnVisibilityChange('location', e.target.checked)}
                 >
-                  Country (Required)
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.state}
-                  onChange={(e) => handleColumnVisibilityChange('state', e.target.checked)}
-                >
-                  State (Optional)
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.city}
-                  onChange={(e) => handleColumnVisibilityChange('city', e.target.checked)}
-                >
-                  City (Optional)
+                  Location (Country/State/City)
                 </Checkbox>
               </div>
               <div className="flex items-center py-1">
@@ -393,32 +375,13 @@ export default function AddInvestorPage() {
                     <Input placeholder="Enter fund stage" />
                   </Form.Item>
                 )}
-                {visibleColumns.country && (
+                {visibleColumns.location && (
                   <Form.Item 
-                    name="country" 
-                    label="Country (Required)"
-                    className="mb-3"
-                    rules={[]}
-                  >
-                    <Input placeholder="Enter country" />
-                  </Form.Item>
-                )}
-                {visibleColumns.state && (
-                  <Form.Item 
-                    name="state" 
-                    label="State (Optional)"
+                    name="location" 
+                    label="Location (Country/State/City)"
                     className="mb-3"
                   >
-                    <Input placeholder="Enter state" />
-                  </Form.Item>
-                )}
-                {visibleColumns.city && (
-                  <Form.Item 
-                    name="city" 
-                    label="City (Optional)"
-                    className="mb-3"
-                  >
-                    <Input placeholder="Enter city" />
+                    <Input placeholder="e.g. Boston, MA, USA" />
                   </Form.Item>
                 )}
                 {visibleColumns.ticketSize && (

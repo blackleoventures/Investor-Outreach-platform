@@ -193,7 +193,7 @@ export default function InvestorMatcher() {
   const buildClientProfile = (client: any): ClientProfile => {
     const sector = client?.industry || client?.sector || "";
     const stage = client?.fund_stage || client?.stage || "";
-    const location = client?.city || client?.state || client?.country || client?.location || "";
+    const location = client?.location || "";
     const fundingAmount = client?.investment_ask?.toString?.() || client?.fundingAmount || "";
     return { sector, stage, location, fundingAmount };
   };

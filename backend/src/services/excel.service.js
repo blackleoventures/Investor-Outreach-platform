@@ -62,7 +62,7 @@ class ExcelService {
       
       return data.filter(row => {
         // More flexible filtering for different file types
-        return row.partner_email || row.email || row.contact_email || 
+        return row['Partner Email'] || row.partner_email || row.email || row.contact_email || 
                Object.values(row).some(val => 
                  typeof val === 'string' && val.includes('@')
                );
@@ -117,7 +117,10 @@ class ExcelService {
       }
 
       // Validate data
-      const validData = excelData.filter(item => item.partner_email && item.partner_email.trim());
+      const validData = excelData.filter(item => {
+        const email = item['Partner Email'] || item.partner_email || item.email;
+        return email && email.trim();
+      });
       if (validData.length === 0) {
         throw new Error('No valid records found. Partner email is required.');
       }
@@ -249,12 +252,9 @@ class ExcelService {
       });
 
       this.watcher.on('change', async (filePath) => {
-        console.log(`Excel file changed: ${filePath}, syncing to Firebase...`);
-        // Add a small delay to ensure file is fully written
-        setTimeout(async () => {
-          await this.syncExcelToFirebase();
-          console.log('Real-time sync completed');
-        }, 2000);
+        console.log(`Excel file changed: ${filePath}`);
+        // Sync disabled - just log the change
+        console.log('File watching active, but auto-sync disabled');
       });
 
       this.isWatching = true;

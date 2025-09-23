@@ -12,15 +12,12 @@ export type InvestorRecord = Record<string, any> & {
   fund_stage?: string;
   sector_focus?: string | string[];
   ticket_size?: any;
-  country?: string;
-  state?: string;
-  city?: string;
+  location?: string;
 };
 
 export type IncubatorRecord = Record<string, any> & {
   sectorFocus?: string | string[];
-  country?: string;
-  stateCity?: string;
+  location?: string;
   stage?: string;
   ticket_size?: any;
 };
@@ -97,17 +94,14 @@ export function scoreInvestorMatch(client: ClientProfile, investor: InvestorReco
   }
   score += breakdown.stage;
 
-  // Location (exact country/state/city; treat Global as match as well)
+  // Location (exact match or contains; treat Global as match as well)
   const clientLoc = normalize(client.location);
-  const invCountry = normalize(investor.country);
-  const invState = normalize((investor as any).state);
-  const invCity = normalize((investor as any).city);
-  if (clientLoc) {
+  const invLocation = normalize(investor.location);
+  if (clientLoc && invLocation) {
     if (
-      (invCountry && clientLoc === invCountry) ||
-      (invState && clientLoc === invState) ||
-      (invCity && clientLoc === invCity) ||
-      normalize(String(investor.country)) === 'global'
+      invLocation.includes(clientLoc) ||
+      clientLoc.includes(invLocation) ||
+      invLocation === 'global'
     ) breakdown.location = WEIGHTS_INVESTOR.location;
   }
   score += breakdown.location;
@@ -149,14 +143,15 @@ export function scoreIncubatorMatch(client: ClientProfile, incubator: IncubatorR
   }
   score += breakdown.stage;
 
-  // Location (exact country/city; treat Global as match if present on country)
+  // Location (exact match or contains; treat Global as match as well)
   const clientLoc = normalize(client.location);
-  const incCountry = normalize(incubator.country);
-  const incStateCity = normalize(incubator.stateCity);
-  if (clientLoc && (incCountry || incStateCity)) {
-    if (clientLoc === incCountry || clientLoc === incStateCity || normalize(String(incubator.country)) === 'global') {
-      breakdown.location = WEIGHTS_INCUBATOR.location;
-    }
+  const incLocation = normalize(incubator.location);
+  if (clientLoc && incLocation) {
+    if (
+      incLocation.includes(clientLoc) ||
+      clientLoc.includes(incLocation) ||
+      incLocation === 'global'
+    ) breakdown.location = WEIGHTS_INCUBATOR.location;
   }
   score += breakdown.location;
 

@@ -1,7 +1,43 @@
 const fs = require("fs").promises;
+const path = require('path');
+const { GoogleSpreadsheet } = require('google-spreadsheet');
+const { JWT } = require('google-auth-library');
 const excelService = require('../services/excel.service');
 
-// Get investors from Excel files only
+// Google Sheets configuration (service account JSON already placed in config)
+const SHEET_ID = '1oyzpOlYhSKRG3snodvPXZxwA2FPnMk2Qok0AMgk2iX0';
+const CREDENTIALS_PATH = path.join(__dirname, '../config/excel.json');
+
+// Attempt to get investors directly from Google Sheets
+const getInvestorsFromGoogleSheet = async () => {
+  try {
+    const serviceAccountAuth = new JWT({
+      keyFile: CREDENTIALS_PATH,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const doc = new GoogleSpreadsheet(SHEET_ID, serviceAccountAuth);
+    await doc.loadInfo();
+    const sheet = doc.sheetsByIndex[0];
+    await sheet.loadHeaderRow();
+    const rows = await sheet.getRows();
+
+    const data = rows.map(row => {
+      const rowData = {};
+      sheet.headerValues.forEach(header => {
+        rowData[header] = row.get(header) || '';
+      });
+      return rowData;
+    });
+
+    return data;
+  } catch (error) {
+    console.error('Google Sheets read failed, will fallback to Excel files:', error.message);
+    return null;
+  }
+};
+
+// Get investors from Excel files (fallback)
 const getInvestorsFromExcel = async () => {
   try {
     return excelService.readExcelData();
@@ -19,7 +55,10 @@ exports.getPaginatedInvestors = async (req, res) => {
     res.setHeader('Expires', '0');
     
     const { page = 1, limit = 10, search = "" } = req.query;
-    let investors = await getInvestorsFromExcel();
+    let investors = await getInvestorsFromGoogleSheet();
+    if (!investors || investors.length === 0) {
+      investors = await getInvestorsFromExcel();
+    }
 
     // Apply search filter
     if (search.trim()) {
@@ -35,24 +74,28 @@ exports.getPaginatedInvestors = async (req, res) => {
     }
 
     // Map column names to expected format
-    const mappedInvestors = investors.map(row => ({
-      id: row.id || `investor_${Date.now()}_${Math.random()}`,
-      investor_name: row['Investor Name'] || row.investor_name || row.name,
-      partner_name: row['Partner Name'] || row.partner_name || row.partner,
-      partner_email: row['Partner Email'] || row.partner_email || row.email,
-      phone_number: row['Phone number'] || row.phone_number || row.phone,
-      fund_type: row['Fund Type'] || row.fund_type || row.type,
-      fund_stage: row['Fund Stage'] || row.fund_stage || row.stage,
-      fund_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
-      location: row['Location'] || row.location,
-      country: row.Country || row.country,
-      state: row.State || row.state,
-      city: row.City || row.city,
-      sector_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
-      ticket_size: row['Ticket Size'] || row.ticket_size,
-      website: row.Website || row.website,
-      ...row
-    }));
+    const mappedInvestors = investors.map(row => {
+      const country = row.Country || row.country || '';
+      const state = row.State || row.state || '';
+      const city = row.City || row.city || '';
+      const location = [city, state, country].filter(Boolean).join(', ') || row['Location'] || row.location || '';
+      
+      return {
+        id: row.id || `investor_${Date.now()}_${Math.random()}`,
+        investor_name: row['Investor Name'] || row.investor_name || row.name,
+        partner_name: row['Partner Name'] || row.partner_name || row.partner,
+        partner_email: row['Partner Email'] || row.partner_email || row.email,
+        phone_number: row['Phone number'] || row.phone_number || row.phone,
+        fund_type: row['Fund Type'] || row.fund_type || row.type,
+        fund_stage: row['Fund Stage'] || row.fund_stage || row.stage,
+        fund_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
+        location: location,
+        sector_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
+        ticket_size: row['Ticket Size'] || row.ticket_size,
+        website: row.Website || row.website,
+        ...row
+      };
+    });
 
     // Apply pagination
     const startIndex = (parseInt(page) - 1) * parseInt(limit);
@@ -67,7 +110,7 @@ exports.getPaginatedInvestors = async (req, res) => {
       totalPages: Math.ceil(mappedInvestors.length / parseInt(limit)),
       hasNextPage: endIndex < mappedInvestors.length,
       hasPrevPage: parseInt(page) > 1,
-      source: 'excel_files',
+      source: (investors && investors !== null && investors.length > 0) ? 'google_sheets' : 'excel_files',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
@@ -104,27 +147,34 @@ exports.getAllInvestors = async (req, res) => {
     res.setHeader('Expires', '0');
     
     const { page = 1, limit = 10000 } = req.query;
-    const allInvestors = await getInvestorsFromExcel();
+    let allInvestors = await getInvestorsFromGoogleSheet();
+    if (!allInvestors || allInvestors.length === 0) {
+      allInvestors = await getInvestorsFromExcel();
+    }
     
     // Map column names to expected format
-    const mappedInvestors = allInvestors.map(row => ({
-      id: row.id || `investor_${Date.now()}_${Math.random()}`,
-      investor_name: row['Investor Name'] || row.investor_name || row.name,
-      partner_name: row['Partner Name'] || row.partner_name || row.partner,
-      partner_email: row['Partner Email'] || row.partner_email || row.email,
-      phone_number: row['Phone number'] || row.phone_number || row.phone,
-      fund_type: row['Fund Type'] || row.fund_type || row.type,
-      fund_stage: row['Fund Stage'] || row.fund_stage || row.stage,
-      fund_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
-      location: row['Location'] || row.location,
-      country: row.Country || row.country,
-      state: row.State || row.state,
-      city: row.City || row.city,
-      sector_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
-      ticket_size: row['Ticket Size'] || row.ticket_size,
-      website: row.Website || row.website,
-      ...row // Include all original fields
-    }));
+    const mappedInvestors = allInvestors.map(row => {
+      const country = row.Country || row.country || '';
+      const state = row.State || row.state || '';
+      const city = row.City || row.city || '';
+      const location = [city, state, country].filter(Boolean).join(', ') || row['Location'] || row.location || '';
+      
+      return {
+        id: row.id || `investor_${Date.now()}_${Math.random()}`,
+        investor_name: row['Investor Name'] || row.investor_name || row.name,
+        partner_name: row['Partner Name'] || row.partner_name || row.partner,
+        partner_email: row['Partner Email'] || row.partner_email || row.email,
+        phone_number: row['Phone number'] || row.phone_number || row.phone,
+        fund_type: row['Fund Type'] || row.fund_type || row.type,
+        fund_stage: row['Fund Stage'] || row.fund_stage || row.stage,
+        fund_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
+        location: location,
+        sector_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
+        ticket_size: row['Ticket Size'] || row.ticket_size,
+        website: row.Website || row.website,
+        ...row
+      };
+    });
     
     const parsedPage = parseInt(page);
     const parsedLimit = parseInt(limit);
@@ -132,13 +182,13 @@ exports.getAllInvestors = async (req, res) => {
     const investors = mappedInvestors.slice(skip, skip + parsedLimit);
 
     res.status(200).json({
-      message: "Successfully retrieved investors from Excel files",
+      message: "Successfully retrieved investors",
       totalCount: mappedInvestors.length,
       currentPage: parsedPage,
       totalPages: Math.ceil(mappedInvestors.length / parsedLimit),
       data: investors,
       docs: investors,
-      source: 'excel_files',
+      source: (allInvestors && allInvestors !== null && allInvestors.length > 0) ? 'google_sheets' : 'excel_files',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
