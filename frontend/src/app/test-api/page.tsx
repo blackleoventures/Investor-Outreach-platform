@@ -40,7 +40,7 @@ export default function TestApiPage() {
         console.log('Location:', first['Location']);
         
         console.log('\n=== FIRST 3 RECORDS ===');
-        dataArray.slice(0, 3).forEach((record, i) => {
+        dataArray.slice(0, 3).forEach((record: any, i: number) => {
           console.log(`Record ${i+1}: ${record['Investor Name']} - ${record['Partner Name']}`);
         });
       } else {
