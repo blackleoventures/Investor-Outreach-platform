@@ -1,16 +1,5 @@
 {
-  "buildCommand": "cd frontend && npm install && npm run build",
+  "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/.next",
-  "installCommand": "npm install --prefix frontend",
-  "functions": {
-    "backend/api/index.js": {
-      "maxDuration": 60
-    }
-  },
-  "rewrites": [
-    {
-      "source": "/api/(.*)",
-      "destination": "/backend/api/index.js"
-    }
-  ]
+  "installCommand": "cd frontend && npm install"
 }
