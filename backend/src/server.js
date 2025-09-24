@@ -55,15 +55,25 @@ const app = express();
 app.use(compression());
 
 // CORS with preflight caching to reduce OPTIONS overhead
+// Allow localhost, configured FRONTEND_URL, and any vercel.app subdomain
+const allowedOrigins = new Set([
+  "http://localhost:3000",
+  "http://localhost:5173",
+  process.env.FRONTEND_URL || "",
+  "https://email-sender-platform.web.app",
+  "https://investor-outreach-platform.vercel.app",
+].filter(Boolean));
+
 app.use(
   cors({
-    origin: [
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "https://email-sender-platform.web.app",
-      "https://investor-outreach-platform.vercel.app",
-    ],
-    maxAge: 86400, // cache preflight for 24h
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.has(origin)) return callback(null, true);
+      if (/\.vercel\.app$/.test(origin)) return callback(null, true);
+      return callback(null, false);
+    },
+    maxAge: 86400,
+    credentials: true,
   })
 );
 

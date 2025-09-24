@@ -6,7 +6,7 @@
     }
   },
   "installCommand": "npm install",
-  "buildCommand": "echo 'No build step for backend'",
+  "buildCommand": "echo \"npm install\"",
   "outputDirectory": "."
 }
 

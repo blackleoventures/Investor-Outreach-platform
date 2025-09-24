@@ -5,8 +5,8 @@ const excelService = require('../services/excel.service');
 
 // Google Sheets config for Incubators
 // Default to the same Sheet ID as investors; change if you have a separate Incubators sheet
-const SHEET_ID_INCUBATORS = '1oyzpOlYhSKRG3snodvPXZxwA2FPnMk2Qok0AMgk2iX0';
-const CREDENTIALS_PATH = path.join(__dirname, '../config/excel.json');
+const SHEET_ID_INCUBATORS = process.env.SHEET_ID_INCUBATORS || process.env.SHEET_ID || '1oyzpOlYhSKRG3snodvPXZxwA2FPnMk2Qok0AMgk2iX0';
+const CREDENTIALS_PATH = process.env.EXCEL_JSON_PATH || path.join(__dirname, '../config/excel.json');
 
 const updateIncubator = async (req, res) => {
   res.status(400).json({ 

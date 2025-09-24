@@ -5,8 +5,8 @@ const { JWT } = require('google-auth-library');
 const excelService = require('../services/excel.service');
 
 // Google Sheets configuration (service account JSON already placed in config)
-const SHEET_ID = '1oyzpOlYhSKRG3snodvPXZxwA2FPnMk2Qok0AMgk2iX0';
-const CREDENTIALS_PATH = path.join(__dirname, '../config/excel.json');
+const SHEET_ID = process.env.SHEET_ID || '1oyzpOlYhSKRG3snodvPXZxwA2FPnMk2Qok0AMgk2iX0';
+const CREDENTIALS_PATH = process.env.EXCEL_JSON_PATH || path.join(__dirname, '../config/excel.json');
 
 // Attempt to get investors directly from Google Sheets
 const getInvestorsFromGoogleSheet = async () => {

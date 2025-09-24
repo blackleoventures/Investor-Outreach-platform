@@ -5,8 +5,8 @@ const ExcelJS = require('exceljs');
 const fs = require('fs');
 
 // Google Sheets configuration
-const SHEET_ID = '1hKxsYnsvEWo3qGJuy8KGdW3yW_M4EFsG';
-const CREDENTIALS_PATH = path.join(__dirname, '../config/excel.json');
+const SHEET_ID = process.env.SHEET_ID || '1oyzpOlYhSKRG3snodvPXZxwA2FPnMk2Qok0AMgk2iX0';
+const CREDENTIALS_PATH = process.env.EXCEL_JSON_PATH || path.join(__dirname, '../config/excel.json');
 
 // Initialize Google Sheets client with fallback
 const initializeSheet = async () => {
