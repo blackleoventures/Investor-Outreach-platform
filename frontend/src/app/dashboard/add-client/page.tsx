@@ -18,6 +18,7 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [showManualForm, setShowManualForm] = useState(true);
   const [form] = Form.useForm();
+  const [pasteOpen, setPasteOpen] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [checking, setChecking] = useState(false);
@@ -335,6 +336,7 @@ export default function Page() {
                   Customize Fields
                 </Button>
               </Dropdown>
+              <Button onClick={() => setPasteOpen(true)}>Paste details</Button>
             </div>
           </div>
 
@@ -463,21 +465,7 @@ export default function Page() {
                     label={<span className="text-base font-semibold text-gray-800">Location</span>}
                     className="mb-6"
                   > 
-                    <Select
-                      options={[
-                        { value: 'US', label: 'United States' },
-                        { value: 'India', label: 'India' },
-                        { value: 'UK', label: 'United Kingdom' },
-                        { value: 'Canada', label: 'Canada' },
-                        { value: 'Singapore', label: 'Singapore' },
-                        { value: 'Germany', label: 'Germany' },
-                        { value: 'Australia', label: 'Australia' },
-                        { value: 'Other', label: 'Other' },
-                      ]}
-                      placeholder="Select location"
-                      size="large"
-                      className="h-14"
-                    />
+                    <Input placeholder="e.g. Boston, MA, USA" className="h-14 text-base" />
                   </Form.Item>
                 </div>
 
@@ -504,6 +492,90 @@ export default function Page() {
           </div>
         </div>
       )}
+      <Modal
+        title="Paste client details"
+        open={pasteOpen}
+        onCancel={() => setPasteOpen(false)}
+        footer={null}
+      >
+        <ClientPasteHelper onFill={(values)=>{
+          // Ensure any filled fields are visible
+          setVisibleColumns(prev => {
+            const next = { ...prev } as any;
+            Object.keys(values || {}).forEach((k) => { if (k in next) next[k] = true; });
+            return next;
+          });
+          // Fill immediately
+          form.setFieldsValue(values);
+          // Normalize fund_stage to match select options if provided
+          const stage = (values as any)['fund_stage'];
+          if (stage) {
+            const n = String(stage).toLowerCase();
+            const mapped = n.includes('pre') ? 'Pre-seed' :
+                           n.includes('seed') ? 'Seed' :
+                           n.includes('series a') || n === 'a' ? 'Series A' :
+                           n.includes('series b') || n === 'b' ? 'Series B' : undefined;
+            if (mapped) form.setFieldValue('fund_stage', mapped);
+          }
+          const filled = Object.keys(values || {}).length;
+          message.success(`${filled} field${filled===1?'':'s'} filled from pasted text`);
+          setPasteOpen(false);
+        }} />
+      </Modal>
+    </div>
+  );
+}
+
+function ClientPasteHelper({ onFill }: { onFill: (fields: any) => void }) {
+  const [text, setText] = useState('');
+
+  const tryClipboard = async () => {
+    try { const t = await navigator.clipboard.readText(); setText(t || ''); message.success('Pasted from clipboard'); }
+    catch { message.info('Clipboard blocked. Paste manually.'); }
+  };
+
+  const getAfter = (src: string, label: string) => {
+    // Accept patterns like "Label: value", "Label - value", "Label = value"
+    const re = new RegExp(`${label}\s*[:\-=]?\s*(.+)`, 'i');
+    for (const line of src.split('\n')) {
+      const m = line.match(re);
+      if (m) return m[1].trim();
+    }
+    return undefined;
+  };
+
+  const parse = () => {
+    const src = (text || '').replace(/\r/g, '');
+    const fields: any = {};
+    const emailMatch = src.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi);
+    if (emailMatch && emailMatch.length) fields['company_email'] = emailMatch[0];
+    fields['company_name'] = getAfter(src, 'company name') || getAfter(src, 'company') || fields['company_name'];
+    // Avoid capturing the email's local-part when parsing 'name'
+    const candidateName = getAfter(src, 'founder name') || getAfter(src, 'founder') || getAfter(src, 'name');
+    if (candidateName && !/@/.test(candidateName)) fields['founder_name'] = candidateName;
+    fields['contact'] = getAfter(src, 'phone') || getAfter(src, 'mobile') || fields['contact'];
+    fields['fund_stage'] = getAfter(src, 'fund stage') || getAfter(src, 'stage') || fields['fund_stage'];
+    fields['revenue'] = getAfter(src, 'revenue') || fields['revenue'];
+    fields['investment_ask'] = getAfter(src, 'investment ask') || getAfter(src, 'raise') || fields['investment_ask'];
+    fields['sector'] = getAfter(src, 'sector') || getAfter(src, 'industry') || fields['sector'];
+    const loc = getAfter(src, 'location') || getAfter(src, 'city') || getAfter(src, 'country');
+    if (loc) fields['location'] = loc;
+    // Only fill if at least one field extracted
+    if (Object.keys(fields).length === 0) {
+      message.warning('No recognizable fields found. Please format as Label: value');
+      return;
+    }
+    onFill(fields);
+  };
+
+  return (
+    <div className="space-y-3">
+      <Button onClick={tryClipboard}>Paste from clipboard</Button>
+      <Input.TextArea rows={8} value={text} onChange={(e)=>setText(e.target.value)} placeholder="Paste client details here..." />
+      <div className="flex gap-2">
+        <Button type="primary" onClick={parse}>Fill fields</Button>
+        <Button onClick={()=>setText('')}>Clear</Button>
+      </div>
     </div>
   );
 }

@@ -254,7 +254,8 @@ export default function InvestorMatcher() {
 
       setRuleResults(scored.map(({ __flags, __satisfied, ...rest }: any) => rest));
       setSelectedInvestors([]);
-      message.success(`Computed ${scored.length} ${mode === 'investor' ? 'investor' : 'incubator'} matches`);
+      const matchedCount = scored.filter((r: any) => Math.round(r.matchScore ?? r.score ?? 0) > 0).length;
+      message.success(`Matched ${matchedCount} of ${rows.length} ${mode === 'investor' ? 'investors' : 'incubators'}`);
     } catch (e) {
       console.error('Match error:', e);
       message.error('Failed to compute matches');

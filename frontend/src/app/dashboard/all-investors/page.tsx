@@ -4,7 +4,7 @@
 
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
-import { Card, Typography, Button, Input, Table, Tag, Space, message, Avatar, Modal, Form, Select, Dropdown, Checkbox, Alert, Spin } from "antd";
+import { Card, Typography, Button, Input, Table, Tag, Space, message, Avatar, Modal, Form, Select, Dropdown, Checkbox, Alert, Spin, Popover } from "antd";
 import { useRouter } from 'next/navigation';
 import { UserOutlined, SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SettingOutlined, FileTextOutlined, FileExcelOutlined, SyncOutlined, DownloadOutlined } from "@ant-design/icons";
 
@@ -259,6 +259,14 @@ export default function AllInvestorsPage() {
         Object.entries(values || {}).filter(([, v]) => v !== undefined)
       );
 
+      // Ensure identifiers are present for backend row matching
+      if (!('Partner Email' in updates) && selectedInvestor && (selectedInvestor as any)['Partner Email']) {
+        (updates as any)['Partner Email'] = (selectedInvestor as any)['Partner Email'];
+      }
+      if (!('Investor Name' in updates) && selectedInvestor && (selectedInvestor as any)['Investor Name']) {
+        (updates as any)['Investor Name'] = (selectedInvestor as any)['Investor Name'];
+      }
+
       const response = await apiFetch(`/api/investors/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -434,7 +442,26 @@ export default function AllInvestorsPage() {
             {sectorList.slice(0, 3).map((s, idx) => (
               <Tag key={idx} color="green">{String(s)}</Tag>
             ))}
-            {sectorList.length > 3 && <Tag>+{sectorList.length - 3}</Tag>}
+            {sectorList.length > 3 && (
+              <Popover
+                placement="bottomLeft"
+                trigger={['click']}
+                getPopupContainer={() => document.body}
+                overlayStyle={{ zIndex: 2000 }}
+                content={(
+                  <div style={{ maxWidth: 320 }} onClick={(e) => e.stopPropagation()}>
+                    <div className="mb-2 text-xs text-gray-500">All sectors</div>
+                    <div className="flex flex-wrap gap-2">
+                      {sectorList.map((s: any, i: number) => (
+                        <Tag key={i} color="green" style={{ marginBottom: 6 }}>{String(s)}</Tag>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              >
+                <Tag style={{ cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>+{sectorList.length - 3}</Tag>
+              </Popover>
+            )}
           </div>
         );
       }
@@ -611,6 +638,7 @@ export default function AllInvestorsPage() {
         }
         extra={
           <Space>
+            {/* Upload Excel button removed as requested */}
             <Button 
               icon={<SyncOutlined spin={loading} />} 
               onClick={() => {

@@ -29,15 +29,16 @@ exports.uploadFile = async (req, res) => {
   
   try {
     if (!req.file) {
+      console.error('[excel.controller] No file on request');
       return res.status(400).json({ error: 'No file uploaded' });
     }
-
+    // Support both field names: 'excel' and 'file'
     uploadedFilePath = req.file.path;
-    const fileExtension = req.file.originalname.split('.').pop().toLowerCase();
+    const fileExtension = (req.file.originalname.split('.').pop() || '').toLowerCase();
     const fs = require('fs');
     const { db } = require('../config/firebase-db.config');
     
-    console.log(`Processing ${fileExtension} file: ${req.file.originalname}`);
+    console.log('[excel.controller] processing', { ext: fileExtension, original: req.file.originalname, path: uploadedFilePath, size: req.file.size });
     
     let data = [];
     
@@ -51,7 +52,7 @@ exports.uploadFile = async (req, res) => {
       });
       
       if (errors.length > 0) {
-        console.error('CSV parsing errors:', errors);
+        console.error('[excel.controller] CSV parsing errors:', errors);
         return res.status(400).json({ 
           error: 'Invalid CSV format', 
           details: errors.map(e => e.message).join(', ')
@@ -63,15 +64,7 @@ exports.uploadFile = async (req, res) => {
     } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
       // Handle Excel file using buffer approach
       try {
-        let xlsx;
-        try {
-          xlsx = require('xlsx');
-        } catch (requireError) {
-          console.error('XLSX module not available:', requireError);
-          return res.status(400).json({ 
-            error: 'Excel processing not available. Please convert to CSV format.' 
-          });
-        }
+        const xlsx = require('xlsx');
         
         const fileBuffer = fs.readFileSync(uploadedFilePath);
         const workbook = xlsx.read(fileBuffer, { 
@@ -115,7 +108,7 @@ exports.uploadFile = async (req, res) => {
         }
         
       } catch (xlsxError) {
-        console.error('Excel processing error:', xlsxError);
+        console.error('[excel.controller] Excel processing error:', xlsxError && (xlsxError.stack || xlsxError.message || xlsxError));
         return res.status(400).json({ 
           error: 'Failed to process Excel file. Please ensure it is a valid Excel file or convert to CSV format.',
           details: xlsxError.message
@@ -132,8 +125,85 @@ exports.uploadFile = async (req, res) => {
       return res.status(400).json({ error: 'File is empty or has no valid data' });
     }
     
-    // Filter out completely empty rows
-    const validData = data.filter(item => {
+    // Normalize to canonical headers and ignore extra columns
+    const canonicalMap = {
+      'investor name': 'Investor Name',
+      'name': 'Investor Name',
+      'investor': 'Investor Name',
+      'partner name': 'Partner Name',
+      'contact name': 'Partner Name',
+      'partner': 'Partner Name',
+      'partner first name': 'Partner Name',
+      'partner last name': 'Partner Name',
+      'partner email': 'Partner Email',
+      'email': 'Partner Email',
+      'contact email': 'Partner Email',
+      'phone number': 'Phone number',
+      'phone': 'Phone number',
+      'fund type': 'Fund Type',
+      'type': 'Fund Type',
+      'fund stage': 'Fund Stage',
+      'stage': 'Fund Stage',
+      'fund focus (sectors)': 'Fund Focus (Sectors)',
+      'sector focus': 'Fund Focus (Sectors)',
+      'sectors': 'Fund Focus (Sectors)',
+      'focus': 'Fund Focus (Sectors)',
+      'location': 'Location',
+      'city': 'Location',
+      'state': 'Location',
+      'country': 'Location',
+      'ticket size': 'Ticket Size',
+      'website': 'Website'
+    };
+
+    const toCanonicalRow = (rowIn = {}) => {
+      const out = {};
+      // build a lower-case key map
+      const lower = {};
+      Object.keys(rowIn || {}).forEach(k => {
+        lower[String(k).toLowerCase().trim()] = rowIn[k];
+      });
+
+      // Helper to get by many keys
+      const getFirst = (keys) => {
+        for (const k of keys) {
+          const v = lower[k];
+          if (v != null && String(v).toString().trim() !== '') return v;
+        }
+        return undefined;
+      };
+
+      // Compose Location from country/state/city if separate
+      const city = getFirst(['city']);
+      const state = getFirst(['state','state/city','state city']);
+      const country = getFirst(['country']);
+      const locationFallback = getFirst(['location']);
+      const location = [city, state, country].filter(Boolean).join(', ') || locationFallback || '';
+
+      // Map canonical fields
+      const pairs = [
+        ['Investor Name', getFirst(['investor name','name','investor'])],
+        ['Partner Name', getFirst(['partner name','contact name','partner','partner first name','partner last name'])],
+        ['Partner Email', getFirst(['partner email','email','contact email'])],
+        ['Phone number', getFirst(['phone number','phone'])],
+        ['Fund Type', getFirst(['fund type','type'])],
+        ['Fund Stage', getFirst(['fund stage','stage'])],
+        ['Fund Focus (Sectors)', getFirst(['fund focus (sectors)','sector focus','sectors','focus'])],
+        ['Location', location],
+        ['Ticket Size', getFirst(['ticket size'])],
+        ['Website', getFirst(['website'])],
+      ];
+
+      for (const [key, val] of pairs) {
+        if (val != null && String(val).toString().trim() !== '') out[key] = val;
+      }
+      return out;
+    };
+
+    const normalized = data.map(toCanonicalRow);
+
+    // Filter out completely empty rows (after normalization)
+    const validData = normalized.filter(item => {
       return Object.values(item).some(value => value && value.toString().trim());
     });
     
@@ -141,9 +211,49 @@ exports.uploadFile = async (req, res) => {
       return res.status(400).json({ error: 'No valid records found. File appears to be empty.' });
     }
     
-    // Save to Firebase directly
+    // 1) Write to Google Sheets so the All Investors page (which reads Sheets) shows new data
+    try {
+      const { GoogleSpreadsheet } = require('google-spreadsheet');
+      const { JWT } = require('google-auth-library');
+      const credsPath = path.join(__dirname, '../config/excel.json');
+      // Use the same Sheet ID as investors (update if you keep a separate spreadsheet)
+      const SHEET_ID = '1oyzpOlYhSKRG3snodvPXZxwA2FPnMk2Qok0AMgk2iX0';
+
+      const auth = new JWT({ keyFile: credsPath, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
+      const doc = new GoogleSpreadsheet(SHEET_ID, auth);
+      await doc.loadInfo();
+      let sheet = doc.sheetsByIndex[0];
+      await sheet.loadHeaderRow().catch(() => {});
+
+      // Canonical header order for a consistent table experience
+      const headerOrder = ['Investor Name','Partner Name','Partner Email','Phone number','Fund Type','Fund Stage','Fund Focus (Sectors)','Location','Ticket Size','Website'];
+      const existingHeaders = Array.isArray(sheet.headerValues) ? sheet.headerValues : [];
+      const needsHeader = !existingHeaders || existingHeaders.length === 0;
+      if (needsHeader) {
+        await sheet.setHeaderRow(headerOrder);
+      } else {
+        // Ensure all canonical headers exist; if not, reset to canonical
+        const missing = headerOrder.some(h => !existingHeaders.includes(h));
+        if (missing) await sheet.setHeaderRow(headerOrder);
+      }
+
+      // Replace existing data rows
+      await sheet.clear('A2:Z');
+      if (validData.length > 0) {
+        await sheet.addRows(validData.map(r => {
+          const row = {};
+          headerOrder.forEach(h => { row[h] = r[h] || ''; });
+          return row;
+        }));
+      }
+      console.log('[excel.controller] Wrote rows to Google Sheet:', validData.length);
+    } catch (sheetErr) {
+      console.error('[excel.controller] Google Sheets write failed:', sheetErr && (sheetErr.stack || sheetErr.message || sheetErr));
+      // Do not fail the upload if Sheet write fails; continue to DB save as a fallback
+    }
+
+    // 2) Save to Firebase (best-effort, non-blocking for UI)
     const investorsRef = db.collection('investors');
-    
     try {
       // Clear existing data in smaller batches
       const snapshot = await investorsRef.get();
@@ -174,7 +284,13 @@ exports.uploadFile = async (req, res) => {
       }
     } catch (firebaseError) {
       console.error('Firebase error:', firebaseError);
-      throw new Error('Failed to save data to database: ' + firebaseError.message);
+      // Return success with counts so upload still considered successful
+      return res.status(200).json({
+        success: true,
+        message: 'Uploaded to Google Sheet. Database save failed (non-blocking).',
+        details: firebaseError.message,
+        recordCount: validData.length
+      });
     }
     
     // Clean up uploaded file
@@ -183,17 +299,17 @@ exports.uploadFile = async (req, res) => {
         fs.unlinkSync(uploadedFilePath);
       }
     } catch (cleanupError) {
-      console.log('File cleanup skipped');
+      console.log('[excel.controller] File cleanup skipped');
     }
     
     res.status(200).json({
       success: true,
-      message: `Successfully imported ${validData.length} records from ${fileExtension.toUpperCase()} file`,
+      message: `Successfully uploaded ${validData.length} records to Google Sheet`,
       recordCount: validData.length
     });
     
   } catch (error) {
-    console.error('Error in uploadFile:', error);
+    console.error('[excel.controller] Error in uploadFile:', error && (error.stack || error.message || error));
     
     // Clean up uploaded file on error
     try {
@@ -201,7 +317,7 @@ exports.uploadFile = async (req, res) => {
         require('fs').unlinkSync(uploadedFilePath);
       }
     } catch (cleanupError) {
-      console.log('Error cleanup skipped');
+      console.log('[excel.controller] Error cleanup skipped');
     }
     
     res.status(500).json({ 

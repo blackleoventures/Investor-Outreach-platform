@@ -197,10 +197,86 @@ exports.getAllInvestors = async (req, res) => {
 };
 
 exports.updateInvestor = async (req, res) => {
-  res.status(400).json({ 
-    error: "Update functionality disabled for Excel-only mode",
-    message: "Please update the Excel file and re-upload to make changes"
-  });
+  try {
+    // Accept updates coming from the All Investors edit modal
+    const updates = req.body || {};
+
+    // Resolve identifier - prefer Partner Email, then email fields, then optional id
+    const resolveField = (obj, keys) => {
+      for (const k of keys) {
+        if (obj[k] != null && String(obj[k]).toString().trim() !== '') return String(obj[k]).toString().trim();
+      }
+      return undefined;
+    };
+
+    const targetEmail = resolveField({ ...updates, ...(req.body || {}) }, ['Partner Email', 'partner_email', 'email', 'partnerEmail']);
+    const targetName = resolveField({ ...updates, ...(req.body || {}) }, ['Investor Name', 'investor_name', 'name']);
+
+    if (!targetEmail && !targetName) {
+      return res.status(400).json({ error: 'Provide at least Partner Email or Investor Name to update' });
+    }
+
+    // Connect to Google Sheets
+    const serviceAccountAuth = new JWT({
+      keyFile: CREDENTIALS_PATH,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const doc = new GoogleSpreadsheet(SHEET_ID, serviceAccountAuth);
+    await doc.loadInfo();
+    const sheet = doc.sheetsByIndex[0];
+    await sheet.loadHeaderRow();
+    const rows = await sheet.getRows();
+
+    // Locate row by Partner Email (case-insensitive), fallback to Investor Name
+    const emailHeader = sheet.headerValues.find(h => h.toLowerCase().trim() === 'partner email');
+    const nameHeader = sheet.headerValues.find(h => h.toLowerCase().trim() === 'investor name');
+
+    let targetRow = null;
+    for (const row of rows) {
+      const rowEmail = emailHeader ? String(row.get(emailHeader) || '').toLowerCase() : '';
+      const rowName = nameHeader ? String(row.get(nameHeader) || '').toLowerCase() : '';
+      const emailMatch = targetEmail ? rowEmail === String(targetEmail).toLowerCase() : false;
+      const nameMatch = targetName ? rowName === String(targetName).toLowerCase() : false;
+      if (emailMatch || (targetEmail == null && nameMatch)) { targetRow = row; break; }
+    }
+
+    if (!targetRow) {
+      return res.status(404).json({ error: 'Matching row not found in Google Sheet' });
+    }
+
+    // Map incoming keys to existing header names
+    const normalizeKey = (k) => {
+      const direct = sheet.headerValues.find(h => h.toLowerCase() === String(k).toLowerCase());
+      if (direct) return direct;
+      const map = {
+        investor_name: 'Investor Name',
+        partner_name: 'Partner Name',
+        partner_email: 'Partner Email',
+        phone_number: 'Phone number',
+        fund_type: 'Fund Type',
+        fund_stage: 'Fund Stage',
+        fund_focus: 'Fund Focus (Sectors)',
+        sector_focus: 'Fund Focus (Sectors)',
+        location: 'Location',
+        ticket_size: 'Ticket Size',
+        website: 'Website',
+      };
+      return map[k] || k;
+    };
+
+    Object.entries(updates).forEach(([key, value]) => {
+      const header = normalizeKey(key);
+      if (sheet.headerValues.includes(header)) {
+        targetRow.set(header, value == null ? '' : value);
+      }
+    });
+    await targetRow.save();
+
+    return res.status(200).json({ success: true, message: 'Investor updated successfully in Google Sheet' });
+  } catch (error) {
+    console.error('Error updating investor (Google Sheets):', error);
+    return res.status(500).json({ error: 'Failed to update investor', details: error.message });
+  }
 };
 
 exports.deleteInvestor = async (req, res) => {

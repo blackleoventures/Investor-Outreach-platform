@@ -13,6 +13,7 @@ export default function AddInvestorPage() {
   const [showManualForm, setShowManualForm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [form] = Form.useForm();
+  const [pasteOpen, setPasteOpen] = useState(false);
   // Single unified form instead of multiple rows
 
   const [visibleColumns, setVisibleColumns] = useState({
@@ -41,8 +42,9 @@ export default function AddInvestorPage() {
     message.loading('Uploading file...', 0);
     
     try {
-      formData.append('file', file);
-      const response = await apiFetch(`/api/investors/upload-file`, {
+      // The backend expects field name 'excel' at /api/excel/upload
+      formData.append('excel', file);
+      const response = await apiFetch(`/api/excel/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -297,6 +299,9 @@ export default function AddInvestorPage() {
                   Customize Columns
                 </Button>
               </Dropdown>
+              <Button size="small" onClick={() => setPasteOpen(true)}>
+                Paste details
+              </Button>
             </div>
           }
           open={true}
@@ -430,6 +435,84 @@ export default function AddInvestorPage() {
           </div>
         </Modal>
       )}
+
+      <Modal
+        title="Paste client or investor details"
+        open={pasteOpen}
+        onCancel={() => setPasteOpen(false)}
+        onOk={async () => {
+          setPasteOpen(false);
+        }}
+        footer={null}
+      >
+        <PasteHelper onFill={(fields) => {
+          form.setFieldsValue(fields);
+          message.success('Fields filled from pasted text');
+          setPasteOpen(false);
+        }} />
+      </Modal>
+    </div>
+  );
+}
+
+function PasteHelper({ onFill }: { onFill: (fields: any) => void }) {
+  const [text, setText] = useState('');
+
+  const fromClipboard = async () => {
+    try {
+      const t = await navigator.clipboard.readText();
+      setText(t || '');
+      message.success('Pasted from clipboard');
+    } catch {
+      message.warning('Clipboard blocked. Paste manually below.');
+    }
+  };
+
+  const parseAndFill = () => {
+    const src = (text || '').replace(/\r/g, '');
+    const lines = src.split('\n').map(l => l.trim()).filter(Boolean);
+    const joined = src.toLowerCase();
+
+    const getAfter = (label: string) => {
+      const re = new RegExp(`${label}[:\-]?\s*(.+)`, 'i');
+      for (const l of lines) { const m = l.match(re); if (m) return m[1].trim(); }
+      return undefined;
+    };
+
+    const fields: any = {};
+    const emailMatch = src.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi);
+    if (emailMatch && emailMatch.length) fields['partner_email'] = emailMatch[0];
+
+    fields['investor_name'] = getAfter('investor name') || getAfter('investor') || getAfter('firm') || fields['investor_name'];
+    fields['partner_name'] = getAfter('partner name') || getAfter('contact name') || getAfter('name') || fields['partner_name'];
+    fields['phone_number'] = getAfter('phone') || getAfter('mobile') || fields['phone_number'];
+    fields['fund_type'] = getAfter('fund type') || getAfter('type') || fields['fund_type'];
+    fields['fund_stage'] = getAfter('fund stage') || getAfter('stage') || fields['fund_stage'];
+    fields['location'] = getAfter('location') || getAfter('city') || fields['location'];
+    fields['ticket_size'] = getAfter('ticket size') || getAfter('cheque size') || fields['ticket_size'];
+    const focus = getAfter('fund focus') || getAfter('sector focus') || getAfter('focus') || '';
+    fields['fund_focus_sectors'] = focus;
+
+    // Fallbacks by heuristics
+    if (!fields['fund_stage']) {
+      if (/(pre\s*seed|preseed)/i.test(src)) fields['fund_stage'] = 'Pre-Seed';
+      else if (/\bseed\b/i.test(src)) fields['fund_stage'] = 'Seed';
+      else if (/series\s*a/i.test(src)) fields['fund_stage'] = 'Series A';
+      else if (/series\s*b/i.test(src)) fields['fund_stage'] = 'Series B';
+      else if (/series\s*c/i.test(src)) fields['fund_stage'] = 'Series C';
+    }
+
+    onFill(fields);
+  };
+
+  return (
+    <div className="space-y-3">
+      <Button onClick={fromClipboard}>Paste from clipboard</Button>
+      <Input.TextArea rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste client or investor details here..." />
+      <div className="flex gap-2">
+        <Button type="primary" onClick={parseAndFill}>Fill fields</Button>
+        <Button onClick={() => setText('')}>Clear</Button>
+      </div>
     </div>
   );
 }

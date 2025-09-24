@@ -210,3 +210,87 @@ exports.addSheetRow = async (req, res) => {
     });
   }
 };
+
+// Upload an Excel file and sync rows to Google Sheets (replace or append)
+exports.uploadExcelToSheet = async (req, res) => {
+  let uploadedFilePath = null;
+  try {
+    const mode = String(req.body.mode || 'replace').toLowerCase(); // 'replace' | 'append'
+    const tabName = req.body.tabName || req.body.sheetName || req.body.tab || '';
+
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: 'No file uploaded' });
+    }
+    uploadedFilePath = req.file.path;
+
+    // Parse Excel using ExcelJS
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(uploadedFilePath);
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) {
+      return res.status(400).json({ success: false, error: 'Excel file has no sheets' });
+    }
+
+    // Extract headers from first row and rows thereafter
+    const headers = [];
+    worksheet.getRow(1).eachCell((cell) => headers.push(String(cell.value || '').trim()));
+    if (!headers.length) {
+      return res.status(400).json({ success: false, error: 'Missing header row in Excel (row 1)' });
+    }
+
+    const data = [];
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return; // skip headers
+      const obj = {};
+      row.eachCell((cell, colNumber) => {
+        const key = headers[colNumber - 1];
+        if (key) obj[key] = cell.value == null ? '' : cell.value;
+      });
+      // Skip empty rows
+      if (Object.values(obj).some(v => String(v || '').trim() !== '')) data.push(obj);
+    });
+
+    // Initialize Google Sheet and choose tab
+    const doc = await initializeSheet();
+    let sheet = null;
+    if (tabName) {
+      sheet = doc.sheetsByTitle[tabName] || null;
+      if (!sheet) {
+        sheet = await doc.addSheet({ title: tabName, headerValues: headers });
+      } else {
+        await sheet.loadHeaderRow().catch(() => {});
+        if (!sheet.headerValues || sheet.headerValues.length === 0) {
+          await sheet.setHeaderRow(headers);
+        }
+      }
+    } else {
+      sheet = doc.sheetsByIndex[0];
+      await sheet.loadHeaderRow().catch(() => {});
+      if (!sheet.headerValues || sheet.headerValues.length === 0) {
+        await sheet.setHeaderRow(headers);
+      }
+    }
+
+    if (mode === 'replace') {
+      // Clear data rows while preserving headers
+      await sheet.clear('A2:Z');
+    }
+
+    if (data.length > 0) {
+      await sheet.addRows(data);
+    }
+
+    res.json({
+      success: true,
+      message: `${mode === 'replace' ? 'Replaced' : 'Appended'} ${data.length} rows to Google Sheet${tabName ? ` (${tabName})` : ''}`,
+      rows: data.length,
+      tab: sheet.title
+    });
+  } catch (error) {
+    console.error('Error uploading Excel to Sheet:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    // Cleanup temp file
+    try { if (uploadedFilePath && fs.existsSync(uploadedFilePath)) fs.unlinkSync(uploadedFilePath); } catch {}
+  }
+};

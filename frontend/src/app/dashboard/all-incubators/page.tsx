@@ -208,6 +208,7 @@ export default function AllIncubators() {
         }
         extra={
           <Space>
+            {/* Removed inline upload from All Incubators per request */}
             <Dropdown menu={menuItems} placement="bottomRight">
               <Button type="primary" style={{ backgroundColor: '#ac6a1e', color: '#fff' }} icon={<PlusOutlined />}>Add Incubators</Button>
             </Dropdown>
