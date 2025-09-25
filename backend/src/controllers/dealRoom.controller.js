@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require("uuid");
 exports.createDealRoom = async (req, res) => {
   try {
     const { companyId, pitchDeckUrl, createdBy } = req.body;
+    const userEmail = req.user?.email;
     
     if (!companyId || !pitchDeckUrl) {
       return res.status(400).json({ error: "companyId and pitchDeckUrl are required" });
@@ -13,7 +14,8 @@ exports.createDealRoom = async (req, res) => {
     const dealRoomData = {
       companyId,
       pitchDeckUrl,
-      createdBy: createdBy || "unknown",
+      createdBy: createdBy || userEmail,
+      owner_email: userEmail,
       isActive: true,
       accessibleInvestors: [],
       settings: {
@@ -275,9 +277,13 @@ exports.getEngagementAnalytics = async (req, res) => {
 exports.getCompanyDealRooms = async (req, res) => {
   try {
     const { companyId } = req.params;
+    const userEmail = req.user?.email;
     
     const dealRoomsRef = db.collection('dealRooms');
-    const snapshot = await dealRoomsRef.where('companyId', '==', companyId).get();
+    const snapshot = await dealRoomsRef
+      .where('companyId', '==', companyId)
+      .where('owner_email', '==', userEmail)
+      .get();
     
     const dealRooms = snapshot.docs.map(doc => ({
       id: doc.id,

@@ -25,8 +25,9 @@ const deleteIncubator = async (req, res) => {
 };
 
 // Try reading incubators from Google Sheets (first worksheet by default)
-const getIncubatorsFromGoogleSheet = async () => {
+const getIncubatorsFromGoogleSheet = async (userEmail = null) => {
   try {
+    console.log('Trying to read from Google Sheets ID:', SHEET_ID_INCUBATORS);
     const serviceAccountAuth = new JWT({
       keyFile: CREDENTIALS_PATH,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
@@ -34,9 +35,12 @@ const getIncubatorsFromGoogleSheet = async () => {
 
     const doc = new GoogleSpreadsheet(SHEET_ID_INCUBATORS, serviceAccountAuth);
     await doc.loadInfo();
+    console.log('Sheet title:', doc.title);
     const sheet = doc.sheetsByIndex[0];
     await sheet.loadHeaderRow();
+    console.log('Headers:', sheet.headerValues);
     const rows = await sheet.getRows();
+    console.log('Total rows found:', rows.length);
 
     const data = rows.map(row => {
       const rowData = {};
@@ -45,6 +49,9 @@ const getIncubatorsFromGoogleSheet = async () => {
       });
       return rowData;
     });
+    
+    console.log('Sample data:', data.slice(0, 2));
+    // Return all data from Google Sheets (no filtering for now)
     return data;
   } catch (error) {
     console.error('Google Sheets (Incubators) read failed:', error.message);
@@ -53,9 +60,20 @@ const getIncubatorsFromGoogleSheet = async () => {
 };
 
 // Fallback to local Excel file (incubators.xlsx)
-const getIncubatorsFromExcel = () => {
+const getIncubatorsFromExcel = (userEmail = null) => {
   try {
-    return excelService.readExcelData(excelService.incubatorsFilePath);
+    const data = excelService.readExcelData(excelService.incubatorsFilePath);
+    
+    // Return all data (no filtering for now)
+    // if (userEmail && Array.isArray(data)) {
+    //   const filtered = data.filter(row => {
+    //     const ownerEmail = row['Owner Email'] || row['owner_email'] || row['User Email'] || row['user_email'] || '';
+    //     return ownerEmail.toLowerCase() === userEmail.toLowerCase();
+    //   });
+    //   return filtered.length > 0 ? filtered : data;
+    // }
+    
+    return data;
   } catch (e) {
     return [];
   }
@@ -86,17 +104,47 @@ const mapIncubatorRow = (row = {}) => {
 // Get all incubators
 const getAllIncubators = async (req, res) => {
   try {
-    let data = await getIncubatorsFromGoogleSheet();
-    let source = 'google_sheets';
-    if (!data || data.length === 0) {
-      data = getIncubatorsFromExcel();
-      source = 'excel_files';
+    console.log('getAllIncubators called');
+    const userEmail = req.user?.email || null;
+    
+    let data = [];
+    let source = 'none';
+    
+    try {
+      data = await getIncubatorsFromGoogleSheet(userEmail);
+      source = 'google_sheets';
+      console.log('Google Sheets data loaded:', data?.length || 0);
+    } catch (sheetError) {
+      console.log('Google Sheets failed, trying Excel:', sheetError.message);
+      try {
+        data = getIncubatorsFromExcel(userEmail);
+        source = 'excel_files';
+        console.log('Excel data loaded:', data?.length || 0);
+      } catch (excelError) {
+        console.log('Excel also failed:', excelError.message);
+        data = [];
+        source = 'fallback';
+      }
     }
 
     const mapped = Array.isArray(data) ? data.map(mapIncubatorRow) : [];
-    return res.json({ success: true, data: mapped, docs: mapped, totalCount: mapped.length, source });
+    console.log('Returning response with', mapped.length, 'records');
+    return res.status(200).json({ 
+      success: true, 
+      data: mapped, 
+      docs: mapped, 
+      totalCount: mapped.length, 
+      source 
+    });
   } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    console.error('getAllIncubators error:', error);
+    return res.status(500).json({ 
+      success: false, 
+      message: error.message,
+      data: [],
+      docs: [],
+      totalCount: 0
+    });
   }
 };
 

@@ -42,6 +42,7 @@ exports.sendEmail = async (req, res) => {
       sentCount: 0,
       recipientEmails: recipientsData,
       type: type || "regular",
+      owner_email: req.user?.email,
     };
     await emailCampaignRef.set(emailCampaign);
 

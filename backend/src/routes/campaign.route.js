@@ -8,7 +8,9 @@ const {
   updateCampaign,
   deleteCampaign,
   getMatches,
-  sendCampaign
+  sendCampaign,
+  storeSelectedInvestors,
+  getSelectedInvestors
 } = require("../controllers/campaign.controller");
 const verifyFirebaseToken = require("../middlewares/firebaseAuth.middleware");
 
@@ -24,6 +26,8 @@ router
   .delete(verifyFirebaseToken, deleteCampaign);
 
 router.post("/matches", verifyFirebaseToken, getMatches);
+router.post("/selected-investors", verifyFirebaseToken, storeSelectedInvestors);
+router.get("/:campaignId/selected-investors", verifyFirebaseToken, getSelectedInvestors);
 router.post("/:id/send", verifyFirebaseToken, sendCampaign);
 
 module.exports = router;

@@ -3,6 +3,7 @@ const multer = require('multer');
 const path = require('path');
 const os = require('os');
 const excelController = require('../controllers/excel.controller');
+const requireAuth = require('../middlewares/firebaseAuth.middleware');
 
 const router = express.Router();
 
@@ -35,10 +36,10 @@ const upload = multer({
 });
 
 // Routes
-router.get('/download', excelController.downloadExcel);
-router.get('/read', excelController.readExcelData);
+router.get('/download', requireAuth, excelController.downloadExcel);
+router.get('/read', requireAuth, excelController.readExcelData);
 // Robust upload route with detailed error logging
-router.post('/upload', (req, res, next) => {
+router.post('/upload', requireAuth, (req, res, next) => {
   console.log('[excel.upload] incoming request', {
     'content-length': req.headers['content-length'],
     'content-type': req.headers['content-type'],
@@ -54,12 +55,12 @@ router.post('/upload', (req, res, next) => {
     return excelController.uploadFile(req, res, next);
   });
 });
-router.post('/sync/excel-to-firebase', excelController.syncExcelToFirebase);
-router.post('/sync/firebase-to-excel', excelController.syncFirebaseToExcel);
-router.get('/sync/status', excelController.getSyncStatus);
+router.post('/sync/excel-to-firebase', requireAuth, excelController.syncExcelToFirebase);
+router.post('/sync/firebase-to-excel', requireAuth, excelController.syncFirebaseToExcel);
+router.get('/sync/status', requireAuth, excelController.getSyncStatus);
 
 // Lightweight ping route to validate uploads (does not process content)
-router.post('/ping', upload.any(), (req, res) => {
+router.post('/ping', requireAuth, upload.any(), (req, res) => {
   try {
     const info = (req.files || []).map(f => ({ fieldname: f.fieldname, originalname: f.originalname, size: f.size }));
     res.json({ ok: true, files: info, count: info.length });

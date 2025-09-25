@@ -9,8 +9,9 @@ const SHEET_ID = process.env.SHEET_ID || '1oyzpOlYhSKRG3snodvPXZxwA2FPnMk2Qok0AM
 const CREDENTIALS_PATH = process.env.EXCEL_JSON_PATH || path.join(__dirname, '../config/excel.json');
 
 // Attempt to get investors directly from Google Sheets
-const getInvestorsFromGoogleSheet = async () => {
+const getInvestorsFromGoogleSheet = async (userEmail = null) => {
   try {
+    console.log('Trying to read investors from Google Sheets ID:', SHEET_ID);
     const serviceAccountAuth = new JWT({
       keyFile: CREDENTIALS_PATH,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
@@ -18,9 +19,12 @@ const getInvestorsFromGoogleSheet = async () => {
 
     const doc = new GoogleSpreadsheet(SHEET_ID, serviceAccountAuth);
     await doc.loadInfo();
+    console.log('Investor sheet title:', doc.title);
     const sheet = doc.sheetsByIndex[0];
     await sheet.loadHeaderRow();
+    console.log('Investor headers:', sheet.headerValues);
     const rows = await sheet.getRows();
+    console.log('Total investor rows found:', rows.length);
 
     const data = rows.map(row => {
       const rowData = {};
@@ -30,6 +34,8 @@ const getInvestorsFromGoogleSheet = async () => {
       return rowData;
     });
 
+    console.log('Sample investor data:', data.slice(0, 2));
+    // Return all data from Google Sheets (no filtering for now)
     return data;
   } catch (error) {
     console.error('Google Sheets read failed, will fallback to Excel files:', error.message);
@@ -38,9 +44,20 @@ const getInvestorsFromGoogleSheet = async () => {
 };
 
 // Get investors from Excel files (fallback)
-const getInvestorsFromExcel = async () => {
+const getInvestorsFromExcel = async (userEmail = null) => {
   try {
-    return excelService.readExcelData();
+    const data = excelService.readExcelData();
+    
+    // Return all data (no filtering for now)
+    // if (userEmail && Array.isArray(data)) {
+    //   const filtered = data.filter(row => {
+    //     const ownerEmail = row['Owner Email'] || row['owner_email'] || row['User Email'] || row['user_email'] || '';
+    //     return ownerEmail.toLowerCase() === userEmail.toLowerCase();
+    //   });
+    //   return filtered.length > 0 ? filtered : data;
+    // }
+    
+    return data;
   } catch (error) {
     console.error('Error reading investors from Excel:', error);
     return [];
@@ -55,9 +72,11 @@ exports.getPaginatedInvestors = async (req, res) => {
     res.setHeader('Expires', '0');
     
     const { page = 1, limit = 10, search = "" } = req.query;
-    let investors = await getInvestorsFromGoogleSheet();
+    const userEmail = req.user?.email || null;
+    
+    let investors = await getInvestorsFromGoogleSheet(userEmail);
     if (!investors || investors.length === 0) {
-      investors = await getInvestorsFromExcel();
+      investors = await getInvestorsFromExcel(userEmail);
     }
 
     // Apply search filter
@@ -141,16 +160,36 @@ exports.uploadCSV = async (req, res) => {
 
 exports.getAllInvestors = async (req, res) => {
   try {
+    console.log('getAllInvestors called');
     // Add cache-busting headers
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     
     const { page = 1, limit = 10000 } = req.query;
-    let allInvestors = await getInvestorsFromGoogleSheet();
-    if (!allInvestors || allInvestors.length === 0) {
-      allInvestors = await getInvestorsFromExcel();
+    const userEmail = req.user?.email || null;
+    
+    let allInvestors = [];
+    let source = 'none';
+    
+    try {
+      allInvestors = await getInvestorsFromGoogleSheet(userEmail);
+      source = 'google_sheets';
+      console.log('Google Sheets investors loaded:', allInvestors?.length || 0);
+    } catch (sheetError) {
+      console.log('Google Sheets failed, trying Excel:', sheetError.message);
+      try {
+        allInvestors = await getInvestorsFromExcel(userEmail);
+        source = 'excel_files';
+        console.log('Excel investors loaded:', allInvestors?.length || 0);
+      } catch (excelError) {
+        console.log('Excel also failed:', excelError.message);
+        allInvestors = [];
+        source = 'fallback';
+      }
     }
+    
+    if (!allInvestors) allInvestors = [];
     
     // Map column names to expected format
     const mappedInvestors = allInvestors.map(row => {
@@ -181,6 +220,7 @@ exports.getAllInvestors = async (req, res) => {
     const skip = (parsedPage - 1) * parsedLimit;
     const investors = mappedInvestors.slice(skip, skip + parsedLimit);
 
+    console.log('Returning investor response with', mappedInvestors.length, 'total records');
     res.status(200).json({
       message: "Successfully retrieved investors",
       totalCount: mappedInvestors.length,
@@ -188,11 +228,18 @@ exports.getAllInvestors = async (req, res) => {
       totalPages: Math.ceil(mappedInvestors.length / parsedLimit),
       data: investors,
       docs: investors,
-      source: (allInvestors && allInvestors !== null && allInvestors.length > 0) ? 'google_sheets' : 'excel_files',
+      source: source,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    res.status(500).json({ error: "Failed to retrieve investors", details: error.message });
+    console.error('getAllInvestors error:', error);
+    res.status(500).json({ 
+      error: "Failed to retrieve investors", 
+      details: error.message,
+      data: [],
+      docs: [],
+      totalCount: 0
+    });
   }
 };
 

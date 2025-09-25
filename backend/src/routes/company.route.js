@@ -15,13 +15,13 @@ const requireAuth = process.env.REQUIRE_AUTH === 'true';
 
 router
   .route("/")
-  .get(getClientData)
-  .post(addClientData);
+  .get(verifyFirebaseToken, getClientData)
+  .post(verifyFirebaseToken, addClientData);
 
 router
   .route("/:id")
-  .put(updateClientData)
-  .delete(deleteClientData);
+  .put(verifyFirebaseToken, updateClientData)
+  .delete(verifyFirebaseToken, deleteClientData);
 
 // In simple/local mode, allow without auth to avoid verification failures
 if (requireAuth) {

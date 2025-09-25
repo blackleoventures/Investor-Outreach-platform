@@ -7,6 +7,7 @@ exports.uploadContactList = async (req, res) => {
     }
 
     const { company_id, campaign_id } = req.body;
+    const userEmail = req.user?.email;
     
     if (!company_id || !campaign_id) {
       return res.status(400).json({ 
@@ -36,6 +37,7 @@ exports.uploadContactList = async (req, res) => {
       campaign_id,
       contacts,
       total_contacts: contacts.length,
+      owner_email: userEmail,
       uploaded_at: new Date()
     };
 
@@ -54,8 +56,9 @@ exports.uploadContactList = async (req, res) => {
 exports.getContactLists = async (req, res) => {
   try {
     const { company_id, campaign_id, page = 1, limit = 10 } = req.query;
+    const userEmail = req.user?.email;
 
-    const filters = {};
+    const filters = { owner_email: userEmail };
     if (company_id) filters.company_id = company_id;
     if (campaign_id) filters.campaign_id = campaign_id;
 

@@ -56,9 +56,30 @@ const AllReports = () => {
       ),
     },
     {
+      title: "Client",
+      dataIndex: "clientName",
+      key: "clientName",
+      render: (client: string) => client || '-',
+    },
+    {
+      title: "Metrics",
+      key: "metrics",
+      render: (_: any, record: any) => {
+        const metrics = record.metrics;
+        if (!metrics) return '-';
+        return (
+          <Space size="small">
+            <Tag color="blue">Sent: {metrics.sent || 0}</Tag>
+            <Tag color="green">Open: {metrics.openRate || 0}%</Tag>
+            <Tag color="orange">Reply: {metrics.replies || 0}</Tag>
+          </Space>
+        );
+      },
+    },
+    {
       title: "Actions",
       key: "actions",
-      render: (_: any, record: Report) => (
+      render: (_: any, record: any) => (
         <Space>
           <Button
             type="primary"
@@ -66,36 +87,51 @@ const AllReports = () => {
             icon={<EyeOutlined />}
             onClick={() => handleView(record)}
           >
-            View
+            View Details
           </Button>
         </Space>
       ),
     },
   ];
 
-  const handleView = (report: Report) => {
-    console.log("Viewing report:", report);
-    // TODO: Implement report viewing logic
+  const handleView = (report: any) => {
+    const metrics = report.metrics;
+    if (!metrics) return;
+    
+    const content = `
+📊 Campaign Report: ${report.name}
+👤 Client: ${report.clientName || 'N/A'}
+📅 Date: ${new Date(report.createdAt).toLocaleDateString()}
+
+📈 Email Metrics:
+• Emails Sent: ${metrics.sent || 0}
+• Delivered: ${metrics.delivered || 0}
+• Failed: ${metrics.failed || 0}
+• Open Rate: ${metrics.openRate || 0}%
+• Click Rate: ${metrics.clickRate || 0}%
+• Replies: ${metrics.replies || 0}
+
+📧 Recipients:
+${(report.recipients || []).slice(0, 5).join('\n')}
+${(report.recipients || []).length > 5 ? `\n...and ${(report.recipients || []).length - 5} more` : ''}
+    `;
+    
+    navigator.clipboard.writeText(content).then(() => {
+      alert('Report details copied to clipboard!');
+    }).catch(() => {
+      alert(content);
+    });
   };
 
-  // Mock data for now
+  // Load real reports from localStorage
   useEffect(() => {
-    setReports([
-      {
-        id: 1,
-        name: "Campaign Performance Report",
-        type: "Campaign",
-        createdAt: new Date().toISOString(),
-        status: "completed",
-      },
-      {
-        id: 2,
-        name: "Client Engagement Report",
-        type: "Analytics",
-        createdAt: new Date(Date.now() - 86400000).toISOString(),
-        status: "pending",
-      },
-    ]);
+    try {
+      const savedReports = JSON.parse(localStorage.getItem('reports') || '[]');
+      setReports(savedReports);
+    } catch (e) {
+      console.error('Failed to load reports:', e);
+      setReports([]);
+    }
   }, []);
 
   return (

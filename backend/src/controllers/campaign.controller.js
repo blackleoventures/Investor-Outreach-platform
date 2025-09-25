@@ -4,13 +4,13 @@ const { sendEmail } = require('../services/email.service');
 exports.createCampaign = async (req, res) => {
   try {
     const { clientId, clientName, stage, location, name, status, type, recipients } = req.body;
+    const userEmail = req.user?.email;
     
     if (!clientName) {
       return res.status(400).json({ error: 'Missing required field: clientName' });
     }
 
     const campaignData = {
-      id: Date.now().toString(),
       name: name || `${clientName}_${stage || 'Seed'}_Outreach`,
       clientId: clientId || null,
       clientName,
@@ -18,15 +18,17 @@ exports.createCampaign = async (req, res) => {
       type: type || 'Email',
       status: status || 'draft',
       recipients: recipients || 0,
-      createdAt: new Date().toISOString(),
+      owner_email: userEmail,
       audience: [],
       emailTemplate: { subject: '', content: '' },
       schedule: null
     };
 
+    const savedCampaign = await dbHelpers.create('campaigns', campaignData);
+
     res.status(201).json({
       success: true,
-      campaign: campaignData
+      campaign: { id: savedCampaign.id, ...campaignData }
     });
   } catch (error) {
     console.error('Campaign creation error:', error);
@@ -36,18 +38,12 @@ exports.createCampaign = async (req, res) => {
 
 exports.getCampaigns = async (req, res) => {
   try {
-    // Mock campaigns data
-    const campaigns = [
-      {
-        id: '1',
-        name: 'TechStartup_Seed_Outreach',
-        type: 'Email',
-        status: 'Active',
-        recipients: 15,
-        createdAt: new Date().toISOString(),
-        stats: { sent: 15, opened: 8, clicked: 3, replies: 1 }
-      }
-    ];
+    const userEmail = req.user?.email;
+    const campaigns = await dbHelpers.getAll('campaigns', {
+      filters: { owner_email: userEmail },
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    });
 
     res.json({
       success: true,
@@ -136,6 +132,65 @@ exports.getMatches = async (req, res) => {
     res.json({
       success: true,
       matches
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Store selected investors for email composer
+exports.storeSelectedInvestors = async (req, res) => {
+  try {
+    const { campaignId, selectedInvestors } = req.body;
+    const userEmail = req.user?.email;
+    
+    if (!campaignId || !selectedInvestors) {
+      return res.status(400).json({ error: 'campaignId and selectedInvestors are required' });
+    }
+
+    // Store selected investors in campaign
+    const campaignData = {
+      selectedInvestors: selectedInvestors.map(inv => ({
+        id: inv.id,
+        name: inv.name,
+        email: inv.email,
+        selectedAt: new Date()
+      })),
+      updatedAt: new Date()
+    };
+
+    // Update campaign with selected investors
+    await dbHelpers.update('campaigns', campaignId, campaignData);
+
+    res.json({
+      success: true,
+      message: 'Selected investors stored successfully',
+      selectedCount: selectedInvestors.length
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get selected investors for email composer
+exports.getSelectedInvestors = async (req, res) => {
+  try {
+    const { campaignId } = req.params;
+    
+    const campaign = await dbHelpers.getById('campaigns', campaignId);
+    
+    if (!campaign) {
+      return res.status(404).json({ error: 'Campaign not found' });
+    }
+
+    const selectedInvestors = campaign.selectedInvestors || [];
+    const emailList = selectedInvestors.map(inv => inv.email);
+
+    res.json({
+      success: true,
+      selectedInvestors,
+      emailList,
+      totalSelected: selectedInvestors.length
     });
   } catch (error) {
     res.status(500).json({ error: error.message });

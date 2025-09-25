@@ -15,12 +15,13 @@ const {
 } = require("../controllers/investor.controller");
 
 const upload = multer({ dest: '/tmp/' });
+const requireAuth = require('../middlewares/firebaseAuth.middleware');
 
 const router = express.Router();
 
 router.get("/", getPaginatedInvestors);
-router.post("/bulk", bulkAddInvestors);
-router.post("/upload", upload.single('file'), uploadCSV);
+router.post("/bulk", requireAuth, bulkAddInvestors);
+router.post("/upload", requireAuth, upload.single('file'), uploadCSV);
 const uploadMiddleware = (req, res, next) => {
   const uploader = upload.any();
   uploader(req, res, (err) => {
@@ -31,12 +32,12 @@ const uploadMiddleware = (req, res, next) => {
   });
 };
 
-router.post("/upload-file", uploadMiddleware, uploadInvestorFile);
-router.get("/upload-stats", getUploadStats);
+router.post("/upload-file", requireAuth, uploadMiddleware, uploadInvestorFile);
+router.get("/upload-stats", requireAuth, getUploadStats);
 router.get("/all", getAllInvestors);
-router.put("/:id", updateInvestor);
-router.delete("/:id", deleteInvestor);
-router.post("/upload-csv", upload.single('file'), uploadCSV);
+router.put("/:id", requireAuth, updateInvestor);
+router.delete("/:id", requireAuth, deleteInvestor);
+router.post("/upload-csv", requireAuth, upload.single('file'), uploadCSV);
 router.get("/filters", getFilterOptions);
 router.get("/sectors", getUniqueFundSectors);
 router.get("/fund-types", getUniqueFundTypes);

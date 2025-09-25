@@ -26,6 +26,7 @@ exports.addClientData = async (req, res) => {
       fundingStage,
       employees,
     } = req.body;
+    const userEmail = req.user?.email;
 
     const clientData = {
       first_name: firstName,
@@ -47,6 +48,7 @@ exports.addClientData = async (req, res) => {
       fund_stage: fundingStage,
       employees: employees ? parseInt(employees) : undefined,
       archive: false,
+      owner_email: userEmail,
     };
 
     const savedClient = await dbHelpers.create('companies', clientData);
@@ -64,8 +66,9 @@ exports.addClientData = async (req, res) => {
 exports.getActiveClientData = async (req, res) => {
   try {
     const { email, page = 1, limit = 10 } = req.query;
+    const userEmail = req.user?.email;
 
-    const filters = { archive: false };
+    const filters = { archive: false, owner_email: userEmail };
     if (email) {
       filters.email = email;
     }
@@ -94,8 +97,9 @@ exports.getActiveClientData = async (req, res) => {
 exports.getClientData = async (req, res) => {
   try {
     const { email, page = 1, limit = 10, filter = "all" } = req.query;
+    const userEmail = req.user?.email;
 
-    const filters = {};
+    const filters = { owner_email: userEmail };
 
     if (email) {
       filters.email = email;

@@ -4,10 +4,7 @@ const verifyFirebaseToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    console.log('No auth header provided, allowing request for development');
-    // For development, allow requests without auth
-    req.user = { uid: 'dev-user', email: 'dev@example.com' };
-    return next();
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
   const idToken = authHeader.split(" ")[1];
@@ -18,9 +15,7 @@ const verifyFirebaseToken = async (req, res, next) => {
     next();
   } catch (error) {
     console.error('Token verification failed:', error.message);
-    // For development, allow requests even with invalid tokens
-    req.user = { uid: 'dev-user', email: 'dev@example.com' };
-    next();
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 };
 

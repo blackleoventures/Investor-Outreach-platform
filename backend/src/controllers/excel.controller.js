@@ -32,6 +32,11 @@ exports.uploadFile = async (req, res) => {
       console.error('[excel.controller] No file on request');
       return res.status(400).json({ error: 'No file uploaded' });
     }
+    
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      return res.status(401).json({ error: 'User authentication required' });
+    }
     // Support both field names: 'excel' and 'file'
     uploadedFilePath = req.file.path;
     const fileExtension = (req.file.originalname.split('.').pop() || '').toLowerCase();
@@ -192,6 +197,7 @@ exports.uploadFile = async (req, res) => {
         ['Location', location],
         ['Ticket Size', getFirst(['ticket size'])],
         ['Website', getFirst(['website'])],
+        // ['Owner Email', userEmail], // Temporarily disabled user email
       ];
 
       for (const [key, val] of pairs) {
@@ -211,7 +217,8 @@ exports.uploadFile = async (req, res) => {
       return res.status(400).json({ error: 'No valid records found. File appears to be empty.' });
     }
     
-    // 1) Write to Google Sheets so the All Investors page (which reads Sheets) shows new data
+    // 1) Write to Google Sheets so the All Investors page (which reads Sheets) shows data
+    //    Change: Append new rows instead of replacing existing data
     try {
       const { GoogleSpreadsheet } = require('google-spreadsheet');
       const { JWT } = require('google-auth-library');
@@ -237,16 +244,25 @@ exports.uploadFile = async (req, res) => {
         if (missing) await sheet.setHeaderRow(headerOrder);
       }
 
-      // Replace existing data rows
-      await sheet.clear('A2:Z');
-      if (validData.length > 0) {
-        await sheet.addRows(validData.map(r => {
-          const row = {};
-          headerOrder.forEach(h => { row[h] = r[h] || ''; });
-          return row;
-        }));
+      // Append without overriding existing rows. Skip duplicates by Partner Email + Investor Name
+      await sheet.loadHeaderRow();
+      const rows = await sheet.getRows();
+      const keyOf = (r) => `${(r['Partner Email']||'').toString().toLowerCase()}|${(r['Investor Name']||'').toString().toLowerCase()}`;
+      const existingKeys = new Set(rows.map(r => keyOf(r)));
+      const toAppend = [];
+      for (const r of validData) {
+        const rowObj = {};
+        headerOrder.forEach(h => { rowObj[h] = r[h] || ''; });
+        const k = `${(rowObj['Partner Email']||'').toString().toLowerCase()}|${(rowObj['Investor Name']||'').toString().toLowerCase()}`;
+        if (!existingKeys.has(k)) {
+          existingKeys.add(k);
+          toAppend.push(rowObj);
+        }
       }
-      console.log('[excel.controller] Wrote rows to Google Sheet:', validData.length);
+      if (toAppend.length > 0) {
+        await sheet.addRows(toAppend);
+      }
+      console.log('[excel.controller] Appended rows to Google Sheet:', toAppend.length);
     } catch (sheetErr) {
       console.error('[excel.controller] Google Sheets write failed:', sheetErr && (sheetErr.stack || sheetErr.message || sheetErr));
       // Do not fail the upload if Sheet write fails; continue to DB save as a fallback
@@ -304,7 +320,7 @@ exports.uploadFile = async (req, res) => {
     
     res.status(200).json({
       success: true,
-      message: `Successfully uploaded ${validData.length} records to Google Sheet`,
+      message: `Successfully appended ${validData.length} records (skips duplicates)`,
       recordCount: validData.length
     });
     
