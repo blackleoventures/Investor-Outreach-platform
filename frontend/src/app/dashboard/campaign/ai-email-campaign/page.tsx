@@ -390,7 +390,7 @@ Best regards,
           
           // Find existing draft campaign for this specific client
           const campaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
-          const campaignIndex = campaigns.findIndex(c => c.clientName === clientName && c.status === 'draft');
+          const campaignIndex = campaigns.findIndex((c: any) => c.clientName === clientName && c.status === 'draft');
           
           if (campaignIndex !== -1) {
             // Update the specific campaign
