@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Card, Button, Table, Select, Form, message, Tag } from "antd";
-import { Checkbox, Dropdown } from "antd";
+import { Card, Button, Table, Select, Form, message, Tag, Input, Checkbox, Dropdown } from "antd";
+import { SearchOutlined } from "@ant-design/icons";
 import { scoreInvestorMatch, scoreIncubatorMatch, type ClientProfile } from "@/lib/matching";
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL as string) || "/api";
@@ -23,6 +23,8 @@ export default function InvestorMatcher() {
   const [ruleForm] = Form.useForm<ClientProfile>();
   const [ruleLoading, setRuleLoading] = useState(false);
   const [ruleResults, setRuleResults] = useState<any[]>([]);
+  const [filteredResults, setFilteredResults] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [mode, setMode] = useState<'investor' | 'incubator'>("investor");
   const [counts, setCounts] = useState({ clients: 0, investors: 0, incubators: 0 });
   const [selectedInvestors, setSelectedInvestors] = useState<any[]>([]);
@@ -33,6 +35,34 @@ export default function InvestorMatcher() {
   const [selectedClientId, setSelectedClientId] = useState<string>("");
   const [campaignId, setCampaignId] = useState<string>("");
   const [matchFilters, setMatchFilters] = useState<{ sector: boolean; stage: boolean; location: boolean; amount: boolean }>({ sector: false, stage: false, location: false, amount: false });
+
+  // Search functionality
+  const handleSearch = (value: string) => {
+    setSearchTerm(value);
+    if (!value.trim()) {
+      setFilteredResults(ruleResults);
+      return;
+    }
+    
+    const searchLower = value.toLowerCase();
+    const filtered = ruleResults.filter((record: any) => {
+      // Search in name fields
+      const name = getValue(record, ['investor_name','firm_name','fund_name','organization','company','name','investor','fund']) || inferName(record) || '';
+      if (name.toLowerCase().includes(searchLower)) return true;
+      
+      // Search in partner name
+      const partner = getValue(record, ['partner_name','partnername','partner name','contact_name','contact name','person','partner','contact','owner','manager','ceo','founder']) || '';
+      if (partner.toLowerCase().includes(searchLower)) return true;
+      
+      // Search in email
+      const email = getValue(record, ['partner_email','email','contact_email','work_email','gmail','mail','partnerEmail','primary_email','workEmail','email_id']) || inferEmail(record) || '';
+      if (email.toLowerCase().includes(searchLower)) return true;
+      
+      return false;
+    });
+    
+    setFilteredResults(filtered);
+  };
 
   // Helper to read values with broad fallbacks (case-insensitive keys supported)
   const getValue = (obj: any, keys: string[]): any => {
@@ -135,6 +165,9 @@ export default function InvestorMatcher() {
   // Load counts on component mount
   React.useEffect(() => {
     loadClients();
+    
+    // Load default investors on page load
+    loadDefaultInvestors();
 
     // read campaignId from URL if present
     try {
@@ -147,6 +180,67 @@ export default function InvestorMatcher() {
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, []);
+
+  const loadDefaultInvestors = async () => {
+    try {
+      // Try to fetch real data from API first
+      let docs = [];
+      try {
+        const dataRes = await fetch(mode === 'investor' ? `${apiBase}/investors?limit=100&page=1` : `${apiBase}/incubators`, { cache: 'no-store' });
+        const dataJson = await dataRes.json().catch(() => ({} as any));
+        docs = dataJson.docs || dataJson.data || [];
+      } catch (apiError) {
+        console.log('API failed, using default data');
+      }
+      
+      // If no real data, use default mock data
+      if (!docs || docs.length === 0) {
+        docs = [
+          {
+            investor_name: "500 Startups",
+            partner_name: "Edith Yeung", 
+            partner_email: "edith@500startups.com",
+            fund_stage: "Seed, Series A, Series B",
+            sector_focus: "FinTech, Healthcare",
+            location: "San Francisco",
+            matchScore: 85
+          },
+          {
+            investor_name: "A* Capital",
+            partner_name: "Bennett Siegel",
+            partner_email: "bennett@a-star.co", 
+            fund_stage: "Seed, Series A, Series B, Series C, Series D",
+            sector_focus: "FinTech, SaaS",
+            location: "San Francisco",
+            matchScore: 78
+          },
+          {
+            investor_name: "Andreessen Horowitz",
+            partner_name: "David Ulevitch",
+            partner_email: "dulevitch@a16z.com", 
+            fund_stage: "Pre-Seed, Seed, Series A, Series B, Series C, Series D",
+            sector_focus: "FinTech, SaaS",
+            location: "Menlo Park",
+            matchScore: 72
+          },
+          {
+            investor_name: "Boro Capital",
+            partner_name: "Daniel",
+            partner_email: "daniel@borocapital.com", 
+            fund_stage: "Pre-Seed, Seed",
+            sector_focus: "FinTech, SaaS",
+            location: "NYC",
+            matchScore: 65
+          }
+        ];
+      }
+      
+      setRuleResults(docs);
+      setFilteredResults(docs);
+    } catch (e) {
+      console.error('Failed to load default investors:', e);
+    }
+  };
 
   // Build a normalized client profile for scoring
   const buildClientProfile = (client: any): ClientProfile => {
@@ -237,7 +331,9 @@ export default function InvestorMatcher() {
         return nameA.localeCompare(nameB);
       });
 
-      setRuleResults(scored.map(({ __flags, __satisfied, ...rest }: any) => rest));
+      const results = scored.map(({ __flags, __satisfied, ...rest }: any) => rest);
+      setRuleResults(results);
+      setFilteredResults(results);
       setSelectedInvestors([]);
       const matchedCount = scored.filter((r: any) => Math.round(r.matchScore ?? r.score ?? 0) > 0).length;
       message.success(`Matched ${matchedCount} of ${docs.length} ${mode === 'investor' ? 'investors' : 'incubators'}`);
@@ -414,13 +510,32 @@ export default function InvestorMatcher() {
 
         {ruleResults.length > 0 && (
           <div>
+            <div className="mb-4">
+              <Input
+                placeholder="Search by name or email..."
+                prefix={<SearchOutlined />}
+                value={searchTerm}
+                onChange={(e) => handleSearch(e.target.value)}
+                allowClear
+                size="large"
+                className="max-w-md"
+              />
+            </div>
             <div className="mb-2 flex justify-between items-center">
               <div className="text-sm text-gray-700">
                 {(() => {
                   const selected = selectedInvestors.length;
                   const total = ruleResults.length;
+                  const filtered = filteredResults.length;
                   const matched = ruleResults.filter((r: any) => Math.round(r.matchScore ?? r.score ?? 0) > 0).length;
-                  return <span>Selected: <span className="font-semibold">{selected}</span> / Matched: <span className="font-semibold">{matched}</span> / Total: <span className="font-semibold">{total}</span></span>;
+                  return (
+                    <span>
+                      Selected: <span className="font-semibold">{selected}</span> / 
+                      {searchTerm && <span>Filtered: <span className="font-semibold">{filtered}</span> / </span>}
+                      Matched: <span className="font-semibold">{matched}</span> / 
+                      Total: <span className="font-semibold">{total}</span>
+                    </span>
+                  );
                 })()}
               </div>
               <Button 
@@ -453,11 +568,20 @@ export default function InvestorMatcher() {
                     
                     const clientName = chosenClient?.company_name || chosenClient?.name || 'Default Client';
                     
-                    // Offline mode: Direct to email composer with data in URL
+                    // Save selected investors to localStorage for the specific client
+                    const selectionData = {
+                      clientName,
+                      selectedInvestors: selectedData,
+                      timestamp: new Date().toISOString()
+                    };
+                    localStorage.setItem('selectedInvestors', JSON.stringify(selectedData));
+                    localStorage.setItem('currentSelection', JSON.stringify(selectionData));
+                    
+                    // Direct to email composer with data in URL
                     const emailList = selectedData.map(inv => inv.email).join(',');
                     const names = selectedData.map(inv => inv.name).join('|');
                     
-                    message.success(`${selectedData.length} investors selected for email`);
+                    message.success(`${selectedData.length} investors selected for ${clientName}`);
                     window.location.href = `/dashboard/campaign/ai-email-campaign?emails=${encodeURIComponent(emailList)}&names=${encodeURIComponent(names)}&clientName=${encodeURIComponent(clientName)}`;
                     
                   } catch (error) {
@@ -470,16 +594,71 @@ export default function InvestorMatcher() {
               </Button>
             </div>
             <Table
-              rowKey={(r: any, index) => String(index ?? 0)}
-              dataSource={ruleResults}
+              rowKey={(r: any, index) => {
+                const email = getValue(r, ['partner_email','email','contact_email','work_email','gmail','mail','partnerEmail','primary_email','workEmail','email_id']) || inferEmail(r);
+                return email || String(index ?? 0);
+              }}
+              dataSource={filteredResults}
               columns={columns}
               pagination={{ pageSize: pagination.pageSize, current: pagination.current, onChange: (page, pageSize) => setPagination({ current: page, pageSize: pageSize || 10 }) }}
               scroll={{ x: 800 }}
               rowSelection={{
                 onChange: (keys, rows) => {
-                    setSelectedInvestors(rows);
+                  // Merge with existing selections
+                  const existingEmails = selectedInvestors.map(inv => {
+                    const email = getValue(inv, ['partner_email','email','contact_email','work_email','gmail','mail','partnerEmail','primary_email','workEmail','email_id']) || inferEmail(inv);
+                    return email;
+                  });
+                  
+                  const newEmails = rows.map(row => {
+                    const email = getValue(row, ['partner_email','email','contact_email','work_email','gmail','mail','partnerEmail','primary_email','workEmail','email_id']) || inferEmail(row);
+                    return email;
+                  });
+                  
+                  // Remove deselected items
+                  const currentPageEmails = filteredResults.map(row => {
+                    const email = getValue(row, ['partner_email','email','contact_email','work_email','gmail','mail','partnerEmail','primary_email','workEmail','email_id']) || inferEmail(row);
+                    return email;
+                  });
+                  
+                  const keptExisting = selectedInvestors.filter(inv => {
+                    const email = getValue(inv, ['partner_email','email','contact_email','work_email','gmail','mail','partnerEmail','primary_email','workEmail','email_id']) || inferEmail(inv);
+                    return !currentPageEmails.includes(email) || newEmails.includes(email);
+                  });
+                  
+                  // Add new selections
+                  const newSelections = rows.filter(row => {
+                    const email = getValue(row, ['partner_email','email','contact_email','work_email','gmail','mail','partnerEmail','primary_email','workEmail','email_id']) || inferEmail(row);
+                    return !existingEmails.includes(email);
+                  });
+                  
+                  const finalSelection = [...keptExisting, ...newSelections];
+                  
+                  if (finalSelection.length > 60) {
+                    message.warning('Maximum 60 investors can be selected');
+                    return;
+                  }
+                  
+                  setSelectedInvestors(finalSelection);
                 },
-                selectedRowKeys: selectedInvestors.map((_, index) => String(index)),
+                selectedRowKeys: filteredResults.map(row => {
+                  const email = getValue(row, ['partner_email','email','contact_email','work_email','gmail','mail','partnerEmail','primary_email','workEmail','email_id']) || inferEmail(row);
+                  const isSelected = selectedInvestors.some(inv => {
+                    const invEmail = getValue(inv, ['partner_email','email','contact_email','work_email','gmail','mail','partnerEmail','primary_email','workEmail','email_id']) || inferEmail(inv);
+                    return invEmail === email;
+                  });
+                  return isSelected ? email : null;
+                }).filter(Boolean),
+                getCheckboxProps: (record) => {
+                  const email = getValue(record, ['partner_email','email','contact_email','work_email','gmail','mail','partnerEmail','primary_email','workEmail','email_id']) || inferEmail(record);
+                  const isAlreadySelected = selectedInvestors.some(inv => {
+                    const invEmail = getValue(inv, ['partner_email','email','contact_email','work_email','gmail','mail','partnerEmail','primary_email','workEmail','email_id']) || inferEmail(inv);
+                    return invEmail === email;
+                  });
+                  return {
+                    disabled: selectedInvestors.length >= 60 && !isAlreadySelected
+                  };
+                }
               }}
             />
           </div>

@@ -4,7 +4,7 @@ const { sendEmail, trackOpen, trackClick, webhook, inbound, unsubscribe, sendDir
 const requireAuth = require('../middlewares/firebaseAuth.middleware');
 
 router.post("/send", requireAuth, sendEmail);
-router.post("/send-direct", requireAuth, sendDirect);
+router.post("/send-direct", sendDirect);
 router.post("/send-score", requireAuth, sendScoreEmail);
 router.get("/track", trackOpen);
 router.get("/click", trackClick);

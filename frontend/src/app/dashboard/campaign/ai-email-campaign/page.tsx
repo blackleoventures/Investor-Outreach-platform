@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, Typography, Tabs, Upload, Button, message, Progress, Tag, Table, Modal, Spin, Input, Select, Form, Space, Radio, DatePicker, TimePicker, Dropdown } from "antd";
+import { Card, Typography, Tabs, Upload, Button, message, Progress, Tag, Table, Modal, Spin, Input, Select, Form, Space, Radio, DatePicker, TimePicker, Dropdown, List } from "antd";
 import type { Dayjs } from 'dayjs';
 import { MailOutlined, UserOutlined, FileTextOutlined, RobotOutlined, UploadOutlined, BarChartOutlined, EyeOutlined } from "@ant-design/icons";
 import { motion } from "framer-motion";
+import GmailConnect from "@/components/GmailConnect";
 const { TextArea } = Input;
 const { Option } = Select;
 
@@ -141,7 +142,7 @@ const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileNa
   const [enhancingSubject, setEnhancingSubject] = useState(false);
   const [enhancingContent, setEnhancingContent] = useState(false);
   const [formKey, setFormKey] = useState('composer');
-  const [backendStatus, setBackendStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+
   const MAX_RECIPIENTS = 20;
   const [recipients, setRecipients] = useState<string[]>([]);
   const [scheduleType, setScheduleType] = useState<'immediate' | 'scheduled'>('immediate');
@@ -150,6 +151,8 @@ const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileNa
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [customDate, setCustomDate] = useState<Date | null>(null);
   const [customTime, setCustomTime] = useState<Dayjs | null>(null);
+  const [showAllEmailsModal, setShowAllEmailsModal] = useState(false);
+  const [emailLimits, setEmailLimits] = useState({ daily: 0, weekly: 0 });
   // MAX_RECIPIENTS defined above
 
   const useTemplate = () => {
@@ -167,22 +170,7 @@ const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileNa
     message.success('Template loaded successfully!');
   };
 
-  // Check backend status
-  useEffect(() => {
-    const checkBackend = async () => {
-      try {
-        const response = await fetch('/api/email/send-direct', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: 'test@test.com', subject: 'test', html: 'test' })
-        });
-        setBackendStatus(response.status < 500 ? 'online' : 'offline');
-      } catch {
-        setBackendStatus('offline');
-      }
-    };
-    checkBackend();
-  }, []);
+
 
   // Auto-load the template when the composer is shown
   useEffect(() => {
@@ -342,7 +330,7 @@ Best regards,
           subject: values.subject,
           html: values.content,
           scheduleAt: new Date(scheduleDate).toISOString(),
-          from: 'priyanshusingh99p@gmail.com'
+          from: clientEmail
         };
         
         const response = await fetch(`${BACKEND_URL}/scheduled-emails`, {
@@ -365,37 +353,65 @@ Best regards,
         return;
       }
 
-      // Send immediately
-      const payload = { to: deduped.join(', '), subject: values.subject, html: values.content, from: 'priyanshusingh99p@gmail.com' };
-      const response = await fetch('/api/email/send-direct', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) { throw new Error('Backend server is not responding properly. Please check if the backend is running.'); }
+      // Send emails to backend
+      const urlParams = new URLSearchParams(window.location.search);
+      const clientEmail = urlParams.get('clientEmail') || 'priyanshusingh99p@gmail.com';
+      const clientTokens = localStorage.getItem('clientGmailTokens');
+      const payload = { 
+        to: deduped.join(', '), 
+        subject: values.subject, 
+        html: values.content, 
+        from: clientEmail,
+        clientTokens: clientTokens ? JSON.parse(clientTokens) : null
+      };
+      console.log('Sending email payload:', payload);
+      
+      const response = await fetch('/api/email/send-direct', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify(payload) 
+      });
+      
       const result = await response.json();
+      console.log('Email response:', result);
+      
       if (response.ok && result.success) {
-        message.success('Email sent successfully!');
-        
-        // Create campaign and report
+        message.success(`✅ Email sent successfully to ${deduped.length} recipients!`);
+      } else {
+        throw new Error(result.error || 'Failed to send email');
+      }
+      
+      // Update existing campaign for selected client (regardless of email status)
         try {
           const urlParams = new URLSearchParams(window.location.search);
           const clientName = urlParams.get('clientName') || 'Default Client';
-          const campaignName = `${clientName}_Investor_Outreach`;
           
-          // Create campaign record
+          // Find existing draft campaign for this specific client
           const campaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
-          const newCampaign = {
-            id: Date.now().toString(),
-            name: campaignName,
-            clientName: clientName,
-            type: 'Email',
-            status: 'Active',
-            recipients: deduped.length,
-            createdAt: new Date().toISOString(),
-            selectedInvestors: deduped.map(email => ({ email, name: 'Investor' })),
-            emailsSent: deduped.length,
-            subject: values.subject
-          };
-          campaigns.unshift(newCampaign);
-          localStorage.setItem('campaigns', JSON.stringify(campaigns));
+          const campaignIndex = campaigns.findIndex(c => c.clientName === clientName && c.status === 'draft');
+          
+          if (campaignIndex !== -1) {
+            // Update the specific campaign
+            campaigns[campaignIndex].status = 'Active';
+            campaigns[campaignIndex].recipients = (campaigns[campaignIndex].recipients || 0) + deduped.length;
+            campaigns[campaignIndex].emailsSent = (campaigns[campaignIndex].emailsSent || 0) + deduped.length;
+            campaigns[campaignIndex].lastSentAt = new Date().toISOString();
+            campaigns[campaignIndex].subject = values.subject;
+            campaigns[campaignIndex].body = values.content;
+            
+            // Add sent emails to this campaign
+            if (!campaigns[campaignIndex].sentEmails) campaigns[campaignIndex].sentEmails = [];
+            campaigns[campaignIndex].sentEmails.push(...deduped.map(email => ({
+              email,
+              sentAt: new Date().toISOString(),
+              subject: values.subject
+            })));
+            
+            localStorage.setItem('campaigns', JSON.stringify(campaigns));
+            message.success(`${clientName} campaign updated: ${deduped.length} emails sent`);
+          } else {
+            message.warning(`No draft campaign found for ${clientName}. Please create a campaign first.`);
+          }
           
           // Create report
           const reports = JSON.parse(localStorage.getItem('reports') || '[]');
@@ -408,9 +424,9 @@ Best regards,
           
           const newReport = {
             id: Date.now(),
-            name: `${campaignName} Report`,
+            name: `${clientName} Report`,
             type: 'Campaign',
-            campaignId: newCampaign.id,
+            campaignId: campaignIndex !== -1 ? campaigns[campaignIndex].id : Date.now(),
             clientName: clientName,
             createdAt: new Date().toISOString(),
             status: 'completed',
@@ -420,13 +436,23 @@ Best regards,
           reports.unshift(newReport);
           localStorage.setItem('reports', JSON.stringify(reports));
           
-          message.info('Campaign created and report generated!');
+          // Update campaign tracking
+          const campaignTracking = JSON.parse(localStorage.getItem('campaignTracking') || '{}');
+          if (campaignIndex !== -1) {
+            campaignTracking[campaigns[campaignIndex].id] = {
+              totalRecipients: campaigns[campaignIndex].recipients,
+              sentCount: campaigns[campaignIndex].emailsSent,
+              lastUpdated: new Date().toISOString(),
+              clientName: clientName
+            };
+            localStorage.setItem('campaignTracking', JSON.stringify(campaignTracking));
+          }
         } catch (e) {
           console.error('Failed to create campaign/report:', e);
         }
         
         form.resetFields();
-      } else { throw new Error(result.error || 'Failed to send email'); }
+
     } catch (err: any) {
       console.error('Email send error:', err);
       if (typeof err?.message === 'string' && err.message.includes('fetch')) {
@@ -494,18 +520,7 @@ Best regards,
           </div>
 
           
-          {/* Backend Status Indicator */}
-          <div className="mb-4">
-            {backendStatus === 'checking' && (
-              <Tag color="blue">🔄 Checking backend connection...</Tag>
-            )}
-            {backendStatus === 'online' && (
-              <Tag color="green">✅ Backend connected</Tag>
-            )}
-            {backendStatus === 'offline' && (
-              <Tag color="red">❌ Backend offline - Start backend server: cd backend && npm start</Tag>
-            )}
-          </div>
+
         {/* Selected schedule status (top-left) */}
         {selectedScheduleLabel && (
           <div className="mb-3 text-left">
@@ -537,6 +552,13 @@ Best regards,
 
         </div>
 
+        <div className="mb-4 text-center">
+          <GmailConnect onConnected={(tokens) => {
+            localStorage.setItem('clientGmailTokens', JSON.stringify(tokens));
+            message.success('Gmail connected! Emails will be sent from your account.');
+          }} />
+        </div>
+
         <Form
           key={formKey}
           form={form}
@@ -544,24 +566,28 @@ Best regards,
           onFinish={sendEmail}
           className="max-w-4xl mx-auto"
         >
-          <Form.Item
-            label="📧 To Email"
-            name="to"
-            rules={[{ required: true, message: 'Please enter at least one email!' }]}
-            className="mb-4"
-          >
-            <Input placeholder="investor1@example.com, investor2@example.com" size="large" onChange={(e)=>{
-              const list = e.target.value.split(/[;,\n\s]+/).map(s=>s.trim()).filter(s=>s.includes('@'));
-              setRecipients(Array.from(new Set(list)).slice(0, MAX_RECIPIENTS));
-            }} />
-          </Form.Item>
-          {recipients.length > 0 && (
-            <div className="mb-6 flex flex-wrap gap-2">
-              {recipients.map((email)=> (
-                <Tag key={email} color="blue">{email}</Tag>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            <Form.Item
+              label="📧 To Email"
+              name="to"
+              rules={[{ required: true, message: 'Please enter at least one email!' }]}
+              className="mb-4 flex-1"
+            >
+              <Input placeholder="investor1@example.com, investor2@example.com" size="large" onChange={(e)=>{
+                const list = e.target.value.split(/[;,\n\s]+/).map(s=>s.trim()).filter(s=>s.includes('@'));
+                setRecipients(Array.from(new Set(list)).slice(0, MAX_RECIPIENTS));
+              }} />
+            </Form.Item>
+            
+            {recipients.length > 0 && (
+              <Button
+                onClick={() => setShowAllEmailsModal(true)}
+                className="mb-4"
+              >
+                View All ({recipients.length})
+              </Button>
+            )}
+          </div>
 
           <Form.Item
             label="📝 Subject Line"
@@ -632,11 +658,11 @@ Best regards,
               htmlType="submit"
               size="large"
               loading={sending}
-              disabled={backendStatus === 'offline'}
+
               className="bg-gradient-to-r from-green-500 to-blue-600 border-0 px-8"
             >
               {sending ? '📤 Sending...' : 
-               backendStatus === 'offline' ? '❌ Backend Offline' : 
+ 
                scheduleType === 'scheduled' ? `📅 Schedule for ${selectedScheduleLabel}` : 
                '🚀 Send Email'}
             </Button>
@@ -755,6 +781,67 @@ Best regards,
           </div>
           <div className="text-center text-gray-300 text-xs mt-4">All times are in India Standard Time</div>
           <div className="flex justify-center mt-3"><Button onClick={() => setScheduleModalOpen(false)} className="bg-red-600 hover:bg-red-700 text-white border-red-600">Close</Button></div>
+        </div>
+      </Modal>
+      
+      {/* All Emails Modal */}
+      <Modal
+        title={`All Recipients (${recipients.length})`}
+        open={showAllEmailsModal}
+        onCancel={() => setShowAllEmailsModal(false)}
+        footer={[
+          <Button key="copy" onClick={() => {
+            navigator.clipboard.writeText(recipients.join(', '));
+            message.success('All emails copied to clipboard!');
+          }}>
+            Copy All
+          </Button>,
+          <Button key="close" onClick={() => setShowAllEmailsModal(false)}>
+            Close
+          </Button>
+        ]}
+        width={600}
+      >
+        <div className="max-h-96 overflow-y-auto">
+          <List
+            dataSource={recipients}
+            renderItem={(email, index) => (
+              <List.Item className="px-0">
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-500 text-sm">{index + 1}.</span>
+                    <span className="text-sm">{email}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="text"
+                      size="small"
+                      onClick={() => {
+                        navigator.clipboard.writeText(email);
+                        message.success('Email copied!');
+                      }}
+                      className="text-blue-500 hover:text-blue-700"
+                    >
+                      Copy
+                    </Button>
+                    <Button
+                      type="text"
+                      size="small"
+                      onClick={() => {
+                        const newList = recipients.filter(r => r !== email);
+                        setRecipients(newList);
+                        form.setFieldValue('to', newList.join(', '));
+                        message.success('Email removed!');
+                      }}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              </List.Item>
+            )}
+          />
         </div>
       </Modal>
     </div>

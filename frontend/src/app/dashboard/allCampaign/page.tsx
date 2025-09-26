@@ -20,33 +20,31 @@ const Campaigns = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [editForm] = Form.useForm();
+  const [selectedClient, setSelectedClient] = useState('all');
+  const [campaignStats, setCampaignStats] = useState({});
 
 
-  const [invOpen, setInvOpen] = useState(false);
-  const [invLoading, setInvLoading] = useState(false);
-  const [investors, setInvestors] = useState([]);
-  const [selectedInvestorEmails, setSelectedInvestorEmails] = useState<string[]>([]);
-  const [invPageCurrent, setInvPageCurrent] = useState(1);
-  const invPageSize = 10;
+
 
   useEffect(() => { 
     loadCampaigns(); 
-    // Load selected investors from localStorage
-    const saved = localStorage.getItem('selectedInvestors');
-    if (saved) {
-      try {
-        const investors = JSON.parse(saved);
-        setInvestors(investors);
-        message.info(`${investors.length} investors loaded from matching`);
-      } catch (e) {
-        console.error('Failed to load saved investors:', e);
-      }
-    }
+
+    
+    // Real-time campaign tracking
+    const interval = setInterval(() => {
+      loadCampaigns();
+    }, 2000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const loadCampaigns = async () => {
     setLoading(true);
     try {
+      // Load campaign tracking stats
+      const tracking = JSON.parse(localStorage.getItem('campaignTracking') || '{}');
+      setCampaignStats(tracking);
+      
       // Load from localStorage first (real campaigns)
       let localCampaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');
 
@@ -163,12 +161,34 @@ const Campaigns = () => {
     });
   };
 
+  // Filter campaigns by client
+  const filteredCampaigns = selectedClient === 'all' 
+    ? campaigns 
+    : campaigns.filter(c => c.clientName === selectedClient);
+    
+  // Get unique clients
+  const clients = ['all', ...new Set(campaigns.map(c => c.clientName).filter(Boolean))];
+  
   const columns = [
     { title: 'S.No.', key: 'serial', width: 60, render: (_, __, idx) => idx + 1 },
     { title: 'Campaign Name', dataIndex: 'name', key: 'name' },
+    { title: 'Client', dataIndex: 'clientName', key: 'clientName', render: (c) => c || '-' },
     { title: 'Type', dataIndex: 'type', key: 'type', render: (t) => <Tag color="blue">{t || 'Email'}</Tag> },
     { title: 'Status', dataIndex: 'status', key: 'status', render: (s) => <Tag color={(s||'draft').toLowerCase()==='active'?'green':'orange'}>{s || 'draft'}</Tag> },
-    { title: 'Recipients', dataIndex: 'recipients', key: 'recipients', render: (r, rec) => r ?? rec?.audience?.length ?? 0 },
+    { title: 'Recipients', dataIndex: 'recipients', key: 'recipients', render: (r, rec) => {
+      const sentEmails = rec?.sentEmails?.length ?? rec?.emailsSent ?? 0;
+      const isDraft = (rec.status || 'draft').toLowerCase() === 'draft';
+      
+      return (
+        <div className="font-medium">
+          {isDraft ? (
+            <span>{sentEmails}</span>
+          ) : (
+            <span className="text-green-600">{sentEmails}</span>
+          )}
+        </div>
+      );
+    }},
     { title: 'Created Date', dataIndex: 'createdAt', key: 'createdAt', render: (d) => d ? new Date(d.seconds ? d.seconds*1000 : d).toLocaleDateString() : '-' },
     {
       title: 'Actions', key: 'actions', render: (_, record, index) => (
@@ -190,36 +210,23 @@ const Campaigns = () => {
       <Card
         title={<Title level={4} className="!mb-0"><MailOutlined className="mr-2"/>Campaign Management</Title>}
         extra={
-          <Button type="primary" icon={<PlusOutlined/>} onClick={() => router.push('/dashboard/campaign/ai-email-campaign')} style={{backgroundColor:'#ac6a1e'}}>Create Campaign</Button>
+          <Select
+            value={selectedClient}
+            onChange={setSelectedClient}
+            style={{ width: 200 }}
+            placeholder="Filter by client"
+          >
+            <Select.Option value="all">All Clients</Select.Option>
+            {clients.filter(c => c !== 'all').map(client => (
+              <Select.Option key={client} value={client}>{client}</Select.Option>
+            ))}
+          </Select>
         }
       >
-        {investors.length > 0 && (
-          <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-            <div className="flex justify-between items-center mb-2">
-              <span className="font-semibold text-blue-800">Selected Investors ({investors.length})</span>
-              <Button size="small" onClick={() => {
-                localStorage.removeItem('selectedInvestors');
-                setInvestors([]);
-                message.success('Investors cleared');
-              }}>Clear</Button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-              {investors.slice(0, 6).map((inv, idx) => (
-                <div key={idx} className="text-sm bg-white p-2 rounded border">
-                  <div className="font-medium">{inv.name}</div>
-                  <div className="text-gray-600">{inv.email}</div>
-                  <div className="text-xs text-blue-600">Score: {inv.score}</div>
-                </div>
-              ))}
-              {investors.length > 6 && (
-                <div className="text-sm text-gray-500 p-2">+{investors.length - 6} more...</div>
-              )}
-            </div>
-          </div>
-        )}
+
         <Table
           columns={columns}
-          dataSource={campaigns}
+          dataSource={filteredCampaigns}
           loading={loading}
           rowKey={(r, idx)=> r.id || r._id || `${r.name||'campaign'}-${idx}`}
           pagination={{ pageSize: 10, showSizeChanger: true, showTotal: t=>`Total ${t} campaigns` }}
@@ -264,102 +271,112 @@ const Campaigns = () => {
         </Form>
       </Modal>
 
-      <Modal open={viewOpen} onCancel={()=>setViewOpen(false)} footer={null} width={980} title={<span className="text-lg font-semibold">Campaign Details</span>}>
+      <Modal open={viewOpen} onCancel={()=>setViewOpen(false)} footer={null} width={1200} title={<span className="text-lg font-semibold">Campaign Details - Sent Emails</span>} style={{ top: 20 }} bodyStyle={{ maxHeight: '80vh', overflowY: 'auto', padding: '16px' }}>
         {selected && (
-          <Descriptions bordered column={2} size="middle" labelStyle={{ width: 200 }}>
-            <Descriptions.Item label="Campaign Name" span={2}>{selected.name}</Descriptions.Item>
-            <Descriptions.Item label="Client/Startup" span={2}>{selected.clientName || '-'}</Descriptions.Item>
-            <Descriptions.Item label="Type"><Tag color="blue">{selected.type || 'Email'}</Tag></Descriptions.Item>
-            <Descriptions.Item label="Status"><Tag color={(selected.status||'draft').toLowerCase()==='active'?'green':'orange'}>{selected.status || 'draft'}</Tag></Descriptions.Item>
-            <Descriptions.Item label="Recipients" span={2}>{selected.recipients ?? selected?.audience?.length ?? 0}</Descriptions.Item>
-            <Descriptions.Item label="Subject" span={2}>{selected.subject || '-'}</Descriptions.Item>
-            <Descriptions.Item label="Email Body" span={2}><div style={{ whiteSpace: 'pre-wrap' }}>{selected.body || selected.emailBody || '-'}</div></Descriptions.Item>
-            {Array.isArray(selected.attachments) && selected.attachments.length > 0 && (
-              <Descriptions.Item label="Attachments" span={2}>
-                {selected.attachments.map((a, i) => (
-                  <div key={i}><a href={a.url || a} target="_blank" rel="noreferrer">{a.name || a.url || `Attachment ${i+1}`}</a></div>
-                ))}
-              </Descriptions.Item>
-            )}
-            {Array.isArray(selected.audience) && selected.audience.length > 0 && (
-              <Descriptions.Item label="Audience List" span={2}>
-                {selected.audience.slice(0, 10).map((p, i) => (
-                  <div key={i}><Text>{p.name || p.fullName || '-'}</Text> &lt;<Text>{p.email}</Text>&gt; {typeof p.score !== 'undefined' && <Tag>{p.score}</Tag>}</div>
-                ))}
-                {selected.audience.length > 10 && <div className="text-xs text-gray-500">+{selected.audience.length - 10} more…</div>}
-              </Descriptions.Item>
-            )}
-            <Descriptions.Item label="Schedule" span={2}>{selected.schedule || selected.scheduleType || 'Immediate'}</Descriptions.Item>
-            {selected.reports && (
-              <Descriptions.Item label="Reports" span={2}>
-                <Space>
-                  <Tag>Sent: {selected.reports.sent ?? 0}</Tag>
-                  <Tag>Opened: {selected.reports.opened ?? 0}</Tag>
-                  <Tag>Clicked: {selected.reports.clicked ?? 0}</Tag>
-                  <Tag>Replied: {selected.reports.replied ?? 0}</Tag>
-                </Space>
-              </Descriptions.Item>
-            )}
-          </Descriptions>
+          <div className="space-y-6" style={{ maxHeight: '75vh', overflowY: 'auto' }}>
+            {/* Campaign Summary */}
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <Text className="text-sm text-gray-600">Campaign</Text>
+                  <div className="font-semibold">{selected.name}</div>
+                </div>
+                <div>
+                  <Text className="text-sm text-gray-600">Client</Text>
+                  <div className="font-semibold">{selected.clientName || '-'}</div>
+                </div>
+                <div>
+                  <Text className="text-sm text-gray-600">Status</Text>
+                  <div><Tag color={(selected.status||'draft').toLowerCase()==='active'?'green':'orange'}>{selected.status || 'draft'}</Tag></div>
+                </div>
+                <div>
+                  <Text className="text-sm text-gray-600">Total Sent</Text>
+                  <div className="font-semibold text-green-600">{selected?.sentEmails?.length || selected?.emailsSent || 0}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Sent Emails List */}
+            <div>
+              <Title level={5} className="!mb-3">📧 Sent Emails ({selected?.sentEmails?.length || 0})</Title>
+              {selected?.sentEmails && selected.sentEmails.length > 0 ? (
+                <Table
+                  dataSource={selected.sentEmails}
+                  rowKey={(record, index) => record.email + index}
+                  pagination={{ pageSize: 10, showSizeChanger: true }}
+                  columns={[
+                    {
+                      title: 'S.No.',
+                      key: 'serial',
+                      width: 60,
+                      render: (_, __, index) => index + 1
+                    },
+                    {
+                      title: 'Investor Email',
+                      dataIndex: 'email',
+                      key: 'email',
+                      render: (email) => (
+                        <Text copyable className="text-blue-600">{email}</Text>
+                      )
+                    },
+                    {
+                      title: 'Subject',
+                      dataIndex: 'subject',
+                      key: 'subject',
+                      render: (subject) => (
+                        <Tooltip title={subject}>
+                          <Text className="max-w-xs truncate block">{subject || selected.subject || '-'}</Text>
+                        </Tooltip>
+                      )
+                    },
+                    {
+                      title: 'Sent At',
+                      dataIndex: 'sentAt',
+                      key: 'sentAt',
+                      render: (sentAt) => (
+                        <Text className="text-sm text-gray-600">
+                          {sentAt ? new Date(sentAt).toLocaleString() : '-'}
+                        </Text>
+                      )
+                    },
+                    {
+                      title: 'Status',
+                      key: 'status',
+                      render: () => (
+                        <Tag color="green">Sent</Tag>
+                      )
+                    }
+                  ]}
+                />
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <MailOutlined className="text-4xl mb-2" />
+                  <div>No emails sent yet</div>
+                  <Text className="text-sm">Emails will appear here once the campaign is executed</Text>
+                </div>
+              )}
+            </div>
+
+            {/* Campaign Details */}
+            <div>
+              <Title level={5} className="!mb-3">📋 Campaign Details</Title>
+              <Descriptions bordered column={1} size="small">
+                <Descriptions.Item label="Subject">{selected.subject || '-'}</Descriptions.Item>
+                <Descriptions.Item label="Email Body">
+                  <div className="max-h-32 overflow-y-auto text-sm" style={{ whiteSpace: 'pre-wrap' }}>
+                    {selected.body || selected.emailBody || '-'}
+                  </div>
+                </Descriptions.Item>
+                <Descriptions.Item label="Schedule">{selected.schedule || selected.scheduleType || 'Immediate'}</Descriptions.Item>
+              </Descriptions>
+            </div>
+          </div>
         )}
       </Modal>
 
 
 
-      <Modal
-        open={invOpen}
-        onCancel={() => setInvOpen(false)}
-        onOk={() => {
-          message.success(`Selected ${selectedInvestorEmails.length} investors`);
-          setSelectedInvestorEmails([]);
-          setInvOpen(false);
-        }}
-        okText={`Add Investors (${selectedInvestorEmails.length})`}
-        okButtonProps={{
-          type: 'primary',
-          style: { backgroundColor: '#1677ff', borderRadius: 6, padding: '0 16px' },
-          disabled: selectedInvestorEmails.length === 0,
-        }}
-        title={
-          <div className="flex items-center justify-between w-full">
-            <span className="text-lg font-semibold">Select Investors</span>
-            <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
-              Total: {investors.length} · Selected: {selectedInvestorEmails.length}
-            </span>
-          </div>
-        }
-        width={900}
-        style={{ top: 40 }}
-        styles={{ body: { maxHeight: '65vh', overflowY: 'auto' } }}
-      >
-        <Table
-          loading={invLoading}
-          dataSource={investors}
-          rowKey={(r:any)=> r.id || r._id || r.displayEmail || r.partner_email || r.email}
-          rowSelection={{
-            onChange: (_keys, rows:any[]) => {
-              const emails = rows.map(r => r.displayEmail || r.partner_email || r.email).filter(Boolean);
-              setSelectedInvestorEmails(emails);
-            },
-            getCheckboxProps: (record:any) => ({ disabled: !(record.displayEmail || record.partner_email || record.email) })
-          }}
-          columns={[
-            { title: 'S.No.', key: 'serial', width: 70, align: 'center' as const, render: (_:any, __:any, idx:number)=> (idx + 1) + (invPageCurrent - 1) * invPageSize },
-            { title: 'Investor Name', key: 'name', render: (_:any, r:any)=> r.name || r.investor_name || r.displayName || r.fullName || `${r.first_name||''} ${r.last_name||''}`.trim() || '-' },
-            { title: 'Investor Email', key: 'email', render: (_:any, r:any)=> r.email || r.displayEmail || r.partner_email || '-' },
-            { title: 'Score', key: 'score', render: (_:any, r:any)=> (r.score ?? r.matchScore ?? '-') },
-          ]}
-          pagination={{ 
-            pageSize: invPageSize, 
-            current: invPageCurrent, 
-            onChange: (p)=> setInvPageCurrent(p), 
-            showSizeChanger: false, 
-            total: investors.length, 
-            showTotal: (total, range)=> `${range[0]}-${range[1]} of ${total}`,
-            showQuickJumper: true
-          }}
-        />
-      </Modal>
+
     </div>
   );
 };

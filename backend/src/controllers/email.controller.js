@@ -77,6 +77,62 @@ exports.sendEmail = async (req, res) => {
   }
 };
 
+// Check rate limits
+const checkRateLimit = async (userEmail) => {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const weekStart = new Date(today.getTime() - (today.getDay() * 24 * 60 * 60 * 1000));
+  const weekStartStr = weekStart.toISOString().split('T')[0];
+  
+  // Check daily limit (60 emails)
+  const dailyRef = db.collection('emailLimits').doc(`${userEmail}_${todayStr}`);
+  const dailyDoc = await dailyRef.get();
+  const dailyCount = dailyDoc.exists ? dailyDoc.data().count : 0;
+  
+  if (dailyCount >= 60) {
+    throw new Error('Daily email limit reached (60 emails per day)');
+  }
+  
+  // Check weekly limit (240 emails)
+  const weeklyQuery = await db.collection('emailLimits')
+    .where('userEmail', '==', userEmail)
+    .where('date', '>=', weekStartStr)
+    .where('date', '<=', todayStr)
+    .get();
+  
+  const weeklyCount = weeklyQuery.docs.reduce((sum, doc) => sum + doc.data().count, 0);
+  
+  if (weeklyCount >= 240) {
+    throw new Error('Weekly email limit reached (240 emails per week)');
+  }
+  
+  return { dailyCount, weeklyCount };
+};
+
+// Update email count
+const updateEmailCount = async (userEmail, emailCount) => {
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  
+  const dailyRef = db.collection('emailLimits').doc(`${userEmail}_${todayStr}`);
+  const dailyDoc = await dailyRef.get();
+  
+  if (dailyDoc.exists) {
+    await dailyRef.update({
+      count: dailyDoc.data().count + emailCount,
+      lastUpdated: new Date()
+    });
+  } else {
+    await dailyRef.set({
+      userEmail,
+      date: todayStr,
+      count: emailCount,
+      createdAt: new Date(),
+      lastUpdated: new Date()
+    });
+  }
+};
+
 // Lightweight direct sender that doesn't require a campaign in Firebase
 exports.sendDirect = async (req, res) => {
   try {
@@ -84,10 +140,19 @@ exports.sendDirect = async (req, res) => {
     if (!to || !subject || !html) {
       return res.status(400).json({ error: "to, subject, html are required" });
     }
+    
     const messageId = uuidv4();
     const result = await sendEmail({ to, from, subject, html, messageId });
-    return res.status(200).json({ success: true, messageId, providerStatus: result.statusCode });
+    
+    return res.status(200).json({ 
+      success: true, 
+      messageId, 
+      providerStatus: result.statusCode
+    });
   } catch (err) {
+    if (err.message.includes('limit reached')) {
+      return res.status(429).json({ error: err.message });
+    }
     return res.status(500).json({ error: err.message || 'Failed to send email' });
   }
 };

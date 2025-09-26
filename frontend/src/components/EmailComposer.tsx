@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useState } from "react";
-import { Select, Input, Button, message, Card, Tabs, Progress, Tag, Switch, Upload, Alert, Space, Typography } from "antd";
-import { RobotOutlined, SendOutlined, BulbOutlined, ThunderboltOutlined, UploadOutlined, FileTextOutlined, CheckCircleOutlined } from "@ant-design/icons";
+import { Select, Input, Button, message, Card, Progress, Tag, Switch, Upload, Alert, Space, Typography, List, Divider } from "antd";
+import { RobotOutlined, SendOutlined, BulbOutlined, ThunderboltOutlined, UploadOutlined, CheckCircleOutlined, CloseOutlined, PlusOutlined, UserOutlined } from "@ant-design/icons";
 
 const { Text } = Typography;
-const { Dragger } = Upload;
 
 const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL as string) || "/api";
 
@@ -14,7 +13,8 @@ type EnhanceOption = { style: string; subject: string; body: string; score?: num
 
 export default function EmailComposer() {
   const [sender, setSender] = useState("");
-  const [recipients, setRecipients] = useState("");
+  const [recipients, setRecipients] = useState<string[]>([]);
+  const [newRecipient, setNewRecipient] = useState("");
   const [campaignId, setCampaignId] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -23,9 +23,27 @@ export default function EmailComposer() {
   const [subjectOptions, setSubjectOptions] = useState<SubjectOption[]>([]);
   const [enhanceOptions, setEnhanceOptions] = useState<EnhanceOption[]>([]);
   const [enableFollowUp, setEnableFollowUp] = useState(false);
-  const [activeTab, setActiveTab] = useState("compose");
   const [documentUploaded, setDocumentUploaded] = useState(false);
   const [extractedData, setExtractedData] = useState<any>(null);
+
+  const addRecipient = () => {
+    if (!newRecipient.trim()) return;
+    const email = newRecipient.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      message.error("Please enter a valid email address");
+      return;
+    }
+    if (recipients.includes(email)) {
+      message.warning("Email already added");
+      return;
+    }
+    setRecipients([...recipients, email]);
+    setNewRecipient("");
+  };
+
+  const removeRecipient = (email: string) => {
+    setRecipients(recipients.filter(r => r !== email));
+  };
 
   const optimizeSubject = async () => {
     setLoading(true);
@@ -130,11 +148,7 @@ export default function EmailComposer() {
   };
 
   const sendEmail = async () => {
-    const to = recipients
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-    if (!campaignId || to.length === 0 || !subject || !body) {
+    if (!campaignId || recipients.length === 0 || !subject || !body) {
       message.warning("Campaign ID, recipients, subject, and body are required");
       return;
     }
@@ -146,7 +160,7 @@ export default function EmailComposer() {
         body: JSON.stringify({
           campaignId,
           content: body,
-          recipients: to,
+          recipients,
           sender: sender || undefined,
           subject,
           type: "ai",
@@ -154,7 +168,7 @@ export default function EmailComposer() {
         }),
       });
       if (!res.ok) throw new Error("Failed to send email");
-      message.success(`Emails queued for ${to.length} recipients!`);
+      message.success(`Emails queued for ${recipients.length} recipients!`);
     } catch (e: any) {
       message.error(e.message || "Send failed");
     } finally {
@@ -163,226 +177,282 @@ export default function EmailComposer() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-xl font-semibold text-gray-800">AI-Powered Email Composer</h3>
-          <p className="text-gray-600">Create personalized investor outreach emails with AI assistance</p>
-        </div>
-      </div>
-
-      <Card className="shadow-lg border-0">
+    <div className="flex gap-6">
+      {/* Main Content - Email Composer */}
+      <div className="flex-1 space-y-6">
         <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Input 
-              placeholder="Sender Email (optional)" 
-              value={sender} 
-              onChange={(e) => setSender(e.target.value)} 
-            />
-            <Input 
-              placeholder="Campaign ID" 
-              value={campaignId} 
-              onChange={(e) => setCampaignId(e.target.value)} 
-            />
-          </div>
-
-          <Input 
-            placeholder="Recipients (comma separated emails)" 
-            value={recipients} 
-            onChange={(e) => setRecipients(e.target.value)} 
-          />
-          
-          {/* Document Upload Section */}
-          <Card size="small" className="bg-blue-50 border-blue-200">
-            <div className="flex items-center justify-between">
-              <div>
-                <Text strong>Quick Start: Upload Document</Text>
-                <div className="text-sm text-gray-600">Upload your pitch deck or business document to auto-fill email content</div>
-              </div>
-              <Upload
-                accept=".pdf,.pptx,.docx,.txt,.md"
-                beforeUpload={(file) => {
-                  handleDocumentUpload(file);
-                  return false;
-                }}
-                showUploadList={false}
-              >
-                <Button icon={<UploadOutlined />} loading={loading}>
-                  Upload Document
-                </Button>
-              </Upload>
-            </div>
-            {documentUploaded && (
-              <Alert
-                message="Document processed successfully!"
-                description="Email content has been pre-filled with extracted company information."
-                type="success"
-                showIcon
-                icon={<CheckCircleOutlined />}
-                className="mt-3"
-              />
-            )}
-          </Card>
-
-          <div className="flex items-center gap-4">
-            <Input 
-              placeholder="Email Subject" 
-              value={subject} 
-              onChange={(e) => setSubject(e.target.value)}
-              className="flex-1"
-            />
-            <Select
-              value={tone}
-              onChange={setTone}
-              style={{ width: 140 }}
-              options={[
-                { value: "Professional", label: "Professional" },
-                { value: "Persuasive", label: "Persuasive" },
-                { value: "Friendly", label: "Friendly" },
-                { value: "Casual", label: "Casual" }
-              ]}
-            />
-            <Button 
-              onClick={optimizeSubject} 
-              loading={loading} 
-              icon={<BulbOutlined />}
-              type="dashed"
-            >
-              Optimize
-            </Button>
-          </div>
-          
-          <Input.TextArea 
-            placeholder="Email Body (HTML or plain text)" 
-            autoSize={{ minRows: 8, maxRows: 16 }} 
-            value={body} 
-            onChange={(e) => setBody(e.target.value)}
-          />
-
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button 
-                onClick={enhanceEmail} 
-                loading={loading} 
-                icon={<RobotOutlined />}
-                type="dashed"
-              >
-                AI Enhance
-              </Button>
-              <Button 
-                onClick={generateFollowUp} 
-                loading={loading} 
-                icon={<ThunderboltOutlined />}
-                type="dashed"
-              >
-                Generate Follow-ups
-              </Button>
-              {documentUploaded && (
-                <Tag color="green" icon={<CheckCircleOutlined />}>
-                  Auto-filled from document
-                </Tag>
-              )}
+            <div>
+              <h3 className="text-xl font-semibold text-gray-800">AI-Powered Email Composer</h3>
+              <p className="text-gray-600">Create personalized investor outreach emails with AI assistance</p>
             </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <Switch 
-                  checked={enableFollowUp} 
-                  onChange={setEnableFollowUp}
-                  size="small"
+          </div>
+
+          <Card className="shadow-lg border-0">
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Input 
+                  placeholder="Sender Email (optional)" 
+                  value={sender} 
+                  onChange={(e) => setSender(e.target.value)} 
                 />
-                <span className="text-sm text-gray-600">Auto Follow-up</span>
+                <Input 
+                  placeholder="Campaign ID" 
+                  value={campaignId} 
+                  onChange={(e) => setCampaignId(e.target.value)} 
+                />
               </div>
-              <Button 
-                type="primary" 
-                onClick={sendEmail} 
-                loading={loading}
-                icon={<SendOutlined />}
-                size="large"
-                className="bg-gradient-to-r from-blue-500 to-purple-600 border-0"
-              >
-                Send Campaign
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* AI Suggestions */}
-      {subjectOptions.length > 0 && (
-        <Card title="AI Subject Line Suggestions" className="border-l-4 border-l-green-500">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {subjectOptions.map((opt, idx) => (
-              <div 
-                key={idx} 
-                className="p-4 rounded-lg border-2 border-gray-200 hover:border-green-400 cursor-pointer transition-all duration-200 hover:shadow-md" 
-                onClick={() => setSubject(opt.subject)}
-              >
-                <div className="font-medium text-gray-800 mb-2">{opt.subject}</div>
-                {opt.predictedOpenRate && (
-                  <div className="flex items-center gap-2 mb-2">
-                    <Progress 
-                      percent={opt.predictedOpenRate} 
-                      size="small" 
-                      strokeColor="#52c41a"
-                      showInfo={false}
-                    />
-                    <span className="text-xs text-green-600 font-medium">{opt.predictedOpenRate}% open rate</span>
+              
+              {/* Document Upload Section */}
+              <Card size="small" className="bg-blue-50 border-blue-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Text strong>Quick Start: Upload Document</Text>
+                    <div className="text-sm text-gray-600">Upload your pitch deck or business document to auto-fill email content</div>
                   </div>
+                  <Upload
+                    accept=".pdf,.pptx,.docx,.txt,.md"
+                    beforeUpload={(file) => {
+                      handleDocumentUpload(file);
+                      return false;
+                    }}
+                    showUploadList={false}
+                  >
+                    <Button icon={<UploadOutlined />} loading={loading}>
+                      Upload Document
+                    </Button>
+                  </Upload>
+                </div>
+                {documentUploaded && (
+                  <Alert
+                    message="Document processed successfully!"
+                    description="Email content has been pre-filled with extracted company information."
+                    type="success"
+                    showIcon
+                    icon={<CheckCircleOutlined />}
+                    className="mt-3"
+                  />
                 )}
-                {opt.rationale && (
-                  <div className="text-xs text-gray-500">{opt.rationale}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+              </Card>
 
-      {/* Enhanced Email Options */}
-      {enhanceOptions.length > 0 && (
-        <Card title="AI-Enhanced Email Variants" className="border-l-4 border-l-purple-500">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            {enhanceOptions.map((opt, idx) => (
-              <div 
-                key={idx} 
-                className="p-4 rounded-lg border-2 border-gray-200 hover:border-purple-400 cursor-pointer transition-all duration-200 hover:shadow-md" 
-                onClick={() => { setSubject(opt.subject); setBody(opt.body); }}
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <Tag color="purple">{opt.style}</Tag>
-                  {opt.score && (
-                    <div className="flex items-center gap-1">
-                      <Progress 
-                        type="circle" 
-                        percent={opt.score} 
-                        size={24} 
-                        strokeColor="#722ed1"
-                      />
-                    </div>
+              <div className="flex items-center gap-4">
+                <Input 
+                  placeholder="Email Subject" 
+                  value={subject} 
+                  onChange={(e) => setSubject(e.target.value)}
+                  className="flex-1"
+                />
+                <Select
+                  value={tone}
+                  onChange={setTone}
+                  style={{ width: 140 }}
+                  options={[
+                    { value: "Professional", label: "Professional" },
+                    { value: "Persuasive", label: "Persuasive" },
+                    { value: "Friendly", label: "Friendly" },
+                    { value: "Casual", label: "Casual" }
+                  ]}
+                />
+                <Button 
+                  onClick={optimizeSubject} 
+                  loading={loading} 
+                  icon={<BulbOutlined />}
+                  type="dashed"
+                >
+                  Optimize
+                </Button>
+              </div>
+              
+              <Input.TextArea 
+                placeholder="Email Body (HTML or plain text)" 
+                autoSize={{ minRows: 8, maxRows: 16 }} 
+                value={body} 
+                onChange={(e) => setBody(e.target.value)}
+              />
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Button 
+                    onClick={enhanceEmail} 
+                    loading={loading} 
+                    icon={<RobotOutlined />}
+                    type="dashed"
+                  >
+                    AI Enhance
+                  </Button>
+                  <Button 
+                    onClick={generateFollowUp} 
+                    loading={loading} 
+                    icon={<ThunderboltOutlined />}
+                    type="dashed"
+                  >
+                    Generate Follow-ups
+                  </Button>
+                  {documentUploaded && (
+                    <Tag color="green" icon={<CheckCircleOutlined />}>
+                      Auto-filled from document
+                    </Tag>
                   )}
                 </div>
                 
-                <div className="font-medium text-gray-800 mb-2 text-sm">{opt.subject}</div>
-                <div className="text-xs text-gray-600 line-clamp-4 mb-3">{opt.body}</div>
-                
-                {opt.improvements && (
-                  <div className="space-y-1">
-                    {opt.improvements.slice(0, 2).map((improvement, i) => (
-                      <div key={i} className="text-xs text-green-600 flex items-center gap-1">
-                        <span className="text-green-500">✓</span>
-                        {improvement}
-                      </div>
-                    ))}
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Switch 
+                      checked={enableFollowUp} 
+                      onChange={setEnableFollowUp}
+                      size="small"
+                    />
+                    <span className="text-sm text-gray-600">Auto Follow-up</span>
                   </div>
-                )}
+                  <Button 
+                    type="primary" 
+                    onClick={sendEmail} 
+                    loading={loading}
+                    icon={<SendOutlined />}
+                    size="large"
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 border-0"
+                    disabled={recipients.length === 0}
+                  >
+                    Send to {recipients.length} Recipients
+                  </Button>
+                </div>
               </div>
-            ))}
-          </div>
-        </Card>
-      )}
+            </div>
+          </Card>
+
+          {/* AI Suggestions */}
+          {subjectOptions.length > 0 && (
+            <Card title="AI Subject Line Suggestions" className="border-l-4 border-l-green-500">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {subjectOptions.map((opt, idx) => (
+                  <div 
+                    key={idx} 
+                    className="p-4 rounded-lg border-2 border-gray-200 hover:border-green-400 cursor-pointer transition-all duration-200 hover:shadow-md" 
+                    onClick={() => setSubject(opt.subject)}
+                  >
+                    <div className="font-medium text-gray-800 mb-2">{opt.subject}</div>
+                    {opt.predictedOpenRate && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <Progress 
+                          percent={opt.predictedOpenRate} 
+                          size="small" 
+                          strokeColor="#52c41a"
+                          showInfo={false}
+                        />
+                        <span className="text-xs text-green-600 font-medium">{opt.predictedOpenRate}% open rate</span>
+                      </div>
+                    )}
+                    {opt.rationale && (
+                      <div className="text-xs text-gray-500">{opt.rationale}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* Enhanced Email Options */}
+          {enhanceOptions.length > 0 && (
+            <Card title="AI-Enhanced Email Variants" className="border-l-4 border-l-purple-500">
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                {enhanceOptions.map((opt, idx) => (
+                  <div 
+                    key={idx} 
+                    className="p-4 rounded-lg border-2 border-gray-200 hover:border-purple-400 cursor-pointer transition-all duration-200 hover:shadow-md" 
+                    onClick={() => { setSubject(opt.subject); setBody(opt.body); }}
+                  >
+                    <div className="flex items-center justify-between mb-3">
+                      <Tag color="purple">{opt.style}</Tag>
+                      {opt.score && (
+                        <div className="flex items-center gap-1">
+                          <Progress 
+                            type="circle" 
+                            percent={opt.score} 
+                            size={24} 
+                            strokeColor="#722ed1"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="font-medium text-gray-800 mb-2 text-sm">{opt.subject}</div>
+                    <div className="text-xs text-gray-600 line-clamp-4 mb-3">{opt.body}</div>
+                    
+                    {opt.improvements && (
+                      <div className="space-y-1">
+                        {opt.improvements.slice(0, 2).map((improvement, i) => (
+                          <div key={i} className="text-xs text-green-600 flex items-center gap-1">
+                            <span className="text-green-500">✓</span>
+                            {improvement}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+        </div>
+      
+      {/* Right Sidebar - Recipients */}
+      <div className="w-80 bg-white border-l border-gray-200 p-4">
+        <div className="mb-4">
+          <Text strong className="text-lg">Recipients ({recipients.length})</Text>
+        </div>
+        
+        {/* Add Recipient */}
+        <div className="mb-4">
+          <Space.Compact style={{ width: '100%' }}>
+            <Input
+              placeholder="Enter email address"
+              value={newRecipient}
+              onChange={(e) => setNewRecipient(e.target.value)}
+              onPressEnter={addRecipient}
+            />
+            <Button 
+              type="primary" 
+              icon={<PlusOutlined />}
+              onClick={addRecipient}
+            >
+              Add
+            </Button>
+          </Space.Compact>
+        </div>
+
+        <Divider />
+
+        {/* Recipients List */}
+        <div className="flex-1 overflow-y-auto max-h-96">
+          {recipients.length === 0 ? (
+            <div className="text-center text-gray-400 py-8">
+              <UserOutlined className="text-2xl mb-2" />
+              <div>No recipients added</div>
+            </div>
+          ) : (
+            <List
+              dataSource={recipients}
+              renderItem={(email) => (
+                <List.Item className="px-0">
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <UserOutlined className="text-gray-400" />
+                      <Text className="text-sm">{email}</Text>
+                    </div>
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<CloseOutlined />}
+                      onClick={() => removeRecipient(email)}
+                      className="text-red-500 hover:text-red-700"
+                    />
+                  </div>
+                </List.Item>
+              )}
+            />
+          )}
+        </div>
+      </div>
     </div>
   );
 }
-
- 

@@ -14,6 +14,7 @@ if (EMAIL_PROVIDER === "sendgrid" && SENDGRID_API_KEY) {
 
 let gmailTransporter = null;
 if (EMAIL_PROVIDER === "gmail" && GMAIL_USER && GMAIL_APP_PASSWORD) {
+  console.log('[gmail] Initializing Gmail transporter for:', GMAIL_USER);
   gmailTransporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -21,6 +22,17 @@ if (EMAIL_PROVIDER === "gmail" && GMAIL_USER && GMAIL_APP_PASSWORD) {
       pass: GMAIL_APP_PASSWORD
     }
   });
+  
+  // Test the connection
+  gmailTransporter.verify((error, success) => {
+    if (error) {
+      console.error('[gmail] Connection failed:', error.message);
+    } else {
+      console.log('[gmail] Server is ready to take our messages');
+    }
+  });
+} else {
+  console.log('[gmail] Gmail not configured. Provider:', EMAIL_PROVIDER, 'User:', !!GMAIL_USER, 'Password:', !!GMAIL_APP_PASSWORD);
 }
 
 function buildUnsubscribeFooter(recipientEmail) {
@@ -53,35 +65,43 @@ async function sendEmail({ to, from, subject, html, messageId, headers = {}, cat
     throw new Error("to, subject, html are required");
   }
 
-  // Ensure Gmail SPF alignment: sender must match authenticated account
+  // Use default Gmail SMTP
+  const clientEmail = from || DEFAULT_FROM_EMAIL;
   const sender = (EMAIL_PROVIDER === "gmail")
-    ? (GMAIL_USER || from || DEFAULT_FROM_EMAIL)
-    : (from || DEFAULT_FROM_EMAIL);
+    ? `${clientEmail} <${GMAIL_USER}>`
+    : clientEmail;
 
   // Gmail SMTP
   if (EMAIL_PROVIDER === "gmail" && gmailTransporter) {
-    const mailOptions = {
-      from: sender,
-      to,
-      subject,
-      html,
-      headers: {
-        "X-Campaign-Message-ID": messageId,
-        "Message-ID": `<${messageId}@yourdomain.com>`,
-        ...headers,
-      }
-    };
+    try {
+      const mailOptions = {
+        from: GMAIL_USER,
+        replyTo: clientEmail,
+        to,
+        subject,
+        html,
+        headers: {
+          "X-Campaign-Message-ID": messageId,
+          "Message-ID": `<${messageId}@yourdomain.com>`,
+          ...headers,
+        }
+      };
 
-    const result = await gmailTransporter.sendMail(mailOptions);
-    console.log('[gmail] sendMail response:', result?.response || result);
-    return {
-      statusCode: 200,
-      messageId: result.messageId,
-    };
+      console.log('[gmail] Sending email from:', sender, 'to:', to);
+      const result = await gmailTransporter.sendMail(mailOptions);
+      console.log('[gmail] Email sent successfully:', result?.response || result?.messageId);
+      return {
+        statusCode: 200,
+        messageId: result.messageId,
+      };
+    } catch (error) {
+      console.error('[gmail] Email send failed:', error.message);
+      throw new Error(`Gmail send failed: ${error.message}`);
+    }
   }
 
-  // Mock mode for testing when no proper email service is configured
-  if (EMAIL_PROVIDER !== "sendgrid" || !SENDGRID_API_KEY || SENDGRID_API_KEY === 'SG.test-key-placeholder') {
+  // Mock mode only when no email provider is configured at all
+  if (!EMAIL_PROVIDER || (EMAIL_PROVIDER === "sendgrid" && (!SENDGRID_API_KEY || SENDGRID_API_KEY === 'SG.test-key-placeholder')) || (EMAIL_PROVIDER === "gmail" && (!GMAIL_USER || !GMAIL_APP_PASSWORD))) {
     console.log('=== MOCK EMAIL SENT ===');
     console.log('FROM:', sender);
     console.log('TO:', to);
