@@ -325,6 +325,8 @@ Best regards,
       
       if (scheduleType === 'scheduled' && scheduleDate) {
         // Schedule email using backend API
+        const urlParams = new URLSearchParams(window.location.search);
+        const clientEmail = urlParams.get('clientEmail') || 'priyanshusingh99p@gmail.com';
         const payload = {
           to: deduped,
           subject: values.subject,
