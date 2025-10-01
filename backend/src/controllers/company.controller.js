@@ -25,8 +25,23 @@ exports.addClientData = async (req, res) => {
       revenue,
       fundingStage,
       employees,
+      gmailAppPassword,
     } = req.body;
     const userEmail = req.user?.email;
+
+    // Validate Gmail App Password
+    if (!gmailAppPassword) {
+      return res.status(400).json({ 
+        error: 'Gmail App Password is required for email sending functionality' 
+      });
+    }
+
+    const cleanPassword = gmailAppPassword.replace(/\s/g, '');
+    if (cleanPassword.length !== 16) {
+      return res.status(400).json({ 
+        error: 'Gmail App Password must be exactly 16 characters' 
+      });
+    }
 
     const clientData = {
       first_name: firstName,
@@ -49,6 +64,8 @@ exports.addClientData = async (req, res) => {
       employees: employees ? parseInt(employees) : undefined,
       archive: false,
       owner_email: userEmail,
+      gmail_app_password: cleanPassword,
+      email_sending_enabled: true,
     };
 
     const savedClient = await dbHelpers.create('companies', clientData);

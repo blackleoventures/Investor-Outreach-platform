@@ -107,7 +107,7 @@ const excelRoutes = require("./routes/excel.route");
 const documentRoutes = require("./routes/document.route");
 const scheduledEmailRoutes = require("./routes/scheduledEmail.route");
 const sheetsRoutes = require("./routes/sheets.route");
-
+const clientEmailRoutes = require("./routes/clientEmail.route");
 
 const deckActivityRoutes = require("./routes/deckActivity.route");
 const dealRoomRoutes = require("./routes/dealRoom.route");
@@ -133,6 +133,7 @@ app.use("/api/excel", excelRoutes);
 app.use("/api/document", documentRoutes);
 app.use("/api/scheduled-emails", scheduledEmailRoutes);
 app.use("/api/sheets", sheetsRoutes);
+app.use("/api/client-email", clientEmailRoutes);
 
 app.use("/api/deck-activity", deckActivityRoutes);
 app.use("/api/deal-rooms", dealRoomRoutes);

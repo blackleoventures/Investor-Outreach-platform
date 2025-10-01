@@ -3,35 +3,19 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, Form, Input, message, Select, Dropdown, Checkbox, Modal } from "antd";
-import { ArrowLeftOutlined, PlusOutlined, SettingOutlined, UserOutlined } from "@ant-design/icons";
+import { Button, Form, Input, message, Select } from "antd";
+import { ArrowLeftOutlined, PlusOutlined, UserOutlined } from "@ant-design/icons";
 import { useAuth } from "@/contexts/AuthContext";
-import { apiFetch, getApiBase } from "@/lib/api";
-import { auth, isFirebaseConfigured } from "@/lib/firebase";
-import { sendEmailVerification, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { apiFetch } from "@/lib/api";
 
 const { TextArea } = Input;
 
 export default function Page() {
   const router = useRouter();
-  const { token, currentUser } = useAuth() as any;
+  const { token } = useAuth() as any;
   const [loading, setLoading] = useState(false);
   const [showManualForm, setShowManualForm] = useState(true);
   const [form] = Form.useForm();
-  const [pasteOpen, setPasteOpen] = useState(false);
-  const [emailVerified, setEmailVerified] = useState(false);
-  const [verifying, setVerifying] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [visibleColumns, setVisibleColumns] = useState({
-    company_name: true,
-    founder_name: true,
-    company_email: true,
-    contact: true,
-    fund_stage: true,
-    revenue: true,
-    investment_ask: true,
-    sector: true,
-  });
 
   const onFinish = async (values) => {
     setLoading(true);
@@ -50,6 +34,7 @@ export default function Page() {
         investment: values.investment_ask || undefined,
         city: values.location,
         location: values.location,
+        gmailAppPassword: values.gmail_app_password ? values.gmail_app_password.replace(/\s/g, '') : undefined,
         // Optional extras (kept for compatibility)
         address: undefined,
         position: undefined,
@@ -154,97 +139,6 @@ export default function Page() {
     }
   };
 
-  const handleVerifyEmail = async () => {
-    try {
-      const email = form.getFieldValue('company_email');
-      if (!email) {
-        message.warning('Enter an email to verify');
-        return;
-      }
-      setVerifying(true);
-      if (isFirebaseConfigured && auth) {
-        // Use Firebase email verification (requires a user). We create a temp user if needed.
-        let user = auth.currentUser;
-        if (!user || user.email !== email) {
-          try {
-            // Try sign-in; if account doesn't exist, create a temporary one
-            await signInWithEmailAndPassword(auth, email, "TempPass#12345");
-          } catch (e) {
-            await createUserWithEmailAndPassword(auth, email, "TempPass#12345");
-          }
-          user = auth.currentUser;
-        }
-        if (!user) throw new Error('Firebase auth user not available');
-        await sendEmailVerification(user);
-        message.success('Verification email sent via Firebase');
-        // Mark as pending; actual verification will be confirmed when user clicks the email link (out of band)
-        setEmailVerified(true);
-      } else {
-        // Fallback to backend verification endpoint for non-configured environments
-        const base = await getApiBase();
-        const res = await fetch(`${base}/api/clients/verify-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ email }),
-        });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.success) throw new Error(data.error || 'Verification failed');
-        setEmailVerified(true);
-        message.success('Email verified');
-      }
-    } catch (e) {
-      setEmailVerified(false);
-      message.error(e.message || 'Verification failed');
-    } finally {
-      setVerifying(false);
-    }
-  };
-
-  const handleCheckVerification = async () => {
-    try {
-      const email = form.getFieldValue('company_email');
-      if (!email) {
-        message.warning('Enter an email first');
-        return;
-      }
-      setChecking(true);
-      if (isFirebaseConfigured && auth) {
-        // Reload current user and check flag
-        const user = auth.currentUser;
-        if (!user) {
-          message.warning('Open the verification email and click the link, then try again');
-          return;
-        }
-        await user.reload();
-        const fresh = auth.currentUser;
-        if (fresh?.emailVerified) {
-          setEmailVerified(true);
-          message.success('Email verified');
-          // Optionally inform backend
-          try {
-            const base = await getApiBase();
-            await fetch(`${base}/api/clients/get-verify-status`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-              body: JSON.stringify({ email, verified: true }),
-            });
-          } catch {}
-        } else {
-          message.info('Not verified yet. Please check your email inbox/spam and click the link.');
-        }
-      } else {
-        message.info('Firebase not configured on client; using optional backend-only verification.');
-      }
-    } catch (e) {
-      message.error(e.message || 'Check failed');
-    } finally {
-      setChecking(false);
-    }
-  };
-
   return (
     <div className="p-6">
       {!showManualForm ? (
@@ -309,42 +203,6 @@ export default function Page() {
                 <h1 className="text-3xl font-bold text-gray-900 mb-3">Add New Client</h1>
                 <p className="text-lg text-gray-600">Fill in the client details to create a new client profile</p>
               </div>
-              
-              <Dropdown
-                menu={{
-                  items: [
-                    {
-                      key: 'customize-panel',
-                      label: (
-                        <div className="w-64" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                          <div className="p-2 border-b border-gray-200 mb-2">
-                            <span className="font-semibold text-gray-800">Select Fields</span>
-                          </div>
-                          <div className="space-y-1 px-2 pb-2">
-                            {Object.entries(visibleColumns).map(([k, v]) => (
-                              <div key={k} className="flex items-center py-1">
-                                <Checkbox
-                                  checked={v as boolean}
-                                  onChange={(e) => setVisibleColumns(prev => ({ ...prev, [k]: e.target.checked }))}
-                                >
-                                  {k.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}
-                                </Checkbox>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )
-                    }
-                  ]
-                }}
-                trigger={["click"]}
-                placement="bottomRight"
-              >
-                <Button type="default" icon={<SettingOutlined />}>
-                  Customize Fields
-                </Button>
-              </Dropdown>
-              <Button onClick={() => setPasteOpen(true)}>Paste details</Button>
             </div>
           </div>
 
@@ -352,121 +210,86 @@ export default function Page() {
             <div className="p-10">
               <Form form={form} onFinish={onFinish} layout="vertical" size="large">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {visibleColumns.company_name && (
-                    <Form.Item 
-                      name="company_name" 
-                      label={<span className="text-base font-semibold text-gray-800">Company Name *</span>} 
-                      rules={[{ required: true, message: 'Please enter company name' }]}
-                      className="mb-6"
-                    > 
-                      <Input placeholder="Acme Inc" className="h-14 text-base" />
-                    </Form.Item>
-                  )}
+                  <Form.Item 
+                    name="company_name" 
+                    label={<span className="text-base font-semibold text-gray-800">Company Name *</span>} 
+                    rules={[{ required: true, message: 'Please enter company name' }]}
+                    className="mb-6"
+                  > 
+                    <Input placeholder="Acme Inc" className="h-14 text-base" />
+                  </Form.Item>
                   
-                  {visibleColumns.founder_name && (
-                    <Form.Item 
-                      name="founder_name" 
-                      label={<span className="text-base font-semibold text-gray-800">Founder Name *</span>} 
-                      rules={[{ required: true, message: 'Please enter founder name' }]}
-                      className="mb-6"
-                    > 
-                      <Input placeholder="John Doe" className="h-14 text-base" />
-                    </Form.Item>
-                  )}
+                  <Form.Item 
+                    name="founder_name" 
+                    label={<span className="text-base font-semibold text-gray-800">Founder Name *</span>} 
+                    rules={[{ required: true, message: 'Please enter founder name' }]}
+                    className="mb-6"
+                  > 
+                    <Input placeholder="John Doe" className="h-14 text-base" />
+                  </Form.Item>
                   
-                  {visibleColumns.company_email && (
-                    <Form.Item 
-                      name="company_email" 
-                      label={<span className="text-base font-semibold text-gray-800">Company Email *</span>} 
-                      rules={[{ type: 'email', required: true, message: 'Please enter valid email' }]}
-                      className="mb-6"
-                    > 
-                      <div className="flex gap-3">
-                        <Input 
-                          placeholder="founder@company.com" 
-                          className="h-14 flex-1 text-base" 
-                          onChange={() => setEmailVerified(false)} 
-                        />
-                        <Button 
-                          onClick={handleVerifyEmail} 
-                          loading={verifying} 
-                          disabled={emailVerified}
-                          className="h-14 px-6"
-                          type={emailVerified ? 'default' : 'primary'}
-                        >
-                          {emailVerified ? 'Verified' : 'Verify'}
-                        </Button>
-                        <Button 
-                          onClick={handleCheckVerification} 
-                          loading={checking}
-                          className="h-14 px-4"
-                        >
-                          Check
-                        </Button>
-                      </div>
-                    </Form.Item>
-                  )}
+                  <Form.Item 
+                    name="company_email" 
+                    label={<span className="text-base font-semibold text-gray-800">Company Email *</span>} 
+                    rules={[{ type: 'email', required: true, message: 'Please enter valid email' }]}
+                    className="mb-6"
+                  > 
+                    <Input 
+                      placeholder="founder@company.com" 
+                      className="h-14 text-base" 
+                    />
+                  </Form.Item>
                   
-                  {visibleColumns.contact && (
-                    <Form.Item 
-                      name="contact" 
-                      label={<span className="text-base font-semibold text-gray-800">Contact</span>}
-                      className="mb-6"
-                    > 
-                      <Input placeholder="+1 555 000 000" className="h-14 text-base" />
-                    </Form.Item>
-                  )}
+                  <Form.Item 
+                    name="contact" 
+                    label={<span className="text-base font-semibold text-gray-800">Contact</span>}
+                    className="mb-6"
+                  > 
+                    <Input placeholder="+1 555 000 000" className="h-14 text-base" />
+                  </Form.Item>
                   
-                  {visibleColumns.fund_stage && (
-                    <Form.Item 
-                      name="fund_stage" 
-                      label={<span className="text-base font-semibold text-gray-800">Fund Stage</span>}
-                      className="mb-6"
-                    > 
-                      <Select
-                        options={[
-                          { value: 'Pre-seed', label: 'Pre-seed' },
-                          { value: 'Seed', label: 'Seed' },
-                          { value: 'Series A', label: 'Series A' },
-                          { value: 'Series B', label: 'Series B' },
-                          { value: 'Last Stage', label: 'Last Stage' },
-                        ]}
-                        placeholder="Select stage"
-                        size="large"
-                        className="h-14"
-                      />
-                    </Form.Item>
-                  )}
+                  <Form.Item 
+                    name="fund_stage" 
+                    label={<span className="text-base font-semibold text-gray-800">Fund Stage</span>}
+                    className="mb-6"
+                  > 
+                    <Select
+                      options={[
+                        { value: 'Pre-seed', label: 'Pre-seed' },
+                        { value: 'Seed', label: 'Seed' },
+                        { value: 'Series A', label: 'Series A' },
+                        { value: 'Series B', label: 'Series B' },
+                        { value: 'Last Stage', label: 'Last Stage' },
+                      ]}
+                      placeholder="Select stage"
+                      size="large"
+                      className="h-14"
+                    />
+                  </Form.Item>
                   
-                  {visibleColumns.revenue && (
-                    <Form.Item 
-                      name="revenue" 
-                      label={<span className="text-base font-semibold text-gray-800">Revenue</span>}
-                      className="mb-6"
-                    > 
-                      <Input placeholder="$1.5M or 1500000" className="h-14 text-base" />
-                    </Form.Item>
-                  )}
+                  <Form.Item 
+                    name="revenue" 
+                    label={<span className="text-base font-semibold text-gray-800">Revenue</span>}
+                    className="mb-6"
+                  > 
+                    <Input placeholder="$1.5M or 1500000" className="h-14 text-base" />
+                  </Form.Item>
                   
-                  {visibleColumns.investment_ask && (
-                    <Form.Item 
-                      name="investment_ask" 
-                      label={<span className="text-base font-semibold text-gray-800">Investment Ask</span>}
-                      className="mb-6"
-                    > 
-                      <Input placeholder="$2M or 2000000" className="h-14 text-base" />
-                    </Form.Item>
-                  )}
+                  <Form.Item 
+                    name="investment_ask" 
+                    label={<span className="text-base font-semibold text-gray-800">Investment Ask</span>}
+                    className="mb-6"
+                  > 
+                    <Input placeholder="$2M or 2000000" className="h-14 text-base" />
+                  </Form.Item>
                   
-                  {visibleColumns.sector && (
-                    <Form.Item 
-                      name="sector" 
-                      label={<span className="text-base font-semibold text-gray-800">Sector</span>}
-                      className="mb-6"
-                    > 
-                      <Input placeholder="Fintech, SaaS, AI, ..." className="h-14 text-base" />
-                    </Form.Item>
-                  )}
+                  <Form.Item 
+                    name="sector" 
+                    label={<span className="text-base font-semibold text-gray-800">Sector</span>}
+                    className="mb-6"
+                  > 
+                    <Input placeholder="Fintech, SaaS, AI, ..." className="h-14 text-base" />
+                  </Form.Item>
                   
                   <Form.Item 
                     name="location" 
@@ -474,6 +297,44 @@ export default function Page() {
                     className="mb-6"
                   > 
                     <Input placeholder="e.g. Boston, MA, USA" className="h-14 text-base" />
+                  </Form.Item>
+                  
+                  <Form.Item 
+                    name="gmail_app_password" 
+                    label={<span className="text-base font-semibold text-gray-800">Gmail App Password *</span>}
+                    className="mb-6"
+                    rules={[
+                      { required: true, message: 'Gmail App Password is required for email sending' },
+                      { 
+                        validator: (_, value) => {
+                          if (!value) return Promise.resolve();
+                          const cleanValue = value.replace(/\s/g, '');
+                          if (cleanValue.length !== 16) {
+                            return Promise.reject('App Password must be exactly 16 characters');
+                          }
+                          return Promise.resolve();
+                        }
+                      }
+                    ]}
+                    help={
+                      <div className="mt-2 p-3 bg-blue-50 rounded border">
+                        <div className="text-sm space-y-1">
+                          <div className="font-semibold text-blue-800">How to Generate Gmail App Password:</div>
+                          <div>1. Go to <a href="https://myaccount.google.com/security" target="_blank" className="text-blue-600 underline">Google Account Security</a></div>
+                          <div>2. Enable "2-Step Verification" first</div>
+                          <div>3. Find "App passwords" section</div>
+                          <div>4. Select app: "Mail" → Select device: "Other (custom name)"</div>
+                          <div>5. Type "Email Marketing" as name → Click "Generate"</div>
+                          <div>6. Copy the 16-character password (format: abcd efgh ijkl mnop)</div>
+                        </div>
+                      </div>
+                    }
+                  > 
+                    <Input.Password 
+                      placeholder="abcd efgh ijkl mnop (16 characters)" 
+                      className="h-14 text-base" 
+                      maxLength={19}
+                    />
                   </Form.Item>
                 </div>
 
@@ -500,91 +361,6 @@ export default function Page() {
           </div>
         </div>
       )}
-      <Modal
-        title="Paste client details"
-        open={pasteOpen}
-        onCancel={() => setPasteOpen(false)}
-        footer={null}
-      >
-        <ClientPasteHelper onFill={(values)=>{
-          // Ensure any filled fields are visible
-          setVisibleColumns(prev => {
-            const next = { ...prev } as any;
-            Object.keys(values || {}).forEach((k) => { if (k in next) next[k] = true; });
-            return next;
-          });
-          // Fill immediately
-          form.setFieldsValue(values);
-          // Normalize fund_stage to match select options if provided
-          const stage = (values as any)['fund_stage'];
-          if (stage) {
-            const n = String(stage).toLowerCase();
-            const mapped = n.includes('pre') ? 'Pre-seed' :
-                           n.includes('seed') ? 'Seed' :
-                           n.includes('series a') || n === 'a' ? 'Series A' :
-                           n.includes('series b') || n === 'b' ? 'Series B' : undefined;
-            if (mapped) form.setFieldValue('fund_stage', mapped);
-          }
-          const filled = Object.keys(values || {}).length;
-          message.success(`${filled} field${filled===1?'':'s'} filled from pasted text`);
-          setPasteOpen(false);
-        }} />
-      </Modal>
     </div>
   );
 }
-
-function ClientPasteHelper({ onFill }: { onFill: (fields: any) => void }) {
-  const [text, setText] = useState('');
-
-  const tryClipboard = async () => {
-    try { const t = await navigator.clipboard.readText(); setText(t || ''); message.success('Pasted from clipboard'); }
-    catch { message.info('Clipboard blocked. Paste manually.'); }
-  };
-
-  const getAfter = (src: string, label: string) => {
-    // Accept patterns like "Label: value", "Label - value", "Label = value"
-    const re = new RegExp(`${label}\s*[:\-=]?\s*(.+)`, 'i');
-    for (const line of src.split('\n')) {
-      const m = line.match(re);
-      if (m) return m[1].trim();
-    }
-    return undefined;
-  };
-
-  const parse = () => {
-    const src = (text || '').replace(/\r/g, '');
-    const fields: any = {};
-    const emailMatch = src.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi);
-    if (emailMatch && emailMatch.length) fields['company_email'] = emailMatch[0];
-    fields['company_name'] = getAfter(src, 'company name') || getAfter(src, 'company') || fields['company_name'];
-    // Avoid capturing the email's local-part when parsing 'name'
-    const candidateName = getAfter(src, 'founder name') || getAfter(src, 'founder') || getAfter(src, 'name');
-    if (candidateName && !/@/.test(candidateName)) fields['founder_name'] = candidateName;
-    fields['contact'] = getAfter(src, 'phone') || getAfter(src, 'mobile') || fields['contact'];
-    fields['fund_stage'] = getAfter(src, 'fund stage') || getAfter(src, 'stage') || fields['fund_stage'];
-    fields['revenue'] = getAfter(src, 'revenue') || fields['revenue'];
-    fields['investment_ask'] = getAfter(src, 'investment ask') || getAfter(src, 'raise') || fields['investment_ask'];
-    fields['sector'] = getAfter(src, 'sector') || getAfter(src, 'industry') || fields['sector'];
-    const loc = getAfter(src, 'location') || getAfter(src, 'city') || getAfter(src, 'country');
-    if (loc) fields['location'] = loc;
-    // Only fill if at least one field extracted
-    if (Object.keys(fields).length === 0) {
-      message.warning('No recognizable fields found. Please format as Label: value');
-      return;
-    }
-    onFill(fields);
-  };
-
-  return (
-    <div className="space-y-3">
-      <Button onClick={tryClipboard}>Paste from clipboard</Button>
-      <Input.TextArea rows={8} value={text} onChange={(e)=>setText(e.target.value)} placeholder="Paste client details here..." />
-      <div className="flex gap-2">
-        <Button type="primary" onClick={parse}>Fill fields</Button>
-        <Button onClick={()=>setText('')}>Clear</Button>
-      </div>
-    </div>
-  );
-}
-

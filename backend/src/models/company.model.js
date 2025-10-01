@@ -84,6 +84,16 @@ const companySchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Email credentials for sending emails from client's Gmail
+    gmail_app_password: {
+      type: String,
+      trim: true,
+      select: false, // Don't include in queries by default for security
+    },
+    email_sending_enabled: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

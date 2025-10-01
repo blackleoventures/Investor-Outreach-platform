@@ -5,7 +5,7 @@ import { Card, Typography, Tabs, Upload, Button, message, Progress, Tag, Table, 
 import type { Dayjs } from 'dayjs';
 import { MailOutlined, UserOutlined, FileTextOutlined, RobotOutlined, UploadOutlined, BarChartOutlined, EyeOutlined } from "@ant-design/icons";
 import { motion } from "framer-motion";
-import GmailConnect from "@/components/GmailConnect";
+
 const { TextArea } = Input;
 const { Option } = Select;
 
@@ -326,13 +326,14 @@ Best regards,
       if (scheduleType === 'scheduled' && scheduleDate) {
         // Schedule email using backend API
         const urlParams = new URLSearchParams(window.location.search);
-        const clientEmail = urlParams.get('clientEmail') || 'priyanshusingh99p@gmail.com';
+        const companyId = urlParams.get('companyId') || 'test-company-123'; // Fallback for testing
+        
         const payload = {
-          to: deduped,
+          companyId: companyId,
+          investorIds: deduped,
           subject: values.subject,
-          html: values.content,
-          scheduleAt: new Date(scheduleDate).toISOString(),
-          from: clientEmail
+          htmlContent: values.content,
+          scheduleAt: new Date(scheduleDate).toISOString()
         };
         
         const response = await fetch(`${BACKEND_URL}/scheduled-emails`, {
@@ -355,30 +356,30 @@ Best regards,
         return;
       }
 
-      // Send emails to backend
+      // Get client info from URL
       const urlParams = new URLSearchParams(window.location.search);
-      const clientEmail = urlParams.get('clientEmail') || 'priyanshusingh99p@gmail.com';
-      const clientTokens = localStorage.getItem('clientGmailTokens');
-      const payload = { 
-        to: deduped.join(', '), 
-        subject: values.subject, 
-        html: values.content, 
-        from: clientEmail,
-        clientTokens: clientTokens ? JSON.parse(clientTokens) : null
+      const companyId = urlParams.get('companyId') || 'test-company-123'; // Fallback for testing
+      const clientName = urlParams.get('clientName') || 'Test Client';
+
+      // Send emails using client email service
+      const payload = {
+        companyId: companyId,
+        investorIds: deduped, // Use emails as IDs for now
+        subject: values.subject,
+        htmlContent: values.content
       };
-      console.log('Sending email payload:', payload);
       
-      const response = await fetch('/api/email/send-direct', { 
-        method: 'POST', 
-        headers: { 'Content-Type': 'application/json' }, 
-        body: JSON.stringify(payload) 
+      const response = await fetch(`${BACKEND_URL}/client-email/send-bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
       });
       
       const result = await response.json();
-      console.log('Email response:', result);
       
       if (response.ok && result.success) {
-        message.success(`✅ Email sent successfully to ${deduped.length} recipients!`);
+        message.success(`✅ Bulk email job started! ${result.totalEmails} emails will be sent from ${clientName}'s Gmail account.`);
+        message.info(`Estimated time: ${result.estimatedTime}`);
       } else {
         throw new Error(result.error || 'Failed to send email');
       }
@@ -554,12 +555,7 @@ Best regards,
 
         </div>
 
-        <div className="mb-4 text-center">
-          <GmailConnect onConnected={(tokens) => {
-            localStorage.setItem('clientGmailTokens', JSON.stringify(tokens));
-            message.success('Gmail connected! Emails will be sent from your account.');
-          }} />
-        </div>
+
 
         <Form
           key={formKey}
