@@ -9,6 +9,22 @@ import { motion } from "framer-motion";
 const { TextArea } = Input;
 const { Option } = Select;
 
+// Interface definitions
+interface PitchAnalysis {
+  summary: {
+    problem: string;
+    solution: string;
+    market: string;
+    traction: string;
+    status: "RED" | "YELLOW" | "GREEN";
+    total_score: number;
+  };
+  scorecard: Record<string, number>;
+  suggested_questions: string[];
+  email_template: string;
+  highlights: string[];
+}
+
 // Default investor template
 const DEFAULT_INVESTOR_TEMPLATE = `Subject: Investment Opportunity - [Company Name]
 
@@ -969,21 +985,6 @@ const { Title, Text } = Typography;
 // Ensure the base points to the API root regardless of env
 // Prefer Next.js rewrite to /api so dev works even without env
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api` : '/api';
-
-interface PitchAnalysis {
-  summary: {
-    problem: string;
-    solution: string;
-    market: string;
-    traction: string;
-    status: "RED" | "YELLOW" | "GREEN";
-    total_score: number;
-  };
-  scorecard: Record<string, number>;
-  suggested_questions: string[];
-  email_template: string;
-  highlights: string[];
-}
 
 export default function AIEmailCampaignPage() {
   const [activeTab, setActiveTab] = useState("1");
