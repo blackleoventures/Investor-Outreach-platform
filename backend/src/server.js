@@ -21,43 +21,58 @@ const excelService = require('./services/excel.service');
 
 console.log("Firebase initialized successfully");
 
-// Initialize Excel service (optional)
-try {
-  excelService.initializeExcelFile().then(() => {
-    excelService.startWatching();
-    console.log('Excel service initialized and watching for changes');
-  }).catch(err => {
-    console.log('Excel service initialization skipped:', err.message);
-  });
-} catch (error) {
-  console.log('Excel service not available in this environment');
+// Detect serverless/Vercel to avoid long-running watchers and cron
+const IS_SERVERLESS = process.env.VERCEL === '1' || process.env.SERVERLESS === '1';
+
+// Initialize Excel service (skip in serverless)
+if (!IS_SERVERLESS) {
+  try {
+    excelService.initializeExcelFile().then(() => {
+      excelService.startWatching();
+      console.log('Excel service initialized and watching for changes');
+    }).catch(err => {
+      console.log('Excel service initialization skipped:', err.message);
+    });
+  } catch (error) {
+    console.log('Excel service not available in this environment');
+  }
+} else {
+  console.log('Skipping Excel watcher in serverless environment');
 }
 
-// Initialize Google Sheets with fallback
-try {
-  const sheetsController = require('./controllers/sheets.controller');
-  // Test Google Sheets connection on startup
-  sheetsController.readSheetData({ query: {} }, {
-    json: (data) => {
-      if (data.success) {
-        console.log('Google Sheets connection successful');
-      } else if (data.source === 'excel_fallback') {
-        console.log('Using Excel files as fallback for Google Sheets');
+// Initialize Google Sheets with fallback (skip in serverless)
+if (!IS_SERVERLESS) {
+  try {
+    const sheetsController = require('./controllers/sheets.controller');
+    // Test Google Sheets connection on startup
+    sheetsController.readSheetData({ query: {} }, {
+      json: (data) => {
+        if (data.success) {
+          console.log('Google Sheets connection successful');
+        } else if (data.source === 'excel_fallback') {
+          console.log('Using Excel files as fallback for Google Sheets');
+        }
+      },
+      status: () => ({ json: () => {} })
+    }).catch(err => {
+      if (err.message.includes('403') || err.message.includes('API has not been used')) {
+        console.log('Google Sheets API not enabled - using Excel files as fallback');
       }
-    },
-    status: () => ({ json: () => {} })
-  }).catch(err => {
-    if (err.message.includes('403') || err.message.includes('API has not been used')) {
-      console.log('Google Sheets API not enabled - using Excel files as fallback');
-    }
-  });
-} catch (error) {
-  console.log('Google Sheets service initialization failed:', error.message);
+    });
+  } catch (error) {
+    console.log('Google Sheets service initialization failed:', error.message);
+  }
+} else {
+  console.log('Skipping Google Sheets startup check in serverless environment');
 }
 
-// Initialize Cron service for scheduled emails
-const cronService = require('./services/cron.service');
-cronService.startCronJobs();
+// Initialize Cron service for scheduled emails (skip in serverless)
+if (!IS_SERVERLESS) {
+  const cronService = require('./services/cron.service');
+  cronService.startCronJobs();
+} else {
+  console.log('Skipping cron jobs in serverless environment');
+}
 
 const app = express();
 
