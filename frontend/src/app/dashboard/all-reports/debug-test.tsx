@@ -34,7 +34,7 @@ export default function DebugTest() {
         } else {
           results.investorsAPI = { status: 'failed', error: investorsRes.status };
         }
-      } catch (e) {
+      } catch (e: any) {
         results.investorsAPI = { status: 'error', error: e.message };
       }
 
@@ -50,7 +50,7 @@ export default function DebugTest() {
         } else {
           results.emailTracking = { status: 'failed', error: trackingRes.status };
         }
-      } catch (e) {
+      } catch (e: any) {
         results.emailTracking = { status: 'error', error: e.message };
       }
 
@@ -67,7 +67,7 @@ export default function DebugTest() {
         } else {
           results.incubatorsAPI = { status: 'failed', error: incubatorsRes.status };
         }
-      } catch (e) {
+      } catch (e: any) {
         results.incubatorsAPI = { status: 'error', error: e.message };
       }
 

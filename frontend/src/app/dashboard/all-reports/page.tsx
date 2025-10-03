@@ -639,48 +639,6 @@ const AllReports = () => {
 
   return (
     <div className="p-6">
-      {/* Summary Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Total Campaigns"
-              value={reports.length}
-              prefix={<BarChartOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Total Emails Sent"
-              value={reports.reduce((sum, r) => sum + r.metrics.sent, 0)}
-              prefix={<MailOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Total Responses"
-              value={reports.reduce((sum, r) => sum + r.metrics.replied, 0)}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#3f8600' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Avg Response Rate"
-              value={reports.length > 0 ? (reports.reduce((sum, r) => sum + r.metrics.responseRate, 0) / reports.length).toFixed(1) : 0}
-              suffix="%"
-              prefix={<BarChartOutlined />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-      </Row>
 
       {/* Main Reports Table */}
       <Card
@@ -739,21 +697,26 @@ const AllReports = () => {
         onCancel={() => setDetailModalVisible(false)}
         bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
         footer={[
-          <Button key="close" onClick={() => setDetailModalVisible(false)}>
+          <Button 
+            key="close" 
+            onClick={() => setDetailModalVisible(false)}
+            style={{ backgroundColor: '#ff4d4f', borderColor: '#ff4d4f', color: '#fff' }}
+          >
             Close
           </Button>,
           <Button 
             key="csv" 
             icon={<DownloadOutlined />}
             onClick={() => selectedReport && handleDownloadReport(selectedReport, 'csv')}
+            style={{ backgroundColor: '#8c8c8c', borderColor: '#8c8c8c', color: '#fff' }}
           >
             CSV
           </Button>,
           <Button 
             key="excel" 
-            type="primary"
             icon={<DownloadOutlined />}
             onClick={() => selectedReport && handleDownloadReport(selectedReport, 'excel')}
+            style={{ backgroundColor: '#faad14', borderColor: '#faad14', color: '#fff' }}
           >
             Excel
           </Button>
@@ -869,21 +832,26 @@ const AllReports = () => {
         onCancel={() => setInvestorModalVisible(false)}
         bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
         footer={[
-          <Button key="close" onClick={() => setInvestorModalVisible(false)}>
+          <Button 
+            key="close" 
+            onClick={() => setInvestorModalVisible(false)}
+            style={{ backgroundColor: '#ff4d4f', borderColor: '#ff4d4f', color: '#fff' }}
+          >
             Close
           </Button>,
           <Button 
             key="csv" 
             icon={<DownloadOutlined />}
             onClick={() => selectedReport && handleDownloadReport(selectedReport, 'csv')}
+            style={{ backgroundColor: '#8c8c8c', borderColor: '#8c8c8c', color: '#fff' }}
           >
             CSV
           </Button>,
           <Button 
             key="excel" 
-            type="primary"
             icon={<DownloadOutlined />}
             onClick={() => selectedReport && handleDownloadReport(selectedReport, 'excel')}
+            style={{ backgroundColor: '#faad14', borderColor: '#faad14', color: '#fff' }}
           >
             Excel
           </Button>
@@ -895,8 +863,6 @@ const AllReports = () => {
             {/* Header with Search */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <Button type="primary">Excel</Button>
-                <Button>CSV</Button>
               </div>
               <div>
                 <Text>Search: </Text>
