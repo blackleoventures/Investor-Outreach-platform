@@ -137,12 +137,67 @@ exports.getPaginatedInvestors = async (req, res) => {
   }
 };
 
-// Controller to add investors data manually (disabled for Excel-only mode)
+// Controller to add investors data manually
 exports.bulkAddInvestors = async (req, res) => {
-  res.status(400).json({ 
-    error: "Manual addition disabled. Please use Excel file upload instead.",
-    message: "Use /api/excel/upload endpoint to add investors via Excel files"
-  });
+  try {
+    // Handle both formats: direct array or wrapped in 'investors' property
+    let investors;
+    if (Array.isArray(req.body)) {
+      // Direct array format: [investor1, investor2, ...]
+      investors = req.body;
+    } else if (req.body.investors && Array.isArray(req.body.investors)) {
+      // Wrapped format: { investors: [investor1, investor2, ...] }
+      investors = req.body.investors;
+    } else {
+      return res.status(400).json({ 
+        error: "Invalid data format. Expected array of investors or { investors: [...] }" 
+      });
+    }
+
+    console.log(`📝 Adding ${investors.length} investors manually...`);
+
+    // Add investors to Excel file via excelService
+    const results = [];
+    for (const investor of investors) {
+      try {
+        // Validate required fields
+        if (!investor.name || !investor.email) {
+          results.push({ 
+            success: false, 
+            error: "Name and email are required", 
+            data: investor 
+          });
+          continue;
+        }
+
+        // Add to Excel service
+        await excelService.addInvestor(investor);
+        results.push({ success: true, data: investor });
+        console.log(`✅ Added investor: ${investor.name}`);
+      } catch (error) {
+        console.error(`❌ Failed to add investor ${investor.name}:`, error.message);
+        results.push({ 
+          success: false, 
+          error: error.message, 
+          data: investor 
+        });
+      }
+    }
+
+    const successCount = results.filter(r => r.success).length;
+    const failCount = results.length - successCount;
+
+    res.json({
+      success: true,
+      message: `Added ${successCount} investors successfully${failCount > 0 ? `, ${failCount} failed` : ''}`,
+      results,
+      summary: { total: investors.length, success: successCount, failed: failCount }
+    });
+
+  } catch (error) {
+    console.error('❌ Bulk add investors error:', error);
+    res.status(500).json({ error: error.message });
+  }
 };
 
 // Redirect to Excel upload endpoint

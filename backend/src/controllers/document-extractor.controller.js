@@ -96,38 +96,67 @@ async function extractStructuredData(filePath, originalName) {
 
 // AI-powered data extraction
 async function extractDataWithAI(text) {
-  const prompt = `Extract structured company information from this document. Return ONLY valid JSON with these exact fields:
+  const prompt = `You are an expert investment research assistant. Analyze this pitch deck text and extract ONLY real data.
 
+EXAMPLE OUTPUT (based on Digilanxer case):
 {
-  "companyName": "actual company name from document",
-  "founderName": "founder/CEO name",
-  "founderTitle": "founder title/position", 
-  "problem": "problem being solved",
-  "solution": "solution description",
-  "market": "target market/industry",
-  "marketSize": "market size with numbers",
-  "businessModel": "revenue model",
-  "traction": "key metrics and traction",
-  "fundingAmount": "funding amount being raised",
-  "fundingStage": "funding stage (seed, series A, etc)",
-  "useOfFunds": "how funds will be used",
-  "teamBackground": "team experience and credentials",
-  "competitiveAdvantage": "key differentiators",
-  "revenue": "current revenue numbers",
-  "customers": "customer count or key customers",
-  "growth": "growth metrics",
-  "location": "company location",
-  "website": "company website",
-  "email": "contact email",
-  "phone": "contact phone",
-  "sector": "industry sector",
-  "stage": "company stage"
+  "companyName": "Digilanxer",
+  "sector": "SaaS/AI/Digital Marketing Platform", 
+  "problem": "Addressing pain points of transparency, freelancer vetting, and work tracking in digital marketing",
+  "solution": "AI-driven digital marketing tools, certified freelancers, and transparent project tracking—a one-stop solution for SMEs, startups, and enterprises",
+  "keyHighlights": [
+    "Projected 20x growth in the next 5 years (CAGR of 168%)",
+    "Targeting $7,32,285 revenue in Year 1 → $32,26,562 in Year 2 → $1,02,93,668 in Year 3",
+    "Market opportunity: Global digital marketing software market to grow from $76.27 Bn (2023) → $253.49 Bn (2031), CAGR 16.21%",
+    "Strong founding team with 20+ years of combined industry expertise"
+  ],
+  "productEdge": [
+    "AI-powered marketing strategies and analytics",
+    "Built-in video/audio freelancer interviews & work monitoring tools", 
+    "Certified & verified digital marketers onboarded on platform",
+    "Competitive subscription + commission-based revenue models"
+  ],
+  "fundraiseDetails": {
+    "amount": "$5M",
+    "valuation": "$79.4M pre-money valuation",
+    "dilution": "13% dilution",
+    "useOfFunds": [
+      "Marketing & GTM execution (55%)",
+      "Product enhancement & in-house tool development",
+      "Cybersecurity, compliance & risk management", 
+      "Expansion into global markets & strategic partnerships"
+    ]
+  },
+  "founderName": "Not disclosed in deck",
+  "phone": "+1 707 225 8072",
+  "email": "info@digilanxer.com",
+  "brandName": "Digilanxer",
+  "brandType": "Digital marketing platform",
+  "positioning": "Revolutionary digital marketing platform designed to transform the way businesses and freelancers collaborate",
+  "existingInvestors": "Strong founding team with 20+ years of combined industry expertise",
+  "uniqueSellingProposition": "AI-driven digital marketing tools with certified freelancers and transparent project tracking",
+  "revenueGrowth": "Projected 20x growth in next 5 years (CAGR 168%)",
+  "marketSize": "Global digital marketing software market: $76.27 Bn (2023) → $253.49 Bn (2031), CAGR 16.21%",
+  "fundraiseAmount": "$5M",
+  "sector": "SaaS/AI/Digital Marketing"
 }
 
-Extract REAL data from the document. If a field is not found, use null. Do not use placeholders.
+CRITICAL EXTRACTION RULES:
+✅ Find the ACTUAL company name from document (not generic terms)
+✅ Extract REAL numbers with currency symbols (₹/$) and units (Cr/Mn/K)  
+✅ Copy exact revenue projections, growth rates, market size
+✅ Find real contact details (phone, email, founder names)
+✅ Extract actual problem/solution statements from deck
+✅ Get real USPs and competitive advantages
+✅ Find actual fundraise amount, valuation, dilution %
+✅ Extract real use of funds breakdown
+✅ If any field not found in document, write "Not disclosed in deck"
+✅ NO generic placeholders like "Company Name" or "[Amount]"
 
-Document content:
-${text}`;
+NOW ANALYZE THIS DOCUMENT TEXT AND EXTRACT REAL DATA:
+${text}
+
+Return ONLY valid JSON with extracted real data:`;
 
   try {
     const geminiKey = process.env.GEMINI_API_KEY;
@@ -170,81 +199,133 @@ ${text}`;
   }
 }
 
-// Generate pre-filled email template
-function generateEmailTemplate(structuredData, investorName = "[Investor Name]") {
+// Generate pre-filled email template based on extracted data
+function generateEmailTemplate(structuredData, investorName = "[Investor's Name]") {
+  console.log('🔄 Generating email template with data:', structuredData);
   if (!structuredData) {
     return {
       subject: "Investment Opportunity - [Company Name]",
-      body: `Hi ${investorName},
+      body: `Dear ${investorName},
 
-I hope you are well. I'm reaching out to share a brief overview of [Company Name], where we are solving [Core Problem] in the [Market] space.
+Hope you're doing well.
 
-In the past [timeframe], we've achieved:
-• Traction: [key metrics — users, revenue, growth]
-• Product: [brief product/tech edge]  
-• Team: [notable credentials]
+I'm reaching out to share an exciting investment opportunity in [Company Name].
 
-We're currently raising [Amount] to [use of funds], and we believe this aligns with your focus on [sector/stage]. I'd appreciate the chance to share our deck and get your feedback.
+Key Highlights:
+- [Key Highlight 1]
+- [Key Highlight 2]
+- [Key Highlight 3]
 
-Would you be open to a 15-minute call this week or next?
+Fundraise Details:
+Currently raising [Amount] to accelerate growth.
+
+If this aligns with your investment thesis, we'd be glad to share our deck and set up a call.
+
+Looking forward to hearing from you.
 
 Best regards,
 [Your Name]
-[Title], [Company Name]
-[Contact Information]`
+[Your Title]
+[Company Name]`
     };
   }
 
   const {
-    companyName,
-    founderName,
-    founderTitle,
-    problem,
-    solution,
-    market,
+    brandName,
+    brandType,
+    positioning,
+    tagline,
+    existingInvestors,
+    uniqueSellingProposition,
+    revenueGrowth,
     marketSize,
-    traction,
-    fundingAmount,
-    fundingStage,
-    useOfFunds,
-    teamBackground,
-    competitiveAdvantage,
-    revenue,
-    customers,
-    growth,
+    grossMargins,
+    channels,
+    repeatRate,
+    ratings,
+    retention,
+    usp1,
+    usp2,
+    usp3,
+    fundraiseAmount,
+    keyPurpose,
+    useOfFund1,
+    useOfFund2,
+    useOfFund3,
     sector,
+    founderName,
+    firmName,
+    phone,
     email,
-    phone
+    companyName
   } = structuredData;
 
-  const subject = `Investment Opportunity - ${companyName || '[Company Name]'} | ${problem || 'Innovative Solution'} in ${market || '[Market]'}`;
+  const finalBrandName = brandName || companyName || '[Brand Name]';
+  const finalTagline = tagline || positioning || '[Short Tagline]';
+  
+  // Use extracted data intelligently
+  const finalCompanyName = structuredData.companyName || finalBrandName;
+  const companySector = structuredData.sector || sector || brandType || 'Not disclosed in deck';
+  const companyProblem = structuredData.problem || 'Not disclosed in deck';
+  const companySolution = structuredData.solution || uniqueSellingProposition || 'Not disclosed in deck';
+  
+  const subject = `Investment Opportunity in ${finalCompanyName} – ${companySector}`;
 
-  const body = `Hi ${investorName},
+  // Extract key highlights from structured data
+  const keyHighlights = structuredData.keyHighlights || [];
+  const productEdge = structuredData.productEdge || [];
+  const fundraiseDetails = structuredData.fundraiseDetails || {};
+  const useOfFunds = fundraiseDetails.useOfFunds || [];
 
-I hope you are well. I'm ${founderName || '[Founder Name]'}, ${founderTitle || 'Founder'} of ${companyName || '[Company Name]'}, where we are solving ${problem || '[core problem]'} in the ${market || '[market]'} space.
+  // Format key highlights - prioritize extracted data
+  const highlightsBullets = keyHighlights.length > 0 
+    ? keyHighlights.map(h => `• ${h}`).join('\n')
+    : `• Growth: ${revenueGrowth || structuredData.revenueGrowth || 'Not disclosed in deck'}
+• Market Size: ${structuredData.marketSize || marketSize || 'Not disclosed in deck'}  
+• Revenue Projections: ${structuredData.revenue || 'Not disclosed in deck'}
+• Traction: ${structuredData.traction || 'Not disclosed in deck'}`;
 
-${solution ? `Our solution: ${solution}` : ''}
+  // Format product edge - prioritize extracted data
+  const productEdgeBullets = productEdge.length > 0
+    ? productEdge.map(p => `• ${p}`).join('\n')
+    : `• ${structuredData.uniqueSellingProposition || uniqueSellingProposition || 'Not disclosed in deck'}
+• ${structuredData.competitiveAdvantage || 'Not disclosed in deck'}  
+• ${structuredData.businessModel || 'Not disclosed in deck'}`;
 
-${marketSize ? `Market Opportunity: ${marketSize}` : ''}
+  // Format use of funds - prioritize extracted data
+  const useOfFundsBullets = useOfFunds.length > 0
+    ? useOfFunds.map(u => `• ${u}`).join('\n')
+    : `• ${useOfFund1 || 'Not disclosed in deck'}
+• ${useOfFund2 || 'Not disclosed in deck'}
+• ${useOfFund3 || 'Not disclosed in deck'}`;
 
-Key highlights:
-${traction ? `• Traction: ${traction}` : '• Traction: [key metrics]'}
-${revenue ? `• Revenue: ${revenue}` : ''}
-${customers ? `• Customers: ${customers}` : ''}
-${growth ? `• Growth: ${growth}` : ''}
-${teamBackground ? `• Team: ${teamBackground}` : '• Team: [notable credentials]'}
-${competitiveAdvantage ? `• Advantage: ${competitiveAdvantage}` : ''}
+  // Format fundraise details
+  const finalFundraiseAmount = fundraiseDetails.amount || structuredData.fundraiseAmount || 'Not disclosed in deck';
+  const valuation = fundraiseDetails.valuation || 'Not disclosed in deck';
+  const dilution = fundraiseDetails.dilution || 'Not disclosed in deck';
 
-We're currently raising ${fundingAmount || '[Amount]'} ${fundingStage ? `(${fundingStage})` : ''} to ${useOfFunds || '[use of funds]'}, and we believe this aligns with your focus on ${sector || '[sector]'}.
+  const body = `Dear ${investorName},
 
-I'd appreciate the chance to share our deck and get your feedback.
+Hope you're doing well.
 
-Would you be open to a 15-minute call this week or next?
+I'm reaching out to share an exciting investment opportunity in ${finalCompanyName}, a ${companySector} company.
 
-Best regards,
-${founderName || '[Your Name]'}
-${founderTitle || '[Title]'}, ${companyName || '[Company Name]'}
-${email || '[Email]'} | ${phone || '[Phone]'}`;
+${companyProblem !== 'Not disclosed in deck' ? `Problem: ${companyProblem}\n\nSolution: ${companySolution}\n\n` : ''}📈 Key Highlights:
+${highlightsBullets}
+
+🔧 Product Edge:
+${productEdgeBullets}
+
+💸 Fundraise Details:
+Currently raising ${finalFundraiseAmount}${valuation !== 'Not disclosed in deck' ? ` at ${valuation}` : ''}${dilution !== 'Not disclosed in deck' ? ` (${dilution})` : ''}.
+
+${useOfFunds.length > 0 ? `Funds will be used for:\n${useOfFundsBullets}` : ''}
+
+If this aligns with your portfolio thesis in ${companySector}, we'd be glad to share the deck and set up a quick call with the founders.
+
+Warm regards,
+${founderName || structuredData.founderName || '[Founder/IR Name]'}
+📞 ${phone || structuredData.phone || '[Contact Number]'} | ✉️ ${email || structuredData.email || '[Email]'}`;
 
   return { subject, body };
 }

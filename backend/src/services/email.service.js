@@ -41,9 +41,12 @@ function buildUnsubscribeFooter(recipientEmail) {
     recipientEmail
   )}`;
   return `
-    <div style="margin-top:16px;font-size:12px;color:#6b7280">
-      You are receiving this because we believe this is relevant to you.
-      <a href="${unsubscribeUrl}">Unsubscribe</a>.
+    <div style="margin-top:30px;padding:20px;background:#f8fafc;border-radius:8px;text-align:center;border-top:1px solid #e2e8f0;">
+      <p style="margin:0 0 8px;font-size:12px;color:#64748b;">You are receiving this email because we believe this investment opportunity aligns with your portfolio interests.</p>
+      <p style="margin:0;font-size:11px;color:#94a3b8;">
+        <a href="${unsubscribeUrl}" style="color:#64748b;text-decoration:none;">Unsubscribe</a> | 
+        <span style="color:#94a3b8;">Cosmedream Investment Platform</span>
+      </p>
     </div>
   `;
 }
@@ -60,34 +63,46 @@ function rewriteLinksWithTracking(html, messageId) {
   });
 }
 
-async function sendEmail({ to, from, subject, html, messageId, headers = {}, categories = [], customArgs = {} }) {
+async function sendEmail({ to, from, subject, html, messageId, headers = {}, categories = [], customArgs = {}, companyName = "Cosmedream" }) {
   if (!to || !subject || !html) {
     throw new Error("to, subject, html are required");
   }
 
-  // Use default Gmail SMTP
+  // Use default Gmail SMTP with proper company name
   const clientEmail = from || DEFAULT_FROM_EMAIL;
+  const displayName = companyName || "Cosmedream";
   const sender = (EMAIL_PROVIDER === "gmail")
-    ? `${clientEmail} <${GMAIL_USER}>`
-    : clientEmail;
+    ? `"${displayName}" <${GMAIL_USER}>`
+    : `"${displayName}" <${clientEmail}>`;
 
   // Gmail SMTP
   if (EMAIL_PROVIDER === "gmail" && gmailTransporter) {
     try {
+      const trackingPixel = BASE_URL
+        ? `<img src="${BASE_URL}/email/track?messageId=${encodeURIComponent(
+            messageId
+          )}&email=${encodeURIComponent(to)}" width="1" height="1" style="display:none"/>`
+        : "";
+
+      const htmlWithTracking = rewriteLinksWithTracking(html, messageId) + buildUnsubscribeFooter(to) + trackingPixel;
+      
       const mailOptions = {
-        from: GMAIL_USER,
+        from: `"${displayName}" <${GMAIL_USER}>`,
         replyTo: clientEmail,
         to,
         subject,
-        html,
+        html: htmlWithTracking,
         headers: {
           "X-Campaign-Message-ID": messageId,
           "Message-ID": `<${messageId}@yourdomain.com>`,
+          "X-Mailer": displayName,
+          "Organization": displayName,
           ...headers,
         }
       };
 
       console.log('[gmail] Sending email from:', sender, 'to:', to);
+      console.log('[gmail] HTML content length:', htmlWithTracking?.length);
       const result = await gmailTransporter.sendMail(mailOptions);
       console.log('[gmail] Email sent successfully:', result?.response || result?.messageId);
       return {

@@ -1,0 +1,10 @@
+{
+  "companyId": "test-123",
+  "clientData": {
+    "company_name": "Cosmedream",
+    "email": "priyanshusingh99p@gmail.com"
+  },
+  "investorIds": ["test@test.com"],
+  "subject": "Investment - Cosmedream",
+  "htmlContent": "Test content"
+}

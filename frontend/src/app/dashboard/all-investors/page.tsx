@@ -75,20 +75,38 @@ export default function AllInvestorsPage() {
         const result = await response.json();
         console.log('API Response:', { source: result.source, timestamp: result.timestamp, count: result.totalCount });
         const investorData = result.docs || result.data || [];
-        // Use raw data directly from Excel
-        setInvestors(investorData);
-        setFilteredInvestors(investorData);
-        setDataSourceLabel(result.source === 'google_sheets' ? 'Google Sheets' : (result.source || ''));
         
-        if (investorData.length > 0) {
+        // Ensure manual investors are properly formatted
+        const formattedData = investorData.map((investor: any) => {
+          // Handle both manual entry format and Excel format
+          return {
+            ...investor,
+            'Investor Name': investor['Investor Name'] || investor.investor_name || investor.name || 'Unknown',
+            'Partner Name': investor['Partner Name'] || investor.partner_name || investor.contact || 'Unknown',
+            'Partner Email': investor['Partner Email'] || investor.partner_email || investor.email || '',
+            'Fund Type': investor['Fund Type'] || investor.fund_type || 'Unknown',
+            'Fund Stage': investor['Fund Stage'] || investor.fund_stage || 'Unknown',
+            'Fund Focus (Sectors)': investor['Fund Focus (Sectors)'] || investor.fund_focus_sectors || investor.sector_focus || 'Unknown',
+            'Location': investor['Location'] || investor.location || 'Unknown',
+            'Phone number': investor['Phone number'] || investor.phone_number || '',
+            'Ticket Size': investor['Ticket Size'] || investor.ticket_size || ''
+          };
+        });
+        
+        setInvestors(formattedData);
+        setFilteredInvestors(formattedData);
+        setDataSourceLabel(result.source === 'google_sheets' ? 'Google Sheets' : (result.source || 'Database'));
+        
+        if (formattedData.length > 0) {
           console.log('=== DEBUGGING INVESTOR DATA ===');
-          console.log('Sample investor data:', investorData[0]);
-          console.log('All column names:', Object.keys(investorData[0]));
-          console.log('First 3 records:', investorData.slice(0, 3));
+          console.log('Sample investor data:', formattedData[0]);
+          console.log('All column names:', Object.keys(formattedData[0]));
+          console.log('First 3 records:', formattedData.slice(0, 3));
           console.log('=== END DEBUG ===');
         }
       } else {
         console.error('API Error:', response.status);
+        message.error('Failed to fetch investors data');
       }
     } catch (error) {
       console.error('Error fetching investors:', error);
@@ -165,7 +183,10 @@ export default function AllInvestorsPage() {
     // Fetch fresh data immediately
     fetchInvestors();
     fetchSyncStatus();
-    // Removed auto-refresh polling; refresh happens only on button click
+    
+    // Auto-refresh every 30 seconds to show new manual entries
+    const interval = setInterval(fetchInvestors, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {

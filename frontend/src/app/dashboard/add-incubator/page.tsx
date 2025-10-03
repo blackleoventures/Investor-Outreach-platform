@@ -35,7 +35,8 @@ export default function AddIncubatorPage() {
     message.loading('Uploading file...', 0);
     try {
       formData.append('file', file);
-      const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/incubators/upload-file`, {
+      formData.append('excel', file);
+      const response = await fetch(`http://localhost:5000/api/incubators/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -242,27 +243,27 @@ export default function AddIncubatorPage() {
             <Form form={form} onFinish={handleSubmit} layout="vertical">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {visibleFields.incubatorName && (
-                  <Form.Item name="incubatorName" label="Incubator Name" className="mb-3" rules={[{ required: true, message: 'Please enter incubator name!' }]}>
+                  <Form.Item name="incubator_name" label="Incubator Name" className="mb-3" rules={[{ required: true, message: 'Incubator name is required' }]}>
               <Input placeholder="Enter incubator name" />
             </Form.Item>
                 )}
                 {visibleFields.partnerName && (
-                  <Form.Item name="partnerName" label="Partner Name" className="mb-3" rules={[{ required: true, message: 'Please enter partner name!' }]}>
+                  <Form.Item name="partner_name" label="Partner Name" className="mb-3" rules={[{ required: true, message: 'Please enter partner name!' }]}>
               <Input placeholder="Enter partner name" />
             </Form.Item>
                 )}
                 {visibleFields.partnerEmail && (
-                  <Form.Item name="partnerEmail" label="Partner Email" className="mb-3" rules={[{ required: true, message: 'Please enter partner email!' }, { type: 'email', message: 'Enter a valid email' }]}>
+                  <Form.Item name="partner_email" label="Partner Email" className="mb-3" rules={[{ required: true, message: 'Please enter partner email!' }, { type: 'email', message: 'Enter a valid email' }]}>
                     <Input placeholder="Enter partner email" type="email" />
             </Form.Item>
                 )}
                 {visibleFields.phoneNumber && (
-                  <Form.Item name="phoneNumber" label="Phone Number" className="mb-3">
+                  <Form.Item name="phone_number" label="Phone Number" className="mb-3">
               <Input placeholder="Enter phone number" />
             </Form.Item>
                 )}
                 {visibleFields.sectorFocus && (
-                  <Form.Item name="sectorFocus" label="Sector Focus" className="mb-3">
+                  <Form.Item name="sector_focus" label="Sector Focus" className="mb-3">
               <Input placeholder="Enter sector focus" />
             </Form.Item>
                 )}
@@ -272,7 +273,7 @@ export default function AddIncubatorPage() {
             </Form.Item>
                 )}
                 {visibleFields.stateCity && (
-                  <Form.Item name="stateCity" label="State/City" className="mb-3">
+                  <Form.Item name="state_city" label="State/City" className="mb-3">
               <Input placeholder="Enter state/city" />
             </Form.Item>
                 )}

@@ -352,15 +352,46 @@ export default function DocumentEmailComposer() {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <Text strong className="text-lg">Subject</Text>
-            <Button size="small" onClick={() => { navigator.clipboard.writeText(subject || ""); }}>📋 Copy Subject</Button>
+            <Button 
+              size="small" 
+              onClick={() => { 
+                // Clean subject by removing any prefix
+                const cleanSubject = (subject || "")
+                  .replace(/^Subject:\s*/i, '') // Remove "Subject:" prefix
+                  .trim();
+                navigator.clipboard.writeText(cleanSubject);
+                message.success('Subject copied to clipboard!');
+              }}
+            >
+              📋 Copy Subject
+            </Button>
           </div>
-          <Input value={subject} readOnly size="large" />
+          <Input value={subject?.replace(/^Subject:\s*/i, '').trim()} readOnly size="large" />
 
           <div className="flex items-center justify-between">
             <Text strong className="text-lg">Email Body</Text>
-            <Button size="small" onClick={() => { navigator.clipboard.writeText(body || ""); }}>📋 Copy Body</Button>
+            <Button 
+              size="small" 
+              onClick={() => { 
+                // Clean body by removing any HTML tags and normalizing whitespace
+                const cleanBody = (body || "")
+                  .replace(/<[^>]*>/g, '') // Remove HTML tags
+                  .replace(/&nbsp;/g, ' ') // Replace &nbsp; with spaces
+                  .replace(/\s+/g, ' ') // Normalize multiple spaces
+                  .replace(/\n\s*\n/g, '\n\n') // Clean up extra newlines
+                  .trim();
+                navigator.clipboard.writeText(cleanBody);
+                message.success('Email body copied to clipboard!');
+              }}
+            >
+              📋 Copy Body
+            </Button>
           </div>
-          <Input.TextArea value={body} readOnly autoSize={{ minRows: 12, maxRows: 20 }} />
+          <Input.TextArea 
+            value={body?.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()} 
+            readOnly 
+            autoSize={{ minRows: 12, maxRows: 20 }} 
+          />
           <Alert type="info" showIcon message="Note" description="Sending is disabled here. Use the Email Composer page to send or schedule emails." />
         </div>
       ),

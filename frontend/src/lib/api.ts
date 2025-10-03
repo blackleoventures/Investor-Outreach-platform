@@ -78,17 +78,36 @@ export const apiFetch = async (path: string, init?: RequestInit) => {
     return `${base}${cleanPath}`;
   };
 
+  // Get auth token from localStorage or sessionStorage
+  let authToken = null;
+  if (typeof window !== 'undefined') {
+    authToken = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+  }
+
+  // Add authentication headers
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(init?.headers || {}),
+    ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {})
+  };
+
+  const requestInit = {
+    ...init,
+    headers
+  };
+
   // Force localhost for development
   if (typeof window !== 'undefined' && window.location.origin.includes('localhost')) {
     const url = buildUrl('http://localhost:5000');
-    return fetch(url, init);
+    console.log('API Request:', url, requestInit.method);
+    return fetch(url, requestInit);
   }
 
   // First attempt with current/base
   let base = await getApiBase();
   let url = buildUrl(base);
   try {
-    return await fetch(url, init);
+    return await fetch(url, requestInit);
   } catch (err) {
     // On network failure, clear cache and rescan, then retry once
     if (typeof window !== 'undefined') {
@@ -97,7 +116,21 @@ export const apiFetch = async (path: string, init?: RequestInit) => {
     resolvedApiBase = null;
     base = await getApiBase(true);
     url = buildUrl(base);
-    return fetch(url, init);
+    return fetch(url, requestInit);
   }
+};
+
+// Simple API client with authentication
+export const api = {
+  get: (path: string) => apiFetch(path, { method: 'GET' }),
+  post: (path: string, data?: any) => apiFetch(path, {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : undefined
+  }),
+  put: (path: string, data?: any) => apiFetch(path, {
+    method: 'PUT', 
+    body: data ? JSON.stringify(data) : undefined
+  }),
+  delete: (path: string) => apiFetch(path, { method: 'DELETE' })
 };
 

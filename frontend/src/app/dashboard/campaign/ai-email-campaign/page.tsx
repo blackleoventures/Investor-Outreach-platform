@@ -9,47 +9,84 @@ import { motion } from "framer-motion";
 const { TextArea } = Input;
 const { Option } = Select;
 
-// Default investor outreach template to use after pitch upload
-const DEFAULT_INVESTOR_TEMPLATE = `Subject: Investment Opportunity in [Brand Name] Deck – [Short Tagline]
+// Helper function to extract company name from filename
+const extractCompanyNameFromFileName = (fileName?: string) => {
+  if (!fileName) return null;
+  
+  return fileName
+    .replace(/\.[^.]+$/, '') // Remove extension
+    .replace(/\bdeck\b/gi, '') // Remove "deck"
+    .replace(/\(\d+\)/g, '') // Remove (1), (2), etc.
+    .replace(/[-_]/g, ' ') // Replace dashes and underscores with spaces
+    .replace(/\s{2,}/g, ' ') // Replace multiple spaces with single space
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase()); // Capitalize first letter of each word
+};
+
+// Dynamic investor outreach template based on analysis
+const generateDynamicTemplate = (analysis: PitchAnalysis | null, fileName?: string) => {
+  if (!analysis) {
+    const companyName = extractCompanyNameFromFileName(fileName) || "[Company Name]";
+    return `Subject: Investment Opportunity - ${companyName}
 
 Dear [Investor's Name],
 
 Hope you're doing well.
 
-I'm reaching out to share an exciting investment opportunity in [Brand Name], a [Brand Type / Category] brand that's [1-line positioning].
-
-Backed by [Existing Investors / Grants / Achievements], [Brand Name] combines [Unique Selling Proposition] to offer a high-margin, scalable business.
+I'm reaching out to share an exciting investment opportunity in ${companyName}.
 
 Key Highlights:
-- Growth: [Revenue Growth / Projection]
-- Market Size: [Market Size + Gap/Underserved angle]
-- Gross Margins: [Gross Margin %]
-- Current Presence: [Channels e.g. Amazon, Website, Quick Commerce]
-- Unit Economics: [Repeat Rate / Ratings / Retention]
-
-Product Edge:
-- [USP 1 Natural/Tech-enabled/etc.]
-- [USP 2 Category differentiation]
-- [USP 3 Competition angle]
+- [Key Highlight 1]
+- [Key Highlight 2] 
+- [Key Highlight 3]
 
 Fundraise Details:
-Currently raising [Fundraise Amount] to accelerate [Key Purpose].
+Currently raising [Amount] to accelerate growth.
 
-Funds will support:
-- [Use of Fund 1 GTM, Marketing, Expansion, etc.]
-- [Use of Fund 2]
-- [Use of Fund 3]
-
-If this aligns with your portfolio thesis in [Sector / Category], we'd be glad to share the deck and set up a quick call with the founders.
+If this aligns with your investment thesis, we'd be glad to share our deck and set up a call.
 
 Looking forward to hearing from you.
 
-Warm regards,  
-[Your Full Name]  
-Investor Relations [Firm Name]  
-📞 [Phone Number] | ✉️ [Email Address]`;
+Best regards,
+[Your Name]
+[Your Title]
+${companyName}`;
+  }
 
-// Build a filled template using the fixed structure and AI analysis data
+  const companyName = extractCompanyNameFromFileName(fileName) || "[Company Name]";
+  const sector = analysis.summary?.market || "[Sector]";
+  const highlights = analysis.highlights || [];
+  
+  return `Subject: Investment Opportunity - ${companyName}
+
+Dear [Investor's Name],
+
+Hope you're doing well.
+
+I'm reaching out to share an exciting investment opportunity in ${companyName}, operating in the ${sector} space.
+
+${analysis.summary?.problem ? `Problem: ${analysis.summary.problem}` : ''}
+${analysis.summary?.solution ? `\nSolution: ${analysis.summary.solution}` : ''}
+
+Key Highlights:
+${highlights.slice(0, 5).map(h => `- ${h}`).join('\n')}
+
+${analysis.summary?.traction ? `Traction: ${analysis.summary.traction}` : ''}
+
+Fundraise Details:
+Currently raising funds to accelerate growth and expansion.
+
+If this aligns with your investment thesis in ${sector}, we'd be glad to share our deck and set up a call with the founders.
+
+Looking forward to hearing from you.
+
+Best regards,
+[Your Name]
+[Your Title]
+${companyName}`;
+};
+
+// Build a filled template using the AI analysis data
 function buildTemplateFromAnalysis(analysis: PitchAnalysis | null, fileName?: string) {
   if (!analysis) return DEFAULT_INVESTOR_TEMPLATE;
   const pick = (v?: string) => (v && v.trim().length > 0 ? v.trim() : undefined);
@@ -162,7 +199,8 @@ const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileNa
         content: generatedEmailTemplate.body 
       });
     } else {
-      const lines = DEFAULT_INVESTOR_TEMPLATE.split('\n');
+      const template = generateDynamicTemplate(pitchAnalysis, uploadedFileName);
+      const lines = template.split('\n');
       const subject = lines[0].replace('Subject: ', '');
       const content = lines.slice(1).join('\n').trim();
       form.setFieldsValue({ subject, content });
@@ -262,7 +300,8 @@ const EmailComposer = ({ pitchAnalysis, autoLoadTemplate = false, uploadedFileNa
   const enhanceContent = async () => {
     let currentContent = form.getFieldValue('content');
     if (!currentContent) {
-      const lines = buildTemplateFromAnalysis(pitchAnalysis, uploadedFileName).split('\n');
+      const template = generateDynamicTemplate(pitchAnalysis, uploadedFileName);
+      const lines = template.split('\n');
       currentContent = lines.slice(1).join('\n').trim();
       form.setFieldValue('content', currentContent);
       setFormKey(`composer-${Date.now()}`);
@@ -356,17 +395,40 @@ Best regards,
         return;
       }
 
-      // Get client info from URL
+      // Get client info from URL and localStorage
       const urlParams = new URLSearchParams(window.location.search);
-      const companyId = urlParams.get('companyId') || 'test-company-123'; // Fallback for testing
+      const clientId = urlParams.get('clientId');
       const clientName = urlParams.get('clientName') || 'Test Client';
+      
+      // Get client data from localStorage using clientId
+      let clientData = null;
+      if (clientId) {
+        const clients = JSON.parse(localStorage.getItem('clients') || '[]');
+        clientData = clients.find(c => 
+          String(c.id || c._id || c.email || (c.company_name && c.company_name.replace(/\s+/g, '-'))) === String(clientId)
+        );
+      }
+      
+      // Fallback to currentClient if no specific client found
+      if (!clientData) {
+        const storedClient = localStorage.getItem('currentClient');
+        if (storedClient) {
+          clientData = JSON.parse(storedClient);
+        }
+      }
+      
+      const companyId = clientData?.id || 'test-company-123';
 
-      // Send emails using client email service
+      // Send emails using client email service with proper formatting
       const payload = {
         companyId: companyId,
-        investorIds: deduped, // Use emails as IDs for now
+        clientData: clientData, // Include full client data for email sending
+        investorIds: deduped,
         subject: values.subject,
-        htmlContent: values.content
+        companyName: clientData?.company_name || 'Investment Opportunity',
+        htmlContent: `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto;">
+          ${values.content.replace(/\n/g, '<br>')}
+        </div>`
       };
       
       const response = await fetch(`${BACKEND_URL}/client-email/send-bulk`, {
@@ -455,6 +517,7 @@ Best regards,
         }
         
         form.resetFields();
+        setRecipients([]); // Clear recipients list
 
     } catch (err: any) {
       console.error('Email send error:', err);
@@ -564,6 +627,25 @@ Best regards,
           onFinish={sendEmail}
           className="max-w-4xl mx-auto"
         >
+          {/* From Email Display */}
+          <Form.Item label="📧 From Email" className="mb-4">
+            <Input 
+              disabled 
+              value={(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const clientId = urlParams.get('clientId');
+                if (clientId) {
+                  const clients = JSON.parse(localStorage.getItem('clients') || '[]');
+                  const client = clients.find(c => String(c.id || c._id) === String(clientId));
+                  if (client?.email) return client.email;
+                }
+                const currentClient = JSON.parse(localStorage.getItem('currentClient') || '{}');
+                return currentClient.email || 'No email configured';
+              })()} 
+              size="large"
+            />
+          </Form.Item>
+
           <div className="flex items-center gap-4">
             <Form.Item
               label="📧 To Email"
@@ -860,10 +942,7 @@ const InvestorMatcher = () => (
 const { Title, Text } = Typography;
 // Ensure the base points to the API root regardless of env
 // Prefer Next.js rewrite to /api so dev works even without env
-const RAW_BACKEND = (process.env.NEXT_PUBLIC_BACKEND_URL as string | undefined)?.trim();
-const BACKEND_URL = RAW_BACKEND && RAW_BACKEND !== ''
-  ? RAW_BACKEND.replace(/\/$/, '') + (RAW_BACKEND.endsWith('/api') ? '' : '/api')
-  : 'http://localhost:5000/api';
+const BACKEND_URL = 'http://localhost:5000/api';
 
 interface PitchAnalysis {
   summary: {
@@ -1030,13 +1109,10 @@ export default function AIEmailCampaignPage() {
           };
         }
         
-        // Calculate total score
-        let totalScore = analysisData.summary.total_score;
-        if (!totalScore || totalScore === 0) {
-          const scores = Object.values(fixedScorecard) as number[];
-          totalScore = Math.round(scores.reduce((sum: number, score: number) => sum + score, 0));
-          console.log('🔢 Calculated total score from scorecard:', totalScore);
-        }
+        // Calculate total score properly
+        const scores = Object.values(fixedScorecard) as number[];
+        const totalScore = Math.round(scores.reduce((sum: number, score: number) => sum + score, 0));
+        console.log('🔢 Calculated total score from scorecard:', totalScore);
         
         // Use Gemini analysis with calculated score
         const fixedAnalysis = {
@@ -1088,7 +1164,7 @@ export default function AIEmailCampaignPage() {
             "What are your unit economics and path to profitability?",
             "How will you use the $10M funding to achieve key milestones?"
           ],
-          email_template: buildTemplateFromAnalysis(null, file.name),
+          email_template: generateDynamicTemplate(null, file.name),
           highlights: [
             "Strong market opportunity and growth potential",
             "Experienced founding team",
@@ -1383,8 +1459,15 @@ export default function AIEmailCampaignPage() {
                         type="primary"
                         size="small"
                         onClick={() => {
-                          const subject = buildTemplateFromAnalysis(pitchAnalysis, uploadedFile?.name).split('\n')[0].replace('Subject: ', '');
-                          navigator.clipboard.writeText(subject);
+                          const rawSubject = generatedEmailTemplate?.subject || 'Investment – Cosmedream';
+                          // Enhanced subject cleaning
+                          const cleanSubject = rawSubject
+                            .replace(/^Subject:\s*/i, '') // Remove "Subject:" prefix
+                            .replace(/\s*–\s*\[.*?\].*$/i, '') // Remove " – [placeholder text]" suffix
+                            .replace(/\s*\[.*?\]\s*/g, '') // Remove any [placeholder] text
+                            .replace(/\s+/g, ' ') // Normalize spaces
+                            .trim();
+                          navigator.clipboard.writeText(cleanSubject);
                           message.success('Subject copied to clipboard!');
                         }}
                         className="bg-blue-600 hover:bg-blue-700"
@@ -1394,7 +1477,16 @@ export default function AIEmailCampaignPage() {
                     </div>
                     <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-lg border-2 border-blue-200">
                       <Text className="text-base font-medium text-gray-800">
-                        {generatedEmailTemplate?.subject || 'Investment Opportunity - [Company Name]'}
+                        {(() => {
+                          const rawSubject = generatedEmailTemplate?.subject || generateDynamicTemplate(pitchAnalysis, uploadedFile?.name).split('\n')[0].replace('Subject: ', '');
+                          // Clean subject for display
+                          return rawSubject
+                            .replace(/^Subject:\s*/i, '') // Remove "Subject:" prefix
+                            .replace(/\s*–\s*\[.*?\].*$/i, '') // Remove " – [placeholder text]" suffix
+                            .replace(/\s*\[.*?\]\s*/g, '') // Remove any [placeholder] text
+                            .replace(/\s+/g, ' ') // Normalize spaces
+                            .trim();
+                        })()}
                       </Text>
                     </div>
                   </div>
@@ -1407,8 +1499,27 @@ export default function AIEmailCampaignPage() {
                     <Button 
                       type="primary"
                       onClick={() => {
-                        const emailContent = generatedEmailTemplate?.body || DEFAULT_INVESTOR_TEMPLATE;
-                        navigator.clipboard.writeText(emailContent);
+                        const rawEmailContent = generatedEmailTemplate?.body || generateDynamicTemplate(pitchAnalysis, uploadedFile?.name).split('\n').slice(1).join('\n').trim();
+                        // Enhanced email content cleaning with proper formatting
+                        const cleanEmailContent = rawEmailContent
+                          .replace(/<[^>]*>/g, '') // Remove HTML tags
+                          .replace(/&nbsp;/g, ' ') // Replace &nbsp; with spaces
+                          .replace(/&amp;/g, '&') // Replace HTML entities
+                          .replace(/&lt;/g, '<')
+                          .replace(/&gt;/g, '>')
+                          .replace(/&quot;/g, '"')
+                          .replace(/&#39;/g, "'")
+                          .replace(/\[.*?\]/g, '') // Remove any [placeholder] text
+                          .replace(/\s*\n\s*/g, '\n') // Clean up spacing around newlines
+                          .replace(/\n{3,}/g, '\n\n') // Limit consecutive newlines to 2
+                          .replace(/^\s+|\s+$/gm, '') // Trim each line
+                          .replace(/📈\s*KEY HIGHLIGHTS:/g, '\n📈 KEY HIGHLIGHTS:')
+                          .replace(/🔧\s*PRODUCT EDGE:/g, '\n\n🔧 PRODUCT EDGE:')
+                          .replace(/💸\s*FUNDRAISE DETAILS:/g, '\n\n💸 FUNDRAISE DETAILS:')
+                          .replace(/•\s*/g, '\n• ') // Ensure bullets are on new lines
+                          .replace(/\n\n\n+/g, '\n\n') // Clean up extra newlines again
+                          .trim();
+                        navigator.clipboard.writeText(cleanEmailContent);
                         message.success('Email content copied to clipboard!');
                       }}
                       className="bg-green-600 hover:bg-green-700"
@@ -1418,13 +1529,18 @@ export default function AIEmailCampaignPage() {
                   </div>
                   <div className="bg-gradient-to-br from-gray-50 to-blue-50 p-6 rounded-lg border-2 border-gray-200">
                     <div className="text-base font-sans text-gray-800 leading-relaxed whitespace-pre-line">
-                      {(generatedEmailTemplate?.body || DEFAULT_INVESTOR_TEMPLATE)
-                        .replace(/📈 Key Highlights:/g, '\n📈 KEY HIGHLIGHTS:')
-                        .replace(/🔧 Product Edge:/g, '\n🔧 PRODUCT EDGE:')
-                        .replace(/💸 Fundraise Details:/g, '\n💸 FUNDRAISE DETAILS:')
-                        .replace(/- /g, '\n• ')
-                        .replace(/Contact:/g, '\nContact:')
-                      }
+                      {(() => {
+                        const content = generatedEmailTemplate?.body || generateDynamicTemplate(pitchAnalysis, uploadedFile?.name).split('\n').slice(1).join('\n').trim();
+                        return content
+                          .replace(/📈\s*Key Highlights:/gi, '\n\n📈 KEY HIGHLIGHTS:')
+                          .replace(/🔧\s*Product Edge:/gi, '\n\n🔧 PRODUCT EDGE:')
+                          .replace(/💸\s*Fundraise Details:/gi, '\n\n💸 FUNDRAISE DETAILS:')
+                          .replace(/^\s*-\s*/gm, '• ') // Convert dashes to bullets
+                          .replace(/Contact:/g, '\n\nContact:')
+                          .replace(/Warm regards,/g, '\n\nWarm regards,')
+                          .replace(/\n{3,}/g, '\n\n') // Limit consecutive newlines
+                          .trim();
+                      })()}
                     </div>
                   </div>
                 </div>

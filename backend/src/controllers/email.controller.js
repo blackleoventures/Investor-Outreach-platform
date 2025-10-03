@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require("uuid");
 const { db, admin } = require("../config/firebase");
 const { sendEmail } = require("../services/email.service");
+const { createProfessionalEmailTemplate, createInvestmentEmailContent } = require("../utils/email-templates");
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -50,7 +51,33 @@ exports.sendEmail = async (req, res) => {
 
     const sendOne = async ({ email, messageId }) => {
       try {
-        await sendEmail({ to: email, from: sender, subject, html: content, messageId });
+        // Get client company name from campaign data
+        const campaignDoc = await campaignRef.get();
+        const campaignData = campaignDoc.data();
+        const clientCompanyName = campaignData?.clientCompanyName || campaignData?.companyName || "Investment Opportunity";
+        
+        // Extract company name from content or use client company name
+        const companyNameMatch = content.match(/company[:\s]+([A-Za-z0-9\s]+)/i) || 
+                                content.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/g);
+        const extractedCompanyName = companyNameMatch ? companyNameMatch[1] || companyNameMatch[0] : clientCompanyName;
+        
+        const emailContent = createInvestmentEmailContent({
+          investorName: "[Investor's Name]",
+          companyName: extractedCompanyName.trim(),
+          sector: "FMCG",
+          stage: "Series A", 
+          amount: "$2M"
+        });
+        const professionalHtml = createProfessionalEmailTemplate(emailContent, extractedCompanyName.trim());
+        
+        await sendEmail({ 
+          to: email, 
+          from: sender, 
+          subject, 
+          html: content.includes('<html>') ? content : professionalHtml, 
+          messageId,
+          companyName: extractedCompanyName.trim()
+        });
         results.push({ recipient: email, status: "sent", messageId });
       } catch (err) {
         results.push({ recipient: email, status: "failed", error: err.message, messageId });
@@ -141,8 +168,22 @@ exports.sendDirect = async (req, res) => {
       return res.status(400).json({ error: "to, subject, html are required" });
     }
     
+    // Get client company name from request or extract from content
+    const clientCompanyName = req.body.companyName || "Investment Opportunity";
+    const companyNameMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/i) || 
+                            html.match(/company[:\s]+([A-Za-z0-9\s]+)/i) ||
+                            subject.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/g);
+    const extractedCompanyName = companyNameMatch ? companyNameMatch[1] || companyNameMatch[0] : clientCompanyName;
+    
     const messageId = uuidv4();
-    const result = await sendEmail({ to, from, subject, html, messageId });
+    const result = await sendEmail({ 
+      to, 
+      from, 
+      subject, 
+      html, 
+      messageId,
+      companyName: extractedCompanyName.trim()
+    });
     
     return res.status(200).json({ 
       success: true, 
@@ -208,35 +249,97 @@ exports.trackOpen = async (req, res) => {
 
 // Build a professional score summary email from analysis object
 function buildScoreEmailHtml(analysis) {
+  console.log('Building HTML for analysis:', analysis);
+  
   const s = analysis?.summary || {};
   const scorecard = analysis?.scorecard || {};
+  
+  // Calculate total score from scorecard if not provided
+  let totalScore = s.total_score || 0;
+  if (!totalScore && Object.keys(scorecard).length > 0) {
+    const scores = Object.values(scorecard).map(v => parseInt(v) || 0);
+    totalScore = Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length * 10);
+  }
+  
   const rows = Object.entries(scorecard).map(([k, v]) => `<li>${k}: <strong>${v}/10</strong></li>`).join('');
-  return `
-  <div style="font-family:Arial,Helvetica,sans-serif;line-height:1.6;color:#1f2937;">
-    <h2 style="margin:0 0 8px;">Investment Readiness Score</h2>
-    <p style="margin:0 0 12px;">Overall: <strong>${(s.status||'').toString().toUpperCase()}</strong> – <strong>${s.total_score||0}/100</strong></p>
-    <h3 style="margin:16px 0 8px;">Detailed Scorecard</h3>
-    <ul style="padding-left:18px;margin:0 0 12px;">${rows}</ul>
-    <h3 style="margin:16px 0 8px;">Summary</h3>
-    <p style="margin:0 0 6px;"><strong>Problem:</strong> ${s.problem||''}</p>
-    <p style="margin:0 0 6px;"><strong>Solution:</strong> ${s.solution||''}</p>
-    <p style="margin:0 0 6px;"><strong>Market:</strong> ${s.market||''}</p>
-    <p style="margin:0 0 6px;"><strong>Traction:</strong> ${s.traction||''}</p>
-  </div>`;
+  
+  const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Investment Readiness Score Report</title>
+</head>
+<body style="font-family:Arial,Helvetica,sans-serif;line-height:1.6;color:#1f2937;margin:20px;background:#ffffff;">
+  <h2 style="margin:0 0 16px;color:#2563eb;">Investment Readiness Score Report</h2>
+  <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0;">
+    <p style="margin:0 0 12px;font-size:18px;">Overall Score: <strong style="color:#059669;">${totalScore}/100</strong></p>
+    <p style="margin:0;color:#6b7280;">Status: <strong>${(s.status||'Under Review').toString().toUpperCase()}</strong></p>
+  </div>
+  <h3 style="margin:24px 0 12px;color:#374151;">Detailed Scorecard</h3>
+  <ul style="padding-left:20px;margin:0 0 20px;">${rows}</ul>
+  <h3 style="margin:24px 0 12px;color:#374151;">Executive Summary</h3>
+  <div style="background:#ffffff;border-left:4px solid #2563eb;padding:16px;margin:12px 0;">
+    <p style="margin:0 0 8px;"><strong>Problem Statement:</strong> ${s.problem||'Not specified'}</p>
+    <p style="margin:0 0 8px;"><strong>Solution Approach:</strong> ${s.solution||'Not specified'}</p>
+    <p style="margin:0 0 8px;"><strong>Market Analysis:</strong> ${s.market||'Not specified'}</p>
+    <p style="margin:0;"><strong>Traction & Metrics:</strong> ${s.traction||'Not specified'}</p>
+  </div>
+  <hr style="margin:24px 0;border:none;border-top:1px solid #e5e7eb;">
+  <p style="margin:0;color:#6b7280;font-size:14px;">This report was generated automatically. For questions, please contact our investment team.</p>
+</body>
+</html>`;
+  
+  console.log('Generated HTML content length:', htmlContent.length);
+  return htmlContent;
 }
 
 // Send score email: only requires to, subject, and analysis payload; backend builds HTML
 exports.sendScoreEmail = async (req, res) => {
   try {
     const { to, subject, analysis, from } = req.body || {};
+    console.log('Score email request:', { to, subject, analysis: !!analysis, from });
+    
     if (!to || !subject || !analysis) {
       return res.status(400).json({ error: "to, subject, analysis are required" });
     }
+    
+    // Build HTML content from analysis
     const html = buildScoreEmailHtml(analysis);
+    console.log('Generated HTML length:', html?.length);
+    
+    if (!html || html.trim().length === 0) {
+      return res.status(400).json({ error: "Failed to generate email content from analysis" });
+    }
+    
     const messageId = uuidv4();
-    const result = await sendEmail({ to, from, subject, html, messageId });
-    return res.status(200).json({ success: true, messageId, providerStatus: result.statusCode });
+    // Extract company name from analysis or subject
+    const companyNameMatch = (analysis?.companyName) || 
+                            (analysis?.summary?.companyName) ||
+                            subject.match(/([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/g)?.[0] ||
+                            "Investment Opportunity";
+    
+    console.log('About to send email with HTML content');
+    
+    const result = await sendEmail({ 
+      to, 
+      from: from || 'noreply@yourdomain.com', 
+      subject, 
+      html, 
+      messageId,
+      companyName: companyNameMatch.trim()
+    });
+    
+    console.log('Email sent result:', result);
+    
+    return res.status(200).json({ 
+      success: true, 
+      messageId, 
+      providerStatus: result.statusCode,
+      emailSent: true,
+      htmlLength: html.length
+    });
   } catch (err) {
+    console.error('Score email error:', err);
     return res.status(500).json({ error: err.message || 'Failed to send score email' });
   }
 };

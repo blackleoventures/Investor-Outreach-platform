@@ -1,51 +1,36 @@
-const nodemailer = require('nodemailer');
 require('dotenv').config();
-
-const GMAIL_USER = process.env.GMAIL_USER;
-const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-
-console.log('Testing Gmail configuration...');
-console.log('Gmail User:', GMAIL_USER);
-console.log('App Password configured:', !!GMAIL_APP_PASSWORD);
-
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: GMAIL_USER,
-    pass: GMAIL_APP_PASSWORD
-  }
-});
+const { sendEmail } = require('./src/services/email.service');
+const { v4: uuidv4 } = require('uuid');
 
 async function testEmail() {
   try {
-    // Verify connection
-    console.log('Verifying connection...');
-    await transporter.verify();
-    console.log('✅ Gmail connection verified successfully');
+    const testContent = `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+        <div style="background:#667eea;color:white;padding:20px;text-align:center;">
+          <h1 style="margin:0;">TechStartup Inc</h1>
+          <p style="margin:5px 0 0;">Investment Opportunity</p>
+        </div>
+        <div style="padding:20px;">
+          <p>Dear Investor,</p>
+          <p>I'm reaching out to share an exciting investment opportunity in <strong>TechStartup Inc</strong>, an AI technology company.</p>
+          <p>Currently raising <strong>$5M</strong> to accelerate product development and market expansion.</p>
+          <p>Best regards,<br>Investment Team</p>
+        </div>
+      </div>
+    `;
 
-    // Send test email
-    console.log('Sending test email...');
-    const result = await transporter.sendMail({
-      from: GMAIL_USER,
-      to: 'priyanshuchouhan185@gmail.com',
-      subject: 'Test Email from Investor Outreach Platform',
-      html: `
-        <h2>Test Email</h2>
-        <p>This is a test email to verify that the email service is working correctly.</p>
-        <p>Sent at: ${new Date().toLocaleString()}</p>
-        <p>If you receive this email, the Gmail integration is working properly!</p>
-      `
+    const result = await sendEmail({
+      to: 'priyanshuchouhan102@gmail.com',
+      from: 'priyanshuchouhan100@gmail.com',
+      subject: 'Investment Opportunity - TechStartup Inc',
+      html: testContent,
+      messageId: uuidv4(),
+      companyName: 'TechStartup Inc'
     });
 
-    console.log('✅ Email sent successfully!');
-    console.log('Message ID:', result.messageId);
-    console.log('Response:', result.response);
-    
+    console.log('✅ Test email sent successfully:', result);
   } catch (error) {
-    console.error('❌ Email test failed:', error.message);
-    if (error.code === 'EAUTH') {
-      console.error('Authentication failed. Check your Gmail App Password.');
-    }
+    console.error('❌ Test email failed:', error.message);
   }
 }
 

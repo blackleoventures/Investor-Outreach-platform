@@ -3,10 +3,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Table, Button, Card, message, Space, Popconfirm, Input, Typography, Dropdown, Checkbox, Modal, Tabs, Form } from 'antd';
-import { PlusOutlined, TableOutlined, DeleteOutlined, SearchOutlined, SettingOutlined, FileExcelOutlined, EyeOutlined, EditOutlined } from '@ant-design/icons';
+import { Table, Button, Card, message, Space, Popconfirm, Input, Typography, Dropdown, Checkbox, Modal, Form, Avatar, Tag, Tabs } from 'antd';
+import { PlusOutlined, DeleteOutlined, SearchOutlined, SettingOutlined, FileExcelOutlined, EyeOutlined, EditOutlined, UserOutlined, SyncOutlined, TableOutlined } from '@ant-design/icons';
 import { useRouter } from 'next/navigation';
-import axios from 'axios';
+import { apiFetch } from '@/lib/api';
  
 
 
@@ -39,9 +39,15 @@ export default function AllIncubators() {
 
   const handleDelete = async (id: number) => {
     try {
-      await axios.delete(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/incubators/${id}`);
-      message.success('Deleted');
-      fetchIncubators();
+      const response = await apiFetch(`/api/incubators/${id}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        message.success('Deleted');
+        fetchIncubators();
+      } else {
+        message.error('Failed to delete');
+      }
     } catch (e: any) {
       message.error('Failed to delete');
     }
@@ -52,53 +58,75 @@ export default function AllIncubators() {
       key: 'serialNumber',
       title: 'Sr. No.',
       width: 80,
-      align: 'center',
+      align: 'center' as const,
       render: (_: any, __: any, index: number) => (currentPage - 1) * pageSize + index + 1,
     },
     {
-      title: 'Incubator Name',
-      dataIndex: 'incubatorName',
       key: 'incubatorName',
+      title: 'Incubator Name',
+      width: 180,
+      render: (_: any, record: any) => {
+        const name = record['Incubator Name'];
+        return (
+          <div className="flex items-center space-x-2">
+            <Avatar size="small" icon={<UserOutlined />} />
+            <span className="font-medium">{name || 'N/A'}</span>
+          </div>
+        );
+      },
     },
     {
-      title: 'Partner Name',
-      dataIndex: 'partnerName',
       key: 'partnerName',
+      title: 'Partner Name',
+      width: 140,
+      render: (_: any, record: any) => record['Partner Name'] || 'N/A',
     },
     {
-      title: 'Partner Email',
-      dataIndex: 'partnerEmail',
       key: 'partnerEmail',
+      title: 'Partner Email',
+      width: 200,
+      render: (_: any, record: any) => {
+        const email = record['Partner Email'];
+        return email ? <span className="text-blue-600">{email}</span> : 'N/A';
+      },
     },
     {
-      title: 'Phone Number',
-      dataIndex: 'phoneNumber',
       key: 'phoneNumber',
+      title: 'Phone Number',
+      width: 140,
+      render: (_: any, record: any) => record['Phone Number'] || 'N/A',
     },
     {
-      title: 'Sector Focus',
-      dataIndex: 'sectorFocus',
       key: 'sectorFocus',
+      title: 'Sector Focus',
+      width: 160,
+      render: (_: any, record: any) => {
+        const sector = record['Sector Focus'];
+        return sector ? <Tag color="green">{sector}</Tag> : 'N/A';
+      },
     },
     {
-      title: 'Country',
-      dataIndex: 'country',
       key: 'country',
+      title: 'Country',
+      width: 120,
+      render: (_: any, record: any) => record['Country'] || 'N/A',
     },
     {
-      title: 'State/City',
-      dataIndex: 'stateCity',
       key: 'stateCity',
+      title: 'State/City',
+      width: 140,
+      render: (_: any, record: any) => record['State/City'] || 'N/A',
     },
     {
       title: 'Actions',
       key: 'actions',
+      width: 120,
       render: (_: any, record: any) => (
         <Space size="small">
-          <Button size="small" icon={<EyeOutlined style={{ fontSize: 14 }} />} onClick={() => { setSelected(record); setViewOpen(true); }} />
-          <Button size="small" icon={<EditOutlined style={{ fontSize: 14 }} />} onClick={() => { setSelected(record); form.setFieldsValue(record); setEditOpen(true); }} />
+          <Button size="small" icon={<EyeOutlined />} onClick={() => { setSelected(record); setViewOpen(true); }} />
+          <Button size="small" icon={<EditOutlined />} onClick={() => { setSelected(record); form.setFieldsValue(record); setEditOpen(true); }} />
           <Popconfirm title="Delete this row?" onConfirm={() => handleDelete(record.id)} okButtonProps={{ type: 'primary', danger: true }}>
-            <Button icon={<DeleteOutlined style={{ fontSize: 14 }} />} size="small" danger />
+            <Button icon={<DeleteOutlined />} size="small" danger />
           </Popconfirm>
         </Space>
       )
@@ -110,17 +138,47 @@ export default function AllIncubators() {
   const fetchIncubators = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/incubators`);
-      const rows = response.data.data || [];
-      // de-dupe by id/email/name similar to investors
-      const seen = new Set();
-      const unique: any[] = [];
-      for (const r of rows) {
-        const key = JSON.stringify({ id: r.id ?? null, email: (r.partnerEmail ?? '').toLowerCase(), name: (r.incubatorName ?? '').toLowerCase() });
-        if (!seen.has(key)) { seen.add(key); unique.push(r); }
+      const cacheBuster = `_t=${Date.now()}`;
+      const response = await apiFetch(`/api/incubators?limit=100000&${cacheBuster}`, {
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache'
+        }
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        const incubatorData = result.docs || result.data || [];
+        
+        // Format data similar to investors
+        const formattedData = incubatorData.map((incubator: any) => ({
+          ...incubator,
+          'Incubator Name': incubator['Incubator Name'] || incubator.incubatorName || incubator.incubator_name || incubator.name || 'Unknown',
+          'Partner Name': incubator['Partner Name'] || incubator.partnerName || incubator.partner_name || incubator.contact || 'Unknown',
+          'Partner Email': incubator['Partner Email'] || incubator.partnerEmail || incubator.partner_email || incubator.email || '',
+          'Phone Number': incubator['Phone Number'] || incubator.phoneNumber || incubator.phone_number || '',
+          'Sector Focus': incubator['Sector Focus'] || incubator.sectorFocus || incubator.sector_focus || incubator.focus || 'Unknown',
+          'Country': incubator['Country'] || incubator.country || 'Unknown',
+          'State/City': incubator['State/City'] || incubator.stateCity || incubator.state_city || incubator.location || 'Unknown'
+        }));
+        
+        // De-duplicate
+        const seen = new Set();
+        const unique: any[] = [];
+        for (const r of formattedData) {
+          const key = JSON.stringify({ 
+            id: r.id ?? null, 
+            email: (r['Partner Email'] ?? '').toLowerCase(), 
+            name: (r['Incubator Name'] ?? '').toLowerCase() 
+          });
+          if (!seen.has(key)) { seen.add(key); unique.push(r); }
+        }
+        setIncubators(unique);
+        setFiltered(unique);
+      } else {
+        message.error('Failed to fetch incubators');
       }
-      setIncubators(unique);
-      setFiltered(unique);
     } catch (error: any) {
       message.error('Failed to fetch incubators');
     } finally {
@@ -128,16 +186,22 @@ export default function AllIncubators() {
     }
   };
 
-  useEffect(() => { fetchIncubators(); }, []);
+  useEffect(() => { 
+    fetchIncubators(); 
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchIncubators, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const q = search.trim().toLowerCase();
     const next = q
       ? incubators.filter(r => (
-          (r.incubatorName || '').toLowerCase().includes(q) ||
-          (r.partnerName || '').toLowerCase().includes(q) ||
-          (r.partnerEmail || '').toLowerCase().includes(q) ||
-          (r.phoneNumber || '').toLowerCase().includes(q)
+          (r['Incubator Name'] || '').toLowerCase().includes(q) ||
+          (r['Partner Name'] || '').toLowerCase().includes(q) ||
+          (r['Partner Email'] || '').toLowerCase().includes(q) ||
+          (r['Phone Number'] || '').toLowerCase().includes(q) ||
+          (r['Sector Focus'] || '').toLowerCase().includes(q)
         ))
       : incubators;
     setFiltered(next);
@@ -151,7 +215,27 @@ export default function AllIncubators() {
         message.error('Invalid record');
         return;
       }
-      await axios.put(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/incubators/${selected.id}`, values);
+      
+      // Transform field names to match backend expectations
+      const transformedValues = {
+        incubator_name: values['Incubator Name'],
+        partner_name: values['Partner Name'],
+        partner_email: values['Partner Email'],
+        phone_number: values['Phone Number'],
+        sector_focus: values['Sector Focus'],
+        country: values['Country'],
+        state_city: values['State/City']
+      };
+      
+      const response = await apiFetch(`/api/incubators/${selected.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(transformedValues)
+      });
+      
+      if (!response.ok) {
+        throw new Error('Update failed');
+      }
       message.success('Updated successfully');
       setEditOpen(false);
       setSelected(null);
@@ -208,11 +292,21 @@ export default function AllIncubators() {
         }
         extra={
           <Space>
-            {/* Removed inline upload from All Incubators per request */}
+            <Button 
+              icon={<SyncOutlined spin={loading} />} 
+              onClick={() => {
+                setIncubators([]);
+                setFiltered([]);
+                fetchIncubators();
+              }}
+              title="Refresh data"
+            >
+              Refresh
+            </Button>
+            <Button icon={<SettingOutlined />} onClick={() => setColumnsModalOpen(true)}>Customize Columns</Button>
             <Dropdown menu={menuItems} placement="bottomRight">
               <Button type="primary" style={{ backgroundColor: '#ac6a1e', color: '#fff' }} icon={<PlusOutlined />}>Add Incubators</Button>
             </Dropdown>
-            <Button icon={<SettingOutlined />} onClick={() => setColumnsModalOpen(true)}>Customize Columns</Button>
           </Space>
         }
       >
@@ -271,13 +365,34 @@ export default function AllIncubators() {
         <Modal title="Incubator details" open={viewOpen} onCancel={() => { setViewOpen(false); setSelected(null); }} footer={null} width={800}>
           {selected && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div><b>Incubator Name</b><div className="text-gray-700">{selected.incubatorName || '-'}</div></div>
-              <div><b>Partner Name</b><div className="text-gray-700">{selected.partnerName || '-'}</div></div>
-              <div><b>Partner Email</b><div className="text-gray-700">{selected.partnerEmail || '-'}</div></div>
-              <div><b>Phone Number</b><div className="text-gray-700">{selected.phoneNumber || '-'}</div></div>
-              <div><b>Sector Focus</b><div className="text-gray-700">{selected.sectorFocus || '-'}</div></div>
-              <div><b>Country</b><div className="text-gray-700">{selected.country || '-'}</div></div>
-              <div><b>State/City</b><div className="text-gray-700">{selected.stateCity || '-'}</div></div>
+              <div className="border rounded p-2">
+                <div className="text-xs text-gray-500">Incubator Name</div>
+                <div className="font-medium">{selected['Incubator Name'] || 'N/A'}</div>
+              </div>
+              <div className="border rounded p-2">
+                <div className="text-xs text-gray-500">Partner Name</div>
+                <div className="font-medium">{selected['Partner Name'] || 'N/A'}</div>
+              </div>
+              <div className="border rounded p-2">
+                <div className="text-xs text-gray-500">Partner Email</div>
+                <div className="font-medium">{selected['Partner Email'] || 'N/A'}</div>
+              </div>
+              <div className="border rounded p-2">
+                <div className="text-xs text-gray-500">Phone Number</div>
+                <div className="font-medium">{selected['Phone Number'] || 'N/A'}</div>
+              </div>
+              <div className="border rounded p-2">
+                <div className="text-xs text-gray-500">Sector Focus</div>
+                <div className="font-medium">{selected['Sector Focus'] || 'N/A'}</div>
+              </div>
+              <div className="border rounded p-2">
+                <div className="text-xs text-gray-500">Country</div>
+                <div className="font-medium">{selected['Country'] || 'N/A'}</div>
+              </div>
+              <div className="border rounded p-2">
+                <div className="text-xs text-gray-500">State/City</div>
+                <div className="font-medium">{selected['State/City'] || 'N/A'}</div>
+              </div>
             </div>
           )}
         </Modal>
@@ -285,25 +400,25 @@ export default function AllIncubators() {
         <Modal title="Edit incubator" open={editOpen} onCancel={() => { setEditOpen(false); setSelected(null); }} footer={[<Button key="cancel" onClick={() => { setEditOpen(false); setSelected(null); }}>Cancel</Button>, <Button key="save" type="primary" onClick={handleSaveEdit}>Save</Button>]} width={800}>
           <Form layout="vertical" form={form}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Form.Item label="Incubator Name" name="incubatorName" rules={[{ required: true, message: 'Please enter incubator name' }]}>
+              <Form.Item label="Incubator Name" name="Incubator Name" rules={[{ required: true, message: 'Incubator name is required' }]}>
                 <Input placeholder="e.g. StartHub" />
               </Form.Item>
-              <Form.Item label="Partner Name" name="partnerName" rules={[{ required: true, message: 'Please enter partner name' }]}>
+              <Form.Item label="Partner Name" name="Partner Name" rules={[{ required: true, message: 'Partner name is required' }]}>
                 <Input placeholder="e.g. Alice Brown" />
               </Form.Item>
-              <Form.Item label="Partner Email" name="partnerEmail" rules={[{ type: 'email', message: 'Enter valid email' }]}>
+              <Form.Item label="Partner Email" name="Partner Email" rules={[{ type: 'email', message: 'Enter valid email' }]}>
                 <Input placeholder="name@example.com" />
               </Form.Item>
-              <Form.Item label="Phone Number" name="phoneNumber">
+              <Form.Item label="Phone Number" name="Phone Number">
                 <Input placeholder="+1 555 123 4567" />
               </Form.Item>
-              <Form.Item label="Sector Focus" name="sectorFocus">
+              <Form.Item label="Sector Focus" name="Sector Focus">
                 <Input placeholder="e.g. FinTech" />
               </Form.Item>
-              <Form.Item label="Country" name="country">
+              <Form.Item label="Country" name="Country">
                 <Input placeholder="e.g. United States" />
               </Form.Item>
-              <Form.Item label="State/City" name="stateCity">
+              <Form.Item label="State/City" name="State/City">
                 <Input placeholder="e.g. San Francisco, CA" />
               </Form.Item>
             </div>

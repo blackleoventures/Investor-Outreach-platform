@@ -274,6 +274,97 @@ class ExcelService {
     console.log('Stopped watching Excel file');
   }
 
+  // Add single investor to Excel file
+  async addInvestor(investorData) {
+    try {
+      const data = this.readExcelData();
+      
+      // Add new investor to the data
+      const newInvestor = {
+        investor_name: investorData.name || investorData.investor_name || '',
+        partner_name: investorData.partner_name || '',
+        partner_email: investorData.email || investorData.partner_email || '',
+        phone_number: investorData.phone || investorData.phone_number || '',
+        fund_type: investorData.fund_type || '',
+        fund_stage: Array.isArray(investorData.fund_stage) ? investorData.fund_stage.join(', ') : investorData.fund_stage || '',
+        country: investorData.country || '',
+        state: investorData.state || '',
+        city: investorData.city || '',
+        ticket_size: investorData.ticket_size || '',
+        website: investorData.website || '',
+        sector_focus: Array.isArray(investorData.sector_focus) ? investorData.sector_focus.join(', ') : investorData.sector_focus || '',
+        location: investorData.location || '',
+        founded_year: investorData.founded_year || '',
+        portfolio_companies: Array.isArray(investorData.portfolio_companies) ? investorData.portfolio_companies.join(', ') : investorData.portfolio_companies || '',
+        twitter_link: investorData.twitter_link || '',
+        linkedIn_link: investorData.linkedIn_link || '',
+        facebook_link: investorData.facebook_link || '',
+        number_of_investments: investorData.number_of_investments || 0,
+        number_of_exits: investorData.number_of_exits || 0,
+        fund_description: investorData.fund_description || ''
+      };
+      
+      data.push(newInvestor);
+      this.writeExcelData(data);
+      
+      console.log(`✅ Added investor to Excel: ${newInvestor.investor_name}`);
+      return newInvestor;
+    } catch (error) {
+      console.error('❌ Error adding investor to Excel:', error);
+      throw error;
+    }
+  }
+
+  // Add single incubator to Excel file
+  async addIncubator(incubatorData) {
+    try {
+      // Read existing incubator data
+      let data = [];
+      if (fs.existsSync(this.incubatorsFilePath)) {
+        const workbook = xlsx.readFile(this.incubatorsFilePath);
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        data = xlsx.utils.sheet_to_json(worksheet);
+      }
+      
+      // Add new incubator to the data
+      const newIncubator = {
+        name: incubatorData.name || '',
+        location: incubatorData.location || '',
+        website: incubatorData.website || '',
+        email: incubatorData.email || '',
+        phone: incubatorData.phone || '',
+        focus_sectors: Array.isArray(incubatorData.focus_sectors) ? incubatorData.focus_sectors.join(', ') : incubatorData.focus_sectors || '',
+        program_duration: incubatorData.program_duration || '',
+        equity_taken: incubatorData.equity_taken || '',
+        funding_amount: incubatorData.funding_amount || '',
+        application_deadline: incubatorData.application_deadline || '',
+        description: incubatorData.description || ''
+      };
+      
+      data.push(newIncubator);
+      
+      // Write back to Excel file
+      const newWorkbook = xlsx.utils.book_new();
+      const newWorksheet = xlsx.utils.json_to_sheet(data);
+      xlsx.utils.book_append_sheet(newWorkbook, newWorksheet, 'Incubators');
+      
+      // Ensure directory exists
+      const dataDir = path.dirname(this.incubatorsFilePath);
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      
+      xlsx.writeFile(newWorkbook, this.incubatorsFilePath);
+      
+      console.log(`✅ Added incubator to Excel: ${newIncubator.name}`);
+      return newIncubator;
+    } catch (error) {
+      console.error('❌ Error adding incubator to Excel:', error);
+      throw error;
+    }
+  }
+
   // Get Excel file path for download
   getExcelFilePath() {
     return this.excelFilePath;

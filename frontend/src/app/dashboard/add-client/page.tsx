@@ -72,7 +72,7 @@ export default function Page() {
 
       message.success("Client created successfully");
       
-      // Store client data in Firebase/localStorage for persistence
+      // Store client data with Gmail credentials
       const clientData = {
         id: data.client?.id || Date.now().toString(),
         company_name: payload.companyName,
@@ -83,11 +83,45 @@ export default function Page() {
         fund_stage: payload.fundingStage,
         location: payload.location,
         industry: payload.industry,
-        revenue: values.revenue, // Preserve exact string (e.g., "$2M")
-        investment_ask: values.investment_ask, // Preserve exact string
+        revenue: values.revenue,
+        investment_ask: values.investment_ask,
+        gmail_app_password: payload.gmailAppPassword,
+        email_sending_enabled: !!payload.gmailAppPassword,
         createdAt: new Date().toISOString(),
         archive: false
       };
+      
+      // Store in localStorage as currentClient for email sending
+      localStorage.setItem('currentClient', JSON.stringify(clientData));
+      
+      // Save to Firebase (excluding investors/incubators Excel data)
+      try {
+        const firebasePayload = {
+          ...clientData,
+          type: 'client', // Mark as client data
+          source: 'manual_entry' // Distinguish from Excel imports
+        };
+        
+        const firebaseRes = await fetch('http://localhost:5000/api/firebase/clients', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(firebasePayload)
+        });
+        
+        if (firebaseRes.ok) {
+          const firebaseResult = await firebaseRes.json();
+          console.log('✅ Client saved to Firebase:', firebaseResult);
+          message.success('Client saved to Firebase successfully!');
+        } else {
+          const errorText = await firebaseRes.text();
+          console.warn('⚠️ Firebase save failed:', errorText);
+          message.warning('Firebase save failed, using localStorage only');
+        }
+      } catch (firebaseError) {
+        console.warn('⚠️ Firebase unavailable, using localStorage only:', firebaseError.message);
+      }
       
       // Save to localStorage for persistence
       const existingClients = JSON.parse(localStorage.getItem('clients') || '[]');
@@ -115,6 +149,31 @@ export default function Page() {
           fundingStage: payload.fundingStage,
           sector: payload.industry
         };
+        
+        // Save campaign to Firebase
+        try {
+          const campaignFirebasePayload = {
+            ...campaignPayload,
+            type: 'campaign',
+            source: 'client_creation'
+          };
+          
+          const campaignRes = await fetch('http://localhost:5000/api/firebase/campaigns', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(campaignFirebasePayload)
+          });
+          
+          if (campaignRes.ok) {
+            const campaignResult = await campaignRes.json();
+            console.log('✅ Campaign saved to Firebase:', campaignResult);
+            message.success('Campaign saved to Firebase successfully!');
+          }
+        } catch (campaignFirebaseError) {
+          console.warn('⚠️ Campaign Firebase save failed:', campaignFirebaseError.message);
+        }
         
         // Save to localStorage and sessionStorage
         const existingCampaigns = JSON.parse(localStorage.getItem('campaigns') || '[]');

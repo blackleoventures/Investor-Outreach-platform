@@ -568,6 +568,36 @@ export default function InvestorMatcher() {
                     
                     const clientName = chosenClient?.company_name || chosenClient?.name || 'Default Client';
                     
+                    // Save matchmaking data to Firebase
+                    try {
+                      const matchmakingData = {
+                        clientId: selectedClientId,
+                        clientName,
+                        mode,
+                        selectedInvestors: selectedData,
+                        totalMatched: ruleResults.length,
+                        selectedCount: selectedData.length,
+                        filters: matchFilters,
+                        timestamp: new Date().toISOString(),
+                        type: 'matchmaking_result'
+                      };
+                      
+                      const matchRes = await fetch('http://localhost:5000/api/firebase/matchmaking', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(matchmakingData)
+                      });
+                      
+                      if (matchRes.ok) {
+                        const matchResult = await matchRes.json();
+                        console.log('✅ Matchmaking data saved to Firebase:', matchResult);
+                      }
+                    } catch (matchError) {
+                      console.warn('⚠️ Matchmaking Firebase save failed:', matchError.message);
+                    }
+                    
                     // Save selected investors to localStorage for the specific client
                     const selectionData = {
                       clientName,
@@ -577,12 +607,12 @@ export default function InvestorMatcher() {
                     localStorage.setItem('selectedInvestors', JSON.stringify(selectedData));
                     localStorage.setItem('currentSelection', JSON.stringify(selectionData));
                     
-                    // Direct to email composer with data in URL
+                    // Direct to email composer with data in URL including client ID
                     const emailList = selectedData.map(inv => inv.email).join(',');
                     const names = selectedData.map(inv => inv.name).join('|');
                     
                     message.success(`${selectedData.length} investors selected for ${clientName}`);
-                    window.location.href = `/dashboard/campaign/ai-email-campaign?emails=${encodeURIComponent(emailList)}&names=${encodeURIComponent(names)}&clientName=${encodeURIComponent(clientName)}`;
+                    window.location.href = `/dashboard/campaign/ai-email-campaign?emails=${encodeURIComponent(emailList)}&names=${encodeURIComponent(names)}&clientName=${encodeURIComponent(clientName)}&clientId=${encodeURIComponent(selectedClientId)}`;
                     
                   } catch (error) {
                     console.error('Error processing selected investors:', error);

@@ -83,35 +83,95 @@ export default function BulkEmailSender({ companyId }: BulkEmailSenderProps) {
   }, [currentJob]);
 
   const sendClientEmails = async (values: any) => {
-    if (!selectedCompany || !emailSetupComplete) {
-      message.error('Gmail setup required');
-      return;
+    // Get company from URL params or localStorage
+    let company = selectedCompany;
+    if (!company) {
+      // Check URL for clientId first
+      const urlParams = new URLSearchParams(window.location.search);
+      const clientId = urlParams.get('clientId');
+      
+      if (clientId) {
+        const clients = JSON.parse(localStorage.getItem('clients') || '[]');
+        const clientData = clients.find(c => String(c.id || c._id) === String(clientId));
+        if (clientData) {
+          company = {
+            _id: clientData.id,
+            company_name: clientData.company_name,
+            email: clientData.email,
+            gmail_app_password: clientData.gmail_app_password || 'mvmk vgpt zfns zpng',
+            email_sending_enabled: true
+          };
+        }
+      }
+      
+      // Fallback to currentClient
+      if (!company) {
+        const storedClient = localStorage.getItem('currentClient');
+        if (storedClient) {
+          const clientData = JSON.parse(storedClient);
+          company = {
+            _id: clientData.id,
+            company_name: clientData.company_name,
+            email: clientData.email,
+            gmail_app_password: clientData.gmail_app_password || 'mvmk vgpt zfns zpng',
+            email_sending_enabled: true
+          };
+        } else {
+          // Final fallback
+          company = {
+            _id: 'test-company-123',
+            company_name: 'Test Company',
+            email: 'priyanshusingh99p@gmail.com',
+            email_sending_enabled: true
+          };
+        }
+      }
     }
-
+    
     const selectedInvestors = values.selectedInvestors || [];
     if (selectedInvestors.length === 0) {
       message.error('Please select investors');
       return;
     }
 
-    try {
-      const response = await api.post('/client-email/send-bulk', {
-        companyId: selectedCompany._id,
-        investorIds: selectedInvestors,
-        subject: values.subject,
-        htmlContent: values.message.replace(/\n/g, '<br>')
+    // Convert investor IDs to emails for testing
+    const investorEmails = selectedInvestors.map((investorId: string) => {
+      const investor = investors.find((inv: any) => {
+        const id = inv.id || inv._id || `investor_${investors.indexOf(inv)}`;
+        return id === investorId;
       });
+      return investor ? (investor['Partner Email'] || investor.partner_email || investor.email) : investorId;
+    }).filter(Boolean);
 
-      if (response.data.success) {
+    try {
+      const response = await fetch('http://localhost:5000/api/client-email/send-bulk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          companyId: company._id,
+          investorIds: investorEmails, // Send emails directly
+          subject: values.subject,
+          htmlContent: `<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">${values.message.replace(/\n/g, '<br><br>')}</div>`
+        })
+      });
+      
+      const data = await response.json();
+
+      if (data.success) {
         setCurrentJob({
-          jobId: response.data.jobId,
-          total: response.data.totalEmails,
+          jobId: data.jobId,
+          total: data.totalEmails,
           sent: 0,
           failed: 0,
           status: 'running'
         });
         setShowProgress(true);
         message.success('Client email job started!');
+        
+        // Clear selected investors after successful send
+        form.setFieldValue('selectedInvestors', []);
       }
     } catch (error: any) {
       message.error(error.response?.data?.error || 'Failed to start sending');
@@ -128,7 +188,7 @@ export default function BulkEmailSender({ companyId }: BulkEmailSenderProps) {
       if (!email) continue;
 
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/email/send-direct`, {
+        const response = await fetch('http://localhost:5000/api/email/send-direct', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -230,7 +290,16 @@ export default function BulkEmailSender({ companyId }: BulkEmailSenderProps) {
           <Form.Item label="From Email">
             <Input 
               disabled 
-              value={sendingMethod === 'client' && selectedCompany ? selectedCompany.email : 'priyanshusingh99p@gmail.com'} 
+              value={sendingMethod === 'client' ? (() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const clientId = urlParams.get('clientId');
+                if (clientId) {
+                  const clients = JSON.parse(localStorage.getItem('clients') || '[]');
+                  const client = clients.find(c => String(c.id || c._id) === String(clientId));
+                  if (client?.email) return client.email;
+                }
+                return selectedCompany?.email || JSON.parse(localStorage.getItem('currentClient') || '{}').email || 'No email configured';
+              })() : 'priyanshusingh99p@gmail.com'} 
             />
           </Form.Item>
 

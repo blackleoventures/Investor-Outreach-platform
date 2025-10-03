@@ -177,14 +177,16 @@ export default function OrganizedEmailComposer() {
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Input 
-                  placeholder="Sender Email (optional)" 
+                  placeholder="Sender Email (optional - defaults to Cosmedream)" 
                   value={sender} 
-                  onChange={(e) => setSender(e.target.value)} 
+                  onChange={(e) => setSender(e.target.value)}
+                  addonBefore="From:"
                 />
                 <Input 
                   placeholder="Campaign ID" 
                   value={campaignId} 
-                  onChange={(e) => setCampaignId(e.target.value)} 
+                  onChange={(e) => setCampaignId(e.target.value)}
+                  addonBefore="Campaign:"
                 />
               </div>
               

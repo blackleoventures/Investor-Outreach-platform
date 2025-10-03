@@ -148,13 +148,39 @@ const getAllIncubators = async (req, res) => {
   }
 };
 
-// Add single incubator (disabled for Excel-only mode)
+// Add single incubator
 const addIncubator = async (req, res) => {
-  res.status(400).json({ 
-    success: false, 
-    error: "Manual addition disabled. Please use Excel file upload instead.",
-    message: "Use /api/excel/upload endpoint to add incubators via Excel files"
-  });
+  try {
+    const incubatorData = req.body;
+    
+    // Validate required fields
+    if (!incubatorData.name) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Incubator name is required" 
+      });
+    }
+
+    console.log(`📝 Adding incubator manually: ${incubatorData.name}`);
+
+    // Add incubator to Excel file via excelService
+    await excelService.addIncubator(incubatorData);
+    
+    console.log(`✅ Added incubator: ${incubatorData.name}`);
+
+    res.json({
+      success: true,
+      message: `Incubator '${incubatorData.name}' added successfully`,
+      data: incubatorData
+    });
+
+  } catch (error) {
+    console.error('❌ Add incubator error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
 };
 
 // Redirect to Excel upload endpoint

@@ -16,21 +16,56 @@ class ClientEmailService {
     });
   }
 
-  // Send single email to one recipient only
-  async sendSingleEmail(transporter, clientEmail, recipientEmail, subject, htmlContent, clientName) {
+  // Send single email to one recipient with tracking
+  async sendSingleEmail(transporter, clientEmail, recipientEmail, subject, htmlContent, clientName = "Cosmedream", trackingId = null) {
+    const displayName = clientName || "Cosmedream";
+    
+    // Add tracking pixel and links if trackingId provided
+    let trackedHtml = htmlContent;
+    if (trackingId) {
+      // Add tracking pixel at the end of email
+      const trackingPixel = `<img src="${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email-tracking/open?trackingId=${trackingId}" width="1" height="1" style="display:none;" />`;
+      
+      // Replace links with tracked links
+      trackedHtml = htmlContent.replace(
+        /<a\s+href="([^"]+)"/g, 
+        `<a href="${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email-tracking/click?trackingId=${trackingId}&url=$1"`
+      );
+      
+      // Add tracking pixel
+      trackedHtml += trackingPixel;
+    }
+    
     const mailOptions = {
-      from: `"${clientName}" <${clientEmail}>`,
+      from: `"${displayName}" <${clientEmail}>`, // Proper name with email
       to: recipientEmail, // Only one recipient
       subject: subject,
-      html: htmlContent,
-      replyTo: clientEmail
+      html: trackedHtml,
+      replyTo: clientEmail,
+      headers: {
+        "X-Mailer": displayName,
+        "Organization": displayName,
+        "X-Priority": "3",
+        "Importance": "Normal"
+      }
     };
 
     return await transporter.sendMail(mailOptions);
   }
 
-  // Send emails sequentially with 1-minute delay
-  async sendBulkEmailsSequentially(clientEmail, appPassword, recipients, subject, htmlContent, clientName, jobId) {
+  // Send emails sequentially with 1-minute delay and tracking
+  async sendBulkEmailsSequentially(
+    clientEmail,
+    appPassword,
+    recipients,
+    subject,
+    htmlContent,
+    clientName,
+    jobId,
+    campaignId = null,
+    recipientTrackingMap = {},
+    recipientMessageIdMap = {}
+  ) {
     const transporter = this.createClientTransporter(clientEmail, appPassword);
     const results = [];
     const totalEmails = recipients.length;
@@ -52,21 +87,41 @@ class ClientEmailService {
       try {
         console.log(`[ClientEmailService] Sending email ${i + 1}/${totalEmails} to ${recipient}`);
         
+        // Use pre-created trackingId from tracking campaign when available
+        let trackingId = recipientTrackingMap && recipientTrackingMap[recipient]
+          ? recipientTrackingMap[recipient]
+          : null;
+        
         const result = await this.sendSingleEmail(
           transporter,
           clientEmail,
           recipient,
           subject,
           htmlContent,
-          clientName
+          clientName,
+          trackingId
         );
 
         results.push({
           recipient,
           status: 'sent',
           messageId: result.messageId,
+          trackingId: trackingId,
           timestamp: new Date()
         });
+
+        // Mark as delivered in tracking store if we have a messageId from tracking campaign
+        try {
+          const trackingMessageId = recipientMessageIdMap && recipientMessageIdMap[recipient];
+          if (trackingMessageId) {
+            const trackingController = require('../controllers/emailTracking.controller');
+            await trackingController.updateEmailDelivery({
+              body: { messageId: trackingMessageId, status: 'delivered', timestamp: new Date().toISOString() }
+            }, { json: () => {} });
+          }
+        } catch (deliveryErr) {
+          console.warn('[ClientEmailService] Failed to mark delivered:', deliveryErr.message);
+        }
 
         // Update job progress
         const job = this.activeJobs.get(jobId);

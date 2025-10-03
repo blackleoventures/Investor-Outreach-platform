@@ -657,18 +657,6 @@ const ClientsData = () => {
             allowClear
             style={{ maxWidth: 420 }}
           />
-          <Button
-            onClick={() => setSearchEmail("")}
-          >
-            Reset
-          </Button>
-          <Button
-            type={!showAll ? "default" : "primary"}
-            onClick={() => setShowAll(!showAll)}
-            icon={showAll ? <EyeOutlined /> : <InboxOutlined />}
-          >
-            {showAll ? "Show Archived" : "Show All"}
-          </Button>
         </div>
 
         <Table

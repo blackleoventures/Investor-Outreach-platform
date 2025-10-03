@@ -11,11 +11,10 @@ async function main() {
     process.exit(1);
   }
 
-  // Build multipart form-data using native Web APIs (Node 18+)
-  const buf = fs.readFileSync(filePath);
-  const blob = new Blob([buf], { type: 'application/pdf' });
+  // Build multipart form-data using form-data package
+  const FormData = require('form-data');
   const form = new FormData();
-  form.append('document', blob, 'Cosmedream Deck (1).pdf');
+  form.append('document', fs.createReadStream(filePath), 'Cosmedream Deck (1).pdf');
   form.append('investorName', 'Investor');
 
   const url = `${backend}/api/ai/extract-and-prefill`;
@@ -23,7 +22,11 @@ async function main() {
   console.log('POST', url);
 
   try {
-    const res = await fetch(url, { method: 'POST', body: form });
+    const res = await fetch(url, { 
+      method: 'POST', 
+      body: form,
+      headers: form.getHeaders()
+    });
     const text = await res.text();
     console.log('HTTP', res.status);
     if (!res.ok) {

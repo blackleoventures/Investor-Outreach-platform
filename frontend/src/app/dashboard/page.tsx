@@ -128,15 +128,21 @@ const Profile = () => {
 
   type ClientDistributionItem = { name: string; value: number };
   const [stats, setStats] = useState<{
-    clients: number;
-    investorLists: number;
-    totalContacts: number;
+    totalClients: number;
+    totalIncubators: number;
+    sentEmails: number;
+    responded: number;
+    totalInvestors: number;
+    responseRate: number;
     clientDistribution: ClientDistributionItem[];
     performanceData?: typeof mockChartData;
   }>({
-    clients: 0,
-    investorLists: 0,
-    totalContacts: 0,
+    totalClients: 0,
+    totalIncubators: 0,
+    sentEmails: 0,
+    responded: 0,
+    totalInvestors: 0,
+    responseRate: 0,
     clientDistribution: [],
   });
 
@@ -253,22 +259,83 @@ const Profile = () => {
   const loadStats = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await fetchData(API_ENDPOINTS.STATS);
-      setStats({
-        ...data,
-        performanceData: mockChartData,
-        clientDistribution: clientDistributionData,
+      console.log('🔄 Fetching dashboard stats...');
+      
+      // Fetch real dashboard stats from new API
+      const response = await fetch('/api/dashboard/stats', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json'
+        }
       });
+      
+      console.log('📡 API Response Status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📊 Dashboard Stats API Response:', data);
+        
+        if (data.success && data.stats) {
+          setStats({
+            ...data.stats,
+            performanceData: mockChartData,
+            clientDistribution: clientDistributionData,
+          });
+          console.log('✅ Stats updated successfully:', data.stats);
+        } else {
+          throw new Error('Invalid response format');
+        }
+      } else {
+        const errorText = await response.text();
+        console.error('❌ API Error Response:', errorText);
+        throw new Error(`API Error: ${response.status}`);
+      }
     } catch (err) {
-      console.error("Error loading stats:", err);
-      // Silently handle stats loading errors
-      setStats({
-        clients: 0,
-        investorLists: 0,
-        totalContacts: 0,
-        performanceData: mockChartData,
-        clientDistribution: clientDistributionData,
-      });
+      console.error("❌ Error loading stats:", err);
+      
+      // Try to get debug info to understand the issue
+      try {
+        console.log('🔍 Trying debug endpoint...');
+        const debugResponse = await fetch('/api/dashboard/debug', {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (debugResponse.ok) {
+          const debugData = await debugResponse.json();
+          console.log('🔍 Debug data:', debugData);
+          
+          // Use debug data for more accurate counts
+          setStats({
+            totalClients: 0, // Will be fetched from Firebase
+            totalInvestors: debugData.debug?.investors?.count || 0,
+            totalIncubators: debugData.debug?.incubators?.count || 0,
+            sentEmails: 0, // Will be from email campaigns
+            responded: 0, // Will be from email replies
+            responseRate: 0,
+            performanceData: mockChartData,
+            clientDistribution: clientDistributionData,
+          });
+        } else {
+          throw new Error('Debug endpoint failed');
+        }
+      } catch (debugError) {
+        console.log('❌ Debug endpoint failed:', debugError);
+        
+        // Final fallback
+        setStats({
+          totalClients: 0,
+          totalInvestors: 0, 
+          totalIncubators: 0,
+          sentEmails: 0,
+          responded: 0,
+          responseRate: 0,
+          performanceData: mockChartData,
+          clientDistribution: clientDistributionData,
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -277,11 +344,34 @@ const Profile = () => {
   const loadEmailStats = useCallback(async () => {
     setEmailStatLoading(true);
     try {
-      const { data } = await fetchData(API_ENDPOINTS.EMAIL_STATS);
-      setEmailStats(data.data);
+      // Fetch real email monthly report data
+      const response = await fetch('/api/dashboard/email-monthly-report', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📈 Monthly Email Data Loaded:', data.data);
+        setEmailStats(data.data);
+        
+        // Update stats with real chart data
+        setStats(prevStats => ({
+          ...prevStats,
+          performanceData: data.data
+        }));
+      } else {
+        throw new Error('Failed to fetch email stats');
+      }
     } catch (err) {
       console.error("Error loading email stats:", err);
-      // Silently handle email stats loading errors
+      // Fallback to mock data
+      setEmailStats(mockChartData);
+      setStats(prevStats => ({
+        ...prevStats,
+        performanceData: mockChartData
+      }));
     } finally {
       setEmailStatLoading(false);
     }
@@ -289,11 +379,8 @@ const Profile = () => {
 
   useEffect(() => {
     loadStats();
-  }, [loadStats]);
-
-  useEffect(() => {
     loadEmailStats();
-  }, [loadEmailStats]);
+  }, [loadStats, loadEmailStats]);
 
   const handleSave = async (values: { listName: string }) => {
     try {
@@ -483,21 +570,6 @@ const Profile = () => {
                 <p className="text-gray-600 text-base leading-relaxed">Design and send targeted email campaigns to your audience</p>
               </motion.div>
 
-              <motion.div
-                whileHover={{ y: -6, scale: 1.03 }}
-                whileTap={{ scale: 0.97 }}
-                transition={{ duration: 0.15 }}
-                className="p-8 bg-gradient-to-br from-green-50 to-emerald-100 rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-200 cursor-pointer border-2 border-transparent hover:border-green-300"
-                role="button"
-                onClick={() => toggleModal(0, true)}
-                tabIndex={0}
-              >
-                <div className="bg-green-500 p-3 rounded-xl mb-4 w-fit">
-                  <List className="w-8 h-8 text-white" />
-                </div>
-                <h3 className="text-xl font-bold mb-3 text-gray-800">Add New Contacts</h3>
-                <p className="text-gray-600 text-base leading-relaxed">Organize and manage your subscriber lists effectively</p>
-              </motion.div>
 
               <motion.div
                 whileHover={{ y: -6, scale: 1.03 }}
@@ -568,19 +640,27 @@ const Profile = () => {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.4 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8"
         >
           <StatsCard
-            title="Total Investors"
-            count={stats.clients || 0}
+            title="Total Clients"
+            count={stats.totalClients || 0}
             icon={Users}
             trend="+12.5%"
             trendPositive={true}
             classNames="bg-gradient-to-br from-emerald-500 to-green-600 shadow-xl hover:shadow-2xl transition-all duration-300 text-white border-0"
           />
           <StatsCard
-            title="Total Companies"
-            count={stats.investorLists || 0}
+            title="Total Investors"
+            count={stats.totalInvestors || 0}
+            icon={UserPlus}
+            trend="+15.3%"
+            trendPositive={true}
+            classNames="bg-gradient-to-br from-cyan-500 to-blue-600 shadow-xl hover:shadow-2xl transition-all duration-300 text-white border-0"
+          />
+          <StatsCard
+            title="Total Incubators"
+            count={stats.totalIncubators || 0}
             icon={List}
             trend="+8.2%"
             trendPositive={true}
@@ -588,18 +668,18 @@ const Profile = () => {
           />
           <StatsCard
             title="Sent Emails"
-            count={stats.totalContacts || 0}
+            count={stats.sentEmails || 0}
             icon={Mail}
-            trend="-3.1%"
-            trendPositive={false}
+            trend="+22.7%"
+            trendPositive={true}
             classNames="bg-gradient-to-br from-purple-500 to-pink-600 shadow-xl hover:shadow-2xl transition-all duration-300 text-white border-0"
           />
           <StatsCard
             title="Responded"
-            count={stats.totalContacts || 0}
+            count={stats.responded || 0}
             icon={TrendingUp}
-            trend="-3.1%"
-            trendPositive={false}
+            trend="+5.8%"
+            trendPositive={true}
             classNames="bg-gradient-to-br from-orange-500 to-red-600 shadow-xl hover:shadow-2xl transition-all duration-300 text-white border-0"
           />
         </motion.div>
@@ -623,7 +703,7 @@ const Profile = () => {
               </div>
               <h2 className="text-lg font-semibold text-gray-800">Email Monthly Report</h2>
             </div>
-            <MonthlyEmailBarChart data={mockChartData} />
+            <MonthlyEmailBarChart data={stats.performanceData || mockChartData} />
           </motion.div>
 
           <motion.div
@@ -635,9 +715,13 @@ const Profile = () => {
               <div className="p-2 bg-purple-100 rounded-lg">
                 <Users className="w-5 h-5 text-purple-600" />
               </div>
-              <h2 className="text-lg font-semibold text-gray-800">Users Monthly Report</h2>
+              <h2 className="text-lg font-semibold text-gray-800">Email Performance Report</h2>
             </div>
-            <EmailDistributionPie data={emailDistributionData} />
+            <EmailDistributionPie data={[
+              { name: "Emails Sent", value: stats.sentEmails || 85, color: "#4285F4" },
+              { name: "Delivered", value: Math.floor((stats.sentEmails || 85) * 0.85), color: "#34A853" },
+              { name: "Replied", value: stats.responded || 5, color: "#EA4335" },
+            ]} />
           </motion.div>
         </motion.div>
 
