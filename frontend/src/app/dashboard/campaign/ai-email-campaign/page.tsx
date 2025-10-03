@@ -114,7 +114,7 @@ ${companyName}`;
 
 // Build a filled template using the AI analysis data
 function buildTemplateFromAnalysis(analysis: PitchAnalysis | null, fileName?: string) {
-  if (!analysis) return generateDynamicTemplate(null, fileName);
+  if (!analysis) return DEFAULT_INVESTOR_TEMPLATE;
   const pick = (v?: string) => (v && v.trim().length > 0 ? v.trim() : undefined);
 
   // Clean and humanize brand name from fileName
