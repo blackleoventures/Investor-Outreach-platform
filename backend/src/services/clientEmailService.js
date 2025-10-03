@@ -24,12 +24,13 @@ class ClientEmailService {
     let trackedHtml = htmlContent;
     if (trackingId) {
       // Add tracking pixel at the end of email
-      const trackingPixel = `<img src="${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email-tracking/open?trackingId=${trackingId}" width="1" height="1" style="display:none;" />`;
+      const base = process.env.BACKEND_URL || '';
+      const trackingPixel = `<img src="${base}/api/email-tracking/open?trackingId=${trackingId}" width="1" height="1" style="display:none;" />`;
       
       // Replace links with tracked links
       trackedHtml = htmlContent.replace(
         /<a\s+href="([^"]+)"/g, 
-        `<a href="${process.env.BACKEND_URL || 'http://localhost:5000'}/api/email-tracking/click?trackingId=${trackingId}&url=$1"`
+        `<a href="${(process.env.BACKEND_URL || '')}/api/email-tracking/click?trackingId=${trackingId}&url=$1"`
       );
       
       // Add tracking pixel

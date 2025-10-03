@@ -102,7 +102,8 @@ export default function Page() {
           source: 'manual_entry' // Distinguish from Excel imports
         };
         
-        const firebaseRes = await fetch('http://localhost:5000/api/firebase/clients', {
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
+        const firebaseRes = await fetch(`${base}/api/firebase/clients`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -158,7 +159,8 @@ export default function Page() {
             source: 'client_creation'
           };
           
-          const campaignRes = await fetch('http://localhost:5000/api/firebase/campaigns', {
+          const campaignBase = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
+          const campaignRes = await fetch(`${campaignBase}/api/firebase/campaigns`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'

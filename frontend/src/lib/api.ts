@@ -96,10 +96,9 @@ export const apiFetch = async (path: string, init?: RequestInit) => {
     headers
   };
 
-  // Force localhost for development
-  if (typeof window !== 'undefined' && window.location.origin.includes('localhost')) {
-    const url = buildUrl('http://localhost:5000');
-    console.log('API Request:', url, requestInit.method);
+  // Prefer environment override even in development if provided
+  if (typeof window !== 'undefined' && window.location.origin.includes('localhost') && process.env.NEXT_PUBLIC_BACKEND_URL) {
+    const url = buildUrl(process.env.NEXT_PUBLIC_BACKEND_URL);
     return fetch(url, requestInit);
   }
 

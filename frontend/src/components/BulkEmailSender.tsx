@@ -17,8 +17,8 @@ export default function BulkEmailSender({ companyId }: BulkEmailSenderProps) {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [form] = Form.useForm();
-  const [investors, setInvestors] = useState([]);
-  const [companies, setCompanies] = useState([]);
+  const [investors, setInvestors] = useState<any[]>([]);
+  const [companies, setCompanies] = useState<any[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<any>(null);
   const [emailSetupComplete, setEmailSetupComplete] = useState(false);
   const [sendingMethod, setSendingMethod] = useState<'client' | 'system'>('system');
@@ -36,13 +36,13 @@ export default function BulkEmailSender({ companyId }: BulkEmailSenderProps) {
         api.get('/clients')
       ]);
       
-      const investorData = investorsRes.data.data || investorsRes.data.docs || [];
+      const investorData = (investorsRes as any).data?.data || (investorsRes as any).data?.docs || [];
       console.log('Loaded investors:', investorData.length, investorData.slice(0, 2));
       setInvestors(investorData);
-      setCompanies(companiesRes.data.data || []);
+      setCompanies((companiesRes as any).data?.data || []);
       
       if (companyId) {
-        const company = companiesRes.data.data?.find((c: any) => c._id === companyId);
+        const company = ((companiesRes as any).data?.data || []).find((c: any) => c._id === companyId);
         if (company) {
           setSelectedCompany(company);
           setEmailSetupComplete(company.email_sending_enabled || false);
@@ -61,12 +61,13 @@ export default function BulkEmailSender({ companyId }: BulkEmailSenderProps) {
       interval = setInterval(async () => {
         try {
           const response = await api.get(`/client-email/job-status/${currentJob.jobId}`);
-          if (response.data.success) {
-            setCurrentJob(response.data);
-            setProgress(Math.round(((response.data.sent + response.data.failed) / response.data.total) * 100));
+          const responseData = (response as any).data;
+          if (responseData.success) {
+            setCurrentJob(responseData);
+            setProgress(Math.round(((responseData.sent + responseData.failed) / responseData.total) * 100));
             
-            if (response.data.status === 'completed') {
-              message.success(`Email sending completed! Sent: ${response.data.sent}, Failed: ${response.data.failed}`);
+            if (responseData.status === 'completed') {
+              message.success(`Email sending completed! Sent: ${responseData.sent}, Failed: ${responseData.failed}`);
               clearInterval(interval);
               setLoading(false);
             }
@@ -92,14 +93,14 @@ export default function BulkEmailSender({ companyId }: BulkEmailSenderProps) {
       
       if (clientId) {
         const clients = JSON.parse(localStorage.getItem('clients') || '[]');
-        const clientData = clients.find(c => String(c.id || c._id) === String(clientId));
+        const clientData = clients.find((c: any) => String(c.id || c._id) === String(clientId));
         if (clientData) {
           company = {
             _id: clientData.id,
             company_name: clientData.company_name,
             email: clientData.email,
-            gmail_app_password: clientData.gmail_app_password || 'mvmk vgpt zfns zpng',
-            email_sending_enabled: true
+            gmail_app_password: clientData.gmail_app_password,
+            email_sending_enabled: !!clientData.gmail_app_password
           };
         }
       }
@@ -113,17 +114,13 @@ export default function BulkEmailSender({ companyId }: BulkEmailSenderProps) {
             _id: clientData.id,
             company_name: clientData.company_name,
             email: clientData.email,
-            gmail_app_password: clientData.gmail_app_password || 'mvmk vgpt zfns zpng',
-            email_sending_enabled: true
+            gmail_app_password: clientData.gmail_app_password,
+            email_sending_enabled: !!clientData.gmail_app_password
           };
         } else {
           // Final fallback
-          company = {
-            _id: 'test-company-123',
-            company_name: 'Test Company',
-            email: 'priyanshusingh99p@gmail.com',
-            email_sending_enabled: true
-          };
+          message.error('No company selected and no cached client found. Please select a company.');
+          return;
         }
       }
     }
@@ -144,7 +141,8 @@ export default function BulkEmailSender({ companyId }: BulkEmailSenderProps) {
     }).filter(Boolean);
 
     try {
-      const response = await fetch('http://localhost:5000/api/client-email/send-bulk', {
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
+      const response = await fetch(`${base}/api/client-email/send-bulk`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -188,14 +186,15 @@ export default function BulkEmailSender({ companyId }: BulkEmailSenderProps) {
       if (!email) continue;
 
       try {
-        const response = await fetch('http://localhost:5000/api/email/send-direct', {
+        const base = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
+        const response = await fetch(`${base}/api/email/send-direct`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             to: email,
             subject: values.subject,
             html: `<div style="font-family: Arial, sans-serif;">${values.message.replace(/\n/g, '<br>')}</div>`,
-            from: 'priyanshusingh99p@gmail.com'
+            from: process.env.NEXT_PUBLIC_SYSTEM_FROM_EMAIL || 'no-reply@example.com'
           }),
         });
 
@@ -295,11 +294,11 @@ export default function BulkEmailSender({ companyId }: BulkEmailSenderProps) {
                 const clientId = urlParams.get('clientId');
                 if (clientId) {
                   const clients = JSON.parse(localStorage.getItem('clients') || '[]');
-                  const client = clients.find(c => String(c.id || c._id) === String(clientId));
+                  const client = clients.find((c: any) => String(c.id || c._id) === String(clientId));
                   if (client?.email) return client.email;
                 }
                 return selectedCompany?.email || JSON.parse(localStorage.getItem('currentClient') || '{}').email || 'No email configured';
-              })() : 'priyanshusingh99p@gmail.com'} 
+              })() : (process.env.NEXT_PUBLIC_SYSTEM_FROM_EMAIL || 'no-reply@example.com')} 
             />
           </Form.Item>
 
@@ -327,7 +326,7 @@ export default function BulkEmailSender({ companyId }: BulkEmailSenderProps) {
                 className="w-full"
                 showSearch
                 filterOption={(input, option) =>
-                  option?.children?.toString().toLowerCase().includes(input.toLowerCase())
+                  option?.children?.toString().toLowerCase().includes(input.toLowerCase()) || false
                 }
               >
                 {investors.map((investor: any, index: number) => {

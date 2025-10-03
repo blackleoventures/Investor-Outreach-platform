@@ -70,31 +70,17 @@ router.post('/send-bulk', async (req, res) => {
         company_name: clientData.company_name,
         founder_name: (clientData.first_name || '') + ' ' + (clientData.last_name || ''),
         email: clientData.email,
-        gmail_app_password: clientData.gmail_app_password || 'mvmk vgpt zfns zpng',
-        email_sending_enabled: true
+        gmail_app_password: clientData.gmail_app_password,
+        email_sending_enabled: !!clientData.gmail_app_password
       };
       console.log('✅ Using client data:', company.email);
     } else {
-      // Second try: Database lookup
+      // Database lookup
       try {
         company = await dbHelpers.getById('companies', companyId);
         console.log('🏢 Company lookup result:', company ? 'Found' : 'Not found');
       } catch (dbError) {
         console.error('❌ Database error during company lookup:', dbError.message);
-      }
-      
-      // Third try: Test company fallback
-      if (!company) {
-        console.log('🧪 Creating test company fallback...');
-        company = {
-          id: companyId,
-          company_name: 'Test Company',
-          founder_name: 'Test Founder',
-          email: 'priyanshusingh99p@gmail.com',
-          gmail_app_password: 'mvmk vgpt zfns zpng',
-          email_sending_enabled: true
-        };
-        console.log('✅ Test company created as fallback');
       }
     }
     

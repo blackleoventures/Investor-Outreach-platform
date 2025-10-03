@@ -177,7 +177,7 @@ export default function DocumentEmailComposer() {
           subject: subject,
           html: body,
           scheduleAt: new Date(scheduleDate).toISOString(),
-          from: sender || 'priyanshusingh99p@gmail.com'
+          from: sender || process.env.NEXT_PUBLIC_SYSTEM_FROM_EMAIL || 'no-reply@example.com'
         };
         
         const response = await fetch(`${apiBase}/api/scheduled-emails`, {

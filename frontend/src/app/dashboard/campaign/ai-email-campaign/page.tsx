@@ -23,6 +23,32 @@ const extractCompanyNameFromFileName = (fileName?: string) => {
     .replace(/\b\w/g, (c) => c.toUpperCase()); // Capitalize first letter of each word
 };
 
+// Default investor template
+const DEFAULT_INVESTOR_TEMPLATE = `Subject: Investment Opportunity - [Company Name]
+
+Dear [Investor's Name],
+
+Hope you're doing well.
+
+I'm reaching out to share an exciting investment opportunity in [Company Name].
+
+Key Highlights:
+- [Key Highlight 1]
+- [Key Highlight 2] 
+- [Key Highlight 3]
+
+Fundraise Details:
+Currently raising [Amount] to accelerate growth.
+
+If this aligns with your investment thesis, we'd be glad to share our deck and set up a call.
+
+Looking forward to hearing from you.
+
+Best regards,
+[Your Name]
+[Your Title]
+[Company Name]`;
+
 // Dynamic investor outreach template based on analysis
 const generateDynamicTemplate = (analysis: PitchAnalysis | null, fileName?: string) => {
   if (!analysis) {
@@ -404,7 +430,7 @@ Best regards,
       let clientData = null;
       if (clientId) {
         const clients = JSON.parse(localStorage.getItem('clients') || '[]');
-        clientData = clients.find(c => 
+        clientData = clients.find((c: any) => 
           String(c.id || c._id || c.email || (c.company_name && c.company_name.replace(/\s+/g, '-'))) === String(clientId)
         );
       }
@@ -636,7 +662,7 @@ Best regards,
                 const clientId = urlParams.get('clientId');
                 if (clientId) {
                   const clients = JSON.parse(localStorage.getItem('clients') || '[]');
-                  const client = clients.find(c => String(c.id || c._id) === String(clientId));
+                  const client = clients.find((c: any) => String(c.id || c._id) === String(clientId));
                   if (client?.email) return client.email;
                 }
                 const currentClient = JSON.parse(localStorage.getItem('currentClient') || '{}');
@@ -942,7 +968,7 @@ const InvestorMatcher = () => (
 const { Title, Text } = Typography;
 // Ensure the base points to the API root regardless of env
 // Prefer Next.js rewrite to /api so dev works even without env
-const BACKEND_URL = 'http://localhost:5000/api';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ? `${process.env.NEXT_PUBLIC_BACKEND_URL}/api` : '/api';
 
 interface PitchAnalysis {
   summary: {

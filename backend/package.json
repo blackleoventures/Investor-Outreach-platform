@@ -6,8 +6,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "build": "echo 'No build step required'",
-    "vercel-build": "echo 'Building for Vercel'",
+    "build": "echo 'Build completed successfully'",
+    "vercel-build": "npm install",
     "test:upload": "node src/scripts/test-upload.js",
     "test:gemini": "node src/scripts/test-gemini.js",
     "test:send": "node src/scripts/test-send-email.js",
@@ -19,7 +19,7 @@
   "license": "ISC",
   "description": "",
   "engines": {
-    "node": "22.x"
+    "node": "18.x"
   },
   "dependencies": {
     "@aws-sdk/client-ses": "^3.777.0",

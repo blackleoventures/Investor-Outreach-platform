@@ -120,6 +120,7 @@ const sheetsRoutes = require("./routes/sheets.route");
 const clientEmailRoutes = require("./routes/clientEmail.route");
 const firebaseRoutes = require("./routes/firebase.route");
 const campaignReportRoutes = require("./routes/campaignReport.route");
+const publicReportRoutes = require("./routes/publicReport.route");
 const emailTrackingRoutes = require("./routes/emailTracking.route");
 const dashboardStatsRoutes = require("./routes/dashboardStats.route");
 
@@ -150,6 +151,7 @@ app.use("/api/sheets", sheetsRoutes);
 app.use("/api/client-email", clientEmailRoutes);
 app.use("/api/firebase", firebaseRoutes);
 app.use("/api/campaign-reports", campaignReportRoutes);
+app.use("/api/public-reports", publicReportRoutes);
 app.use("/api/email-tracking", emailTrackingRoutes);
 app.use("/api/dashboard", dashboardStatsRoutes);
 

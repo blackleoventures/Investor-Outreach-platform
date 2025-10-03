@@ -193,6 +193,14 @@ export default function AllIncubators() {
     return () => clearInterval(interval);
   }, []);
 
+  // Immediate refresh when coming back to this page
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchIncubators();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     const q = search.trim().toLowerCase();
     const next = q
@@ -400,7 +408,7 @@ export default function AllIncubators() {
         <Modal title="Edit incubator" open={editOpen} onCancel={() => { setEditOpen(false); setSelected(null); }} footer={[<Button key="cancel" onClick={() => { setEditOpen(false); setSelected(null); }}>Cancel</Button>, <Button key="save" type="primary" onClick={handleSaveEdit}>Save</Button>]} width={800}>
           <Form layout="vertical" form={form}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Form.Item label="Incubator Name" name="Incubator Name" rules={[{ required: true, message: 'Incubator name is required' }]}>
+              <Form.Item label="Incubator Name" name="Incubator Name">
                 <Input placeholder="e.g. StartHub" />
               </Form.Item>
               <Form.Item label="Partner Name" name="Partner Name" rules={[{ required: true, message: 'Partner name is required' }]}>

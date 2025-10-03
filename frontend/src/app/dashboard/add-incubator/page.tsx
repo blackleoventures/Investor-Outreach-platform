@@ -36,7 +36,8 @@ export default function AddIncubatorPage() {
     try {
       formData.append('file', file);
       formData.append('excel', file);
-      const response = await fetch(`http://localhost:5000/api/incubators/upload`, {
+      const base = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
+      const response = await fetch(`${base}/api/incubators/upload`, {
         method: 'POST',
         body: formData,
       });
@@ -123,10 +124,10 @@ export default function AddIncubatorPage() {
       });
 
       if (response.ok) {
-        message.success('Incubator added successfully');
-      form.resetFields();
+        message.success('Incubator added successfully!');
+        form.resetFields();
         setShowManualForm(false);
-      router.push('/dashboard/all-incubators');
+        router.push('/dashboard/all-incubators');
       } else {
         const err = await response.json().catch(() => ({} as any));
         message.error(err.error || 'Failed to add incubator');
@@ -243,7 +244,7 @@ export default function AddIncubatorPage() {
             <Form form={form} onFinish={handleSubmit} layout="vertical">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {visibleFields.incubatorName && (
-                  <Form.Item name="incubator_name" label="Incubator Name" className="mb-3" rules={[{ required: true, message: 'Incubator name is required' }]}>
+                  <Form.Item name="incubator_name" label="Incubator Name" className="mb-3">
               <Input placeholder="Enter incubator name" />
             </Form.Item>
                 )}

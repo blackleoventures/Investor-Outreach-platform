@@ -329,12 +329,12 @@ class ExcelService {
       
       // Add new incubator to the data
       const newIncubator = {
-        name: incubatorData.name || '',
+        name: incubatorData.incubator_name || incubatorData.name || '',
         location: incubatorData.location || '',
         website: incubatorData.website || '',
-        email: incubatorData.email || '',
-        phone: incubatorData.phone || '',
-        focus_sectors: Array.isArray(incubatorData.focus_sectors) ? incubatorData.focus_sectors.join(', ') : incubatorData.focus_sectors || '',
+        email: incubatorData.partner_email || incubatorData.email || '',
+        phone: incubatorData.phone_number || incubatorData.phone || '',
+        focus_sectors: incubatorData.sector_focus || incubatorData.focus_sectors || '',
         program_duration: incubatorData.program_duration || '',
         equity_taken: incubatorData.equity_taken || '',
         funding_amount: incubatorData.funding_amount || '',

@@ -123,7 +123,7 @@ const Profile = () => {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const { styles } = useStyle();
-  const [emailStats, setEmailStats] = useState(null);
+  const [emailStats, setEmailStats] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
   type ClientDistributionItem = { name: string; value: number };
@@ -262,7 +262,7 @@ const Profile = () => {
       console.log('🔄 Fetching dashboard stats...');
       
       // Fetch real dashboard stats from new API
-      const response = await fetch('/api/dashboard/stats', {
+      const response = await fetch(`${BACKEND_URL}/dashboard/stats`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
           'Content-Type': 'application/json'
@@ -296,7 +296,7 @@ const Profile = () => {
       // Try to get debug info to understand the issue
       try {
         console.log('🔍 Trying debug endpoint...');
-        const debugResponse = await fetch('/api/dashboard/debug', {
+        const debugResponse = await fetch(`${BACKEND_URL}/dashboard/debug`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
             'Content-Type': 'application/json'
@@ -345,7 +345,7 @@ const Profile = () => {
     setEmailStatLoading(true);
     try {
       // Fetch real email monthly report data
-      const response = await fetch('/api/dashboard/email-monthly-report', {
+      const response = await fetch(`${BACKEND_URL}/dashboard/email-monthly-report`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -380,6 +380,23 @@ const Profile = () => {
   useEffect(() => {
     loadStats();
     loadEmailStats();
+    
+    // Auto-refresh stats every 10 seconds for real-time updates
+    const statsInterval = setInterval(() => {
+      console.log('🔄 Auto-refreshing dashboard stats...');
+      loadStats();
+    }, 10000);
+    
+    // Auto-refresh email stats every 30 seconds
+    const emailInterval = setInterval(() => {
+      console.log('📧 Auto-refreshing email stats...');
+      loadEmailStats();
+    }, 30000);
+    
+    return () => {
+      clearInterval(statsInterval);
+      clearInterval(emailInterval);
+    };
   }, [loadStats, loadEmailStats]);
 
   const handleSave = async (values: { listName: string }) => {

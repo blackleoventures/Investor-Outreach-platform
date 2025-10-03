@@ -22,7 +22,7 @@ export default function QuickEmailSender() {
           to: values.to,
           subject: values.subject,
           html: `<div style="font-family: Arial, sans-serif;">${values.message.replace(/\n/g, '<br>')}</div>`,
-          from: 'priyanshusingh99p@gmail.com'
+          from: process.env.NEXT_PUBLIC_SYSTEM_FROM_EMAIL || 'no-reply@example.com'
         }),
       });
 

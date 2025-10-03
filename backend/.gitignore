@@ -1,6 +1,7 @@
 serviceAccountKey.json
 node_modules
 .env
+.env.production
 .vercel
 .vercel
 src/config/excel.json

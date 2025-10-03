@@ -582,7 +582,8 @@ export default function InvestorMatcher() {
                         type: 'matchmaking_result'
                       };
                       
-                      const matchRes = await fetch('http://localhost:5000/api/firebase/matchmaking', {
+                      const base = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
+                      const matchRes = await fetch(`${base}/api/firebase/matchmaking`, {
                         method: 'POST',
                         headers: {
                           'Content-Type': 'application/json'
@@ -594,7 +595,7 @@ export default function InvestorMatcher() {
                         const matchResult = await matchRes.json();
                         console.log('✅ Matchmaking data saved to Firebase:', matchResult);
                       }
-                    } catch (matchError) {
+                    } catch (matchError: any) {
                       console.warn('⚠️ Matchmaking Firebase save failed:', matchError.message);
                     }
                     

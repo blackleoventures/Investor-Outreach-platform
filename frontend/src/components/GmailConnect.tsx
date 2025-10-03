@@ -20,7 +20,7 @@ export default function GmailConnect({ companyId, onSetupComplete }: GmailConnec
   const [testing, setTesting] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [credentialsSet, setCredentialsSet] = useState(false);
-  const [companies, setCompanies] = useState([]);
+  const [companies, setCompanies] = useState<any[]>([]);
   const [selectedCompany, setSelectedCompany] = useState<any>(null);
 
   useEffect(() => {
@@ -30,10 +30,11 @@ export default function GmailConnect({ companyId, onSetupComplete }: GmailConnec
   const loadCompanies = async () => {
     try {
       const response = await api.get('/clients');
-      setCompanies(response.data.data || []);
+      const responseData = (response as any).data?.data || [];
+      setCompanies(responseData);
       
       if (companyId) {
-        const company = response.data.data?.find((c: any) => c._id === companyId);
+        const company = responseData.find((c: any) => c._id === companyId);
         if (company) {
           setSelectedCompany(company);
           setCredentialsSet(company.email_sending_enabled || false);
@@ -41,9 +42,9 @@ export default function GmailConnect({ companyId, onSetupComplete }: GmailConnec
             setCurrentStep(3);
           }
         }
-      } else if (response.data.data?.length > 0) {
-        setSelectedCompany(response.data.data[0]);
-        setCredentialsSet(response.data.data[0].email_sending_enabled || false);
+      } else if (responseData.length > 0) {
+        setSelectedCompany(responseData[0]);
+        setCredentialsSet(responseData[0].email_sending_enabled || false);
       }
     } catch (error) {
       console.error('Error loading companies:', error);
@@ -63,7 +64,7 @@ export default function GmailConnect({ companyId, onSetupComplete }: GmailConnec
         gmailAppPassword: values.gmailAppPassword.replace(/\s/g, '') // Remove spaces
       });
 
-      if (response.data.success) {
+      if ((response as any).data.success) {
         message.success('Gmail credentials saved successfully!');
         setCredentialsSet(true);
         setCurrentStep(3);
@@ -88,7 +89,7 @@ export default function GmailConnect({ companyId, onSetupComplete }: GmailConnec
         companyId: selectedCompany._id
       });
 
-      if (response.data.success) {
+      if ((response as any).data.success) {
         message.success('Test email sent! Check your inbox.');
         setCurrentStep(4);
       }
@@ -149,8 +150,8 @@ export default function GmailConnect({ companyId, onSetupComplete }: GmailConnec
               onChange={(value) => {
                 const company = companies.find((c: any) => c._id === value);
                 setSelectedCompany(company);
-                setCredentialsSet(company?.email_sending_enabled || false);
-                if (company?.email_sending_enabled) {
+                setCredentialsSet((company as any)?.email_sending_enabled || false);
+                if ((company as any)?.email_sending_enabled) {
                   setCurrentStep(3);
                 } else {
                   setCurrentStep(1);

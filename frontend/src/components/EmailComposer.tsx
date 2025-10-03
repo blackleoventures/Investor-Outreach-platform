@@ -396,6 +396,7 @@ export default function EmailComposer() {
             </Card>
           )}
         </div>
+      </div>
       
       {/* Right Sidebar - Recipients */}
       <div className="w-80 bg-white border-l border-gray-200 p-4">

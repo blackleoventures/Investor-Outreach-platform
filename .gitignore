@@ -4,18 +4,22 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Next.js
-.next/
-out/
+# Next.js / builds
+frontend/.next/
+frontend/out/
 build/
 dist/
+backend/dist/
 
 # Environment variables
 .env
 .env.local
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local
+backend/.env*
+frontend/.env*
 
 # Logs
 logs
@@ -103,5 +107,9 @@ ui-debug.log
 *.db
 
 # Uploads
+backend/uploads/
 uploads/
-temp/ 
+temp/
+backend/src/data/*.xlsx
+backend/src/data/*.csv
+backend/src/data/*.json

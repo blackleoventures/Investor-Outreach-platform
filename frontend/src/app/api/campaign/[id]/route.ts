@@ -5,7 +5,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const body = await request.json();
     const { id } = params;
     
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
     const response = await fetch(`${backendUrl}/api/campaign/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -23,7 +23,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   try {
     const { id } = params;
     
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
     const response = await fetch(`${backendUrl}/api/campaign/${id}`);
     const data = await response.json();
     return NextResponse.json(data);
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const { id } = params;
-    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || '/api';
     const auth = request.headers.get('authorization') || '';
     const response = await fetch(`${backendUrl}/api/campaign/${id}`, {
       method: 'DELETE',

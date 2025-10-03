@@ -128,7 +128,8 @@ const getAllIncubators = async (req, res) => {
     }
 
     const mapped = Array.isArray(data) ? data.map(mapIncubatorRow) : [];
-    console.log('Returning response with', mapped.length, 'records');
+    console.log('Returning response with', mapped.length, 'records from', source);
+    console.log('Sample data:', JSON.stringify(mapped.slice(0, 2), null, 2));
     return res.status(200).json({ 
       success: true, 
       data: mapped, 
@@ -153,24 +154,20 @@ const addIncubator = async (req, res) => {
   try {
     const incubatorData = req.body;
     
-    // Validate required fields
-    if (!incubatorData.name) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Incubator name is required" 
-      });
-    }
+    // Use a default name if not provided
+    const incubatorName = incubatorData.name || incubatorData.incubator_name || 'Unnamed Incubator';
 
-    console.log(`📝 Adding incubator manually: ${incubatorData.name}`);
+    console.log(`📝 Adding incubator manually: ${incubatorName}`);
+    console.log('Data received:', JSON.stringify(incubatorData, null, 2));
 
     // Add incubator to Excel file via excelService
     await excelService.addIncubator(incubatorData);
     
-    console.log(`✅ Added incubator: ${incubatorData.name}`);
+    console.log(`✅ Added incubator: ${incubatorName}`);
 
     res.json({
       success: true,
-      message: `Incubator '${incubatorData.name}' added successfully`,
+      message: `Incubator '${incubatorName}' added successfully`,
       data: incubatorData
     });
 

@@ -10,22 +10,22 @@ const {
   createDemoCampaign
 } = require('../controllers/campaignReport.controller');
 
-// Get all campaigns summary for dashboard
-router.get('/summary', requireAuth, getAllCampaignsSummary);
+// Get all campaigns summary for dashboard (public access)
+router.get('/summary', getAllCampaignsSummary);
 
-// Create demo campaign for testing
-router.post('/demo', requireAuth, createDemoCampaign);
+// Create demo campaign for testing (public access)
+router.post('/demo', createDemoCampaign);
 
-// Get campaign summary report
-router.get('/:campaignId/summary', requireAuth, getCampaignSummary);
+// Get campaign summary report (public access)
+router.get('/:campaignId/summary', getCampaignSummary);
 
-// Get detailed engagement report
-router.get('/:campaignId/detailed', requireAuth, getDetailedReport);
+// Get detailed engagement report (public access)
+router.get('/:campaignId/detailed', getDetailedReport);
 
-// Get follow-up candidates
-router.get('/:campaignId/follow-up', requireAuth, getFollowUpCandidates);
+// Get follow-up candidates (public access)
+router.get('/:campaignId/follow-up', getFollowUpCandidates);
 
-// Export detailed report
-router.get('/:campaignId/export', requireAuth, exportDetailedReport);
+// Export detailed report (public access)
+router.get('/:campaignId/export', exportDetailedReport);
 
 module.exports = router;

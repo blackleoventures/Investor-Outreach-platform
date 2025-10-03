@@ -36,7 +36,7 @@ import { useSearchParams } from "next/navigation";
 const { Title, Text } = Typography;
 
 // Prefer explicit backend base URL (matches other pages like AI Email Campaign)
-const BACKEND_URL = 'http://localhost:5000/api';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
 // Helper for human-friendly timestamps in UI
 function timeAgo(ts?: string) {
   try {
@@ -334,7 +334,7 @@ const AllReports = () => {
       setLoading(true);
       try {
         // Fetch real campaign data from email tracking API (explicit backend URL)
-        const response = await fetch(`${BACKEND_URL}/email-tracking/reports`, {
+        const response = await fetch(`${BACKEND_URL}/api/email-tracking/reports`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
@@ -370,11 +370,11 @@ const AllReports = () => {
             if (selectedReport) {
               const updated = apiReports.find((r: any) => r.id === selectedReport.id);
               if (updated) setSelectedReport(updated);
-            }
-          } else {
+          }
+        } else {
             // Try to fetch manual investors and create reports from them
             try {
-              const investorsResponse = await fetch(`${BACKEND_URL}/investors?limit=100000`, {
+              const investorsResponse = await fetch(`${BACKEND_URL}/api/investors?limit=100000`, {
                 headers: {
                   'Authorization': `Bearer ${localStorage.getItem('token')}`
                 }
@@ -392,11 +392,11 @@ const AllReports = () => {
                     clientName: 'All Clients',
                     type: 'Manual Entry',
                     createdAt: new Date().toISOString(),
-                    status: 'completed',
-                    metrics: {
+      status: 'completed',
+      metrics: {
                       sent: investors.length,
                       delivered: investors.length,
-                      failed: 0,
+        failed: 0,
                       opened: 0,
                       clicked: 0,
                       replied: 0,
@@ -457,8 +457,8 @@ const AllReports = () => {
                     email,
                     status: 'sent',
                     opened: false,
-                    clicked: false,
-                    replied: false,
+      clicked: false,
+      replied: false,
                     sector: 'Unknown',
                     location: 'Unknown',
                   }))
@@ -476,7 +476,7 @@ const AllReports = () => {
           console.error('Failed to fetch campaigns');
           // Try to fetch manual investors directly
           try {
-            const investorsResponse = await fetch(`${BACKEND_URL}/investors?limit=100000`, {
+            const investorsResponse = await fetch(`${BACKEND_URL}/api/investors?limit=100000`, {
               headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
               }
@@ -514,9 +514,9 @@ const AllReports = () => {
                                   (investor.email ? investor.email.split('@')[0] : 'Unknown Contact'),
                     email: investor['Partner Email'] || investor.partner_email || investor.email || 'no-email@unknown.com',
                     status: 'sent' as const,
-                    opened: false,
-                    clicked: false,
-                    replied: false,
+      opened: false,
+      clicked: false,
+      replied: false,
                     sector: investor['Fund Focus (Sectors)'] || investor.fund_focus_sectors || investor.sector_focus || 'Unknown',
                     location: investor['Location'] || investor.location || 'Unknown',
                   }))
@@ -559,8 +559,8 @@ const AllReports = () => {
                   email,
                   status: 'sent',
                   opened: false,
-                  clicked: false,
-                  replied: false,
+      clicked: false,
+      replied: false,
                   sector: 'Unknown',
                   location: 'Unknown',
                 }))
@@ -607,9 +607,9 @@ const AllReports = () => {
                 contactPerson: email.split('@')[0],
                 email,
                 status: 'sent',
-                opened: false,
-                clicked: false,
-                replied: false,
+      opened: false,
+      clicked: false,
+      replied: false,
                 sector: 'Unknown',
                 location: 'Unknown',
               }))
