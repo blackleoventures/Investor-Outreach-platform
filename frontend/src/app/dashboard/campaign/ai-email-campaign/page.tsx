@@ -9,20 +9,6 @@ import { motion } from "framer-motion";
 const { TextArea } = Input;
 const { Option } = Select;
 
-// Helper function to extract company name from filename
-const extractCompanyNameFromFileName = (fileName?: string) => {
-  if (!fileName) return null;
-  
-  return fileName
-    .replace(/\.[^.]+$/, '') // Remove extension
-    .replace(/\bdeck\b/gi, '') // Remove "deck"
-    .replace(/\(\d+\)/g, '') // Remove (1), (2), etc.
-    .replace(/[-_]/g, ' ') // Replace dashes and underscores with spaces
-    .replace(/\s{2,}/g, ' ') // Replace multiple spaces with single space
-    .trim()
-    .replace(/\b\w/g, (c) => c.toUpperCase()); // Capitalize first letter of each word
-};
-
 // Default investor template
 const DEFAULT_INVESTOR_TEMPLATE = `Subject: Investment Opportunity - [Company Name]
 
@@ -48,6 +34,20 @@ Best regards,
 [Your Name]
 [Your Title]
 [Company Name]`;
+
+// Helper function to extract company name from filename
+const extractCompanyNameFromFileName = (fileName?: string) => {
+  if (!fileName) return null;
+  
+  return fileName
+    .replace(/\.[^.]+$/, '') // Remove extension
+    .replace(/\bdeck\b/gi, '') // Remove "deck"
+    .replace(/\(\d+\)/g, '') // Remove (1), (2), etc.
+    .replace(/[-_]/g, ' ') // Replace dashes and underscores with spaces
+    .replace(/\s{2,}/g, ' ') // Replace multiple spaces with single space
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase()); // Capitalize first letter of each word
+};
 
 // Dynamic investor outreach template based on analysis
 const generateDynamicTemplate = (analysis: PitchAnalysis | null, fileName?: string) => {
