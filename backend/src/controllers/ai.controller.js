@@ -2,534 +2,847 @@ const fs = require("fs");
 const path = require("path");
 const { db, dbHelpers } = require("../config/firebase-db.config");
 
-// Enhanced file text extraction with better support for all formats
-async function extractTextFromFile(filePath, originalName) {
-  const ext = path.extname(originalName || filePath).toLowerCase();
-  console.log('🔍 Extracting from:', originalName, 'Extension:', ext);
-  
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+// Initialize Gemini AI
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+/**
+ * Controller to analyze pitch deck content using Gemini AI
+ * @route POST /ai/analyze-pitch
+ * @body { fileName: string, textContent: string }
+ */
+exports.analyzePitchDeck = async (req, res) => {
   try {
-    // TXT and MD files
-    if (ext === ".txt" || ext === ".md") {
-      const text = fs.readFileSync(filePath, "utf8");
-      console.log('✅ TXT/MD extracted:', text.length, 'chars');
-      return cleanText(text);
-    }
-    
-    // PDF files - Enhanced extraction
-    if (ext === ".pdf") {
-      console.log('📄 Attempting PDF extraction...');
-      try {
-        const pdfParse = require("pdf-parse");
-        const buffer = fs.readFileSync(filePath);
-        console.log('📄 PDF buffer size:', buffer.length, 'bytes');
-        
-        const data = await pdfParse(buffer);
-        const text = cleanText(data.text || "");
-        
-        if (text && text.length > 50) {
-          console.log('✅ PDF text successfully extracted:', text.length, 'chars');
-          return text;
-        } else {
-          console.log('❌ PDF extraction failed - insufficient text');
-          return "PDF extraction failed - insufficient text content";
-        }
-      } catch (pdfError) {
-        console.log('❌ PDF processing error:', pdfError.message);
-        return "PDF processing failed";
-      }
-    }
-    
-    console.log('❌ Unsupported file format:', ext);
-    return `File format ${ext} is not supported.`;
-    
-  } catch (e) {
-    console.error('❌ Extraction error for', ext, ':', e.message);
-    return `Error reading ${ext} file: ${e.message}`;
-  }
-}
+    const { fileName, textContent } = req.body;
 
-// Helper function to clean and normalize text
-function cleanText(text) {
-  if (!text) return "";
-  
-  return text
-    .replace(/\r\n/g, '\n')
-    .replace(/\r/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]{2,}/g, ' ')
-    .trim();
-}
-
-// AI analysis using Gemini
-async function analyzeWithAI(text) {
-  try {
-    const geminiKey = process.env.GEMINI_API_KEY;
-    if (!geminiKey) {
-      console.log('No Gemini API key found, skipping AI analysis');
-      return null;
+    // Validation
+    if (!fileName || !textContent) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide both file name and text content for analysis.",
+      });
     }
 
-    const prompt = `You are an investment research assistant. 
+    if (textContent.trim().length < 50) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "The provided text content is too short to analyze. Please provide a more detailed pitch deck.",
+      });
+    }
 
-Task:
-1. Read the uploaded file carefully (it may be PDF, Word, PPT, or TXT).
-2. Extract ONLY investment-related details:
-   - Company Name
-   - Sector / Industry
-   - Market Size & Growth Rate
-   - Problem & Solution
-   - Key Highlights (growth numbers, margins, ratings, customers, traction)
-   - Product Edge / USP
-   - Financial Projections (revenue, profit, CAGR, targets)
-   - Fundraise Details (amount raising, pre-money valuation, dilution %, capital usage)
-   - Team / Founders (with roles)
+    // console.log("=== PITCH ANALYSIS REQUEST ===");
+    // console.log("File Name:", fileName);
+    // console.log("Text Length:", textContent.length, "characters");
+    // console.log("Timestamp:", new Date().toISOString());
 
-⚠️ Rules:
-- Keep all numbers, ₹, $, %, Cr, Mn, etc. EXACTLY as in the file.
-- Do NOT leave placeholders like "USPs of" or "Valuation: Valuation".
-- If a section is missing in the file, write "Not disclosed in deck".
-- Preserve bullet formatting for clarity.
+    // Initialize Gemini model
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
-Return ONLY valid JSON with this structure:
+    // Craft the prompt for Gemini AI
+    const prompt = `You are an expert venture capital analyst. Analyze the following pitch deck content and provide a comprehensive investment analysis.
+
+PITCH DECK CONTENT:
+${textContent}
+
+ANALYSIS REQUIREMENTS:
+Provide your analysis in the following JSON format. Make sure to return ONLY valid JSON without any markdown formatting, code blocks, or additional text:
 
 {
   "summary": {
-    "problem": "Exact problem from file or 'Not disclosed in deck'",
-    "solution": "Exact solution from file or 'Not disclosed in deck'",
-    "market": "Exact market/sector from file",
-    "traction": "Exact traction metrics from file",
-    "status": "GREEN/YELLOW/RED",
-    "total_score": 85
+    "problem": "Clearly describe the problem the startup is solving (2-3 sentences)",
+    "solution": "Describe the solution and product offering (2-3 sentences)",
+    "market": "Describe the target market and industry sector (1-2 sentences)",
+    "traction": "Summarize current traction, metrics, or validation (1-2 sentences)",
+    "status": "GREEN or YELLOW or RED based on investment readiness",
+    "total_score": "Overall score out of 100"
   },
   "scorecard": {
-    "Problem & Solution Fit": 8,
-    "Market Size & Opportunity": 7,
-    "Business Model": 9,
-    "Traction & Metrics": 6,
-    "Team": 8,
-    "Competitive Advantage": 7,
-    "Go-To-Market Strategy": 6,
-    "Financials & Ask": 7,
-    "Exit Potential": 8,
-    "Alignment with Investor": 7
+    "Problem & Solution Fit": "Score 1-10",
+    "Market Size & Opportunity": "Score 1-10",
+    "Business Model": "Score 1-10",
+    "Traction & Metrics": "Score 1-10",
+    "Team": "Score 1-10",
+    "Competitive Advantage": "Score 1-10",
+    "Go-To-Market Strategy": "Score 1-10",
+    "Financials & Ask": "Score 1-10",
+    "Exit Potential": "Score 1-10",
+    "Alignment with Investor": "Score 1-10"
   },
   "suggested_questions": [
-    "What is your customer acquisition strategy and current CAC?",
-    "How do you plan to scale operations?",
-    "What are your key competitive advantages?",
-    "What are your unit economics and path to profitability?",
-    "How will the funding be used to achieve milestones?"
+    "5 specific, insightful questions for the founders based on the pitch deck analysis"
   ],
-  "email_template": "Subject: Investment Opportunity in [Company Name] – [Sector]\n\nDear [Investor Name],\n\nHope you're doing well.\n\nI'm reaching out to share an exciting investment opportunity in [Company Name], a [Sector] company.\n\n📈 Key Highlights:\n[Exact bullet points from file with numbers]\n\n🔧 Product Edge:\n[Exact USP/competitive advantages from file or 'Not disclosed in deck']\n\n💸 Fundraise Details:\n[Exact fundraise amount, valuation, dilution %, use of funds from file or 'Not disclosed in deck']\n\nIf this aligns with your portfolio thesis in [Sector], we'd be glad to share the deck and set up a quick call with the founders.\n\nWarm regards,\n[Founder Name]\n📞 [Contact Number] | ✉️ [Email]",
-  "highlights": ["Exact highlights from file with all numbers preserved"],
-  "company_name": "Exact company name from file",
-  "sector": "Exact sector from file",
-  "market_size": "Exact market size with numbers from file or 'Not disclosed in deck'",
-  "growth_rate": "Exact growth rate with % from file or 'Not disclosed in deck'",
-  "product_edge": "Exact USP from file or 'Not disclosed in deck'",
-  "financial_projections": "Exact revenue/profit projections from file or 'Not disclosed in deck'",
-  "fundraise_amount": "Exact fundraise amount from file or 'Not disclosed in deck'",
-  "valuation": "Exact pre-money valuation from file or 'Not disclosed in deck'",
-  "dilution": "Exact dilution % from file or 'Not disclosed in deck'",
-  "use_of_funds": "Exact use of funds from file or 'Not disclosed in deck'",
-  "team_info": "Exact founder/team details with roles from file or 'Not disclosed in deck'",
-  "contact_number": "Exact phone number from file or 'Not disclosed in deck'",
-  "contact_email": "Exact email from file or 'Not disclosed in deck'"
+  "highlights": [
+    "5 key positive highlights or strengths from the pitch deck"
+  ],
+  "email_subject": "Professional email subject line for reaching out to an investor about this opportunity",
+  "email_body": "Professional email body for an investor outreach. IMPORTANT: Use proper paragraph structure with double line breaks (\\n\\n) between paragraphs. Start with: Dear [Investor Name],\\n\\n Then add opening paragraph, key highlights as bullet points (• format), and closing. End with: \\n\\nWarm regards,\\n[Your Name]\\n[Your Title]\\n[Your Contact Information]\\n[Company Website]. No emojis, keep it professional and industry-standard."
 }
 
-Document content:
-${text}`;
+IMPORTANT GUIDELINES:
+1. Status should be GREEN (70-100), YELLOW (40-69), or RED (0-39) based on total_score
+2. Total score should be realistic average of all scorecard items (multiply by 10)
+3. Email body must be professional, NO EMOJIS, NO special characters
+4. Email body should start with "Dear [Investor Name]," without any variation
+5. Email body should end exactly with the closing format provided
+6. Use bullet points in email as "•" for lists
+7. Do NOT include scores or numbers in the email body
+8. Keep email formal, concise, and investor-ready
+9. Return ONLY the JSON object, no markdown formatting or code blocks`;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }]
-        })
-      }
+    // console.log("Sending request to Gemini AI...");
+
+    // Generate content using Gemini
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const generatedText = response.text();
+
+    console.log("Received response from Gemini AI");
+    console.log("Raw response length:", generatedText.length);
+
+    // Clean the response - remove markdown code blocks if present
+    let cleanedResponse = generatedText.trim();
+
+    // Remove markdown code blocks
+    cleanedResponse = cleanedResponse.replace(/```json\n?/g, "");
+    cleanedResponse = cleanedResponse.replace(/```\n?/g, "");
+    cleanedResponse = cleanedResponse.trim();
+
+    // Remove any leading/trailing whitespace or newlines
+    cleanedResponse = cleanedResponse.replace(/^\s+|\s+$/g, "");
+
+    console.log(
+      "Cleaned response (first 200 chars):",
+      cleanedResponse.substring(0, 200)
     );
 
-    if (!response.ok) {
-      console.log('Gemini API error:', response.status);
-      return null;
+    // Parse JSON response
+    let analysisData;
+    try {
+      analysisData = JSON.parse(cleanedResponse);
+    } catch (parseError) {
+      console.error("JSON Parse Error:", parseError);
+      console.error("Attempted to parse:", cleanedResponse.substring(0, 500));
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "We encountered an issue processing the AI analysis. Please try again in a moment.",
+      });
     }
 
-    const data = await response.json();
-    const content = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    
-    // Extract JSON from response
-    const jsonStart = content.indexOf("{");
-    const jsonEnd = content.lastIndexOf("}");
-    
-    if (jsonStart !== -1 && jsonEnd !== -1) {
-      const jsonStr = content.slice(jsonStart, jsonEnd + 1);
-      return JSON.parse(jsonStr);
-    }
-    
-    return null;
-    
+    // Validate and sanitize the response
+    const sanitizedAnalysis = sanitizeAnalysisData(analysisData);
+
+    // console.log("Analysis completed successfully");
+    // console.log("Total Score:", sanitizedAnalysis.summary.total_score);
+    // console.log("Status:", sanitizedAnalysis.summary.status);
+    // console.log("=== END ANALYSIS ===\n");
+
+    // Return successful response
+    return res.status(200).json({
+      success: true,
+      message: "Pitch deck analysis completed successfully.",
+      data: sanitizedAnalysis,
+    });
   } catch (error) {
-    console.error("AI analysis failed:", error.message);
-    return null;
-  }
-}
+    console.error("=== PITCH ANALYSIS ERROR ===");
+    console.error("Error Type:", error.name);
+    console.error("Error Message:", error.message);
+    console.error("Full Error:", error);
+    console.error("Stack Trace:", error.stack);
+    console.error("=== END ERROR ===\n");
 
-// Text extraction helpers
-function extractCompanyName(text) {
-  const patterns = [
-    /company[:\s]+([^\n]+)/i,
-    /brand[:\s]+([^\n]+)/i,
-    /startup[:\s]+([^\n]+)/i,
-    /^([A-Z][a-zA-Z]+)\s*[-–]\s*[A-Z]/m
-  ];
-  
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim();
+    // Handle specific error types
+    if (error.message && error.message.includes("API key")) {
+      return res.status(500).json({
+        success: false,
+        message: "AI service configuration error. Please contact support.",
+      });
     }
-  }
-  return '[Company Name]';
-}
 
-function extractFounderName(text) {
-  const patterns = [
-    /founder[:\s]+([^\n]+)/i,
-    /ceo[:\s]+([^\n]+)/i,
-    /founded by[:\s]+([^\n]+)/i
-  ];
-  
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim();
+    if (error.message && error.message.includes("quota")) {
+      return res.status(429).json({
+        success: false,
+        message:
+          "Our AI analysis service is currently at capacity. Please try again in a few minutes.",
+      });
     }
-  }
-  return '[Founder Name]';
-}
 
-function extractSector(text) {
-  const sectors = ['FMCG', 'SaaS', 'FinTech', 'HealthTech', 'EdTech', 'E-commerce', 'AI/ML', 'Blockchain'];
-  const lowerText = text.toLowerCase();
-  
-  for (const sector of sectors) {
-    if (lowerText.includes(sector.toLowerCase())) {
-      return sector;
+    if (error.message && error.message.includes("rate limit")) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many requests. Please wait a moment before trying again.",
+      });
     }
-  }
-  return '[Sector]';
-}
 
-function extractFundingAmount(text) {
-  const patterns = [
-    /raising\s+\$([\d.]+[MK]?)/i,
-    /funding\s+\$([\d.]+[MK]?)/i,
-    /\$([\d.]+[MK]?)\s+raise/i
-  ];
-  
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      return '$' + match[1];
+    if (error.code === "ECONNREFUSED" || error.code === "ETIMEDOUT") {
+      return res.status(503).json({
+        success: false,
+        message:
+          "Unable to connect to AI analysis service. Please check your internet connection and try again.",
+      });
     }
+
+    // Generic error response
+    return res.status(500).json({
+      success: false,
+      message:
+        "An unexpected error occurred while analyzing your pitch deck. Please try again or contact support if the issue persists.",
+    });
   }
-  return '[Funding Amount]';
-}
+};
 
-function extractTeamBackground(text) {
-  const patterns = [
-    /team[:\s]+([^\n]+)/i,
-    /experience[:\s]+([^\n]+)/i,
-    /([\d]+\+?\s*years?[^\n]*experience[^\n]*)/i
-  ];
-  
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim();
-    }
-  }
-  return '[Team Background]';
-}
+/**
+ * Sanitize and validate the analysis data from Gemini AI
+ * Removes any unwanted characters, emojis, and ensures proper formatting
+ */
+const sanitizeAnalysisData = (data) => {
+  // Helper function to remove emojis and special characters
+  const cleanText = (text) => {
+    if (typeof text !== "string") return text;
 
-function extractGlobalPresence(text) {
-  if (text.toLowerCase().includes('global') || text.toLowerCase().includes('international')) {
-    return 'Global expansion';
-  }
-  return '[Global Presence]';
-}
+    // Remove emojis
+    let cleaned = text.replace(/[\u{1F600}-\u{1F64F}]/gu, "");
+    cleaned = cleaned.replace(/[\u{1F300}-\u{1F5FF}]/gu, "");
+    cleaned = cleaned.replace(/[\u{1F680}-\u{1F6FF}]/gu, "");
+    cleaned = cleaned.replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "");
+    cleaned = cleaned.replace(/[\u{2600}-\u{26FF}]/gu, "");
+    cleaned = cleaned.replace(/[\u{2700}-\u{27BF}]/gu, "");
 
-function extractPatents(text) {
-  if (text.toLowerCase().includes('patent') || text.toLowerCase().includes('ip') || text.toLowerCase().includes('proprietary')) {
-    return 'Proprietary technology';
-  }
-  return '[IP/Patents]';
-}
+    // Remove excessive whitespace
+    cleaned = cleaned.replace(/\s+/g, " ").trim();
 
-function extractChannels(text) {
-  const channels = [];
-  const lowerText = text.toLowerCase();
-  
-  if (lowerText.includes('amazon')) channels.push('Amazon');
-  if (lowerText.includes('website')) channels.push('Website');
-  if (lowerText.includes('retail')) channels.push('Retail');
-  if (lowerText.includes('online')) channels.push('Online');
-  
-  return channels.length > 0 ? channels.join(', ') : '[Sales Channels]';
-}
-
-function extractPhone(text) {
-  const phonePattern = /\+?[\d\s\-\(\)]{10,}/;
-  const match = text.match(phonePattern);
-  return match ? match[0].trim() : '[Phone Number]';
-}
-
-function extractEmail(text) {
-  const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-  const match = text.match(emailPattern);
-  return match ? match[0] : '[Email Address]';
-}
-
-function extractProblem(text) {
-  const patterns = [
-    /problem[:\s]+([^\n]+)/i,
-    /challenge[:\s]+([^\n]+)/i,
-    /issue[:\s]+([^\n]+)/i
-  ];
-  
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim();
-    }
-  }
-  return 'Problem identification from document';
-}
-
-function extractSolution(text) {
-  const patterns = [
-    /solution[:\s]+([^\n]+)/i,
-    /we solve[:\s]+([^\n]+)/i,
-    /our approach[:\s]+([^\n]+)/i
-  ];
-  
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim();
-    }
-  }
-  return 'Solution description from document';
-}
-
-function extractMarket(text) {
-  const patterns = [
-    /market[:\s]+([^\n]+)/i,
-    /industry[:\s]+([^\n]+)/i,
-    /target[:\s]+([^\n]+)/i
-  ];
-  
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim();
-    }
-  }
-  return 'Market analysis from document';
-}
-
-function extractTraction(text) {
-  const patterns = [
-    /traction[:\s]+([^\n]+)/i,
-    /metrics[:\s]+([^\n]+)/i,
-    /revenue[:\s]+([^\n]+)/i,
-    /users[:\s]+([^\n]+)/i
-  ];
-  
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
-      return match[1].trim();
-    }
-  }
-  return 'Traction metrics from document';
-}
-
-function generateEmailFromText(text, companyName, founderName, sector, fundingAmount) {
-  // Extract exact details from text
-  const highlights = extractKeyHighlights(text);
-  const productEdge = extractProductEdge(text);
-  const fundraiseDetails = extractFundraiseDetails(text);
-  const contactInfo = extractContactInfo(text);
-  
-  return `Subject: Investment Opportunity in ${companyName} – ${sector}
-
-Dear [Investor Name],
-
-Hope you're doing well.
-
-I'm reaching out to share an exciting investment opportunity in ${companyName}, a ${sector} company.
-
-📈 Key Highlights:
-${highlights}
-
-🔧 Product Edge:
-${productEdge}
-
-💸 Fundraise Details:
-${fundraiseDetails}
-
-If this aligns with your portfolio thesis in ${sector}, we'd be glad to share the deck and set up a quick call with the founders.
-
-Warm regards,
-${founderName}
-${contactInfo}`;
-}
-
-// Extract key highlights with exact numbers
-function extractKeyHighlights(text) {
-  const highlights = [];
-  
-  // Look for revenue/growth numbers
-  const revenueMatch = text.match(/revenue[:\s]*[₹$]?[\d,.]+(M|K|Cr|L)?/gi);
-  if (revenueMatch) highlights.push(`- Revenue: ${revenueMatch[0]}`);
-  
-  // Look for growth rates
-  const growthMatch = text.match(/growth[:\s]*\d+%/gi);
-  if (growthMatch) highlights.push(`- Growth: ${growthMatch[0]}`);
-  
-  // Look for market size
-  const marketMatch = text.match(/market[:\s]*[₹$]?[\d,.]+(B|M|Cr|L)?/gi);
-  if (marketMatch) highlights.push(`- Market Size: ${marketMatch[0]}`);
-  
-  // Look for margins
-  const marginMatch = text.match(/margin[:\s]*\d+%/gi);
-  if (marginMatch) highlights.push(`- Margins: ${marginMatch[0]}`);
-  
-  // Look for customers/users
-  const customerMatch = text.match(/\d+[\s]*(?:customers|users|clients)/gi);
-  if (customerMatch) highlights.push(`- ${customerMatch[0]}`);
-  
-  return highlights.length > 0 ? highlights.join('\n') : '- Strong market opportunity\n- Experienced team\n- Clear growth trajectory';
-}
-
-// Extract product edge/USP
-function extractProductEdge(text) {
-  const usp = [];
-  
-  // Look for competitive advantages
-  const compMatch = text.match(/(?:competitive advantage|USP|unique)[:\s]*([^\n.]+)/gi);
-  if (compMatch) usp.push(`- ${compMatch[0]}`);
-  
-  // Look for technology/IP
-  const techMatch = text.match(/(?:technology|patent|IP|proprietary)[:\s]*([^\n.]+)/gi);
-  if (techMatch) usp.push(`- ${techMatch[0]}`);
-  
-  return usp.length > 0 ? usp.join('\n') : '- Innovative technology\n- Strong competitive positioning\n- Scalable business model';
-}
-
-// Extract fundraise details
-function extractFundraiseDetails(text) {
-  const details = [];
-  
-  // Look for fundraise amount
-  const raiseMatch = text.match(/(?:raising|funding|investment)[:\s]*[₹$]?[\d,.]+(M|K|Cr|L)?/gi);
-  if (raiseMatch) details.push(`Currently raising ${raiseMatch[0]}`);
-  
-  // Look for valuation
-  const valuationMatch = text.match(/valuation[:\s]*[₹$]?[\d,.]+(M|K|Cr|L)?/gi);
-  if (valuationMatch) details.push(`Valuation: ${valuationMatch[0]}`);
-  
-  // Look for use of funds
-  const useMatch = text.match(/(?:use of funds|funds will)[:\s]*([^\n.]+)/gi);
-  if (useMatch) details.push(`Use of funds: ${useMatch[0]}`);
-  
-  return details.length > 0 ? details.join('\n') : 'Currently raising funds to accelerate growth and expansion.';
-}
-
-// Extract contact information
-function extractContactInfo(text) {
-  const contact = [];
-  
-  const phoneMatch = text.match(/(?:\+91|\+1)?[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}/g);
-  if (phoneMatch) contact.push(`📞 ${phoneMatch[0]}`);
-  
-  const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
-  if (emailMatch) contact.push(`✉️ ${emailMatch[0]}`);
-  
-  return contact.length > 0 ? contact.join(' | ') : '[Contact Info]';
-}
-
-// Heuristic-based analysis
-function analyzeText(text = "") {
-  const lc = text.toLowerCase();
-  const score = (cond, pts) => (cond ? pts : 0);
-
-  const checks = {
-    problemSolution: score(lc.includes("problem") && lc.includes("solution"), 8),
-    market: score(lc.includes("market"), 7),
-    businessModel: score(/revenue|business model/.test(lc), 8),
-    traction: Math.min(10, (lc.match(/users|customers|revenue|growth/g) || []).length * 2),
-    team: score(/team|experience|founder/g.test(lc), 8),
-    competitive: score(/competitive|advantage|moat/.test(lc), 6),
-    gtm: score(/marketing|sales|distribution/.test(lc), 7),
-    financials: score(/funding|investment|raise/.test(lc), 7),
-    exit: score(/exit|acquisition|ipo/.test(lc), 6),
-    alignment: score(lc.includes("investor") || lc.includes("portfolio"), 7),
+    return cleaned;
   };
 
-  const breakdown = [
-    { key: 1, name: "Problem & Solution Fit", score: Math.min(10, checks.problemSolution || 5) },
-    { key: 2, name: "Market Size & Opportunity", score: Math.min(10, checks.market || 6) },
-    { key: 3, name: "Business Model", score: Math.min(10, checks.businessModel || 6) },
-    { key: 4, name: "Traction & Metrics", score: Math.min(10, checks.traction || 5) },
-    { key: 5, name: "Team", score: Math.min(10, checks.team || 7) },
-    { key: 6, name: "Competitive Advantage", score: Math.min(10, checks.competitive || 5) },
-    { key: 7, name: "Go-To-Market Strategy", score: Math.min(10, checks.gtm || 6) },
-    { key: 8, name: "Financials & Ask", score: Math.min(10, checks.financials || 6) },
-    { key: 9, name: "Exit Potential", score: Math.min(10, checks.exit || 6) },
-    { key: 10, name: "Alignment with Investor", score: Math.min(10, checks.alignment || 6) },
+  // Sanitize summary
+  const sanitizedSummary = {
+    problem: cleanText(
+      data.summary?.problem || "Problem statement not available"
+    ),
+    solution: cleanText(
+      data.summary?.solution || "Solution description not available"
+    ),
+    market: cleanText(
+      data.summary?.market || "Market information not available"
+    ),
+    traction: cleanText(
+      data.summary?.traction || "Traction information not available"
+    ),
+    status: ["GREEN", "YELLOW", "RED"].includes(data.summary?.status)
+      ? data.summary.status
+      : "YELLOW",
+    total_score: Math.min(
+      100,
+      Math.max(0, parseInt(data.summary?.total_score) || 50)
+    ),
+  };
+
+  // Sanitize scorecard
+  const sanitizedScorecard = {};
+  const expectedCriteria = [
+    "Problem & Solution Fit",
+    "Market Size & Opportunity",
+    "Business Model",
+    "Traction & Metrics",
+    "Team",
+    "Competitive Advantage",
+    "Go-To-Market Strategy",
+    "Financials & Ask",
+    "Exit Potential",
+    "Alignment with Investor",
   ];
 
-  const total = breakdown.reduce((s, x) => s + x.score, 0);
-  const status = total < 60 ? "red" : total < 75 ? "yellow" : "green";
+  expectedCriteria.forEach((criteria) => {
+    const score = parseInt(data.scorecard?.[criteria]) || 5;
+    sanitizedScorecard[criteria] = Math.min(10, Math.max(1, score));
+  });
 
-  const questions = [
-    "What specific customer segment feels the pain most acutely?",
-    "What is your current CAC and LTV, and how will they evolve?",
-    "Which distribution channel shows the best early traction?",
-    "What are the top 2 competitive moats you are building?",
-    "How will the funds raised extend runway and key milestones?",
-  ];
+  // Sanitize arrays
+  const sanitizedQuestions = (data.suggested_questions || [])
+    .slice(0, 5)
+    .map((q) => cleanText(q))
+    .filter((q) => q.length > 10);
 
-  return { breakdown, total, status, questions };
+  const sanitizedHighlights = (data.highlights || [])
+    .slice(0, 5)
+    .map((h) => cleanText(h))
+    .filter((h) => h.length > 10);
+
+  // Sanitize email - preserve line breaks
+  let emailSubject = cleanText(data.email_subject || "Investment Opportunity");
+
+  // For email body, preserve intentional line breaks but clean excess
+  let emailBody = data.email_body || "";
+
+  // Remove emojis from email body
+  emailBody = emailBody.replace(/[\u{1F600}-\u{1F64F}]/gu, "");
+  emailBody = emailBody.replace(/[\u{1F300}-\u{1F5FF}]/gu, "");
+  emailBody = emailBody.replace(/[\u{1F680}-\u{1F6FF}]/gu, "");
+  emailBody = emailBody.replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "");
+  emailBody = emailBody.replace(/[\u{2600}-\u{26FF}]/gu, "");
+  emailBody = emailBody.replace(/[\u{2700}-\u{27BF}]/gu, "");
+
+  // Clean up excessive line breaks (more than 2 consecutive)
+  emailBody = emailBody.replace(/\n{3,}/g, "\n\n");
+
+  // Trim whitespace from start and end
+  emailBody = emailBody.trim();
+
+  // Ensure email body starts with "Dear [Investor Name],"
+  if (!emailBody.startsWith("Dear [Investor Name],")) {
+    emailBody = "Dear [Investor Name],\n\n" + emailBody;
+  }
+
+  // Ensure email body ends with proper closing
+  const closingFormat =
+    "\n\nWarm regards,\n[Your Name]\n[Your Title]\n[Your Contact Information]\n[Company Website]";
+  if (!emailBody.includes("Warm regards,")) {
+    emailBody = emailBody + closingFormat;
+  }
+
+  return {
+    summary: sanitizedSummary,
+    scorecard: sanitizedScorecard,
+    suggested_questions:
+      sanitizedQuestions.length > 0
+        ? sanitizedQuestions
+        : [
+            "What is your customer acquisition strategy?",
+            "How do you plan to scale operations?",
+            "What are your key competitive advantages?",
+            "What are your unit economics?",
+            "How will you use the funding?",
+          ],
+    highlights:
+      sanitizedHighlights.length > 0
+        ? sanitizedHighlights
+        : [
+            "Innovative approach to solving market problem",
+            "Clear value proposition for target customers",
+            "Experienced team with relevant expertise",
+            "Scalable business model",
+            "Strong market opportunity",
+          ],
+    email_subject: emailSubject,
+    email_body: emailBody,
+  };
+};
+
+exports.enhanceEmailBody = async (req, res) => {
+  try {
+    const { emailBody, tone = "professional", context = "" } = req.body;
+
+    if (!emailBody || emailBody.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide email content to enhance.",
+      });
+    }
+
+    if (emailBody.trim().length < 10) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Email content is too short to enhance effectively. Please provide more detailed content.",
+      });
+    }
+
+    // console.log("=== EMAIL ENHANCEMENT REQUEST ===");
+    // console.log("Original Email Length:", emailBody.length, "characters");
+    // console.log("Tone:", tone);
+    // console.log("Context:", context);
+    // console.log("Timestamp:", new Date().toISOString());
+
+    // Initialize Gemini model
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+    // Craft the prompt for email enhancement - Fixed template literal syntax
+    const prompt = `You are an expert email marketing and investor communication specialist. Enhance the following email content to create the single most effective, compelling, and professional version for investor outreach.
+
+ORIGINAL EMAIL:
+${emailBody}
+
+TONE PREFERENCE: ${tone}
+CONTEXT: ${context || "Investment opportunity outreach"}
+
+ENHANCEMENT REQUIREMENTS:
+Create the most effective enhanced version of this email with the following improvements:
+1. More compelling and professional language
+2. Clearer value proposition and key benefits
+3. Better structure and flow
+4. Stronger call-to-action
+5. Industry-appropriate terminology
+6. Proper email formatting with clear paragraphs
+
+Return your response in the following JSON format ONLY (no markdown, no code blocks):
+
+{
+  "success": true,
+  "enhanced_body": "The single most effective enhanced email body with proper paragraph structure using \\n\\n between paragraphs. Maintain proper email formatting with clear line breaks between sections.",
+  "improvements": ["List of specific improvements made to enhance this email"]
 }
+
+CRITICAL FORMATTING REQUIREMENTS:
+- Use \\n\\n (double line breaks) between paragraphs to maintain proper email structure
+- DO NOT use markdown formatting (NO **, *, __, _, #, >, etc.)
+- DO NOT use HTML tags or special characters
+- Use plain text only with bullet points as "• " (bullet space)
+- Start with professional greeting like "Dear [Investor Name],"
+- End EXACTLY with this signature format: "Best regards,\\n\\n[Your Name]\\n[Your Title]\\n[Your Contact Information]\\n[Company Website]"
+- Ensure proper spacing between sections
+- Keep natural email structure with clear paragraph separation
+- NO emojis, special characters, or formatting symbols
+- Use only plain text with proper punctuation
+
+MANDATORY SIGNATURE FORMAT:
+The email MUST end with this exact format:
+"Best regards,\\n\\n[Your Name]\\n[Your Title]\\n[Your Contact Information]\\n[Company Website]"
+
+IMPORTANT GUIDELINES:
+- Keep emails professional and investor-focused
+- Use PLAIN TEXT ONLY - no formatting symbols
+- Use simple bullet points with "• " for lists
+- Enhance clarity and impact while preserving original intent
+- Use compelling language that drives action
+- Include clear value propositions
+- Maintain appropriate email length (not too verbose)
+- Focus on investor interests: ROI, growth, innovation, market opportunity
+- NEVER use markdown, HTML, or any formatting symbols`;
+
+    console.log("Sending email enhancement request to Gemini AI...");
+
+    // Generate content using Gemini
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const generatedText = response.text();
+
+    // console.log("Received response from Gemini AI");
+    // console.log("Raw response length:", generatedText.length);
+
+    // Clean the response
+    let cleanedResponse = generatedText.trim();
+    cleanedResponse = cleanedResponse.replace(/```json\n?/g, "");
+    cleanedResponse = cleanedResponse.replace(/```\n?/g, "");
+    cleanedResponse = cleanedResponse.trim();
+
+    // console.log(
+    //   "Cleaned response (first 200 chars):",
+    //   cleanedResponse.substring(0, 200)
+    // );
+
+    // Parse JSON response
+    let enhancedData;
+    try {
+      enhancedData = JSON.parse(cleanedResponse);
+    } catch (parseError) {
+      console.error("JSON Parse Error:", parseError);
+      console.error("Attempted to parse:", cleanedResponse.substring(0, 500));
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "We encountered an issue processing the email enhancement. Please try again in a moment.",
+      });
+    }
+
+    // Sanitize the response while preserving formatting
+    const sanitizedData = sanitizeEmailBodyWithSignature(
+      enhancedData,
+      emailBody
+    );
+
+    // console.log("Email enhancement completed successfully");
+    // console.log("Enhanced email length:", sanitizedData.enhanced_body.length);
+    // console.log("=== END EMAIL ENHANCEMENT ===\n");
+
+    return res.status(200).json(sanitizedData);
+  } catch (error) {
+    console.error("=== EMAIL ENHANCEMENT ERROR ===");
+    console.error("Error Type:", error.name);
+    console.error("Error Message:", error.message);
+    console.error("Full Error:", error);
+    console.error("Stack Trace:", error.stack);
+    console.error("=== END ERROR ===\n");
+
+    // Handle specific error types
+    if (error.message && error.message.includes("API key")) {
+      return res.status(500).json({
+        success: false,
+        message: "AI service configuration issue. Please contact support.",
+      });
+    }
+
+    if (error.message && error.message.includes("quota")) {
+      return res.status(500).json({
+        success: false,
+        message:
+          "AI enhancement service is currently at capacity. Please try again in a few minutes.",
+      });
+    }
+
+    if (error.message && error.message.includes("rate limit")) {
+      return res.status(500).json({
+        success: false,
+        message: "Please wait a moment before trying to enhance again.",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Unable to enhance email at the moment. Please try again or contact support if the issue persists.",
+    });
+  }
+};
+
+/**
+ * Sanitize email body while preserving proper email formatting and ensuring correct signature
+ */
+const sanitizeEmailBodyWithSignature = (data, originalEmail) => {
+  const cleanTextPreserveFormatting = (text) => {
+    if (typeof text !== "string") return text;
+
+    // Remove emojis but preserve all whitespace and line breaks
+    let cleaned = text.replace(/[\u{1F600}-\u{1F64F}]/gu, "");
+    cleaned = cleaned.replace(/[\u{1F300}-\u{1F5FF}]/gu, "");
+    cleaned = cleaned.replace(/[\u{1F680}-\u{1F6FF}]/gu, "");
+    cleaned = cleaned.replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "");
+    cleaned = cleaned.replace(/[\u{2600}-\u{26FF}]/gu, "");
+    cleaned = cleaned.replace(/[\u{2700}-\u{27BF}]/gu, "");
+
+    // Remove markdown formatting symbols
+    cleaned = cleaned.replace(/\*\*(.*?)\*\*/g, "$1"); // Remove **bold**
+    cleaned = cleaned.replace(/\*(.*?)\*/g, "$1"); // Remove *italic*
+    cleaned = cleaned.replace(/__(.*?)__/g, "$1"); // Remove __underline__
+    cleaned = cleaned.replace(/_(.*?)_/g, "$1"); // Remove _italic_
+    cleaned = cleaned.replace(/`(.*?)`/g, "$1"); // Remove `code`
+    cleaned = cleaned.replace(/``````/g, ""); // Remove code blocks - Fixed regex
+    cleaned = cleaned.replace(/#{1,6}\s/g, ""); // Remove # headers
+    cleaned = cleaned.replace(/>\s/g, ""); // Remove > blockquotes
+    cleaned = cleaned.replace(/^\s*[-+*]\s/gm, "• "); // Convert markdown lists to bullet points
+    cleaned = cleaned.replace(/^\s*\d+\.\s/gm, "• "); // Convert numbered lists to bullet points
+
+    // Remove HTML tags if any
+    cleaned = cleaned.replace(/<[^>]*>/g, "");
+
+    // Remove excessive special characters and symbols - Fixed regex
+    cleaned = cleaned.replace(/[#$%&*+=<>{}[\]\\|~`]/g, "");
+    cleaned = cleaned.replace(/[^\w\s.,!?;:()\n\u2022\-]/g, ""); // Keep only letters, numbers, basic punctuation, line breaks, and bullet points
+
+    // Only clean up excessive horizontal spacing, preserve line breaks
+    cleaned = cleaned.replace(/[ \t]+/g, " ");
+
+    // Preserve intentional line breaks but limit to max 3 consecutive
+    cleaned = cleaned.replace(/\n{4,}/g, "\n\n\n");
+
+    // Clean up bullet points - ensure proper spacing
+    cleaned = cleaned.replace(/•\s*/g, "• ");
+    cleaned = cleaned.replace(/\n\s*•/g, "\n• ");
+
+    // Trim only start and end, preserve internal structure
+    cleaned = cleaned.trim();
+
+    return cleaned;
+  };
+
+  const ensureProperSignature = (emailBody) => {
+    // Standard signature formats to check for and replace
+    const signaturePatterns = [
+      /\n\n?Best regards,?\n\n?.*$/s,
+      /\n\n?Warm regards,?\n\n?.*$/s,
+      /\n\n?Sincerely,?\n\n?.*$/s,
+      /\n\n?Kind regards,?\n\n?.*$/s,
+      /\n\n?Regards,?\n\n?.*$/s,
+    ];
+
+    let bodyWithoutSignature = emailBody;
+
+    // Remove any existing signature
+    signaturePatterns.forEach((pattern) => {
+      bodyWithoutSignature = bodyWithoutSignature.replace(pattern, "");
+    });
+
+    // Ensure body doesn't end with excessive line breaks
+    bodyWithoutSignature = bodyWithoutSignature.replace(/\n+$/, "");
+
+    // Add the standardized signature
+    const standardSignature =
+      "\n\nBest regards,\n\n[Your Name]\n[Your Title]\n[Your Contact Information]\n[Company Website]";
+
+    return bodyWithoutSignature + standardSignature;
+  };
+
+  try {
+    let enhancedBody = cleanTextPreserveFormatting(
+      data?.enhanced_body || originalEmail
+    );
+
+    // Ensure proper signature format
+    enhancedBody = ensureProperSignature(enhancedBody);
+
+    const improvements = Array.isArray(data?.improvements)
+      ? data.improvements
+          .slice(0, 5)
+          .map((imp) => cleanTextPreserveFormatting(imp))
+          .filter((imp) => imp.length > 0)
+      : ["Enhanced email structure and professional language"];
+
+    return {
+      success: true,
+      enhanced_body: enhancedBody,
+      improvements: improvements,
+    };
+  } catch (error) {
+    // Fallback with proper signature
+    const fallbackBody = ensureProperSignature(originalEmail);
+
+    return {
+      success: true,
+      enhanced_body: fallbackBody,
+      improvements: [
+        "Original email returned with standardized signature format",
+      ],
+    };
+  }
+};
+
+exports.optimizeSubject = async (req, res) => {
+  try {
+    const {
+      currentSubject,
+      companyName = "[Company Name]",
+      context = "",
+      tone = "professional",
+    } = req.body;
+
+    if (!currentSubject || currentSubject.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide a subject line to optimize.",
+      });
+    }
+
+    // console.log("=== SUBJECT OPTIMIZATION REQUEST ===");
+    // console.log("Original Subject:", currentSubject);
+    // console.log("Company Name:", companyName);
+    // console.log("Context:", context);
+    // console.log("Tone:", tone);
+    // console.log("Timestamp:", new Date().toISOString());
+
+    // Initialize Gemini model
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+
+    // Craft the prompt for subject line optimization
+    const prompt = `You are an expert email marketing specialist focusing on investor communication and outreach. Create the single most effective subject line optimization for the following email subject.
+
+ORIGINAL SUBJECT LINE: ${currentSubject}
+COMPANY NAME: ${"[Company Name]"}
+CONTEXT: ${context || "Investment opportunity outreach"}
+TONE: ${tone}
+
+OPTIMIZATION REQUIREMENTS:
+Generate the most effective single subject line that:
+1. Maximizes open rates for investor emails
+2. Creates interest and urgency without being spammy
+3. Is professional and industry-appropriate
+4. Includes company name strategically when valuable
+5. Is concise (ideally under 60 characters)
+6. Appeals to investor motivations (growth, returns, opportunity)
+
+Return your response in the following JSON format ONLY (no markdown, no code blocks):
+
+{
+  "success": true,
+  "optimized_subject": "The single most effective optimized subject line"
+}
+
+IMPORTANT GUIDELINES:
+- NO emojis or special characters
+- Professional tone appropriate for investors
+- Avoid spam trigger words
+- Create sense of value and opportunity
+- Keep concise but compelling
+- Focus on investor interests: ROI, growth, innovation, market opportunity
+- Include company name only if it adds strategic value
+- Make it actionable and intriguing`;
+
+    console.log("Sending subject optimization request to Gemini AI...");
+
+    // Generate content using Gemini
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const generatedText = response.text();
+
+    // console.log("Received response from Gemini AI");
+    // console.log("Raw response length:", generatedText.length);
+
+    // Clean the response
+    let cleanedResponse = generatedText.trim();
+    cleanedResponse = cleanedResponse.replace(/```json\n?/g, "");
+    cleanedResponse = cleanedResponse.replace(/```\n?/g, "");
+    cleanedResponse = cleanedResponse.trim();
+
+    // console.log(
+    //   "Cleaned response (first 200 chars):",
+    //   cleanedResponse.substring(0, 200)
+    // );
+
+    // Parse JSON response
+    let optimizedData;
+    try {
+      optimizedData = JSON.parse(cleanedResponse);
+    } catch (parseError) {
+      console.error("JSON Parse Error:", parseError);
+      console.error("Attempted to parse:", cleanedResponse.substring(0, 500));
+
+      return res.status(500).json({
+        success: false,
+        message:
+          "We encountered an issue processing the subject line optimization. Please try again in a moment.",
+      });
+    }
+
+    // Sanitize the response
+    const sanitizedData = sanitizeSubjectLine(
+      optimizedData,
+      currentSubject,
+      companyName
+    );
+
+    // console.log("Subject optimization completed successfully");
+    // console.log("Optimized subject:", sanitizedData.optimized_subject);
+    // console.log("=== END SUBJECT OPTIMIZATION ===\n");
+
+    return res.status(200).json(sanitizedData);
+  } catch (error) {
+    console.error("=== SUBJECT OPTIMIZATION ERROR ===");
+    console.error("Error Type:", error.name);
+    console.error("Error Message:", error.message);
+    console.error("Full Error:", error);
+    console.error("=== END ERROR ===\n");
+
+    // Handle specific error types
+    if (error.message && error.message.includes("API key")) {
+      return res.status(500).json({
+        success: false,
+        message: "AI service configuration issue. Please contact support.",
+      });
+    }
+
+    if (error.message && error.message.includes("quota")) {
+      return res.status(500).json({
+        success: false,
+        message:
+          "AI optimization service is currently at capacity. Please try again in a few minutes.",
+      });
+    }
+
+    if (error.message && error.message.includes("rate limit")) {
+      return res.status(500).json({
+        success: false,
+        message: "Please wait a moment before trying to optimize again.",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Unable to optimize subject line at the moment. Please try again or contact support if the issue persists.",
+    });
+  }
+};
+
+/**
+ * Sanitize single subject line optimization
+ */
+const sanitizeSubjectLine = (data, originalSubject, companyName) => {
+  const cleanText = (text) => {
+    if (typeof text !== "string") return text;
+
+    // Remove emojis and special characters
+    let cleaned = text.replace(/[\u{1F600}-\u{1F64F}]/gu, "");
+    cleaned = cleaned.replace(/[\u{1F300}-\u{1F5FF}]/gu, "");
+    cleaned = cleaned.replace(/[\u{1F680}-\u{1F6FF}]/gu, "");
+    cleaned = cleaned.replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "");
+    cleaned = cleaned.replace(/[\u{2600}-\u{26FF}]/gu, "");
+    cleaned = cleaned.replace(/[\u{2700}-\u{27BF}]/gu, "");
+
+    // Remove excessive whitespace
+    cleaned = cleaned.replace(/\s+/g, " ").trim();
+
+    // Ensure reasonable length (under 80 characters)
+    if (cleaned.length > 80) {
+      cleaned = cleaned.substring(0, 77) + "...";
+    }
+
+    return cleaned;
+  };
+
+  try {
+    let optimizedSubject = cleanText(data?.optimized_subject);
+
+    // Fallback if no valid subject returned
+    if (!optimizedSubject || optimizedSubject.length < 5) {
+      optimizedSubject = companyName
+        ? `Investment Opportunity - ${companyName}`
+        : originalSubject || "Investment Discussion";
+    }
+
+    return {
+      success: true,
+      optimized_subject: optimizedSubject,
+    };
+  } catch (error) {
+    return {
+      success: true,
+      optimized_subject: companyName
+        ? `Investment Opportunity - ${companyName}`
+        : originalSubject || "Investment Discussion",
+    };
+  }
+};
 
 exports.analyzeDeck = async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded. Use field name 'deck'" });
+    if (!req.file)
+      return res
+        .status(400)
+        .json({ error: "No file uploaded. Use field name 'deck'" });
 
-    const text = await extractTextFromFile(req.file.path, req.file.originalname);
-    console.log('Extracted text length:', text.length);
+    const text = await extractTextFromFile(
+      req.file.path,
+      req.file.originalname
+    );
+    console.log("Extracted text length:", text.length);
 
     if (!text || text.length < 50) {
-      return res.status(400).json({ error: "Could not extract sufficient text from the document" });
+      return res
+        .status(400)
+        .json({ error: "Could not extract sufficient text from the document" });
     }
 
     // Use AI analysis with Gemini
     const aiAnalysis = await analyzeWithAI(text);
-    
+
     if (aiAnalysis) {
       return res.status(200).json({
         success: true,
         data: {
           schema: aiAnalysis,
           aiRaw: aiAnalysis,
-          email: { subject: aiAnalysis.email_template?.split('\n')[0]?.replace('Subject: ', '') || "", body: aiAnalysis.email_template || "", highlights: [] },
+          email: {
+            subject:
+              aiAnalysis.email_template
+                ?.split("\n")[0]
+                ?.replace("Subject: ", "") || "",
+            body: aiAnalysis.email_template || "",
+            highlights: [],
+          },
           rawTextPreview: text.slice(0, 2000),
-        }
+        },
       });
     }
 
@@ -539,7 +852,7 @@ exports.analyzeDeck = async (req, res) => {
     const founderName = extractFounderName(text);
     const sector = extractSector(text);
     const fundingAmount = extractFundingAmount(text);
-    
+
     return res.status(200).json({
       success: true,
       data: {
@@ -549,24 +862,40 @@ exports.analyzeDeck = async (req, res) => {
             solution: extractSolution(text),
             market: extractMarket(text),
             traction: extractTraction(text),
-            status: (local.status || 'yellow').toUpperCase(),
-            total_score: Math.round((local.total / local.breakdown.length) * 10),
+            status: (local.status || "yellow").toUpperCase(),
+            total_score: Math.round(
+              (local.total / local.breakdown.length) * 10
+            ),
           },
-          scorecard: Object.fromEntries(local.breakdown.map(b => [b.name, b.score])),
+          scorecard: Object.fromEntries(
+            local.breakdown.map((b) => [b.name, b.score])
+          ),
           suggested_questions: local.questions,
-          email_template: generateEmailFromText(text, companyName, founderName, sector, fundingAmount),
-          highlights: [`Analysis of ${companyName}`, "Document-based scoring", "Heuristic evaluation"]
+          email_template: generateEmailFromText(
+            text,
+            companyName,
+            founderName,
+            sector,
+            fundingAmount
+          ),
+          highlights: [
+            `Analysis of ${companyName}`,
+            "Document-based scoring",
+            "Heuristic evaluation",
+          ],
         },
         aiRaw: null,
         email: { subject: "", body: "", highlights: [] },
         rawTextPreview: text.slice(0, 2000),
-      }
+      },
     });
   } catch (e) {
     console.error("analyzeDeck error", e);
     res.status(500).json({ error: e.message });
   } finally {
-    try { req.file && fs.unlinkSync(req.file.path); } catch {}
+    try {
+      req.file && fs.unlinkSync(req.file.path);
+    } catch {}
   }
 };
 
@@ -574,14 +903,21 @@ exports.analyzeDeck = async (req, res) => {
 exports.extractAndPrefill = async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded. Use field name 'document'" });
+      return res
+        .status(400)
+        .json({ error: "No file uploaded. Use field name 'document'" });
     }
 
-    const text = await extractTextFromFile(req.file.path, req.file.originalname);
-    console.log('Extracted text for prefill:', text.length, 'chars');
+    const text = await extractTextFromFile(
+      req.file.path,
+      req.file.originalname
+    );
+    console.log("Extracted text for prefill:", text.length, "chars");
 
     if (!text || text.length < 50) {
-      return res.status(400).json({ error: "Could not extract sufficient text from the document" });
+      return res
+        .status(400)
+        .json({ error: "Could not extract sufficient text from the document" });
     }
 
     // Extract data from the actual document
@@ -595,14 +931,20 @@ exports.extractAndPrefill = async (req, res) => {
       patents: extractPatents(text),
       channels: extractChannels(text),
       phone: extractPhone(text),
-      email: extractEmail(text)
+      email: extractEmail(text),
     };
-    
-    const investorName = req.body.investorName || '[Investor Name]';
-    
+
+    const investorName = req.body.investorName || "[Investor Name]";
+
     const subject = `Investment – ${templateData.companyName}`;
-    const body = generateEmailFromText(text, templateData.companyName, templateData.founderName, templateData.sector, templateData.fundingAmount);
-    
+    const body = generateEmailFromText(
+      text,
+      templateData.companyName,
+      templateData.founderName,
+      templateData.sector,
+      templateData.fundingAmount
+    );
+
     const emailTemplate = { subject, body };
 
     // Return successful response with template
@@ -613,15 +955,18 @@ exports.extractAndPrefill = async (req, res) => {
         emailTemplate,
         rawTextPreview: text.slice(0, 1000),
         aiProcessed: true,
-        fallbackUsed: false
-      }
+        fallbackUsed: false,
+      },
     });
-
   } catch (error) {
-    console.error('Extract and prefill error:', error);
-    res.status(500).json({ error: error.message || 'Failed to process document' });
+    console.error("Extract and prefill error:", error);
+    res
+      .status(500)
+      .json({ error: error.message || "Failed to process document" });
   } finally {
-    try { req.file && fs.unlinkSync(req.file.path); } catch {}
+    try {
+      req.file && fs.unlinkSync(req.file.path);
+    } catch {}
   }
 };
 
@@ -631,71 +976,26 @@ exports.testUpload = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: "No file uploaded" });
     }
-    
+
     const fileInfo = {
       originalName: req.file.originalname,
       size: req.file.size,
       mimetype: req.file.mimetype,
-      path: req.file.path
+      path: req.file.path,
     };
-    
+
     // Clean up test file
     try {
       fs.unlinkSync(req.file.path);
     } catch {}
-    
-    res.json({ 
-      success: true, 
-      message: 'File upload test successful',
-      fileInfo
+
+    res.json({
+      success: true,
+      message: "File upload test successful",
+      fileInfo,
     });
   } catch (error) {
-    console.error('Test upload error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.enhanceEmail = async (req, res) => {
-  try {
-    const { emailBody, tone } = req.body;
-    
-    if (!emailBody) {
-      return res.status(400).json({ error: "Email body is required" });
-    }
-    
-    // This would typically use AI to enhance the email
-    // For now, return the original email
-    res.json({ 
-      success: true, 
-      data: { 
-        options: [{
-          version: 1,
-          subject: "Enhanced: Investment Opportunity",
-          body: emailBody,
-          improvements: ["Original email returned"]
-        }]
-      }
-    });
-  } catch (error) {
-    console.error('Enhance email error:', error);
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.optimizeSubject = async (req, res) => {
-  try {
-    const { currentSubject, companyName } = req.body;
-    
-    const options = [
-      `Investment Opportunity - ${companyName || '[Company]'}`,
-      `Partnership Discussion - ${companyName || '[Company]'}`,
-      `Funding Round - ${companyName || '[Company]'}`,
-      `Quick Chat - ${companyName || '[Company]'} Opportunity`
-    ];
-    
-    res.json({ options });
-  } catch (error) {
-    console.error('Optimize subject error:', error);
+    console.error("Test upload error:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -703,22 +1003,22 @@ exports.optimizeSubject = async (req, res) => {
 exports.draftReply = async (req, res) => {
   try {
     const { originalEmail, replyType } = req.body;
-    
+
     const variants = [
       "Thank you for your interest. I'd be happy to schedule a call to discuss further.",
       "I appreciate you taking the time to review our opportunity. When would be a good time to connect?",
-      "Thanks for your response. I'll send over our deck and we can set up a meeting."
+      "Thanks for your response. I'll send over our deck and we can set up a meeting.",
     ];
-    
+
     const tips = [
       "Keep the response concise and professional",
       "Suggest specific next steps",
-      "Include relevant attachments if mentioned"
+      "Include relevant attachments if mentioned",
     ];
-    
+
     res.json({ variants, tips });
   } catch (error) {
-    console.error('Draft reply error:', error);
+    console.error("Draft reply error:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -726,17 +1026,17 @@ exports.draftReply = async (req, res) => {
 exports.matchInvestors = async (req, res) => {
   try {
     const { sector, fundingStage, location } = req.body;
-    
+
     // This would typically query a database of investors
     // For now, return empty matches
-    res.json({ 
-      success: true, 
-      totalMatches: 0, 
+    res.json({
+      success: true,
+      totalMatches: 0,
       matches: [],
-      message: "Investor matching feature coming soon"
+      message: "Investor matching feature coming soon",
     });
   } catch (error) {
-    console.error('Match investors error:', error);
+    console.error("Match investors error:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -744,28 +1044,30 @@ exports.matchInvestors = async (req, res) => {
 exports.regenerateTemplate = async (req, res) => {
   try {
     const { companyData, investorName } = req.body;
-    
+
     if (!companyData) {
       return res.status(400).json({ error: "Company data is required" });
     }
-    
-    const subject = `Investment Opportunity - ${companyData.companyName || '[Company Name]'}`;
+
+    const subject = `Investment Opportunity - ${
+      companyData.companyName || "[Company Name]"
+    }`;
     const body = generateEmailFromText(
-      companyData.rawText || '',
-      companyData.companyName || '[Company Name]',
-      companyData.founderName || '[Founder Name]',
-      companyData.sector || '[Sector]',
-      companyData.fundingAmount || '[Funding Amount]'
+      companyData.rawText || "",
+      companyData.companyName || "[Company Name]",
+      companyData.founderName || "[Founder Name]",
+      companyData.sector || "[Sector]",
+      companyData.fundingAmount || "[Funding Amount]"
     );
-    
-    res.json({ 
-      success: true, 
-      data: { 
-        emailTemplate: { subject, body } 
-      } 
+
+    res.json({
+      success: true,
+      data: {
+        emailTemplate: { subject, body },
+      },
     });
   } catch (error) {
-    console.error('Regenerate template error:', error);
+    console.error("Regenerate template error:", error);
     res.status(500).json({ error: error.message });
   }
 };

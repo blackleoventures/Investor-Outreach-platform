@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Roboto_Mono } from "next/font/google";
+import { Inter, Roboto_Mono, Poppins } from "next/font/google";
 import "./globals.css";
 import "../styles/mobile.css";
 import Providers from "./providers";
@@ -13,6 +13,12 @@ const inter = Inter({
 const robotoMono = Roboto_Mono({
   variable: "--font-roboto-mono",
   subsets: ["latin"],
+});
+
+const poppins = Poppins({
+  variable: "--font-poppins",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -34,7 +40,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className={`${poppins.variable} ${inter.variable} ${robotoMono.variable}`}>
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -42,7 +48,7 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body
-        className={`${inter.variable} ${robotoMono.variable} antialiased`}
+        className="font-sans antialiased"
         style={{ overflowX: 'hidden' }}
       >
         <NextTopLoader showSpinner={false} color="#3b82f6" height={2} crawlSpeed={200} speed={200} />

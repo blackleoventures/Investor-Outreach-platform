@@ -4,15 +4,27 @@ import React, { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
-import { Users, List, Plus, X, Mail, UserPlus, TrendingUp, Activity } from "lucide-react";
+import {
+  Users,
+  List,
+  Plus,
+  X,
+  Mail,
+  UserPlus,
+  TrendingUp,
+  Activity,
+} from "lucide-react";
 import { FileTextOutlined } from "@ant-design/icons";
 // Charts are dynamically loaded to speed up initial render
 // Faster fetch helper with timeout and no-cache for dynamic endpoints
-const fetchData = async <T = any>(url: string): Promise<T> => {
+const fetchData = async <T = any,>(url: string): Promise<T> => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000); // 10s timeout
   try {
-    const res = await fetch(url, { cache: 'no-store', signal: controller.signal });
+    const res = await fetch(url, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
     if (!res.ok) throw new Error(`Request failed: ${res.status}`);
     return (await res.json()) as T;
   } finally {
@@ -20,11 +32,15 @@ const fetchData = async <T = any>(url: string): Promise<T> => {
   }
 };
 import dynamic from "next/dynamic";
-const MonthlyEmailBarChart = dynamic(() => import("@/components/charts/MonthlyEmailBarChart"), { ssr: false });
-const EmailDistributionPie = dynamic(() => import("@/components/charts/EmailDistributionPie"), { ssr: false });
+const MonthlyEmailBarChart = dynamic(
+  () => import("@/components/charts/MonthlyEmailBarChart"),
+  { ssr: false }
+);
+const EmailDistributionPie = dynamic(
+  () => import("@/components/charts/EmailDistributionPie"),
+  { ssr: false }
+);
 import { Button, Form, Input } from "antd";
-
-
 
 // Lazy-load heavy components
 const Modal = dynamic(async () => (await import("antd")).Modal, { ssr: false });
@@ -35,7 +51,7 @@ import { useRouter } from "next/navigation";
 let lazyAxios: typeof import("axios") | null = null;
 let lazySwal: typeof import("sweetalert2") | null = null;
 import { createStyles } from "antd-style";
-const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL as string) || '/api';
+const BACKEND_URL = (process.env.NEXT_PUBLIC_BACKEND_URL as string) || "/api";
 
 const mockChartData = [
   { name: "Jan", emails: 3000 },
@@ -89,31 +105,39 @@ const API_ENDPOINTS = {
 };
 
 // Enhanced StatsCard with faster animations
-const StatsCard = React.memo(({ title, count, icon: Icon, trend, trendPositive, classNames }: any) => (
-  <motion.div
-    initial={{ opacity: 0, y: 20 }}
-    animate={{ opacity: 1, y: 0 }}
-    transition={{ duration: 0.2 }}
-    whileHover={{ y: -8, scale: 1.05 }}
-    whileTap={{ scale: 0.98 }}
-    className={`p-6 rounded-2xl cursor-pointer ${classNames || ''}`}
-  >
-    <div className="flex items-center justify-between">
-      <div>
-        <div className="text-sm opacity-90 font-medium">{title}</div>
-        <div className="text-3xl font-bold mt-2">{count}</div>
-        {trend && (
-          <div className={`text-sm mt-2 font-semibold ${trendPositive ? 'text-green-200' : 'text-red-200'}`}>{trend}</div>
+const StatsCard = React.memo(
+  ({ title, count, icon: Icon, trend, trendPositive, classNames }: any) => (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      whileHover={{ y: -8, scale: 1.05 }}
+      whileTap={{ scale: 0.98 }}
+      className={`p-6 rounded-2xl cursor-pointer ${classNames || ""}`}
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm opacity-90 font-medium">{title}</div>
+          <div className="text-3xl font-bold mt-2">{count}</div>
+          {trend && (
+            <div
+              className={`text-sm mt-2 font-semibold ${
+                trendPositive ? "text-green-200" : "text-red-200"
+              }`}
+            >
+              {trend}
+            </div>
+          )}
+        </div>
+        {Icon && (
+          <div className="bg-white/20 p-3 rounded-xl">
+            <Icon size={28} className="text-white" />
+          </div>
         )}
       </div>
-      {Icon && (
-        <div className="bg-white/20 p-3 rounded-xl">
-          <Icon size={28} className="text-white" />
-        </div>
-      )}
-    </div>
-  </motion.div>
-));
+    </motion.div>
+  )
+);
 
 const Profile = () => {
   const [loading, setLoading] = useState(false);
@@ -123,7 +147,7 @@ const Profile = () => {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const { styles } = useStyle();
-  const [emailStats, setEmailStats] = useState<any>(null);
+  const [emailStats, setEmailStats] = useState(null);
   const [error, setError] = useState<string | null>(null);
 
   type ClientDistributionItem = { name: string; value: number };
@@ -158,7 +182,11 @@ const Profile = () => {
         Date.now();
 
       setActualLoginTime(loginTimestamp as any);
-      console.log("Login time set:", loginTimestamp, new Date(loginTimestamp as any));
+      console.log(
+        "Login time set:",
+        loginTimestamp,
+        new Date(loginTimestamp as any)
+      );
     }
   }, [currentUser, actualLoginTime]);
 
@@ -259,54 +287,54 @@ const Profile = () => {
   const loadStats = useCallback(async () => {
     setLoading(true);
     try {
-      console.log('🔄 Fetching dashboard stats...');
-      
+      console.log("🔄 Fetching dashboard stats...");
+
       // Fetch real dashboard stats from new API
-      const response = await fetch(`${BACKEND_URL}/dashboard/stats`, {
+      const response = await fetch("/api/dashboard/stats", {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
+        },
       });
-      
-      console.log('📡 API Response Status:', response.status);
-      
+
+      console.log("📡 API Response Status:", response.status);
+
       if (response.ok) {
         const data = await response.json();
-        console.log('📊 Dashboard Stats API Response:', data);
-        
+        console.log("📊 Dashboard Stats API Response:", data);
+
         if (data.success && data.stats) {
           setStats({
             ...data.stats,
             performanceData: mockChartData,
             clientDistribution: clientDistributionData,
           });
-          console.log('✅ Stats updated successfully:', data.stats);
+          console.log("✅ Stats updated successfully:", data.stats);
         } else {
-          throw new Error('Invalid response format');
+          throw new Error("Invalid response format");
         }
       } else {
         const errorText = await response.text();
-        console.error('❌ API Error Response:', errorText);
+        console.error("❌ API Error Response:", errorText);
         throw new Error(`API Error: ${response.status}`);
       }
     } catch (err) {
       console.error("❌ Error loading stats:", err);
-      
+
       // Try to get debug info to understand the issue
       try {
-        console.log('🔍 Trying debug endpoint...');
-        const debugResponse = await fetch(`${BACKEND_URL}/dashboard/debug`, {
+        console.log("🔍 Trying debug endpoint...");
+        const debugResponse = await fetch("/api/dashboard/debug", {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json'
-          }
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            "Content-Type": "application/json",
+          },
         });
-        
+
         if (debugResponse.ok) {
           const debugData = await debugResponse.json();
-          console.log('🔍 Debug data:', debugData);
-          
+          console.log("🔍 Debug data:", debugData);
+
           // Use debug data for more accurate counts
           setStats({
             totalClients: 0, // Will be fetched from Firebase
@@ -319,15 +347,15 @@ const Profile = () => {
             clientDistribution: clientDistributionData,
           });
         } else {
-          throw new Error('Debug endpoint failed');
+          throw new Error("Debug endpoint failed");
         }
       } catch (debugError) {
-        console.log('❌ Debug endpoint failed:', debugError);
-        
+        console.log("❌ Debug endpoint failed:", debugError);
+
         // Final fallback
         setStats({
           totalClients: 0,
-          totalInvestors: 0, 
+          totalInvestors: 0,
           totalIncubators: 0,
           sentEmails: 0,
           responded: 0,
@@ -345,32 +373,32 @@ const Profile = () => {
     setEmailStatLoading(true);
     try {
       // Fetch real email monthly report data
-      const response = await fetch(`${BACKEND_URL}/dashboard/email-monthly-report`, {
+      const response = await fetch("/api/dashboard/email-monthly-report", {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+        },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        console.log('📈 Monthly Email Data Loaded:', data.data);
+        console.log("📈 Monthly Email Data Loaded:", data.data);
         setEmailStats(data.data);
-        
+
         // Update stats with real chart data
-        setStats(prevStats => ({
+        setStats((prevStats) => ({
           ...prevStats,
-          performanceData: data.data
+          performanceData: data.data,
         }));
       } else {
-        throw new Error('Failed to fetch email stats');
+        throw new Error("Failed to fetch email stats");
       }
     } catch (err) {
       console.error("Error loading email stats:", err);
       // Fallback to mock data
       setEmailStats(mockChartData);
-      setStats(prevStats => ({
+      setStats((prevStats) => ({
         ...prevStats,
-        performanceData: mockChartData
+        performanceData: mockChartData,
       }));
     } finally {
       setEmailStatLoading(false);
@@ -380,23 +408,6 @@ const Profile = () => {
   useEffect(() => {
     loadStats();
     loadEmailStats();
-    
-    // Auto-refresh stats every 10 seconds for real-time updates
-    const statsInterval = setInterval(() => {
-      console.log('🔄 Auto-refreshing dashboard stats...');
-      loadStats();
-    }, 10000);
-    
-    // Auto-refresh email stats every 30 seconds
-    const emailInterval = setInterval(() => {
-      console.log('📧 Auto-refreshing email stats...');
-      loadEmailStats();
-    }, 30000);
-    
-    return () => {
-      clearInterval(statsInterval);
-      clearInterval(emailInterval);
-    };
   }, [loadStats, loadEmailStats]);
 
   const handleSave = async (values: { listName: string }) => {
@@ -404,9 +415,12 @@ const Profile = () => {
       if (!lazyAxios) {
         lazyAxios = await import("axios");
       }
-      const response = await lazyAxios.default.post(API_ENDPOINTS.CONTACT_LISTS, {
-        listName: values.listName,
-      });
+      const response = await lazyAxios.default.post(
+        API_ENDPOINTS.CONTACT_LISTS,
+        {
+          listName: values.listName,
+        }
+      );
       if (response.data.success) {
         toggleModal(0, false);
         form.resetFields();
@@ -477,16 +491,16 @@ const Profile = () => {
     );
   }
 
-  const currentUserInfo: any = (currentUser as any).providerData?.[0] || currentUser;
+  const currentUserInfo: any =
+    (currentUser as any).providerData?.[0] || currentUser;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-
+    <div className="min-h-screen ">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="px-6 py-8 rounded-2xl mt-8 mb-4 mx-4 bg-white/80 backdrop-blur-sm shadow-xl border border-white/20"
+        className=""
       >
         <div className="mx-auto">
           <motion.div
@@ -498,52 +512,36 @@ const Profile = () => {
             <div className="flex items-center gap-4">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                    Welcome back
+                  <h1 className="text-3xl font-bold text-foreground ">
+                    Dashboard
                   </h1>
                 </div>
-                <h2 className="text-xl font-semibold text-gray-700">
-                  {currentUserInfo?.displayName || currentUserInfo?.email || "User"}
-                </h2>
-                <p className="mt-1 opacity-90 text-gray-600">Here's your business overview</p>
+                <p className="text-gray-600 text-base">
+                  Overview of your investor outreach platform
+                </p>
               </div>
             </div>
+
             <div className="mt-4 md:mt-0 flex flex-col-reverse sm:flex-col md:flex-row gap-3 md:items-center md:space-x-3">
-              <div>
-                <motion.div whileTap={{ scale: 0.95 }} whileHover={{ scale: 1.05 }}>
-                  <Button
-                    type="primary"
-                    size="large"
-                    className="bg-gradient-to-r from-orange-500 to-red-600 border-0 shadow-lg hover:shadow-xl transition-all duration-200 font-semibold px-8 py-2 h-12"
-                    icon={<Plus size={18} />}
-                    onClick={() => setIsOpen(true)}
-                  >
-                    Create New
-                  </Button>
-                </motion.div>
-              </div>
-              <div className="flex items-center gap-3">
-                <motion.div whileHover={{ scale: 1.05 }} className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-indigo-500 flex items-center justify-center">
-                  <span className="font-medium text-sm text-wrap sm:text-base text-white">
-                    {(currentUserInfo?.displayName || currentUserInfo?.email || "U")[0].toUpperCase()}
-                  </span>
-                </motion.div>
-                <div className="text-center sm:text-left">
-                  <p className="font-medium text-sm sm:text-base">{currentUserInfo?.email || "No email"}</p>
-                  <div className="space-y-1">
-                    <p className="text-xs sm:text-sm opacity-75">Last login: {formatLoginTime(actualLoginTime as any)}</p>
-                    {actualLoginTime ? (
-                      <p className="text-xs opacity-60 font-mono">{getExactLoginTime(actualLoginTime as any)}</p>
-                    ) : (
-                      <p className="text-xs opacity-50 text-yellow-600">⚠️ Login time unavailable</p>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <motion.div
+                whileTap={{ scale: 0.95 }}
+                whileHover={{ scale: 1.05 }}
+              >
+                <Button
+                  type="primary"
+                  size="large"
+                  className="bg-gradient-to-r from-orange-500 to-red-600 hover:bg-gradient-to-l hover:from-red-600 hover:to-orange-500 border-0 shadow-lg  transition-all duration-200 font-semibold px-8 py-2 h-12"
+                  icon={<Plus size={18} />}
+                  onClick={() => setIsOpen(true)}
+                >
+                  Create New
+                </Button>
+              </motion.div>
             </div>
           </motion.div>
         </div>
 
+        {/* Create New Modal */}
         <Modal
           width={800}
           transitionName=""
@@ -583,10 +581,13 @@ const Profile = () => {
                 <div className="bg-blue-500 p-3 rounded-xl mb-4 w-fit">
                   <Mail className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-xl font-bold mb-3 text-gray-800">Create Email Campaign</h3>
-                <p className="text-gray-600 text-base leading-relaxed">Design and send targeted email campaigns to your audience</p>
+                <h3 className="text-xl font-bold mb-3 text-gray-800">
+                  Create Email Campaign
+                </h3>
+                <p className="text-gray-600 text-base leading-relaxed">
+                  Design and send targeted email campaigns to your audience
+                </p>
               </motion.div>
-
 
               <motion.div
                 whileHover={{ y: -6, scale: 1.03 }}
@@ -600,13 +601,18 @@ const Profile = () => {
                 <div className="bg-purple-500 p-3 rounded-xl mb-4 w-fit">
                   <UserPlus className="w-8 h-8 text-white" />
                 </div>
-                <h3 className="text-xl font-bold mb-3 text-gray-800">Create a Client</h3>
-                <p className="text-gray-600 text-base leading-relaxed">Add new clients and manage their profiles in your system</p>
+                <h3 className="text-xl font-bold mb-3 text-gray-800">
+                  Create a Client
+                </h3>
+                <p className="text-gray-600 text-base leading-relaxed">
+                  Add new clients and manage their profiles in your system
+                </p>
               </motion.div>
             </div>
           </div>
         </Modal>
 
+        {/* Contact List Modal */}
         <Modal
           title="Create Contact List"
           footer={false}
@@ -650,10 +656,8 @@ const Profile = () => {
         </Modal>
       </motion.div>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
-
-
-        <motion.div 
+      <div className="max-w-7xl mx-auto py-8">
+        <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1, duration: 0.4 }}
@@ -701,9 +705,7 @@ const Profile = () => {
           />
         </motion.div>
 
-
-
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2, duration: 0.4 }}
@@ -718,9 +720,13 @@ const Profile = () => {
               <div className="p-2 bg-blue-100 rounded-lg">
                 <Activity className="w-5 h-5 text-blue-600" />
               </div>
-              <h2 className="text-lg font-semibold text-gray-800">Email Monthly Report</h2>
+              <h2 className="text-lg font-semibold text-gray-800">
+                Email Monthly Report
+              </h2>
             </div>
-            <MonthlyEmailBarChart data={stats.performanceData || mockChartData} />
+            <MonthlyEmailBarChart
+              data={stats.performanceData || mockChartData}
+            />
           </motion.div>
 
           <motion.div
@@ -732,17 +738,31 @@ const Profile = () => {
               <div className="p-2 bg-purple-100 rounded-lg">
                 <Users className="w-5 h-5 text-purple-600" />
               </div>
-              <h2 className="text-lg font-semibold text-gray-800">Email Performance Report</h2>
+              <h2 className="text-lg font-semibold text-gray-800">
+                Email Performance Report
+              </h2>
             </div>
-            <EmailDistributionPie data={[
-              { name: "Emails Sent", value: stats.sentEmails || 85, color: "#4285F4" },
-              { name: "Delivered", value: Math.floor((stats.sentEmails || 85) * 0.85), color: "#34A853" },
-              { name: "Replied", value: stats.responded || 5, color: "#EA4335" },
-            ]} />
+            <EmailDistributionPie
+              data={[
+                {
+                  name: "Emails Sent",
+                  value: stats.sentEmails || 85,
+                  color: "#4285F4",
+                },
+                {
+                  name: "Delivered",
+                  value: Math.floor((stats.sentEmails || 85) * 0.85),
+                  color: "#34A853",
+                },
+                {
+                  name: "Replied",
+                  value: stats.responded || 5,
+                  color: "#EA4335",
+                },
+              ]}
+            />
           </motion.div>
         </motion.div>
-
-
 
         {/* TODO: Re-add DemoBanner when present in current codebase */}
       </div>
@@ -753,4 +773,3 @@ const Profile = () => {
 export default function Page() {
   return <Profile />;
 }
-
