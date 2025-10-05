@@ -2,7 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  * {
+    font-family: var(--font-poppins), -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
 
+  body {
+    font-family: var(--font-poppins), -apple-system, BlinkMacSystemFont,
+      "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+}
 
 /* Force no cache */
 html {
@@ -17,31 +27,31 @@ html {
     overflow-x: hidden !important;
     font-size: 14px !important;
   }
-  
+
   .ant-layout {
     overflow-x: hidden !important;
   }
-  
+
   .ant-card {
     margin-bottom: 16px !important;
   }
-  
+
   .ant-row {
     margin: 0 !important;
   }
-  
+
   .ant-col {
     padding: 8px !important;
   }
-  
+
   .ant-typography h2 {
     font-size: 20px !important;
   }
-  
+
   .ant-typography h4 {
     font-size: 16px !important;
   }
-  
+
   .ant-btn {
     height: 36px !important;
     font-size: 14px !important;

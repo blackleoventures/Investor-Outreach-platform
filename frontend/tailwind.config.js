@@ -16,9 +16,6 @@ module.exports = {
       fontFamily: {
         // Override the default sans font with Poppins
         sans: ["var(--font-poppins)", ...fontFamily.sans],
-        // Keep your other fonts as custom options
-        inter: ["var(--font-inter)", ...fontFamily.sans],
-        mono: ["var(--font-roboto-mono)", ...fontFamily.mono],
       },
     },
   },

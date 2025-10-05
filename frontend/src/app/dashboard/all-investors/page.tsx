@@ -2,35 +2,22 @@
 // @ts-nocheck
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
-import { Card, Typography, Button, Input, Table, Tag, Space, message, Avatar, Modal, Form, Select, Dropdown, Checkbox, Alert, Spin, Popover } from "antd";
-import { useRouter } from 'next/navigation';
-import { UserOutlined, SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, SettingOutlined, FileTextOutlined, FileExcelOutlined, SyncOutlined, DownloadOutlined } from "@ant-design/icons";
-
-const { Title, Text } = Typography;
-const { Search } = Input;
-const { Option } = Select;
+import DataTable, { type Column } from "@/components/data-table";
+import { Modal, message, Form, Input } from "antd";
+import { Plus, Eye, Edit, Trash2, User } from "lucide-react";
 
 export default function AllInvestorsPage() {
   const router = useRouter();
   const [investors, setInvestors] = useState([]);
-  const [filteredInvestors, setFilteredInvestors] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [addInvestorModal, setAddInvestorModal] = useState(false);
-  const [editInvestorModal, setEditInvestorModal] = useState(false);
-  const [viewInvestorModal, setViewInvestorModal] = useState(false);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState(null);
-  const [excelSyncStatus, setExcelSyncStatus] = useState(null);
-  const [syncing, setSyncing] = useState(false);
-  const [pageSize, setPageSize] = useState(10);
-  const [visibleCount, setVisibleCount] = useState(10);
-  const [userShowAll, setUserShowAll] = useState(false);
-  const [dataSourceLabel, setDataSourceLabel] = useState<string>("");
-
   const [form] = Form.useForm();
+
   const [visibleColumns, setVisibleColumns] = useState({
     serialNumber: true,
     investorName: true,
@@ -42,917 +29,465 @@ export default function AllInvestorsPage() {
     location: true,
     phoneNumber: true,
     ticketSize: true,
-    website: false,
-    foundedYear: false,
-    portfolioCompanies: false,
-    twitterLink: false,
-    linkedinLink: false,
-    facebookLink: false,
-    numberOfInvestments: false,
-    numberOfExits: false,
-    fundDescription: false
+    actions: true,
   });
 
-  // Simple function to get value from raw data using exact column names
-  const getValue = (obj: any, key: string) => {
-    return obj[key] || obj[key.toLowerCase()] || obj[key.replace(/\s+/g, '_')] || '';
-  };
-
-  // Fetch investors data from API
   const fetchInvestors = async () => {
     setLoading(true);
     try {
-      // Add cache-busting parameter to ensure fresh data
       const cacheBuster = `_t=${Date.now()}`;
-      const response = await apiFetch(`/api/investors?limit=100000&page=1&${cacheBuster}`, {
-        cache: 'no-store',
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
+      const response = await apiFetch(
+        `/api/investors?limit=100000&page=1&${cacheBuster}`,
+        {
+          cache: "no-store",
+          headers: {
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            Pragma: "no-cache",
+          },
         }
-      });
+      );
+
       if (response.ok) {
         const result = await response.json();
-        console.log('API Response:', { source: result.source, timestamp: result.timestamp, count: result.totalCount });
         const investorData = result.docs || result.data || [];
-        
-        // Ensure manual investors are properly formatted
-        const formattedData = investorData.map((investor: any) => {
-          // Handle both manual entry format and Excel format
-          return {
-            ...investor,
-            'Investor Name': investor['Investor Name'] || investor.investor_name || investor.name || 'Unknown',
-            'Partner Name': investor['Partner Name'] || investor.partner_name || investor.contact || 'Unknown',
-            'Partner Email': investor['Partner Email'] || investor.partner_email || investor.email || '',
-            'Fund Type': investor['Fund Type'] || investor.fund_type || 'Unknown',
-            'Fund Stage': investor['Fund Stage'] || investor.fund_stage || 'Unknown',
-            'Fund Focus (Sectors)': investor['Fund Focus (Sectors)'] || investor.fund_focus_sectors || investor.sector_focus || 'Unknown',
-            'Location': investor['Location'] || investor.location || 'Unknown',
-            'Phone number': investor['Phone number'] || investor.phone_number || '',
-            'Ticket Size': investor['Ticket Size'] || investor.ticket_size || ''
-          };
-        });
-        
+
+        const formattedData = investorData.map((investor: any) => ({
+          ...investor,
+          "Investor Name":
+            investor["Investor Name"] ||
+            investor.investor_name ||
+            investor.name ||
+            "Unknown",
+          "Partner Name":
+            investor["Partner Name"] ||
+            investor.partner_name ||
+            investor.contact ||
+            "Unknown",
+          "Partner Email":
+            investor["Partner Email"] ||
+            investor.partner_email ||
+            investor.email ||
+            "",
+          "Fund Type": investor["Fund Type"] || investor.fund_type || "Unknown",
+          "Fund Stage":
+            investor["Fund Stage"] || investor.fund_stage || "Unknown",
+          "Fund Focus (Sectors)":
+            investor["Fund Focus (Sectors)"] ||
+            investor.fund_focus_sectors ||
+            investor.sector_focus ||
+            "Unknown",
+          Location: investor["Location"] || investor.location || "Unknown",
+          "Phone number":
+            investor["Phone number"] || investor.phone_number || "",
+          "Ticket Size": investor["Ticket Size"] || investor.ticket_size || "",
+        }));
+
         setInvestors(formattedData);
-        setFilteredInvestors(formattedData);
-        setDataSourceLabel(result.source === 'google_sheets' ? 'Google Sheets' : (result.source || 'Database'));
-        
-        if (formattedData.length > 0) {
-          console.log('=== DEBUGGING INVESTOR DATA ===');
-          console.log('Sample investor data:', formattedData[0]);
-          console.log('All column names:', Object.keys(formattedData[0]));
-          console.log('First 3 records:', formattedData.slice(0, 3));
-          console.log('=== END DEBUG ===');
-        }
       } else {
-        console.error('API Error:', response.status);
-        message.error('Failed to fetch investors data');
+        message.error("Failed to fetch investors data");
       }
     } catch (error) {
-      console.error('Error fetching investors:', error);
-      message.error('Failed to fetch investors data');
+      message.error("Failed to fetch investors data");
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch Excel sync status
-  const fetchSyncStatus = async () => {
-    try {
-      const response = await apiFetch(`/api/excel/sync/status`);
-      if (response.ok) {
-        const data = await response.json();
-        setExcelSyncStatus(data);
-      }
-    } catch (error) {
-      console.error('Error fetching sync status:', error);
-    }
-  };
-
-  // Sync Firebase to Excel
-  const handleSyncToExcel = async () => {
-    setSyncing(true);
-    try {
-      const response = await apiFetch(`/api/excel/sync/firebase-to-excel`, {
-        method: 'POST'
-      });
-      if (response.ok) {
-        message.success('Data synced to Excel successfully!');
-        fetchSyncStatus();
-      } else {
-        message.error('Failed to sync data to Excel');
-      }
-    } catch (error) {
-      console.error('Sync error:', error);
-      message.error('Failed to sync data to Excel');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  // Download Excel file
-  const handleDownloadExcel = async () => {
-    try {
-      const response = await apiFetch(`/api/excel/download`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'investors.xlsx';
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        message.success('Excel file downloaded successfully!');
-      } else {
-        message.error('Failed to download Excel file');
-      }
-    } catch (error) {
-      console.error('Download error:', error);
-      message.error('Failed to download Excel file');
-    }
-  };
-
-  // Initialize data and sync status
   useEffect(() => {
-    // Clear any existing data first
-    setInvestors([]);
-    setFilteredInvestors([]);
-    
-    // Fetch fresh data immediately
     fetchInvestors();
-    fetchSyncStatus();
-    
-    // Auto-refresh every 30 seconds to show new manual entries
     const interval = setInterval(fetchInvestors, 30000);
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    const q = searchQuery.trim().toLowerCase();
+  const handleDeleteInvestor = (investorId) => {
+    Modal.confirm({
+      title: "Delete Investor",
+      content: "Are you sure you want to delete this investor?",
+      okText: "Delete",
+      okButtonProps: {
+        danger: true,
+      },
+      onOk: async () => {
+        try {
+          const response = await apiFetch(`/api/investors/${investorId}`, {
+            method: "DELETE",
+          });
 
-    const candidateKeys = [
-      'Investor Name', 'Partner Name', 'Partner Email', 'Phone number',
-      'Fund Type', 'Fund Stage', 'Fund Focus (Sectors)', 'Location', 'Ticket Size'
-    ];
-
-    const stringIncludes = (value: unknown, query: string) => {
-      if (value == null) return false;
-      if (Array.isArray(value)) {
-        return value.some(v => stringIncludes(v, query));
-      }
-      const str = value.toString().toLowerCase();
-      return str.includes(query);
-    };
-
-    const filtered = q
-      ? investors.filter((inv) => {
-          // 1) Try known fields first
-          for (const key of candidateKeys) {
-            if (key in inv && stringIncludes((inv as any)[key], q)) return true;
+          if (response.ok) {
+            message.success("Investor deleted successfully!");
+            fetchInvestors();
+          } else {
+            message.error("Failed to delete investor");
           }
-          // 2) Fallback: scan all primitive string/number fields
-          for (const [k, v] of Object.entries(inv)) {
-            if (v == null) continue;
-            const isPrimitive = typeof v === 'string' || typeof v === 'number';
-            if (isPrimitive && stringIncludes(v, q)) return true;
-            if (Array.isArray(v) && stringIncludes(v, q)) return true;
-          }
-          return false;
-        })
-      : investors;
-
-    // De-duplicate visible rows robustly using a stable hash of significant fields
-    const toKey = (r: any) => {
-      return JSON.stringify({
-        id: r.id ?? r._id ?? null,
-        email: (r['Partner Email'] ?? r.email ?? '').toString().toLowerCase(),
-        name: (r['Investor Name'] ?? r.name ?? '').toString().toLowerCase(),
-      });
-    };
-    const seen = new Set<string>();
-    const uniqueFiltered = [] as any[];
-    for (const row of filtered) {
-      const k = toKey(row);
-      if (!seen.has(k)) { seen.add(k); uniqueFiltered.push(row); }
-    }
-
-    setFilteredInvestors(uniqueFiltered);
-    // Preserve user's current view size unless search text changed to a new query
-    // If user selected "All", keep expanding to the full filtered length on refresh/polling
-    setVisibleCount(prev => {
-      const nextMax = uniqueFiltered.length;
-      if (userShowAll) return nextMax;
-      return Math.min(prev, nextMax);
+        } catch (error) {
+          message.error("Failed to delete investor");
+        }
+      },
     });
-    setCurrentPage(1);
-  }, [searchQuery, investors, userShowAll]);
-
-  // Reset pagination only when the search query itself changes
-  useEffect(() => {
-    setVisibleCount(10);
-    setUserShowAll(false);
-  }, [searchQuery]);
-
-  const handleAddInvestor = async (values) => {
-    const newInvestor = {
-      id: Date.now(),
-      ...values
-    };
-    
-    setInvestors([...investors, newInvestor]);
-    setAddInvestorModal(false);
-    form.resetFields();
-    message.success("Investor added successfully!");
   };
 
   const handleEditInvestor = async (values) => {
     try {
       const id = selectedInvestor?.id ?? selectedInvestor?._id;
       if (!id) {
-        message.error('Missing investor id');
+        message.error("Missing investor id");
         return;
       }
 
-      // Remove undefined fields so we only send real updates
       const updates = Object.fromEntries(
         Object.entries(values || {}).filter(([, v]) => v !== undefined)
       );
 
-      // Ensure identifiers are present for backend row matching
-      if (!('Partner Email' in updates) && selectedInvestor && (selectedInvestor as any)['Partner Email']) {
-        (updates as any)['Partner Email'] = (selectedInvestor as any)['Partner Email'];
+      if (
+        !("Partner Email" in updates) &&
+        selectedInvestor &&
+        selectedInvestor["Partner Email"]
+      ) {
+        updates["Partner Email"] = selectedInvestor["Partner Email"];
       }
-      if (!('Investor Name' in updates) && selectedInvestor && (selectedInvestor as any)['Investor Name']) {
-        (updates as any)['Investor Name'] = (selectedInvestor as any)['Investor Name'];
+      if (
+        !("Investor Name" in updates) &&
+        selectedInvestor &&
+        selectedInvestor["Investor Name"]
+      ) {
+        updates["Investor Name"] = selectedInvestor["Investor Name"];
       }
 
       const response = await apiFetch(`/api/investors/${id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates)
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updates),
       });
-      
+
       if (response.ok) {
         message.success("Investor updated successfully!");
-        fetchInvestors(); // Refresh data
-        // Excel sync not needed with file-based system
+        fetchInvestors();
       } else {
-        const err = await response.json().catch(() => ({} as any));
-        message.error(err.error || 'Failed to update investor');
+        const err = await response.json().catch(() => ({}));
+        message.error(err.error || "Failed to update investor");
       }
     } catch (error) {
-      message.error('Failed to update investor');
+      message.error("Failed to update investor");
     }
-    
-    setEditInvestorModal(false);
+
+    setEditModalOpen(false);
     setSelectedInvestor(null);
     form.resetFields();
   };
 
-  const handleDeleteInvestor = (investorId) => {
-    Modal.confirm({
-      title: "Delete Investor",
-      content: "Are you sure you want to delete this investor?",
-      okText: 'OK',
-      okButtonProps: {
-        style: { backgroundColor: '#1890ff', borderColor: '#1890ff', color: '#fff' }
-      },
-      onOk: async () => {
-        try {
-          const response = await apiFetch(`/api/investors/${investorId}`, {
-            method: 'DELETE'
-          });
-          
-          if (response.ok) {
-            message.success("Investor deleted successfully!");
-            fetchInvestors(); // Refresh data
-            // Excel sync not needed with file-based system
-          } else {
-            message.error('Failed to delete investor');
-          }
-        } catch (error) {
-          message.error('Failed to delete investor');
-        }
-      }
-    });
-  };
-
-  const handleColumnVisibilityChange = (columnKey, checked) => {
-    setVisibleColumns(prev => ({
-      ...prev,
-      [columnKey]: checked
-    }));
-  };
-
-  // Generate dynamic columns based on data
-  const generateDynamicColumns = () => {
-    if (investors.length === 0) return [];
-
-    // Build a union of keys across all records so newly added fields appear
-    const keySet = new Set<string>();
-    for (const inv of investors) {
-      Object.keys(inv || {}).forEach(k => {
-        if (k !== 'id' && k !== 'createdAt' && k !== 'uploadedAt') keySet.add(k);
-      });
-    }
-
-    // Preferred order for commonly used keys
-    const preferredOrder = [
-      'investor_name', 'partner_name', 'partner_email', 'phone_number',
-      'fund_type', 'fund_stage', 'country', 'state', 'city', 'sector_focus',
-      'ticket_size', 'website', 'location', 'founded_year',
-      'portfolio_companies', 'number_of_investments', 'number_of_exits',
-      'twitter_link', 'linkedIn_link', 'facebook_link'
-    ];
-
-    const keys = Array.from(keySet);
-    keys.sort((a, b) => {
-      const ai = preferredOrder.indexOf(a);
-      const bi = preferredOrder.indexOf(b);
-      if (ai !== -1 || bi !== -1) {
-        if (ai === -1) return 1;
-        if (bi === -1) return -1;
-        return ai - bi;
-      }
-      return a.localeCompare(b);
-    });
-
-    const dynamicCols = keys.map(key => ({
-      key,
-      title: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-      dataIndex: key,
-      width: 150,
-      render: (value: any) => {
-        if (value == null || value === '') return 'N/A';
-        if (Array.isArray(value)) return value.join(', ');
-        if (typeof value === 'string' && value.length > 50) {
-          return <span title={value}>{value.substring(0, 50)}...</span>;
-        }
-        return value.toString();
-      },
-    }));
-
-    return dynamicCols;
-  };
-  
-  const columnDefinitions = generateDynamicColumns();
-  
-  const staticColumnDefinitions = [
+  const columns: Column[] = [
     {
-      key: 'investorName',
-      title: 'Investor Name',
-      width: 180,
+      key: "serialNumber",
+      title: "Sr. No.",
+      width: 80,
+      align: "center",
+      render: (_, __, index) => index + 1,
+    },
+    {
+      key: "investorName",
+      title: "Investor Name",
+      width: 200,
       render: (_, record) => {
-        const name = record['Investor Name'];
+        const name = record["Investor Name"];
         return (
-          <div className="flex items-center space-x-2">
-            <Avatar size="small" icon={<UserOutlined />} />
-            <Text strong className="truncate">{name || 'N/A'}</Text>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+              <User className="h-4 w-4 text-blue-600" />
+            </div>
+            <span className="font-medium">{name || "N/A"}</span>
           </div>
         );
       },
     },
     {
-      key: 'partnerName',
-      title: 'Partner Name',
-      width: 140,
-      render: (_, record) => {
-        const name = record['Partner Name'];
-        return name || 'N/A';
-      },
+      key: "partnerName",
+      title: "Partner Name",
+      width: 160,
+      render: (_, record) => record["Partner Name"] || "N/A",
     },
     {
-      key: 'partnerEmail',
-      title: 'Partner Email',
-      width: 200,
-      render: (_, record) => {
-        const email = record['Partner Email'];
-        return email ? <Text copyable ellipsis>{email}</Text> : 'N/A';
-      },
-    },
-    {
-      key: 'fundType',
-      title: 'Fund Type',
-      width: 120,
-      render: (_, record) => {
-        const type = record['Fund Type'];
-        return type || 'N/A';
-      },
-    },
-    {
-      key: 'fundStage',
-      title: 'Fund Stage',
-      width: 140,
-      render: (_, record) => {
-        const stage = record['Fund Stage'];
-        return stage ? <Tag color="blue">{stage}</Tag> : 'N/A';
-      },
-    },
-    {
-      key: 'fundFocusSectors',
-      title: 'Fund Focus (Sectors)',
+      key: "partnerEmail",
+      title: "Partner Email",
       width: 220,
       render: (_, record) => {
-        const sectors = record['Fund Focus (Sectors)'];
-        if (!sectors) return 'N/A';
-        const sectorList = typeof sectors === 'string' ? sectors.split(',').map(s => s.trim()) : [sectors];
+        const email = record["Partner Email"];
+        return email ? <span className="text-blue-600">{email}</span> : "N/A";
+      },
+    },
+    {
+      key: "fundType",
+      title: "Fund Type",
+      width: 140,
+      render: (_, record) => record["Fund Type"] || "N/A",
+    },
+    {
+      key: "fundStage",
+      title: "Fund Stage",
+      width: 140,
+      render: (_, record) => {
+        const stage = record["Fund Stage"];
+        return stage ? (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+            {stage}
+          </span>
+        ) : (
+          "N/A"
+        );
+      },
+    },
+    {
+      key: "fundFocusSectors",
+      title: "Fund Focus (Sectors)",
+      width: 240,
+      render: (_, record) => {
+        const sectors = record["Fund Focus (Sectors)"];
+        if (!sectors) return "N/A";
+        const sectorList =
+          typeof sectors === "string"
+            ? sectors.split(",").map((s) => s.trim())
+            : [sectors];
         return (
           <div className="flex flex-wrap gap-1">
-            {sectorList.slice(0, 3).map((s, idx) => (
-              <Tag key={idx} color="green">{String(s)}</Tag>
-            ))}
-            {sectorList.length > 3 && (
-              <Popover
-                placement="bottomLeft"
-                trigger={['click']}
-                getPopupContainer={() => document.body}
-                overlayStyle={{ zIndex: 2000 }}
-                content={(
-                  <div style={{ maxWidth: 320 }} onClick={(e) => e.stopPropagation()}>
-                    <div className="mb-2 text-xs text-gray-500">All sectors</div>
-                    <div className="flex flex-wrap gap-2">
-                      {sectorList.map((s: any, i: number) => (
-                        <Tag key={i} color="green" style={{ marginBottom: 6 }}>{String(s)}</Tag>
-                      ))}
-                    </div>
-                  </div>
-                )}
+            {sectorList.slice(0, 2).map((s, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800"
               >
-                <Tag style={{ cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>+{sectorList.length - 3}</Tag>
-              </Popover>
+                {String(s)}
+              </span>
+            ))}
+            {sectorList.length > 2 && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                +{sectorList.length - 2}
+              </span>
             )}
           </div>
         );
-      }
+      },
     },
     {
-      key: 'location',
-      title: 'Location',
+      key: "location",
+      title: "Location",
       width: 180,
-      render: (_, record) => {
-        const location = record['Location'];
-        return location || 'N/A';
-      },
+      render: (_, record) => record["Location"] || "N/A",
     },
     {
-      key: 'phoneNumber',
-      title: 'Phone Number (Optional)',
+      key: "phoneNumber",
+      title: "Phone Number",
+      width: 160,
+      render: (_, record) => record["Phone number"] || "N/A",
+    },
+    {
+      key: "ticketSize",
+      title: "Ticket Size",
       width: 140,
-      render: (_, record) => {
-        const phone = record['Phone number'];
-        return phone || 'N/A';
-      },
+      render: (_, record) => record["Ticket Size"] || "N/A",
     },
     {
-      key: 'ticketSize',
-      title: 'Ticket Size (Optional)',
-      width: 120,
-      render: (_, record) => {
-        const size = record['Ticket Size'];
-        return size || 'N/A';
-      },
+      key: "actions",
+      title: "Actions",
+      width: 140,
+      align: "center",
+      render: (_, record) => (
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => {
+              setSelectedInvestor(record);
+              setViewModalOpen(true);
+            }}
+            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+            title="View details"
+          >
+            <Eye className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => {
+              setSelectedInvestor(record);
+              form.setFieldsValue(record);
+              setEditModalOpen(true);
+            }}
+            className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+            title="Edit"
+          >
+            <Edit className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => handleDeleteInvestor(record.id)}
+            className="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+            title="Delete"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      ),
     },
-    // Keep any extra fields off by default for this view
   ];
 
-  // Force fixed set/order of columns matching the add form
-  const visibleColumnsArray = staticColumnDefinitions.filter(col => (visibleColumns as any)[col.key]);
-
-  const actionsColumn = {
-    title: 'Actions',
-    key: 'actions',
-    width: 120,
-    render: (_, record) => (
-      <Space size="small">
-        <Button 
-          size="small" 
-          icon={<EyeOutlined />} 
-          onClick={() => { setSelectedInvestor(record); setViewInvestorModal(true); }}
-        />
-        <Button 
-          size="small" 
-          icon={<EditOutlined />} 
-          onClick={() => {
-            setSelectedInvestor(record);
-            form.setFieldsValue(record);
-            setEditInvestorModal(true);
-          }}
-        />
-        <Button 
-          size="small" 
-          icon={<DeleteOutlined />} 
-          danger 
-          onClick={() => handleDeleteInvestor(record.id)}
-        />
-      </Space>
-    ),
-  };
-
-  const serialColumn = {
-    key: 'serialNumber',
-    title: 'Sr. No.',
-    width: 80,
-    align: 'center' as const,
-    render: (_: any, __: any, index: number) => (currentPage - 1) * pageSize + index + 1,
-  };
-  const finalColumns = [serialColumn, ...visibleColumnsArray, actionsColumn];
-
-  const customizeColumnsMenu = {
-    items: [
-      {
-        key: 'customize-panel',
-        label: (
-          <div className="w-64" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            <div className="p-2 border-b border-gray-200 mb-2">
-              <Text strong className="text-gray-800">Select Columns</Text>
-            </div>
-            
-            <div className="space-y-1 px-2 pb-2">
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.investorName}
-                  onChange={(e) => handleColumnVisibilityChange('investorName', e.target.checked)}
-                >
-                  Investor name
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.partnerName}
-                  onChange={(e) => handleColumnVisibilityChange('partnerName', e.target.checked)}
-                >
-                  Partner name
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.partnerEmail}
-                  onChange={(e) => handleColumnVisibilityChange('partnerEmail', e.target.checked)}
-                >
-                  Email
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.phoneNumber}
-                  onChange={(e) => handleColumnVisibilityChange('phoneNumber', e.target.checked)}
-                >
-                  Phone number
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.fundType}
-                  onChange={(e) => handleColumnVisibilityChange('fundType', e.target.checked)}
-                >
-                  Fund type
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.fundStage}
-                  onChange={(e) => handleColumnVisibilityChange('fundStage', e.target.checked)}
-                >
-                  Fund stage
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.fundFocusSectors}
-                  onChange={(e) => handleColumnVisibilityChange('fundFocusSectors', e.target.checked)}
-                >
-                  Fund Focus (Sectors)
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.location}
-                  onChange={(e) => handleColumnVisibilityChange('location', e.target.checked)}
-                >
-                  Location
-                </Checkbox>
-              </div>
-              <div className="flex items-center py-1">
-                <Checkbox
-                  checked={visibleColumns.ticketSize}
-                  onChange={(e) => handleColumnVisibilityChange('ticketSize', e.target.checked)}
-                >
-                  Ticket Size (Optional)
-                </Checkbox>
-              </div>
-            </div>
-          </div>
-        ),
-      },
-    ],
-  };
+  const visibleColumnsArray = columns.filter(
+    (col) => visibleColumns[col.key] !== false
+  );
 
   return (
-    <div className="p-6">
-      <Card
-        title={
-          <Title level={4} className="!mb-0">
-            All Investors
-          </Title>
-        }
-        extra={
-          <Space>
-            {/* Upload Excel button removed as requested */}
-            <Button 
-              icon={<SyncOutlined spin={loading} />} 
-              onClick={() => {
-                setInvestors([]);
-                setFilteredInvestors([]);
-                fetchInvestors();
-              }}
-              title="Refresh data from Excel files"
-            >
-              Refresh
-            </Button>
-            <Dropdown
-              menu={customizeColumnsMenu}
-              trigger={['click']}
-              placement="bottomRight"
-            >
-              <Button icon={<SettingOutlined />}>
-                Customize Columns
-              </Button>
-            </Dropdown>
-            <Dropdown
-              menu={{
-                items: [
-                  {
-                    key: 'manual',
-                    label: (
-                      <div className="flex items-center gap-3 p-3 rounded hover:bg-gray-50 transition-colors">
-                        <div className="w-9 h-9 bg-blue-100 rounded flex items-center justify-center">
-                          <UserOutlined className="text-blue-600" />
-                        </div>
-                        <div>
-                          <div className="font-semibold text-gray-900">Add manually</div>
-                          <div className="text-xs text-gray-500">Enter a single investor with full details</div>
-                        </div>
-                      </div>
-                    ),
-                    onClick: () => router.push('/dashboard/add-investor')
-                  },
-                  {
-                    key: 'upload',
-                    label: (
-                      <div className="flex items-center gap-3 p-3 rounded hover:bg-gray-50 transition-colors">
-                        <div className="w-9 h-9 bg-green-100 rounded flex items-center justify-center">
-                          <FileExcelOutlined className="text-green-600" />
-                        </div>
-                        <div>
-                          <div className="font-semibold text-gray-900">Upload file (CSV/Excel)</div>
-                          <div className="text-xs text-gray-500">Bulk import multiple investors at once</div>
-                        </div>
-                      </div>
-                    ),
-                    onClick: () => router.push('/dashboard/add-investor')
-                  }
-                ]
-              }}
-              placement="bottomRight"
-            >
-              <Button
-                type="primary"
-                style={{
-                  backgroundColor: "#ac6a1e",
-                  color: "#fff",
-                }}
-                icon={<PlusOutlined />}
-              >
-                Add Investors
-              </Button>
-            </Dropdown>
-          </Space>
-        }
-      >
-
-
-        <div className="mb-6 space-y-4">
-          <div className="flex justify-between items-center">
-            <Search
-              placeholder="Search investors by name, email, or focus..."
-              allowClear
-              enterButton
-              size="large"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ 
-                maxWidth: 400,
-              }}
-              className="custom-search"
-            />
-            <div className="text-sm text-gray-500">
-              {dataSourceLabel ? `Data Source: ${dataSourceLabel}` : 'Data Source: —'} | Last Updated: {new Date().toLocaleTimeString()}
-            </div>
+    <div className="max-w-[1600px] mx-auto">
+      {/* Header */}
+      <div className="mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              All Investors
+            </h1>
+            {/* <p className="text-sm text-gray-600 mt-1">
+              Browse, search and manage investors
+            </p> */}
           </div>
-        </div>
-        
-        <style jsx>{`
-          :global(.custom-search .ant-btn) {
-            background-color: #1890ff !important;
-            border-color: #1890ff !important;
-            color: white !important;
-          }
-          :global(.custom-search .ant-btn:hover) {
-            background-color: #40a9ff !important;
-            border-color: #40a9ff !important;
-          }
-        `}</style>
 
-        <div className="overflow-x-auto">
-          <Table
-            columns={[serialColumn, ...visibleColumnsArray, actionsColumn]}
-            dataSource={filteredInvestors.slice((currentPage - 1) * pageSize, currentPage * pageSize)}
-            rowKey={(record, index) => {
-              const email = (record['Partner Email'] ?? '').toString().toLowerCase();
-              const name = (record['Investor Name'] ?? '').toString().toLowerCase();
-              return `${index}-${email || name || Math.random()}`;
-            }}
-            loading={loading}
-            scroll={{ x: 'max-content' }}
-            pagination={{
-              position: ['bottomRight'],
-              size: 'small',
-              current: currentPage,
-              pageSize,
-              total: filteredInvestors.length,
-              onChange: (p, ps) => { setCurrentPage(p); setPageSize(ps || 10); },
-              showSizeChanger: true,
-              pageSizeOptions: ['10','20','50','100'],
-              showQuickJumper: true,
-              locale: { jump_to: '', page: '' } as any,
-              showTotal: (total, range) => `${range[0]}-${range[1]} of ${total}`,
-            }}
-          />
-          <div className="flex justify-between items-center mt-4">
-            <div className="text-sm text-gray-600">Total: {filteredInvestors.length} investors</div>
-          </div>
+          <button
+            onClick={() => router.push("/dashboard/add-investor")}
+            className="flex items-center gap-2 px-4 py-2 bg-[#ac6a1e] text-white rounded-lg hover:bg-[#8d5518] transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Add Investors</span>
+          </button>
         </div>
-      </Card>
+      </div>
 
-      {/* View Investor Modal */}
+      {/* Data Table */}
+      <div className=" pt-3">
+        <DataTable
+          columns={visibleColumnsArray}
+          data={investors}
+          loading={loading}
+          onRefresh={fetchInvestors}
+          searchPlaceholder="Search investors by name, email, or focus..."
+          searchKeys={[
+            "Investor Name",
+            "Partner Name",
+            "Partner Email",
+            "Fund Focus (Sectors)",
+            "Location",
+          ]}
+          rowKey={(record, index) => {
+            const email = (record["Partner Email"] ?? "")
+              .toString()
+              .toLowerCase();
+            const name = (record["Investor Name"] ?? "")
+              .toString()
+              .toLowerCase();
+            return `${index}-${email || name || Math.random()}`;
+          }}
+          visibleColumns={visibleColumns}
+          onColumnVisibilityChange={setVisibleColumns}
+          pageSize={10}
+          pageSizeOptions={[10, 20, 50, 100]}
+          dataSource="Google Sheets"
+          lastUpdated={new Date().toLocaleTimeString()}
+        />
+      </div>
+
+      {/* View Modal */}
       <Modal
         title="Investor Details"
-        open={viewInvestorModal}
-        onCancel={() => setViewInvestorModal(false)}
-        footer={<Button onClick={() => setViewInvestorModal(false)}>Close</Button>}
-        width={800}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {selectedInvestor && Object.entries({
-            'Investor Name': (selectedInvestor as any)['Investor Name'],
-            'Partner Name': (selectedInvestor as any)['Partner Name'],
-            'Partner Email': (selectedInvestor as any)['Partner Email'],
-            'Phone Number': (selectedInvestor as any)['Phone number'],
-            'Fund Type': (selectedInvestor as any)['Fund Type'],
-            'Fund Stage': (selectedInvestor as any)['Fund Stage'],
-            'Fund Focus (Sectors)': (selectedInvestor as any)['Fund Focus (Sectors)'],
-            'Location': (selectedInvestor as any)['Location'],
-            'Ticket Size': (selectedInvestor as any)['Ticket Size'],
-          }).map(([label, value]) => (
-            <div key={label} className="border rounded p-2">
-              <div className="text-xs text-gray-500">{label}</div>
-              <div className="font-medium break-words">{value || 'N/A'}</div>
-            </div>
-          ))}
-        </div>
-      </Modal>
-
-      {/* Edit Investor Modal */}
-      <Modal
-        title="Edit Investor"
-        open={editInvestorModal}
-        onCancel={() => { setEditInvestorModal(false); setSelectedInvestor(null); }}
+        open={viewModalOpen}
+        onCancel={() => {
+          setViewModalOpen(false);
+          setSelectedInvestor(null);
+        }}
         footer={null}
         width={800}
       >
-        <div className="p-2">
-          <Form form={form} onFinish={handleEditInvestor} layout="vertical" initialValues={selectedInvestor || {}}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <Form.Item name="Investor Name" label="Investor Name">
-                <Input placeholder="Investor Name" />
-              </Form.Item>
-              <Form.Item name="Partner Name" label="Partner Name">
-                <Input placeholder="Partner Name" />
-              </Form.Item>
-              <Form.Item name="Partner Email" label="Partner Email" rules={[{ type: 'email', message: 'Enter a valid email' }]}>
-                <Input placeholder="Partner Email" />
-              </Form.Item>
-              <Form.Item name="Phone number" label="Phone Number">
-                <Input placeholder="Phone Number" />
-              </Form.Item>
-              <Form.Item name="Fund Type" label="Fund Type">
-                <Input placeholder="Fund Type" />
-              </Form.Item>
-              <Form.Item name="Fund Stage" label="Fund Stage">
-                <Input placeholder="Fund Stage" />
-              </Form.Item>
-              <Form.Item name="Location" label="Location">
-                <Input placeholder="Location" />
-              </Form.Item>
-              <Form.Item name="Fund Focus (Sectors)" label="Fund Focus (Sectors)">
-                <Input placeholder="Fund Focus (Sectors)" />
-              </Form.Item>
-              <Form.Item name="Ticket Size" label="Ticket Size (Optional)">
-                <Input placeholder="Ticket Size" />
-              </Form.Item>
-            </div>
-            <div className="flex gap-3 mt-2">
-              <Button type="primary" htmlType="submit" style={{ backgroundColor: '#1890ff', borderColor: '#1890ff', color: '#fff' }}>Save</Button>
-              <Button onClick={() => { setEditInvestorModal(false); setSelectedInvestor(null); }}>Cancel</Button>
-            </div>
-          </Form>
-        </div>
-      </Modal>
-
-      {/* Add Investor Modal */}
-      <Modal
-        title={
-          <div className="flex items-center gap-2">
-            <Button type="text" icon={<SettingOutlined />} size="small">
-              Customize Columns
-            </Button>
-          </div>
-        }
-        open={addInvestorModal}
-        onCancel={() => setAddInvestorModal(false)}
-        footer={null}
-        width={1200}
-        style={{ top: 20 }}
-      >
-        <div className="p-4">
-          {/* Form Headers */}
-          <div className="grid grid-cols-4 gap-4 mb-4 font-semibold text-gray-700">
-            <div>Partner Email</div>
-            <div>Investor Name</div>
-            <div>Partner Name</div>
-            <div>Fund Focus (Sectors)</div>
-          </div>
-          
-          {/* Form Rows */}
-          <Form form={form} onFinish={handleAddInvestor}>
-            {[1, 2, 3, 4].map((row) => (
-              <div key={row} className="grid grid-cols-4 gap-4 mb-4">
-                <Form.Item name={`partnerEmail_${row}`}>
-                  <Input placeholder="Partner Email" />
-                </Form.Item>
-                <Form.Item name={`investorName_${row}`}>
-                  <Input placeholder="Investor Name" />
-                </Form.Item>
-                <Form.Item name={`partnerName_${row}`}>
-                  <Input placeholder="Partner Name" />
-                </Form.Item>
-                <Form.Item name={`fundFocus_${row}`}>
-                  <Input placeholder="Fund Focus" />
-                </Form.Item>
+        {selectedInvestor && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Object.entries({
+              "Investor Name": selectedInvestor["Investor Name"],
+              "Partner Name": selectedInvestor["Partner Name"],
+              "Partner Email": selectedInvestor["Partner Email"],
+              "Phone Number": selectedInvestor["Phone number"],
+              "Fund Type": selectedInvestor["Fund Type"],
+              "Fund Stage": selectedInvestor["Fund Stage"],
+              "Fund Focus (Sectors)": selectedInvestor["Fund Focus (Sectors)"],
+              Location: selectedInvestor["Location"],
+              "Ticket Size": selectedInvestor["Ticket Size"],
+            }).map(([label, value]) => (
+              <div
+                key={label}
+                className="border border-gray-200 rounded-lg p-3"
+              >
+                <div className="text-xs text-gray-500 mb-1">{label}</div>
+                <div className="font-medium text-gray-900 break-words">
+                  {value || "N/A"}
+                </div>
               </div>
             ))}
-            
-            {/* Add more field button */}
-            <div className="text-center mb-6">
-              <Button type="link" icon={<PlusOutlined />} className="text-blue-500">
-                Add more field
-              </Button>
-            </div>
-            
-            {/* Progress bar */}
-            <div className="mb-6">
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-gray-400 h-2 rounded-full" style={{ width: '25%' }}></div>
-              </div>
-            </div>
-            
-            {/* Action buttons */}
-            <div className="flex gap-4">
-              <Button 
-                type="primary" 
-                htmlType="submit"
-                style={{
-                  backgroundColor: "#ac6a1e",
-                  color: "#fff",
-                  borderColor: "#ac6a1e"
-                }}
-              >
-                Submit
-              </Button>
-              <Button 
-                onClick={() => setAddInvestorModal(false)}
-                style={{
-                  borderColor: "#dc2626",
-                  color: "#dc2626"
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </Form>
-        </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* Edit Modal */}
+      <Modal
+        title="Edit Investor"
+        open={editModalOpen}
+        onCancel={() => {
+          setEditModalOpen(false);
+          setSelectedInvestor(null);
+          form.resetFields();
+        }}
+        footer={null}
+        width={800}
+      >
+        <Form form={form} onFinish={handleEditInvestor} layout="vertical">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Form.Item name="Investor Name" label="Investor Name">
+              <Input placeholder="Investor Name" />
+            </Form.Item>
+            <Form.Item name="Partner Name" label="Partner Name">
+              <Input placeholder="Partner Name" />
+            </Form.Item>
+            <Form.Item
+              name="Partner Email"
+              label="Partner Email"
+              rules={[{ type: "email", message: "Enter a valid email" }]}
+            >
+              <Input placeholder="Partner Email" />
+            </Form.Item>
+            <Form.Item name="Phone number" label="Phone Number">
+              <Input placeholder="Phone Number" />
+            </Form.Item>
+            <Form.Item name="Fund Type" label="Fund Type">
+              <Input placeholder="Fund Type" />
+            </Form.Item>
+            <Form.Item name="Fund Stage" label="Fund Stage">
+              <Input placeholder="Fund Stage" />
+            </Form.Item>
+            <Form.Item name="Location" label="Location">
+              <Input placeholder="Location" />
+            </Form.Item>
+            <Form.Item name="Fund Focus (Sectors)" label="Fund Focus (Sectors)">
+              <Input placeholder="Fund Focus (Sectors)" />
+            </Form.Item>
+            <Form.Item name="Ticket Size" label="Ticket Size">
+              <Input placeholder="Ticket Size" />
+            </Form.Item>
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Save Changes
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditModalOpen(false);
+                setSelectedInvestor(null);
+                form.resetFields();
+              }}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </Form>
       </Modal>
     </div>
   );

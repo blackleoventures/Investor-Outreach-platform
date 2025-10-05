@@ -5,16 +5,6 @@ import "../styles/mobile.css";
 import Providers from "./providers";
 import NextTopLoader from "nextjs-toploader";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
-
-const robotoMono = Roboto_Mono({
-  variable: "--font-roboto-mono",
-  subsets: ["latin"],
-});
-
 const poppins = Poppins({
   variable: "--font-poppins",
   subsets: ["latin"],
@@ -23,7 +13,8 @@ const poppins = Poppins({
 
 export const metadata: Metadata = {
   title: "Send Email - Email Campaign Management",
-  description: "Modern email campaign management platform built with Next.js and React",
+  description:
+    "Modern email campaign management platform built with Next.js and React",
 };
 
 export const viewport: Viewport = {
@@ -40,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${poppins.variable} ${inter.variable} ${robotoMono.variable}`}>
+    <html lang="en" className={poppins.variable}>
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -48,10 +39,16 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body
-        className="font-sans antialiased"
-        style={{ overflowX: 'hidden' }}
+        className={`${poppins.className} antialiased`}
+        style={{ overflowX: "hidden" }}
       >
-        <NextTopLoader showSpinner={false} color="#3b82f6" height={2} crawlSpeed={200} speed={200} />
+        <NextTopLoader
+          showSpinner={false}
+          color="#3b82f6"
+          height={2}
+          crawlSpeed={200}
+          speed={200}
+        />
         <Providers>{children}</Providers>
         <script
           dangerouslySetInnerHTML={{
