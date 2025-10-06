@@ -1,37 +1,22 @@
 const express = require("express");
 const router = express.Router();
 
-const {
-  addClientData,
-  deleteClientData,
-  getActiveClientData,
-  getClientData,
-  updateClientData,
-  verifyClientEmail,
-  updateClientEmailVerification,
-} = require("../controllers/company.controller.simple");
+const clientController = require("../controllers/company.controller");
 const verifyFirebaseToken = require("../middlewares/firebaseAuth.middleware");
-const requireAuth = process.env.REQUIRE_AUTH === 'true';
 
-router
-  .route("/")
-  .get(verifyFirebaseToken, getClientData)
-  .post(verifyFirebaseToken, addClientData);
+// Create a new client
+router.post("/create", verifyFirebaseToken, clientController.createClient);
 
-router
-  .route("/:id")
-  .put(verifyFirebaseToken, updateClientData)
-  .delete(verifyFirebaseToken, deleteClientData);
+// Get all clients (with optional filters)
+router.get("/", verifyFirebaseToken, clientController.getAllClients);
 
-// In simple/local mode, allow without auth to avoid verification failures
-if (requireAuth) {
-  router.route("/verify-email").post(verifyFirebaseToken, verifyClientEmail);
-  router
-    .route("/get-verify-status")
-    .post(verifyFirebaseToken, updateClientEmailVerification);
-} else {
-  router.route("/verify-email").post(verifyClientEmail);
-  router.route("/get-verify-status").post(updateClientEmailVerification);
-}
+// Get a specific client by ID
+router.get("/:id", verifyFirebaseToken, clientController.getClientById);
+
+// Update a client
+router.put("/:id", verifyFirebaseToken, clientController.updateClient);
+
+// Delete a client
+router.delete("/:id", verifyFirebaseToken, clientController.deleteClient);
 
 module.exports = router;

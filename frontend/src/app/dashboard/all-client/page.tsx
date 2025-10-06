@@ -1,914 +1,903 @@
-// @ts-nocheck
 "use client";
 
-import { CheckCircleOutlined, CloseCircleOutlined, DeleteOutlined, EditOutlined, EyeOutlined, InboxOutlined, PlusOutlined, SearchOutlined, UploadOutlined } from "@ant-design/icons";
-import { Button, Card, Descriptions, Input, message, Modal, Popconfirm, Popover, Space, Table, Tag, Tooltip, Typography, Form, Select } from "antd";
-import { ChevronDown, Settings } from "lucide-react";
+import { message, Modal, Spin } from "antd";
+import { Plus, Eye, Edit, Trash2, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
-import { getApiBase } from "@/lib/api";
-// Lazy-load axios to reduce initial bundle size
-let lazyAxios: typeof import("axios") | null = null;
+import DataTable, { type Column } from "@/components/data-table";
+import { auth } from "@/lib/firebase";
 
-const { Title, Text } = Typography;
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-const columnOptions = [
-  {
-    key: "companyName",
-    label: "Company Name",
-    default: true,
-    permanent: true,
-    render: (_, record) => <Text>{record.company_name || "N/A"}</Text>,
-  },
-  {
-    key: "founderName",
-    label: "Founder Name",
-    permanent: true,
-    render: (_, record) => (
-      <Text>{`${record.first_name || ""} ${record.last_name || ""}`}</Text>
-    ),
-  },
-  {
-    key: "companyEmail",
-    label: "Company Email",
-    default: true,
-    permanent: true,
-    render: (_, record) => <Text>{record.email || "N/A"}</Text>,
-  },
-  {
-    key: "contact",
-    label: "Contact",
-    permanent: true,
-    render: (_, record) => <Text>{record.phone || "N/A"}</Text>,
-  },
-  {
-    key: "verified",
-    label: "Email Verified",
-    render: (_, record) => (
-      <Tag color={record.email_verified ? "green" : "red"}>
-        {record.email_verified ? "Verified" : "Not Verified"}
-      </Tag>
-    ),
-  },
-  {
-    key: "archived",
-    label: "Is Archived",
-    render: (_, record) => (
-      <Tag color={record.archive ? "green" : "red"}>
-        {record.archive ? "Yes" : "No"}
-      </Tag>
-    ),
-  },
-  {
-    key: "fund_stage",
-    label: "Fund Stage",
-    default: true,
-    permanent: true,
-    render: (_, record) => (
-      <Tag color="purple">{record.fund_stage || "N/A"}</Tag>
-    ),
-  },
-  {
-    key: "revenue",
-    label: "Revenue",
-    default: true,
-    permanent: true,
-    render: (_, record) => {
-      const candidates = [
-        record.revenue,
-        record.revenue_amount,
-        record.annual_revenue,
-        record.revenueAmount,
-        record.revenue_value,
-        record.revenueVal,
-        record.revenueStr,
-      ];
-      const val = candidates.find((v:any)=> typeof v !== 'undefined' && String(v).trim() !== '');
-      console.log('Revenue render for', record.company_name, ':', { candidates, val, record });
-      return <Text>{(val !== undefined && String(val).trim()) ? String(val) : "N/A"}</Text>;
-    },
-  },
-  {
-    key: "investmentAsk",
-    label: "Investment Ask",
-    default: true,
-    permanent: true,
-    render: (_, record) => {
-      const candidates = [
-        record.investment_ask,
-        record.investment,
-        record.raise_amount,
-        record.raiseAmount,
-        record.investmentAsk,
-        record.investment_amount,
-        record.investmentAmount,
-      ];
-      const val = candidates.find((v:any)=> typeof v !== 'undefined' && String(v).trim() !== '');
-      console.log('Investment render for', record.company_name, ':', { candidates, val, record });
-      return <Text>{(val !== undefined && String(val).trim()) ? String(val) : "N/A"}</Text>;
-    },
-  },
-  {
-    key: "sector",
-    label: "Sector",
-    permanent: true,
-    render: (_, record) => <Tag color="blue">{record.industry || "N/A"}</Tag>,
-  },
-  {
-    key: "location",
-    label: "Location",
-    default: true,
-    permanent: true,
-    render: (_, record) => <Text>{record.location || record.city || "N/A"}</Text>,
-  },
-  {
-    key: "onboarding",
-    label: "Onboarding Info",
-    render: (_, record) => {
-      const onboardedDate = record.createdAt
-        ? new Date(record.createdAt)
-        : null;
+interface Client {
+  id: string;
+  founderName: string;
+  email: string;
+  phone: string;
+  companyName: string;
+  industry: string;
+  fundingStage: string;
+  revenue: string;
+  investment: string;
+  city: string;
+  archived: boolean;
+  emailVerified: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
 
-      const today = new Date();
-      const diffTime = onboardedDate ? today - onboardedDate : null;
-      const diffDays = diffTime
-        ? Math.floor(diffTime / (1000 * 60 * 60 * 24))
-        : null;
+interface EditFormData {
+  founderName: string;
+  email: string;
+  phone: string;
+  companyName: string;
+  industry: string;
+  fundingStage: string;
+  revenue: string;
+  investment: string;
+  city: string;
+  archived: boolean;
+}
 
-      return (
-        <Text>
-          {diffDays === null
-            ? "Date not available"
-            : `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`}
-        </Text>
-      );
-    },
-  },
-];
+const ERROR_MESSAGES: Record<string, string> = {
+  DUPLICATE_EMAIL: "A client with this email already exists.",
+  VALIDATION_ERROR: "Please check all required fields.",
+  UNAUTHORIZED: "Your session has expired. Please log in again.",
+  TOKEN_EXPIRED: "Your session has expired. Please log in again.",
+  CLIENT_NOT_FOUND: "Client not found.",
+  SERVER_ERROR: "Something went wrong. Please try again.",
+  NETWORK_ERROR: "Unable to connect. Please check your internet.",
+  DEFAULT: "An error occurred. Please try again.",
+};
 
 const ClientsData = () => {
-  const { token } = useAuth();
   const router = useRouter();
-  const [clients, setClients] = useState([]);
-  const [apiBase, setApiBase] = useState<string>("");
+  const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedClient, setSelectedClient] = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState<string | null>(null);
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [searchEmail, setSearchEmail] = useState("");
-  const [showAll, setShowAll] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [editForm] = Form.useForm();
-  const [visibleColumns, setVisibleColumns] = useState({
-    companyName: true,
-    founderName: true,
-    companyEmail: true,
-    contact: true,
-    fund_stage: true,
-    revenue: true,
-    investmentAsk: true,
-    sector: true,
-    location: true,
-    verified: false,
+  const [editFormData, setEditFormData] = useState<EditFormData>({
+    founderName: "",
+    email: "",
+    phone: "",
+    companyName: "",
+    industry: "",
+    fundingStage: "",
+    revenue: "",
+    investment: "",
+    city: "",
     archived: false,
-    onboarding: false,
   });
-  const [popoverVisible, setPopoverVisible] = useState(false);
+
+  // Change to Record<string, boolean> type
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(
+    {
+      companyName: true,
+      founderName: true,
+      email: true,
+      phone: true,
+      fundingStage: true,
+      revenue: true,
+      investment: true,
+      industry: true,
+      city: true,
+      emailVerified: false,
+      archived: false,
+      onboarding: false,
+    }
+  );
 
   useEffect(() => {
-    (async () => {
-      const base = await getApiBase();
-      setApiBase(base);
-      await loadClients();
-    })();
-  }, [showAll]);
+    fetchAllClients();
+  }, []);
 
-  // Debounced search: filter by email/company/contact as user types
-  useEffect(() => {
-    const t = setTimeout(() => {
-      loadClients(searchEmail);
-    }, 300);
-    return () => clearTimeout(t);
-  }, [searchEmail]);
+  const getAuthToken = async (): Promise<string | null> => {
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        message.error(ERROR_MESSAGES.UNAUTHORIZED);
+        router.push("/login");
+        return null;
+      }
+      return await user.getIdToken(true);
+    } catch (error) {
+      console.error("[Get Token Error]:", error);
+      message.error(ERROR_MESSAGES.UNAUTHORIZED);
+      router.push("/login");
+      return null;
+    }
+  };
 
-  const loadClients = async (email = "") => {
+  const getUserFriendlyError = (errorCode?: string): string => {
+    if (!navigator.onLine) {
+      return ERROR_MESSAGES.NETWORK_ERROR;
+    }
+    return ERROR_MESSAGES[errorCode || "DEFAULT"] || ERROR_MESSAGES.DEFAULT;
+  };
+
+  const fetchAllClients = async () => {
     setLoading(true);
     try {
-      // First, always load from localStorage (this is the primary source)
-      let localClients = JSON.parse(localStorage.getItem('clients') || '[]');
-      // Seed from sessionStorage if nothing in local yet
-      if ((!Array.isArray(localClients) || localClients.length === 0)) {
-        const currentClient = sessionStorage.getItem('currentClient');
-        if (currentClient) {
-          try {
-            const parsed = JSON.parse(currentClient);
-            localClients = [parsed];
-            localStorage.setItem('clients', JSON.stringify(localClients));
-          } catch {}
-        }
+      const token = await getAuthToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE_URL}/clients`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = getUserFriendlyError(data.error?.code);
+        throw new Error(errorMessage);
       }
-      
-      // Try to fetch from backend API as well
-      try {
-        if (!lazyAxios) {
-          lazyAxios = await import("axios");
-        }
-        const filter = showAll ? "all" : "active";
-        const base = apiBase || (await getApiBase());
-        const baseUrl = `${base}/api/clients?filter=${filter}`;
 
-        let url = baseUrl;
-        if (email && email.trim()) {
-          const q = encodeURIComponent(email.trim());
-          url = `${baseUrl}&email=${q}`;
-        }
-
-        const response = await lazyAxios.default.get(url, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        const serverClients = Array.isArray(response?.data?.clients) ? response.data.clients : [];
-        
-        // Merge local and server data (prefer local for formatting)
-        const makeKey = (c:any) => (c.id || c._id || c.email || `${c.company_name}-${c.first_name}-${c.last_name}`);
-        const byKey = new Map<string, any>();
-        
-        // Start with local clients
-        for (const c of localClients) {
-          byKey.set(makeKey(c), c);
-        }
-        
-        // Add server clients that don't exist locally
-        for (const s of serverClients) {
-          const k = makeKey(s);
-          if (!byKey.has(k)) {
-            byKey.set(k, s);
-          }
-        }
-        
-        let merged = Array.from(byKey.values());
-        
-        // Debug: Log the data to see what's actually there
-        console.log('Local clients data:', localClients.slice(0, 2));
-        console.log('Server clients data:', serverClients.slice(0, 2));
-        
-        // Normalize: ensure revenue/investment_ask preserve any raw strings from the latest added client
-        try {
-          const currentClientStr = sessionStorage.getItem('currentClient');
-          const currentClient = currentClientStr ? JSON.parse(currentClientStr) : null;
-          console.log('Current client from session:', currentClient);
-          if (currentClient) {
-            merged = merged.map((c:any) => {
-              const same = (c.id && currentClient.id && (c.id === currentClient.id))
-                || (c.email && currentClient.email && (c.email === currentClient.email))
-                || (c.company_name && currentClient.company_name && (c.company_name === currentClient.company_name));
-              if (!same) return c;
-              console.log('Merging client data:', { original: c, current: currentClient });
-              return {
-                ...c,
-                revenue: (typeof c.revenue !== 'undefined' && String(c.revenue).trim() !== '') ? c.revenue : currentClient.revenue,
-                investment_ask: (typeof c.investment_ask !== 'undefined' && String(c.investment_ask).trim() !== '') ? c.investment_ask : currentClient.investment_ask,
-              };
-            });
-          }
-        } catch {}
-        // Persist merged snapshot so refresh never loses the list
-        try { localStorage.setItem('clients', JSON.stringify(merged)); } catch {}
-        
-        // Utility: determine if a client has at least one of revenue or investment values
-        const hasFinancialValues = (c:any) => {
-          const revenueCandidates = [
-            c.revenue,
-            c.revenue_amount,
-            c.annual_revenue,
-            c.revenueAmount,
-            c.revenue_value,
-            c.revenueVal,
-            c.revenueStr,
-          ];
-          const investmentCandidates = [
-            c.investment_ask,
-            c.investment,
-            c.raise_amount,
-            c.raiseAmount,
-            c.investmentAsk,
-            c.investment_amount,
-            c.investmentAmount,
-          ];
-          const hasRevenue = revenueCandidates.some((v:any) => typeof v !== 'undefined' && String(v).trim() !== '');
-          const hasInvestment = investmentCandidates.some((v:any) => typeof v !== 'undefined' && String(v).trim() !== '');
-          return hasRevenue || hasInvestment;
-        };
-
-        // First hide rows with no revenue and no investment ask
-        let filtered = merged.filter(hasFinancialValues);
-        
-        // Filter by email/company/phone if search term provided
-        if (email && email.trim()) {
-          const q = email.trim().toLowerCase();
-          filtered = filtered.filter((c) => {
-            const emailStr = (c.email || "").toLowerCase();
-            const companyStr = (c.company_name || "").toLowerCase();
-            const phoneStr = (c.phone || "").toLowerCase();
-            return (
-              emailStr.includes(q) || companyStr.includes(q) || phoneStr.includes(q)
-            );
-          });
-        }
-        
-        setClients(filtered);
-      } catch (apiError) {
-        console.log('API fetch failed, using local data only:', apiError);
-        // Use only local data if API fails
-        // Hide rows with no revenue and no investment ask
-        const hasFinancialValues = (c:any) => {
-          const revenueCandidates = [
-            c.revenue,
-            c.revenue_amount,
-            c.annual_revenue,
-            c.revenueAmount,
-            c.revenue_value,
-            c.revenueVal,
-            c.revenueStr,
-          ];
-          const investmentCandidates = [
-            c.investment_ask,
-            c.investment,
-            c.raise_amount,
-            c.raiseAmount,
-            c.investmentAsk,
-            c.investment_amount,
-            c.investmentAmount,
-          ];
-          const hasRevenue = revenueCandidates.some((v:any) => typeof v !== 'undefined' && String(v).trim() !== '');
-          const hasInvestment = investmentCandidates.some((v:any) => typeof v !== 'undefined' && String(v).trim() !== '');
-          return hasRevenue || hasInvestment;
-        };
-        let filtered = localClients.filter(hasFinancialValues);
-        if (email && email.trim()) {
-          const q = email.trim().toLowerCase();
-          filtered = filtered.filter((c) => {
-            const emailStr = (c.email || "").toLowerCase();
-            const companyStr = (c.company_name || "").toLowerCase();
-            const phoneStr = (c.phone || "").toLowerCase();
-            return (
-              emailStr.includes(q) || companyStr.includes(q) || phoneStr.includes(q)
-            );
-          });
-        }
-        setClients(filtered);
-      }
+      setClients(data.data || []);
     } catch (error) {
-      console.error("Error loading clients:", error);
+      console.error("[Fetch Clients Error]:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      message.error(errorMessage);
       setClients([]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDeleteClient = async (clientId: string) => {
+    setDeleteLoading(clientId);
     try {
-      // Delete from localStorage
-      const localClients = JSON.parse(localStorage.getItem('clients') || '[]');
-      const updatedClients = localClients.filter(client => client.id !== id && client._id !== id);
-      localStorage.setItem('clients', JSON.stringify(updatedClients));
-      
-      // Try to delete from API as well
-      try {
-        if (!lazyAxios) {
-          lazyAxios = await import("axios");
-        }
-        const base = apiBase || (await getApiBase());
-        await lazyAxios.default.delete(`${base}/api/clients/${id}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-      } catch (apiError) {
-        console.log('API delete failed, but local delete succeeded');
+      const token = await getAuthToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE_URL}/clients/${clientId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = getUserFriendlyError(data.error?.code);
+        throw new Error(errorMessage);
       }
-      
-      message.success("Client deleted successfully.");
-      setClients((prev) => prev.filter((client) => client.id !== id && client._id !== id));
+
+      message.success("Client deleted successfully");
+      setClients((prevClients) =>
+        prevClients.filter((client) => client.id !== clientId)
+      );
     } catch (error) {
-      console.error("Delete error:", error);
-      message.error("Failed to delete client");
+      console.error("[Delete Client Error]:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      message.error(errorMessage);
+    } finally {
+      setDeleteLoading(null);
     }
   };
 
-  const handleView = (client) => {
-    console.log("Viewing client:", client);
+  const handleViewClient = (client: Client) => {
     setSelectedClient(client);
     setModalVisible(true);
   };
 
-  const handleEdit = (client) => {
+  const handleEditClient = (client: Client) => {
     setSelectedClient(client);
     setModalVisible(false);
     setEditModalVisible(true);
-    // seed form
-    editForm.setFieldsValue({
-      first_name: client.first_name || "",
-      last_name: client.last_name || "",
+    setEditFormData({
+      founderName: client.founderName || "",
       email: client.email || "",
       phone: client.phone || "",
-      company_name: client.company_name || "",
+      companyName: client.companyName || "",
       industry: client.industry || "",
-      fund_stage: client.fund_stage || "",
+      fundingStage: client.fundingStage || "",
       revenue: client.revenue || "",
-      investment_ask: client.investment_ask || "",
-      archive: !!client.archive,
+      investment: client.investment || "",
+      city: client.city || "",
+      archived: client.archived || false,
     });
   };
 
-  const handleUnArchive = async (id) => {
+  const handleUnarchiveClient = async (clientId: string) => {
+    setUpdateLoading(true);
     try {
-      if (!lazyAxios) {
-        lazyAxios = await import("axios");
-      }
-      const base = apiBase || (await getApiBase());
-      await lazyAxios.default.put(
-        `${base}/api/clients/${id}`,
-        {
-          archive: false,
+      const token = await getAuthToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE_URL}/clients/${clientId}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      message.success("Client Unarchived successfully.");
-      setClients(clients.filter((client) => client.id !== id));
-      // Update local storage copy if present
-      const local = JSON.parse(localStorage.getItem('clients') || '[]');
-      const updated = local.map((c:any) => (c.id === id || c._id === id) ? { ...c, archive: false } : c);
-      localStorage.setItem('clients', JSON.stringify(updated));
+        body: JSON.stringify({ archived: false }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = getUserFriendlyError(data.error?.code);
+        throw new Error(errorMessage);
+      }
+
+      message.success("Client unarchived successfully");
+      await fetchAllClients();
     } catch (error) {
-      console.error("Archive error:", error);
-      // Silently handle archive errors
+      console.error("[Unarchive Client Error]:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      message.error(errorMessage);
+    } finally {
+      setUpdateLoading(false);
     }
   };
 
-  const handleEditSubmit = async (updatedClient) => {
+  const handleUpdateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!selectedClient) return;
+
+    setUpdateLoading(true);
     try {
-      if (!lazyAxios) {
-        lazyAxios = await import("axios");
-      }
-      const base = apiBase || (await getApiBase());
+      const token = await getAuthToken();
+      if (!token) return;
+
       const payload = {
-        id: selectedClient.id,
-        firstName: updatedClient.first_name,
-        lastName: updatedClient.last_name,
-        email: updatedClient.email,
-        phone: updatedClient.phone,
-        companyName: updatedClient.company_name,
-        industry: updatedClient.industry,
-        fundingStage: updatedClient.fund_stage,
-        revenue: updatedClient.revenue,
-        investment: updatedClient.investment_ask,
-        archive: updatedClient.archive,
+        founderName: editFormData.founderName,
+        email: editFormData.email,
+        phone: editFormData.phone,
+        companyName: editFormData.companyName,
+        industry: editFormData.industry,
+        fundingStage: editFormData.fundingStage,
+        revenue: editFormData.revenue,
+        investment: editFormData.investment,
+        city: editFormData.city,
+        archived: editFormData.archived,
       };
-      const response = await lazyAxios.default.put(
-        `${base}/api/clients/${selectedClient.id}`,
-        payload,
+
+      const response = await fetch(
+        `${API_BASE_URL}/clients/${selectedClient.id}`,
         {
+          method: "PUT",
           headers: {
             Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
+          body: JSON.stringify(payload),
         }
       );
-      message.success("Client updated successfully.");
-      setClients(
-        clients.map((client) =>
-          client.id === selectedClient.id ? response.data : client
-        )
-      );
-      // Persist update locally so it doesn't disappear on refresh
-      const local = JSON.parse(localStorage.getItem('clients') || '[]');
-      const updatedLocal = local.map((c:any) =>
-        (c.id === selectedClient.id || c._id === selectedClient.id)
-          ? {
-              ...c,
-              first_name: payload.firstName,
-              last_name: payload.lastName,
-              email: payload.email,
-              phone: payload.phone,
-              company_name: payload.companyName,
-              industry: payload.industry,
-              fund_stage: payload.fundingStage,
-              revenue: payload.revenue,
-              investment_ask: payload.investment,
-              archive: typeof updatedClient.archive !== 'undefined' ? updatedClient.archive : c.archive,
-            }
-          : c
-      );
-      localStorage.setItem('clients', JSON.stringify(updatedLocal));
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = getUserFriendlyError(data.error?.code);
+        throw new Error(errorMessage);
+      }
+
+      message.success("Client updated successfully");
       setEditModalVisible(false);
       setSelectedClient(null);
+      await fetchAllClients();
     } catch (error) {
-      console.error("Update error:", error);
-      // Silently handle update errors
+      console.error("[Update Client Error]:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      message.error(errorMessage);
+    } finally {
+      setUpdateLoading(false);
     }
   };
 
-  const columns = [
+  const columns: Column[] = [
     {
-      title: "S.No.",
-      key: "serial",
-      render: (_, __, index) => <Text>{index + 1}</Text>,
-      width: 50,
-      align: "center",
+      key: "companyName",
+      title: "Company Name",
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.companyName || "N/A"}</span>
+      ),
     },
-    ...columnOptions
-      .filter((option) => visibleColumns[option.key])
-      .map((option) => ({
-        title: option.label,
-        key: option.key,
-        dataIndex: option.key,
-        render: option.render,
-      })),
     {
-      title: "Actions",
+      key: "founderName",
+      title: "Founder Name",
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.founderName || "N/A"}</span>
+      ),
+    },
+    {
+      key: "email",
+      title: "Email",
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.email || "N/A"}</span>
+      ),
+    },
+    {
+      key: "phone",
+      title: "Phone",
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.phone || "N/A"}</span>
+      ),
+    },
+    {
+      key: "emailVerified",
+      title: "Email Verified",
+      render: (_, record: Client) => (
+        <span
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+            record.emailVerified
+              ? "bg-green-100 text-green-800"
+              : "bg-red-100 text-red-800"
+          }`}
+        >
+          {record.emailVerified ? "Verified" : "Not Verified"}
+        </span>
+      ),
+    },
+    {
+      key: "archived",
+      title: "Is Archived",
+      render: (_, record: Client) => (
+        <span
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+            record.archived
+              ? "bg-red-100 text-red-800"
+              : "bg-green-100 text-green-800"
+          }`}
+        >
+          {record.archived ? "Yes" : "No"}
+        </span>
+      ),
+    },
+    {
+      key: "fundingStage",
+      title: "Funding Stage",
+      render: (_, record: Client) => (
+        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-800">
+          {record.fundingStage || "N/A"}
+        </span>
+      ),
+    },
+    {
+      key: "revenue",
+      title: "Revenue",
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.revenue || "N/A"}</span>
+      ),
+    },
+    {
+      key: "investment",
+      title: "Investment Ask",
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.investment || "N/A"}</span>
+      ),
+    },
+    {
+      key: "industry",
+      title: "Industry",
+      render: (_, record: Client) => {
+        if (!record.industry) {
+          return <span className="text-sm text-gray-500">N/A</span>;
+        }
+
+        // Split by "/" or "," and trim whitespace
+        const industries = record.industry
+          .split(/\/|,/)
+          .map((item) => item.trim())
+          .filter((item) => item.length > 0);
+
+        if (industries.length === 0) {
+          return <span className="text-sm text-gray-500">N/A</span>;
+        }
+
+        return (
+          <div className="flex flex-wrap gap-1">
+            {industries.slice(0, 2).map((industry, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800"
+              >
+                {industry}
+              </span>
+            ))}
+            {industries.length > 2 && (
+              <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                +{industries.length - 2}
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+
+    {
+      key: "city",
+      title: "City",
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.city || "N/A"}</span>
+      ),
+    },
+    {
+      key: "onboarding",
+      title: "Onboarding Info",
+      render: (_, record: Client) => {
+        if (!record.createdAt) return <span className="text-sm">N/A</span>;
+
+        const onboardedDate = new Date(record.createdAt);
+        const today = new Date();
+        const diffTime = today.getTime() - onboardedDate.getTime();
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+        return (
+          <span className="text-sm">
+            {diffDays} day{diffDays !== 1 ? "s" : ""} ago
+          </span>
+        );
+      },
+    },
+    {
       key: "actions",
-      width: 200,
+      title: "Actions",
       align: "center",
-      render: (_, record) => (
-        <Space>
-          <Tooltip title="View details">
-            <Button
-              shape="circle"
-              icon={<EyeOutlined />}
-              onClick={() => handleView(record)}
-            />
-          </Tooltip>
-
-          <Tooltip title="Edit client">
-            <Button
-              shape="circle"
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
-            />
-          </Tooltip>
-
-          {record.archive && (
-            <Tooltip title="Unarchive client">
-              <Button
-                shape="circle"
-                icon={<UploadOutlined />}
-                onClick={() => handleUnArchive(record._id)}
-              />
-            </Tooltip>
+      render: (_, record: Client) => (
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => handleViewClient(record)}
+            className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+            title="View details"
+          >
+            <Eye size={18} />
+          </button>
+          <button
+            onClick={() => handleEditClient(record)}
+            className="p-2 text-gray-600 hover:bg-gray-50 rounded-full transition-colors"
+            title="Edit client"
+          >
+            <Edit size={18} />
+          </button>
+          {record.archived && (
+            <button
+              onClick={() => handleUnarchiveClient(record.id)}
+              className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+              title="Unarchive client"
+              disabled={updateLoading}
+            >
+              {updateLoading ? <Spin size="small" /> : <Upload size={18} />}
+            </button>
           )}
-
-            <Tooltip title="Delete client">
-            <Button
-              shape="circle"
-              icon={<DeleteOutlined />}
-              danger
-              onClick={() =>
-                Modal.confirm({
-                  title: "Delete this client?",
-                  content: "This action cannot be undone.",
-                  okText: "Delete",
-                  cancelText: "Cancel",
-                  okButtonProps: { danger: true },
-                  onOk: () => handleDelete(record._id || record.id),
-                })
-              }
-            />
-            </Tooltip>
-        </Space>
+          <button
+            onClick={() => {
+              Modal.confirm({
+                title: "Delete this client?",
+                content: "This action cannot be undone.",
+                okText: "Delete",
+                cancelText: "Cancel",
+                okButtonProps: { danger: true },
+                onOk: () => handleDeleteClient(record.id),
+              });
+            }}
+            className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+            title="Delete client"
+            disabled={deleteLoading === record.id}
+          >
+            {deleteLoading === record.id ? (
+              <Spin size="small" />
+            ) : (
+              <Trash2 size={18} />
+            )}
+          </button>
+        </div>
       ),
     },
   ];
 
-  const handleColumnChange = (key, checked) => {
-    setVisibleColumns((prev) => ({ ...prev, [key]: checked }));
-  };
-
-  const columnSelectorContent = (
-    <div className="bg-white rounded-lg shadow-md p-4 max-h-[25vh] overflow-y-auto">
-      {columnOptions.map(({ key, label, permanent }) => (
-        <div key={key} className="flex items-center mb-2">
-          <input
-            type="checkbox"
-            checked={visibleColumns[key]}
-            onChange={(e) => handleColumnChange(key, e.target.checked)}
-            disabled={permanent}
-            className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded"
-            aria-label={`Toggle column ${label}`}
-          />
-          <span className={permanent ? "text-gray-500" : "text-gray-800"}>
-            {label} {permanent && "(Required)"}
-          </span>
-        </div>
-      ))}
-    </div>
-  );
-
   return (
-    <div className="p-6">
-      <Card
-        title={
-          <Title level={4} className="!mb-0">
-            Client Management
-          </Title>
-        }
-        extra={
-          <div className="flex justify-between gap-2">
-            <Popover
-              content={columnSelectorContent}
-              title={<span className="font-semibold">Select Columns</span>}
-              trigger="click"
-              placement="bottomLeft"
-              open={popoverVisible}
-              onOpenChange={setPopoverVisible}
-            >
-              <button className="flex items-center px-2 py-0 text-sm text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50">
-                <Settings size={18} className="mr-2" />
-                Customize Columns
-                <ChevronDown size={18} className="ml-2" />
-              </button>
-            </Popover>
-            <Button
-              type="primary"
-              style={{
-                backgroundColor: "#ac6a1e",
-                color: "#fff",
-              }}
-              icon={<PlusOutlined />}
-              className="flex items-center"
-              onClick={() => router.push("/dashboard/add-client")}
-            >
-              Add Client
-            </Button>
-          </div>
-        }
-      >
-        <div className="mb-6 flex items-center gap-2 flex-wrap">
-          <Input
-            placeholder="Search by email, company or contact..."
-            suffix={<SearchOutlined />}
-            value={searchEmail}
-            onChange={(e) => setSearchEmail(e.target.value)}
-            allowClear
-            style={{ maxWidth: 420 }}
-          />
-        </div>
+    <div>
+      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
+          Client Management
+        </h1>
+        <button
+          onClick={() => router.push("/dashboard/add-client")}
+          className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors"
+          style={{ backgroundColor: "#ac6a1e" }}
+        >
+          <Plus size={18} />
+          <span>Add Client</span>
+        </button>
+      </div>
 
-        <Table
-          columns={columns}
-          dataSource={Array.isArray(clients) ? clients : []}
-          loading={loading}
-          rowKey={(record) =>
-            record.id || Math.random().toString(36).substring(2, 9)
-          }
-          scroll={{ x: "max-content" }}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `Total ${total} clients`,
-          }}
-          locale={{ emptyText: "No clients found" }}
-        />
-      </Card>
+      <DataTable
+        columns={columns}
+        data={clients}
+        loading={loading}
+        onRefresh={fetchAllClients}
+        searchPlaceholder="Search by email, company or founder name..."
+        searchKeys={["email", "companyName", "founderName", "phone"]}
+        rowKey={(record: Client) => record.id}
+        visibleColumns={visibleColumns}
+        onColumnVisibilityChange={setVisibleColumns}
+        customizeColumns={true}
+        pageSize={10}
+        pageSizeOptions={[5, 10, 20, 50]}
+      />
 
+      {/* View Modal */}
       <Modal
         title={<span className="text-lg font-semibold">Client Details</span>}
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
-        width={980}
+        width={800}
         style={{ top: 40 }}
-        styles={{ body: { padding: 16, maxHeight: '72vh', overflowY: 'auto' } }}
       >
-        {selectedClient && (() => {
-          const hasName = Boolean((selectedClient.first_name || "").trim() || (selectedClient.last_name || "").trim());
-          const hasPhone = Boolean((selectedClient.phone || "").trim());
-          const hasCompany = Boolean((selectedClient.company_name || "").trim());
-          const hasPosition = Boolean((selectedClient.position || "").trim());
-          const hasIndustry = Boolean((selectedClient.industry || "").trim());
-          const hasEmployees = selectedClient.employees !== undefined && selectedClient.employees !== null && String(selectedClient.employees).trim() !== "";
-          const hasWebsite = Boolean((selectedClient.website || "").trim());
-          const addressParts = [selectedClient.address, selectedClient.city, selectedClient.state, selectedClient.postalcode].filter(Boolean);
-          const hasAddress = addressParts.length > 0;
-          const hasRevenue = Boolean((selectedClient.revenue ?? "").toString().trim());
-          const hasInvestment = Boolean((selectedClient.investment_ask ?? "").toString().trim());
-          const hasFundStage = Boolean((selectedClient.fund_stage || "").trim());
-          const hasAnyFinancial = hasRevenue || hasInvestment || hasFundStage;
-
-          return (
-          <Descriptions
-            bordered
-              column={{ xs: 1, sm: 1, md: 2, lg: 2, xl: 2 }}
-            size="middle"
-              className="mt-2"
-              labelStyle={{ width: 180, padding: '12px 16px' }}
-              contentStyle={{ padding: '12px 16px', whiteSpace: 'normal', wordBreak: 'break-word' }}
-            extra={
-                undefined
-              }
-            >
-              {hasName && (
-            <Descriptions.Item label="Full Name" span={2}>
-                  {(selectedClient.first_name || "").trim()} {(selectedClient.last_name || "").trim()}
-            </Descriptions.Item>
-              )}
-
-                {selectedClient.email && (
-                <Descriptions.Item label="Email" span={2}>
-                  <div className="flex items-center" style={{ gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ overflowWrap: 'anywhere' }}>{selectedClient.email}</span>
-                  <div className="ml-2">
-                    <Button
-                      size="small"
-                      type={"default"}
-                      icon={
-                        selectedClient.email_verified ? (
-                          <CheckCircleOutlined />
-                        ) : (
-                          <CloseCircleOutlined />
-                        )
-                      }
-                      style={{
-                        backgroundColor: selectedClient.email_verified
-                          ? "#f6ffed"
-                          : "#fff1f0",
-                        color: selectedClient.email_verified
-                          ? "#52c41a"
-                          : "#cf1322",
-                        borderColor: selectedClient.email_verified
-                          ? "#b7eb8f"
-                          : "#ffa39e",
-                      }}
-                      disabled
-                    >
-                        {selectedClient.email_verified ? "Verified" : "Not Verified"}
-                    </Button>
-                    </div>
-                  </div>
-                </Descriptions.Item>
-                )}
-
-              {hasPhone && (
-            <Descriptions.Item label="Phone">
-                  {selectedClient.phone}
-            </Descriptions.Item>
-              )}
-
-              {(hasCompany || hasPosition) && (
-            <Descriptions.Item label="Company" span={2}>
-                  <div className="flex items-center gap-3 flex-wrap">
-                    {hasCompany && <Text strong>{selectedClient.company_name}</Text>}
-                    {hasPosition && <Text type="secondary">{selectedClient.position}</Text>}
+        {selectedClient && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+            {selectedClient.founderName && (
+              <div className="col-span-2 border-b pb-3">
+                <div className="text-sm font-medium text-gray-500 mb-1">
+                  Founder Name
+                </div>
+                <div className="text-base text-gray-900">
+                  {selectedClient.founderName}
+                </div>
               </div>
-            </Descriptions.Item>
-              )}
+            )}
 
-              {hasIndustry && (
-            <Descriptions.Item label="Industry">
-                  <Tag color="blue">{selectedClient.industry}</Tag>
-            </Descriptions.Item>
-              )}
-
-              {hasEmployees && (
-            <Descriptions.Item label="Employees">
-                  {selectedClient.employees}
-            </Descriptions.Item>
-              )}
-
-              {hasWebsite && (
-            <Descriptions.Item label="Website">
-                  <a href={selectedClient.website} target="_blank" rel="noreferrer">
-                  {selectedClient.website}
-                </a>
-                </Descriptions.Item>
-              )}
-
-              {hasAddress && (
-                <Descriptions.Item label="Address" span={2}>
-                  <span style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}>
-                    {addressParts.join(", ")}
+            {selectedClient.email && (
+              <div className="col-span-2 border-b pb-3">
+                <div className="text-sm font-medium text-gray-500 mb-1">
+                  Email
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-base text-gray-900 break-all">
+                    {selectedClient.email}
                   </span>
-                </Descriptions.Item>
-              )}
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                      selectedClient.emailVerified
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                    }`}
+                  >
+                    {selectedClient.emailVerified ? "Verified" : "Not Verified"}
+                  </span>
+                </div>
+              </div>
+            )}
 
-              {(selectedClient.location || selectedClient.city) && (
-                <Descriptions.Item label="Location">
-                  <Tag color="green">{selectedClient.location || selectedClient.city}</Tag>
-                </Descriptions.Item>
-              )}
+            {selectedClient.phone && (
+              <div className="border-b pb-3">
+                <div className="text-sm font-medium text-gray-500 mb-1">
+                  Phone
+                </div>
+                <div className="text-base text-gray-900">
+                  {selectedClient.phone}
+                </div>
+              </div>
+            )}
 
-              {/* Financial values shown as individual fields (no 'Financial Info' group) */}
-              {hasRevenue && (
-                <Descriptions.Item label="Revenue">
+            {selectedClient.companyName && (
+              <div className="border-b pb-3">
+                <div className="text-sm font-medium text-gray-500 mb-1">
+                  Company Name
+                </div>
+                <div className="text-base font-semibold text-gray-900">
+                  {selectedClient.companyName}
+                </div>
+              </div>
+            )}
+
+            {selectedClient.industry && (
+              <div className="border-b pb-3">
+                <div className="text-sm font-medium text-gray-500 mb-1">
+                  Industry
+                </div>
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  {selectedClient.industry}
+                </span>
+              </div>
+            )}
+
+            {selectedClient.fundingStage && (
+              <div className="border-b pb-3">
+                <div className="text-sm font-medium text-gray-500 mb-1">
+                  Funding Stage
+                </div>
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                  {selectedClient.fundingStage}
+                </span>
+              </div>
+            )}
+
+            {selectedClient.revenue && (
+              <div className="border-b pb-3">
+                <div className="text-sm font-medium text-gray-500 mb-1">
+                  Revenue
+                </div>
+                <div className="text-base text-gray-900">
                   {selectedClient.revenue}
-                </Descriptions.Item>
-              )}
-              {hasInvestment && (
-                <Descriptions.Item label="Investment">
-                  {selectedClient.investment_ask}
-                </Descriptions.Item>
-              )}
-              {hasFundStage && (
-                <Descriptions.Item label="Fund Stage">
-                  {selectedClient.fund_stage}
-            </Descriptions.Item>
-              )}
+                </div>
+              </div>
+            )}
 
-              {/* Onboarding Info */}
-              {selectedClient.createdAt && (
-                <Descriptions.Item label="Onboarding Info">
+            {selectedClient.investment && (
+              <div className="border-b pb-3">
+                <div className="text-sm font-medium text-gray-500 mb-1">
+                  Investment Ask
+                </div>
+                <div className="text-base text-gray-900">
+                  {selectedClient.investment}
+                </div>
+              </div>
+            )}
+
+            {selectedClient.city && (
+              <div className="border-b pb-3">
+                <div className="text-sm font-medium text-gray-500 mb-1">
+                  City
+                </div>
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  {selectedClient.city}
+                </span>
+              </div>
+            )}
+
+            {selectedClient.createdAt && (
+              <div className="border-b pb-3">
+                <div className="text-sm font-medium text-gray-500 mb-1">
+                  Onboarded
+                </div>
+                <div className="text-base text-gray-900">
                   {(() => {
                     const onboardedDate = new Date(selectedClient.createdAt);
                     const today = new Date();
-                    const diffDays = Math.floor((today as any - onboardedDate as any) / (1000 * 60 * 60 * 24));
-                    return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+                    const diffDays = Math.floor(
+                      (today.getTime() - onboardedDate.getTime()) /
+                        (1000 * 60 * 60 * 24)
+                    );
+                    return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
                   })()}
-            </Descriptions.Item>
-              )}
+                </div>
+              </div>
+            )}
 
-              {/* Is Archived */}
-              {typeof selectedClient.archive !== 'undefined' && (
-                <Descriptions.Item label="Is Archived">
-                  <Tag color={selectedClient.archive ? 'red' : 'green'}>
-                    {selectedClient.archive ? 'Yes' : 'No'}
-                  </Tag>
-            </Descriptions.Item>
-              )}
-          </Descriptions>
-          );
-        })()}
+            <div className="border-b pb-3">
+              <div className="text-sm font-medium text-gray-500 mb-1">
+                Is Archived
+              </div>
+              <span
+                className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                  selectedClient.archived
+                    ? "bg-red-100 text-red-800"
+                    : "bg-green-100 text-green-800"
+                }`}
+              >
+                {selectedClient.archived ? "Yes" : "No"}
+              </span>
+            </div>
+          </div>
+        )}
       </Modal>
+
+      {/* Edit Modal */}
       <Modal
         title={<span className="text-lg font-semibold">Edit Client</span>}
         open={editModalVisible}
-        onCancel={() => setEditModalVisible(false)}
-        onOk={() => editForm.submit()}
-        okText="Save"
+        onCancel={() => !updateLoading && setEditModalVisible(false)}
+        footer={[
+          <button
+            key="cancel"
+            onClick={() => setEditModalVisible(false)}
+            disabled={updateLoading}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>,
+          <button
+            key="save"
+            onClick={handleUpdateClient}
+            disabled={updateLoading}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
+          >
+            {updateLoading ? <Spin size="small" /> : "Save"}
+          </button>,
+        ]}
+        width={700}
       >
-        <Form form={editForm} layout="vertical" onFinish={handleEditSubmit}>
+        <form onSubmit={handleUpdateClient} className="space-y-4 p-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <Form.Item name="first_name" label="First Name">
-              <Input />
-            </Form.Item>
-            <Form.Item name="last_name" label="Last Name">
-              <Input />
-            </Form.Item>
-            <Form.Item name="email" label="Email" rules={[{ type: 'email' }] }>
-              <Input />
-            </Form.Item>
-            <Form.Item name="phone" label="Contact">
-              <Input />
-            </Form.Item>
-            <Form.Item name="company_name" label="Company Name">
-              <Input />
-            </Form.Item>
-            <Form.Item name="industry" label="Sector">
-              <Input />
-            </Form.Item>
-            <Form.Item name="fund_stage" label="Fund Stage">
-              <Select
-                options={[
-                  { value: 'Pre-seed', label: 'Pre-seed' },
-                  { value: 'Seed', label: 'Seed' },
-                  { value: 'Series A', label: 'Series A' },
-                  { value: 'Series B', label: 'Series B' },
-                  { value: 'Growth', label: 'Growth' },
-                ]}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Founder Name
+              </label>
+              <input
+                type="text"
+                value={editFormData.founderName}
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    founderName: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={updateLoading}
               />
-            </Form.Item>
-            <Form.Item name="revenue" label="Revenue">
-              <Input />
-            </Form.Item>
-            <Form.Item name="investment_ask" label="Investment Ask">
-              <Input />
-            </Form.Item>
-            <Form.Item name="archive" label="Archive" valuePropName="checked">
-              <Input type="checkbox" />
-            </Form.Item>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email
+              </label>
+              <input
+                type="email"
+                value={editFormData.email}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, email: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={updateLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Phone
+              </label>
+              <input
+                type="text"
+                value={editFormData.phone}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, phone: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={updateLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Company Name
+              </label>
+              <input
+                type="text"
+                value={editFormData.companyName}
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    companyName: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={updateLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Industry
+              </label>
+              <input
+                type="text"
+                value={editFormData.industry}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, industry: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={updateLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Funding Stage
+              </label>
+              <select
+                value={editFormData.fundingStage}
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    fundingStage: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={updateLoading}
+              >
+                <option value="">Select...</option>
+                <option value="Pre-seed">Pre-seed</option>
+                <option value="Seed">Seed</option>
+                <option value="Series A">Series A</option>
+                <option value="Series B">Series B</option>
+                <option value="Series C">Series C</option>
+                <option value="Growth">Growth</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Revenue
+              </label>
+              <input
+                type="text"
+                value={editFormData.revenue}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, revenue: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={updateLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Investment Ask
+              </label>
+              <input
+                type="text"
+                value={editFormData.investment}
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    investment: e.target.value,
+                  })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={updateLoading}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                City
+              </label>
+              <input
+                type="text"
+                value={editFormData.city}
+                onChange={(e) =>
+                  setEditFormData({ ...editFormData, city: e.target.value })
+                }
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                disabled={updateLoading}
+              />
+            </div>
+
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                checked={editFormData.archived}
+                onChange={(e) =>
+                  setEditFormData({
+                    ...editFormData,
+                    archived: e.target.checked,
+                  })
+                }
+                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                id="archive-checkbox"
+                disabled={updateLoading}
+              />
+              <label
+                htmlFor="archive-checkbox"
+                className="ml-2 text-sm text-gray-700"
+              >
+                Archive Client
+              </label>
+            </div>
           </div>
-        </Form>
+        </form>
       </Modal>
     </div>
   );
 };
 
-const StatCard = ({ title, value }) => (
-  <Card className="!bg-gray-50 !w-32">
-    <Text type="secondary" className="block text-xs">
-      {title}
-    </Text>
-    <Text strong className="block mt-1">
-      {value}
-    </Text>
-  </Card>
-);
-
 export default function Page() {
   return <ClientsData />;
 }
-

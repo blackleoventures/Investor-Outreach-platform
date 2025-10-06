@@ -1,79 +1,354 @@
-const fs = require("fs").promises;
-const path = require('path');
-const { GoogleSpreadsheet } = require('google-spreadsheet');
-const { JWT } = require('google-auth-library');
-const excelService = require('../services/excel.service');
+const { GoogleSpreadsheet } = require("google-spreadsheet");
+const { JWT } = require("google-auth-library");
+const path = require("path");
 
-// Google Sheets configuration (service account JSON already placed in config)
-const SHEET_ID = process.env.SHEET_ID || '1oyzpOlYhSKRG3snodvPXZxwA2FPnMk2Qok0AMgk2iX0';
-const CREDENTIALS_PATH = process.env.EXCEL_JSON_PATH || path.join(__dirname, '../config/excel.json');
+// Use Firebase Admin SDK credentials for Google Sheets
+const SHEET_ID = process.env.INVESTOR_SHEET_ID;
+const CREDENTIALS_PATH =
+  process.env.FIREBASE_CREDENTIALS_PATH ||
+  path.join(__dirname, "../config/firebase-admin-sdk.json");
 
-// Attempt to get investors directly from Google Sheets
-const getInvestorsFromGoogleSheet = async (userEmail = null) => {
+if (!SHEET_ID) {
+  console.error("CRITICAL: SHEET_ID environment variable is not set");
+}
+
+/**
+ * Initialize Google Sheets connection
+ */
+const initializeGoogleSheet = async () => {
   try {
-    console.log('Trying to read investors from Google Sheets ID:', SHEET_ID);
     const serviceAccountAuth = new JWT({
       keyFile: CREDENTIALS_PATH,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
     });
 
     const doc = new GoogleSpreadsheet(SHEET_ID, serviceAccountAuth);
     await doc.loadInfo();
-    console.log('Investor sheet title:', doc.title);
-    const sheet = doc.sheetsByIndex[0];
-    await sheet.loadHeaderRow();
-    console.log('Investor headers:', sheet.headerValues);
-    const rows = await sheet.getRows();
-    console.log('Total investor rows found:', rows.length);
 
-    const data = rows.map(row => {
-      const rowData = {};
-      sheet.headerValues.forEach(header => {
-        rowData[header] = row.get(header) || '';
+    const sheet = doc.sheetsByIndex[0];
+    if (!sheet) {
+      throw new Error("No sheets found in the document");
+    }
+
+    await sheet.loadHeaderRow();
+    return { doc, sheet };
+  } catch (error) {
+    console.error("Google Sheets initialization failed:", error.message);
+    throw new Error(`Failed to connect to Google Sheets: ${error.message}`);
+  }
+};
+
+/**
+ * Normalize column names from various formats
+ */
+const normalizeColumnName = (key, headerValues) => {
+  const directMatch = headerValues.find(
+    (h) => h.toLowerCase() === String(key).toLowerCase()
+  );
+  if (directMatch) return directMatch;
+
+  const columnMap = {
+    investor_name: "Investor Name",
+    partner_name: "Partner Name",
+    partner_email: "Partner Email",
+    phone_number: "Phone number",
+    fund_type: "Fund Type",
+    fund_stage: "Fund Stage",
+    fund_focus: "Fund Focus (Sectors)",
+    sector_focus: "Fund Focus (Sectors)",
+    location: "Location",
+    ticket_size: "Ticket Size",
+    website: "Website",
+  };
+
+  return columnMap[key.toLowerCase()] || key;
+};
+
+/**
+ * GET all investors from Google Sheets
+ */
+exports.getAllInvestors = async (req, res) => {
+  try {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
+    const { sheet } = await initializeGoogleSheet();
+    const rows = await sheet.getRows();
+
+    const investors = rows.map((row, index) => {
+      const investor = {};
+
+      sheet.headerValues.forEach((header) => {
+        investor[header] = row.get(header) || "";
       });
-      return rowData;
+
+      investor.id =
+        investor["Partner Email"] ||
+        investor["Investor Name"] ||
+        `row_${index}`;
+
+      return investor;
     });
 
-    console.log('Sample investor data:', data.slice(0, 2));
-    // Return all data from Google Sheets (no filtering for now)
-    return data;
+    console.log(
+      `Successfully retrieved ${investors.length} investors from Google Sheets`
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Successfully retrieved investors",
+      data: investors,
+      totalCount: investors.length,
+      source: "google_sheets",
+      timestamp: new Date().toISOString(),
+    });
   } catch (error) {
-    console.error('Google Sheets read failed, will fallback to Excel files:', error.message);
-    return null;
+    console.error("Error fetching investors:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to retrieve investors from Google Sheets",
+      message: error.message,
+      data: [],
+    });
   }
 };
 
-// Get investors from Excel files (fallback)
-const getInvestorsFromExcel = async (userEmail = null) => {
+/**
+ * GET single investor by ID
+ */
+exports.getInvestorById = async (req, res) => {
   try {
-    const data = excelService.readExcelData();
-    
-    // Return all data (no filtering for now)
-    // if (userEmail && Array.isArray(data)) {
-    //   const filtered = data.filter(row => {
-    //     const ownerEmail = row['Owner Email'] || row['owner_email'] || row['User Email'] || row['user_email'] || '';
-    //     return ownerEmail.toLowerCase() === userEmail.toLowerCase();
-    //   });
-    //   return filtered.length > 0 ? filtered : data;
-    // }
-    
-    return data;
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Investor ID is required",
+      });
+    }
+
+    const { sheet } = await initializeGoogleSheet();
+    const rows = await sheet.getRows();
+
+    const targetRow = rows.find((row) => {
+      const email = String(row.get("Partner Email") || "").toLowerCase();
+      const name = String(row.get("Investor Name") || "").toLowerCase();
+      return email === id.toLowerCase() || name === id.toLowerCase();
+    });
+
+    if (!targetRow) {
+      return res.status(404).json({
+        success: false,
+        error: "Investor not found",
+      });
+    }
+
+    const investor = {};
+    sheet.headerValues.forEach((header) => {
+      investor[header] = targetRow.get(header) || "";
+    });
+    investor.id = investor["Partner Email"] || investor["Investor Name"];
+
+    console.log("Successfully retrieved investor:", investor.id);
+
+    return res.status(200).json({
+      success: true,
+      data: investor,
+    });
   } catch (error) {
-    console.error('Error reading investors from Excel:', error);
-    return [];
+    console.error("Error fetching investor by ID:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to retrieve investor",
+      message: error.message,
+    });
   }
 };
 
+/**
+ * POST create new investor
+ */
+exports.createInvestor = async (req, res) => {
+  try {
+    const investorData = req.body;
+
+    if (!investorData["Investor Name"] && !investorData["Partner Email"]) {
+      return res.status(400).json({
+        success: false,
+        error: "Investor Name or Partner Email is required",
+      });
+    }
+
+    const { sheet } = await initializeGoogleSheet();
+
+    const rows = await sheet.getRows();
+    const emailExists = rows.some((row) => {
+      const email = String(row.get("Partner Email") || "").toLowerCase();
+      return (
+        email &&
+        email === String(investorData["Partner Email"] || "").toLowerCase()
+      );
+    });
+
+    if (emailExists) {
+      return res.status(409).json({
+        success: false,
+        error: "An investor with this email already exists",
+      });
+    }
+
+    const rowData = {};
+    sheet.headerValues.forEach((header) => {
+      const value = investorData[header];
+      rowData[header] = value !== undefined ? value : "";
+    });
+
+    await sheet.addRow(rowData);
+
+    console.log(
+      "Successfully created investor:",
+      investorData["Investor Name"]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: "Investor created successfully",
+      data: investorData,
+    });
+  } catch (error) {
+    console.error("Error creating investor:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to create investor",
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * PUT update existing investor
+ */
+exports.updateInvestor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Investor ID is required",
+      });
+    }
+
+    if (!updates || Object.keys(updates).length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "No update data provided",
+      });
+    }
+
+    const { sheet } = await initializeGoogleSheet();
+    const rows = await sheet.getRows();
+
+    const targetRow = rows.find((row) => {
+      const email = String(row.get("Partner Email") || "").toLowerCase();
+      const name = String(row.get("Investor Name") || "").toLowerCase();
+      return email === id.toLowerCase() || name === id.toLowerCase();
+    });
+
+    if (!targetRow) {
+      return res.status(404).json({
+        success: false,
+        error: "Investor not found in Google Sheets",
+      });
+    }
+
+    Object.entries(updates).forEach(([key, value]) => {
+      const normalizedKey = normalizeColumnName(key, sheet.headerValues);
+      if (sheet.headerValues.includes(normalizedKey)) {
+        targetRow.set(
+          normalizedKey,
+          value !== null && value !== undefined ? value : ""
+        );
+      }
+    });
+
+    await targetRow.save();
+
+    console.log("Successfully updated investor:", id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Investor updated successfully",
+    });
+  } catch (error) {
+    console.error("Error updating investor:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to update investor",
+      message: error.message,
+    });
+  }
+};
+
+/**
+ * DELETE investor
+ */
+exports.deleteInvestor = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        error: "Investor ID is required",
+      });
+    }
+
+    const { sheet } = await initializeGoogleSheet();
+    const rows = await sheet.getRows();
+
+    const targetRowIndex = rows.findIndex((row) => {
+      const email = String(row.get("Partner Email") || "").toLowerCase();
+      const name = String(row.get("Investor Name") || "").toLowerCase();
+      return email === id.toLowerCase() || name === id.toLowerCase();
+    });
+
+    if (targetRowIndex === -1) {
+      return res.status(404).json({
+        success: false,
+        error: "Investor not found in Google Sheets",
+      });
+    }
+
+    await rows[targetRowIndex].delete();
+
+    console.log("Successfully deleted investor:", id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Investor deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting investor:", error.message);
+    return res.status(500).json({
+      success: false,
+      error: "Failed to delete investor",
+      message: error.message,
+    });
+  }
+};
 exports.getPaginatedInvestors = async (req, res) => {
   try {
     // Add cache-busting headers
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+
     const { page = 1, limit = 10, search = "" } = req.query;
     const userEmail = req.user?.email || null;
-    
+
     let investors = await getInvestorsFromGoogleSheet(userEmail);
     if (!investors || investors.length === 0) {
       investors = await getInvestorsFromExcel(userEmail);
@@ -82,37 +357,50 @@ exports.getPaginatedInvestors = async (req, res) => {
     // Apply search filter
     if (search.trim()) {
       const searchTerm = search.trim().toLowerCase();
-      investors = investors.filter(investor =>
-        investor['Partner name']?.toLowerCase().includes(searchTerm) ||
-        investor['partner_name']?.toLowerCase().includes(searchTerm) ||
-        investor['Partner email']?.toLowerCase().includes(searchTerm) ||
-        investor['partner_email']?.toLowerCase().includes(searchTerm) ||
-        investor['Investor name']?.toLowerCase().includes(searchTerm) ||
-        investor['investor_name']?.toLowerCase().includes(searchTerm)
+      investors = investors.filter(
+        (investor) =>
+          investor["Partner name"]?.toLowerCase().includes(searchTerm) ||
+          investor["partner_name"]?.toLowerCase().includes(searchTerm) ||
+          investor["Partner email"]?.toLowerCase().includes(searchTerm) ||
+          investor["partner_email"]?.toLowerCase().includes(searchTerm) ||
+          investor["Investor name"]?.toLowerCase().includes(searchTerm) ||
+          investor["investor_name"]?.toLowerCase().includes(searchTerm)
       );
     }
 
     // Map column names to expected format
-    const mappedInvestors = investors.map(row => {
-      const country = row.Country || row.country || '';
-      const state = row.State || row.state || '';
-      const city = row.City || row.city || '';
-      const location = [city, state, country].filter(Boolean).join(', ') || row['Location'] || row.location || '';
-      
+    const mappedInvestors = investors.map((row) => {
+      const country = row.Country || row.country || "";
+      const state = row.State || row.state || "";
+      const city = row.City || row.city || "";
+      const location =
+        [city, state, country].filter(Boolean).join(", ") ||
+        row["Location"] ||
+        row.location ||
+        "";
+
       return {
         id: row.id || `investor_${Date.now()}_${Math.random()}`,
-        investor_name: row['Investor Name'] || row.investor_name || row.name,
-        partner_name: row['Partner Name'] || row.partner_name || row.partner,
-        partner_email: row['Partner Email'] || row.partner_email || row.email,
-        phone_number: row['Phone number'] || row.phone_number || row.phone,
-        fund_type: row['Fund Type'] || row.fund_type || row.type,
-        fund_stage: row['Fund Stage'] || row.fund_stage || row.stage,
-        fund_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
+        investor_name: row["Investor Name"] || row.investor_name || row.name,
+        partner_name: row["Partner Name"] || row.partner_name || row.partner,
+        partner_email: row["Partner Email"] || row.partner_email || row.email,
+        phone_number: row["Phone number"] || row.phone_number || row.phone,
+        fund_type: row["Fund Type"] || row.fund_type || row.type,
+        fund_stage: row["Fund Stage"] || row.fund_stage || row.stage,
+        fund_focus:
+          row["Fund Focus (Sectors)"] ||
+          row.fund_focus ||
+          row.sector_focus ||
+          row.sectors,
         location: location,
-        sector_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
-        ticket_size: row['Ticket Size'] || row.ticket_size,
+        sector_focus:
+          row["Fund Focus (Sectors)"] ||
+          row.fund_focus ||
+          row.sector_focus ||
+          row.sectors,
+        ticket_size: row["Ticket Size"] || row.ticket_size,
         website: row.Website || row.website,
-        ...row
+        ...row,
       };
     });
 
@@ -129,8 +417,11 @@ exports.getPaginatedInvestors = async (req, res) => {
       totalPages: Math.ceil(mappedInvestors.length / parseInt(limit)),
       hasNextPage: endIndex < mappedInvestors.length,
       hasPrevPage: parseInt(page) > 1,
-      source: (investors && investors !== null && investors.length > 0) ? 'google_sheets' : 'excel_files',
-      timestamp: new Date().toISOString()
+      source:
+        investors && investors !== null && investors.length > 0
+          ? "google_sheets"
+          : "excel_files",
+      timestamp: new Date().toISOString(),
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -149,8 +440,9 @@ exports.bulkAddInvestors = async (req, res) => {
       // Wrapped format: { investors: [investor1, investor2, ...] }
       investors = req.body.investors;
     } else {
-      return res.status(400).json({ 
-        error: "Invalid data format. Expected array of investors or { investors: [...] }" 
+      return res.status(400).json({
+        error:
+          "Invalid data format. Expected array of investors or { investors: [...] }",
       });
     }
 
@@ -162,10 +454,10 @@ exports.bulkAddInvestors = async (req, res) => {
       try {
         // Validate required fields
         if (!investor.name || !investor.email) {
-          results.push({ 
-            success: false, 
-            error: "Name and email are required", 
-            data: investor 
+          results.push({
+            success: false,
+            error: "Name and email are required",
+            data: investor,
           });
           continue;
         }
@@ -175,36 +467,44 @@ exports.bulkAddInvestors = async (req, res) => {
         results.push({ success: true, data: investor });
         console.log(`✅ Added investor: ${investor.name}`);
       } catch (error) {
-        console.error(`❌ Failed to add investor ${investor.name}:`, error.message);
-        results.push({ 
-          success: false, 
-          error: error.message, 
-          data: investor 
+        console.error(
+          `❌ Failed to add investor ${investor.name}:`,
+          error.message
+        );
+        results.push({
+          success: false,
+          error: error.message,
+          data: investor,
         });
       }
     }
 
-    const successCount = results.filter(r => r.success).length;
+    const successCount = results.filter((r) => r.success).length;
     const failCount = results.length - successCount;
 
     res.json({
       success: true,
-      message: `Added ${successCount} investors successfully${failCount > 0 ? `, ${failCount} failed` : ''}`,
+      message: `Added ${successCount} investors successfully${
+        failCount > 0 ? `, ${failCount} failed` : ""
+      }`,
       results,
-      summary: { total: investors.length, success: successCount, failed: failCount }
+      summary: {
+        total: investors.length,
+        success: successCount,
+        failed: failCount,
+      },
     });
-
   } catch (error) {
-    console.error('❌ Bulk add investors error:', error);
+    console.error("❌ Bulk add investors error:", error);
     res.status(500).json({ error: error.message });
   }
 };
 
 // Redirect to Excel upload endpoint
 exports.uploadInvestorFile = async (req, res) => {
-  res.status(400).json({ 
+  res.status(400).json({
     error: "Please use /api/excel/upload endpoint for file uploads",
-    message: "File upload functionality moved to Excel service"
+    message: "File upload functionality moved to Excel service",
   });
 };
 
@@ -212,204 +512,51 @@ exports.uploadInvestorFile = async (req, res) => {
 exports.uploadCSV = async (req, res) => {
   return exports.uploadInvestorFile(req, res);
 };
-
-exports.getAllInvestors = async (req, res) => {
-  try {
-    console.log('getAllInvestors called');
-    // Add cache-busting headers
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    
-    const { page = 1, limit = 10000 } = req.query;
-    const userEmail = req.user?.email || null;
-    
-    let allInvestors = [];
-    let source = 'none';
-    
-    try {
-      allInvestors = await getInvestorsFromGoogleSheet(userEmail);
-      source = 'google_sheets';
-      console.log('Google Sheets investors loaded:', allInvestors?.length || 0);
-    } catch (sheetError) {
-      console.log('Google Sheets failed, trying Excel:', sheetError.message);
-      try {
-        allInvestors = await getInvestorsFromExcel(userEmail);
-        source = 'excel_files';
-        console.log('Excel investors loaded:', allInvestors?.length || 0);
-      } catch (excelError) {
-        console.log('Excel also failed:', excelError.message);
-        allInvestors = [];
-        source = 'fallback';
-      }
-    }
-    
-    if (!allInvestors) allInvestors = [];
-    
-    // Map column names to expected format
-    const mappedInvestors = allInvestors.map(row => {
-      const country = row.Country || row.country || '';
-      const state = row.State || row.state || '';
-      const city = row.City || row.city || '';
-      const location = [city, state, country].filter(Boolean).join(', ') || row['Location'] || row.location || '';
-      
-      return {
-        id: row.id || `investor_${Date.now()}_${Math.random()}`,
-        investor_name: row['Investor Name'] || row.investor_name || row.name,
-        partner_name: row['Partner Name'] || row.partner_name || row.partner,
-        partner_email: row['Partner Email'] || row.partner_email || row.email,
-        phone_number: row['Phone number'] || row.phone_number || row.phone,
-        fund_type: row['Fund Type'] || row.fund_type || row.type,
-        fund_stage: row['Fund Stage'] || row.fund_stage || row.stage,
-        fund_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
-        location: location,
-        sector_focus: row['Fund Focus (Sectors)'] || row.fund_focus || row.sector_focus || row.sectors,
-        ticket_size: row['Ticket Size'] || row.ticket_size,
-        website: row.Website || row.website,
-        ...row
-      };
-    });
-    
-    const parsedPage = parseInt(page);
-    const parsedLimit = parseInt(limit);
-    const skip = (parsedPage - 1) * parsedLimit;
-    const investors = mappedInvestors.slice(skip, skip + parsedLimit);
-
-    console.log('Returning investor response with', mappedInvestors.length, 'total records');
-    res.status(200).json({
-      message: "Successfully retrieved investors",
-      totalCount: mappedInvestors.length,
-      currentPage: parsedPage,
-      totalPages: Math.ceil(mappedInvestors.length / parsedLimit),
-      data: investors,
-      docs: investors,
-      source: source,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    console.error('getAllInvestors error:', error);
-    res.status(500).json({ 
-      error: "Failed to retrieve investors", 
-      details: error.message,
-      data: [],
-      docs: [],
-      totalCount: 0
-    });
-  }
-};
-
-exports.updateInvestor = async (req, res) => {
-  try {
-    // Accept updates coming from the All Investors edit modal
-    const updates = req.body || {};
-
-    // Resolve identifier - prefer Partner Email, then email fields, then optional id
-    const resolveField = (obj, keys) => {
-      for (const k of keys) {
-        if (obj[k] != null && String(obj[k]).toString().trim() !== '') return String(obj[k]).toString().trim();
-      }
-      return undefined;
-    };
-
-    const targetEmail = resolveField({ ...updates, ...(req.body || {}) }, ['Partner Email', 'partner_email', 'email', 'partnerEmail']);
-    const targetName = resolveField({ ...updates, ...(req.body || {}) }, ['Investor Name', 'investor_name', 'name']);
-
-    if (!targetEmail && !targetName) {
-      return res.status(400).json({ error: 'Provide at least Partner Email or Investor Name to update' });
-    }
-
-    // Connect to Google Sheets
-    const serviceAccountAuth = new JWT({
-      keyFile: CREDENTIALS_PATH,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    const doc = new GoogleSpreadsheet(SHEET_ID, serviceAccountAuth);
-    await doc.loadInfo();
-    const sheet = doc.sheetsByIndex[0];
-    await sheet.loadHeaderRow();
-    const rows = await sheet.getRows();
-
-    // Locate row by Partner Email (case-insensitive), fallback to Investor Name
-    const emailHeader = sheet.headerValues.find(h => h.toLowerCase().trim() === 'partner email');
-    const nameHeader = sheet.headerValues.find(h => h.toLowerCase().trim() === 'investor name');
-
-    let targetRow = null;
-    for (const row of rows) {
-      const rowEmail = emailHeader ? String(row.get(emailHeader) || '').toLowerCase() : '';
-      const rowName = nameHeader ? String(row.get(nameHeader) || '').toLowerCase() : '';
-      const emailMatch = targetEmail ? rowEmail === String(targetEmail).toLowerCase() : false;
-      const nameMatch = targetName ? rowName === String(targetName).toLowerCase() : false;
-      if (emailMatch || (targetEmail == null && nameMatch)) { targetRow = row; break; }
-    }
-
-    if (!targetRow) {
-      return res.status(404).json({ error: 'Matching row not found in Google Sheet' });
-    }
-
-    // Map incoming keys to existing header names
-    const normalizeKey = (k) => {
-      const direct = sheet.headerValues.find(h => h.toLowerCase() === String(k).toLowerCase());
-      if (direct) return direct;
-      const map = {
-        investor_name: 'Investor Name',
-        partner_name: 'Partner Name',
-        partner_email: 'Partner Email',
-        phone_number: 'Phone number',
-        fund_type: 'Fund Type',
-        fund_stage: 'Fund Stage',
-        fund_focus: 'Fund Focus (Sectors)',
-        sector_focus: 'Fund Focus (Sectors)',
-        location: 'Location',
-        ticket_size: 'Ticket Size',
-        website: 'Website',
-      };
-      return map[k] || k;
-    };
-
-    Object.entries(updates).forEach(([key, value]) => {
-      const header = normalizeKey(key);
-      if (sheet.headerValues.includes(header)) {
-        targetRow.set(header, value == null ? '' : value);
-      }
-    });
-    await targetRow.save();
-
-    return res.status(200).json({ success: true, message: 'Investor updated successfully in Google Sheet' });
-  } catch (error) {
-    console.error('Error updating investor (Google Sheets):', error);
-    return res.status(500).json({ error: 'Failed to update investor', details: error.message });
-  }
-};
-
-exports.deleteInvestor = async (req, res) => {
-  res.status(400).json({ 
-    error: "Delete functionality disabled for Excel-only mode",
-    message: "Please update the Excel file and re-upload to make changes"
-  });
-};
-
 exports.getFilterOptions = async (req, res) => {
   try {
     const investors = await getInvestorsFromExcel();
 
-    const fund_stage = [...new Set(investors.flatMap(inv => {
-      const stage = inv['Fund stage'] || inv['fund_stage'] || '';
-      return Array.isArray(stage) ? stage : [stage];
-    }).filter(Boolean))].sort();
+    const fund_stage = [
+      ...new Set(
+        investors
+          .flatMap((inv) => {
+            const stage = inv["Fund stage"] || inv["fund_stage"] || "";
+            return Array.isArray(stage) ? stage : [stage];
+          })
+          .filter(Boolean)
+      ),
+    ].sort();
 
-    const fund_type = [...new Set(investors.flatMap(inv => {
-      const type = inv['Fund type'] || inv['fund_type'] || '';
-      return Array.isArray(type) ? type : [type];
-    }).filter(Boolean))].sort();
+    const fund_type = [
+      ...new Set(
+        investors
+          .flatMap((inv) => {
+            const type = inv["Fund type"] || inv["fund_type"] || "";
+            return Array.isArray(type) ? type : [type];
+          })
+          .filter(Boolean)
+      ),
+    ].sort();
 
-    const sector_focus = [...new Set(investors.flatMap(inv => {
-      const sector = inv['Sector focus'] || inv['sector_focus'] || '';
-      return Array.isArray(sector) ? sector : [sector];
-    }).filter(Boolean))].sort();
+    const sector_focus = [
+      ...new Set(
+        investors
+          .flatMap((inv) => {
+            const sector = inv["Sector focus"] || inv["sector_focus"] || "";
+            return Array.isArray(sector) ? sector : [sector];
+          })
+          .filter(Boolean)
+      ),
+    ].sort();
 
     res.status(200).json({ fund_stage, fund_type, sector_focus });
   } catch (error) {
-    res.status(500).json({ error: "Failed to retrieve filter options", details: error.message });
+    res
+      .status(500)
+      .json({
+        error: "Failed to retrieve filter options",
+        details: error.message,
+      });
   }
 };
 
@@ -419,7 +566,7 @@ exports.getUploadStats = async (req, res) => {
     res.status(200).json({
       totalInvestors: investors.length,
       message: `Total ${investors.length} investors in Excel files`,
-      source: 'excel_files'
+      source: "excel_files",
     });
   } catch (error) {
     res.status(500).json({ error: "Failed to get stats" });
@@ -429,27 +576,43 @@ exports.getUploadStats = async (req, res) => {
 exports.getUniqueFundSectors = async (req, res) => {
   try {
     const investors = await getInvestorsFromExcel();
-    const sectors = [...new Set(investors.flatMap(inv => {
-      const sector = inv['Sector focus'] || inv['sector_focus'] || '';
-      return Array.isArray(sector) ? sector : [sector];
-    }).filter(Boolean))].sort();
+    const sectors = [
+      ...new Set(
+        investors
+          .flatMap((inv) => {
+            const sector = inv["Sector focus"] || inv["sector_focus"] || "";
+            return Array.isArray(sector) ? sector : [sector];
+          })
+          .filter(Boolean)
+      ),
+    ].sort();
 
     res.status(200).json({ sector_focus: sectors });
   } catch (error) {
-    res.status(500).json({ error: "Failed to retrieve sectors", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Failed to retrieve sectors", details: error.message });
   }
 };
 
 exports.getUniqueFundTypes = async (req, res) => {
   try {
     const investors = await getInvestorsFromExcel();
-    const fundTypes = [...new Set(investors.flatMap(inv => {
-      const type = inv['Fund type'] || inv['fund_type'] || '';
-      return Array.isArray(type) ? type : [type];
-    }).filter(Boolean))].sort();
+    const fundTypes = [
+      ...new Set(
+        investors
+          .flatMap((inv) => {
+            const type = inv["Fund type"] || inv["fund_type"] || "";
+            return Array.isArray(type) ? type : [type];
+          })
+          .filter(Boolean)
+      ),
+    ].sort();
 
     res.status(200).json({ fund_type: fundTypes });
   } catch (error) {
-    res.status(500).json({ error: "Failed to retrieve fund types", details: error.message });
+    res
+      .status(500)
+      .json({ error: "Failed to retrieve fund types", details: error.message });
   }
 };

@@ -5,223 +5,367 @@ const {
 } = require("@aws-sdk/client-ses");
 const { sesClient } = require("../config/aws.config");
 
-exports.addClientData = async (req, res) => {
+const ERROR_CODES = {
+  VALIDATION_ERROR: "VALIDATION_ERROR",
+  DUPLICATE_EMAIL: "DUPLICATE_EMAIL",
+  CLIENT_NOT_FOUND: "CLIENT_NOT_FOUND",
+  UNAUTHORIZED: "UNAUTHORIZED",
+  SERVER_ERROR: "SERVER_ERROR",
+};
+
+exports.createClient = async (req, res) => {
   try {
     const {
-      firstName,
-      lastName,
+      companyName,
+      founderName,
       email,
       phone,
-      address,
-      companyName,
-      industry,
-      position,
-      website,
-      state,
-      city,
-      postalCode,
-      companyDescription,
-      investment,
-      revenue,
       fundingStage,
-      employees,
+      revenue,
+      investment,
+      industry,
+      city,
       gmailAppPassword,
     } = req.body;
+
     const userEmail = req.user?.email;
 
-    // Validate Gmail App Password
-    if (!gmailAppPassword) {
-      return res.status(400).json({ 
-        error: 'Gmail App Password is required for email sending functionality' 
+    if (
+      !companyName ||
+      !founderName ||
+      !email ||
+      !phone ||
+      !fundingStage ||
+      !revenue ||
+      !investment ||
+      !industry ||
+      !city
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: ERROR_CODES.VALIDATION_ERROR,
+          message: "All required fields must be provided",
+          fields: {
+            companyName: !companyName,
+            founderName: !founderName,
+            email: !email,
+            phone: !phone,
+            fundingStage: !fundingStage,
+            revenue: !revenue,
+            investment: !investment,
+            industry: !industry,
+            city: !city,
+          },
+        },
       });
     }
 
-    const cleanPassword = gmailAppPassword.replace(/\s/g, '');
-    if (cleanPassword.length !== 16) {
-      return res.status(400).json({ 
-        error: 'Gmail App Password must be exactly 16 characters' 
+    if (gmailAppPassword) {
+      const cleanPassword = gmailAppPassword.replace(/\s/g, "");
+      if (
+        cleanPassword.length !== 16 ||
+        !/^[a-zA-Z0-9]{16}$/.test(cleanPassword)
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: ERROR_CODES.VALIDATION_ERROR,
+            message: "Invalid Gmail App Password format",
+            field: "gmailAppPassword",
+          },
+        });
+      }
+    }
+
+    const existingClient = await dbHelpers.findOne("clients", {
+      email,
+      ownerEmail: userEmail,
+    });
+
+    if (existingClient) {
+      return res.status(409).json({
+        success: false,
+        error: {
+          code: ERROR_CODES.DUPLICATE_EMAIL,
+          message: "Client with this email already exists",
+          field: "email",
+        },
       });
     }
 
     const clientData = {
-      first_name: firstName,
-      last_name: lastName,
-      email,
-      phone,
-      address,
-      company_name: companyName,
-      industry,
-      position,
-      website,
-      state,
-      city,
-      location: req.body.location || city,
-      postalcode: postalCode ? parseInt(postalCode) : undefined,
-      company_desc: companyDescription,
-      investment_ask: investment || undefined,
-      revenue: revenue || undefined,
-      fund_stage: fundingStage,
-      employees: employees ? parseInt(employees) : undefined,
-      archive: false,
-      owner_email: userEmail,
-      gmail_app_password: cleanPassword,
-      email_sending_enabled: true,
-    };
-
-    const savedClient = await dbHelpers.create('companies', clientData);
-
-    res.status(201).json({
-      success: true,
-      client: { id: savedClient.id, ...clientData },
-      message: "Client added successfully",
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.getActiveClientData = async (req, res) => {
-  try {
-    const { email, page = 1, limit = 10 } = req.query;
-    const userEmail = req.user?.email;
-
-    const filters = { archive: false, owner_email: userEmail };
-    if (email) {
-      filters.email = email;
-    }
-
-    const clients = await dbHelpers.getAll('companies', {
-      filters,
-      sortBy: 'createdAt',
-      sortOrder: 'desc',
-      page: parseInt(page),
-      limit: parseInt(limit)
-    });
-
-    const total = await dbHelpers.count('companies', filters);
-
-    res.json({
-      total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      clients,
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.getClientData = async (req, res) => {
-  try {
-    const { email, page = 1, limit = 10, filter = "all" } = req.query;
-    const userEmail = req.user?.email;
-
-    const filters = { owner_email: userEmail };
-
-    if (email) {
-      filters.email = email;
-    }
-
-    if (filter === "archived") {
-      filters.archive = true;
-    } else if (filter === "active") {
-      filters.archive = false;
-    }
-
-    const clients = await dbHelpers.getAll('companies', {
-      filters,
-      sortBy: 'createdAt',
-      sortOrder: 'desc',
-      page: parseInt(page),
-      limit: parseInt(limit)
-    });
-
-    const total = await dbHelpers.count('companies', filters);
-
-    res.json({
-      total,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      clients,
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.updateClientData = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const {
-      firstName,
-      lastName,
+      founderName,
       email,
       phone,
       companyName,
-      position,
       industry,
-      employees,
-      website,
-      address,
-      city,
-      state,
-      postalCode,
+      fundingStage,
       revenue,
       investment,
-      fundingStage,
-      archive,
-    } = req.body;
-
-    const updatedClientData = {
-      first_name: firstName,
-      last_name: lastName,
-      email,
-      phone,
-      company_name: companyName,
-      position,
-      industry,
-      employees: employees ? parseInt(employees) : undefined,
-      website,
-      address,
       city,
-      location: req.body.location || city,
-      state,
-      postalcode: postalCode ? parseInt(postalCode) : undefined,
-      revenue: revenue || undefined,
-      investment_ask: investment || undefined,
-      fund_stage: fundingStage,
+      ownerEmail: userEmail,
+      gmailAppPassword: gmailAppPassword
+        ? gmailAppPassword.replace(/\s/g, "")
+        : "",
+      emailSendingEnabled: !!gmailAppPassword,
+      archived: false,
+      emailVerified: false,
     };
 
-    if (typeof archive !== "undefined") {
-      updatedClientData.archive = archive;
-    }
+    const savedClient = await dbHelpers.create("clients", clientData);
 
-    const updatedClient = await dbHelpers.update('companies', id, updatedClientData);
-
-    if (!updatedClient) {
-      return res.status(404).json({ error: "Client not found" });
-    }
-
-    res.json(updatedClient);
+    res.status(201).json({
+      success: true,
+      data: savedClient,
+      message: "Client created successfully",
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("[Create Client Error]:", {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: ERROR_CODES.SERVER_ERROR,
+        message: "Internal server error",
+      },
+    });
   }
 };
 
-exports.deleteClientData = async (req, res) => {
+exports.getAllClients = async (req, res) => {
+  try {
+    const userEmail = req.user?.email;
+
+    const clients = await dbHelpers.getAll("clients", {
+      //  filters: { ownerEmail: userEmail },
+      sortBy: "createdAt",
+      sortOrder: "desc",
+    });
+
+    res.json({
+      success: true,
+      data: clients,
+    });
+  } catch (error) {
+    console.error("[Get Clients Error]:", {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: ERROR_CODES.SERVER_ERROR,
+        message: "Internal server error",
+      },
+    });
+  }
+};
+
+exports.getClientById = async (req, res) => {
   try {
     const { id } = req.params;
+    const userEmail = req.user?.email;
 
-    const deletedClient = await dbHelpers.delete('companies', id);
+    const client = await dbHelpers.getById("clients", id);
 
-    if (!deletedClient) {
-      return res.status(404).json({ error: "Client not found" });
+    if (!client) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: ERROR_CODES.CLIENT_NOT_FOUND,
+          message: "Client not found",
+        },
+      });
     }
 
-    res.status(200).json({ message: "Client deleted successfully" });
+    if (client.ownerEmail !== userEmail) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: ERROR_CODES.UNAUTHORIZED,
+          message: "Access denied",
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      data: client,
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("[Get Client Error]:", {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: ERROR_CODES.SERVER_ERROR,
+        message: "Internal server error",
+      },
+    });
+  }
+};
+
+exports.updateClient = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userEmail = req.user?.email;
+
+    const existingClient = await dbHelpers.getById("clients", id);
+
+    if (!existingClient) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: ERROR_CODES.CLIENT_NOT_FOUND,
+          message: "Client not found",
+        },
+      });
+    }
+
+    if (existingClient.ownerEmail !== userEmail) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: ERROR_CODES.UNAUTHORIZED,
+          message: "Access denied",
+        },
+      });
+    }
+
+    const {
+      companyName,
+      founderName,
+      email,
+      phone,
+      fundingStage,
+      revenue,
+      investment,
+      industry,
+      city,
+      gmailAppPassword,
+      archived,
+    } = req.body;
+
+    if (gmailAppPassword) {
+      const cleanPassword = gmailAppPassword.replace(/\s/g, "");
+      if (
+        cleanPassword.length !== 16 ||
+        !/^[a-zA-Z0-9]{16}$/.test(cleanPassword)
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: ERROR_CODES.VALIDATION_ERROR,
+            message: "Invalid Gmail App Password format",
+            field: "gmailAppPassword",
+          },
+        });
+      }
+    }
+
+    const updatedData = {};
+
+    if (founderName) updatedData.founderName = founderName;
+    if (companyName) updatedData.companyName = companyName;
+    if (email) updatedData.email = email;
+    if (phone) updatedData.phone = phone;
+    if (fundingStage) updatedData.fundingStage = fundingStage;
+    if (revenue) updatedData.revenue = revenue;
+    if (investment) updatedData.investment = investment;
+    if (industry) updatedData.industry = industry;
+    if (city) updatedData.city = city;
+
+    if (typeof archived !== "undefined") {
+      updatedData.archived = archived;
+    }
+
+    if (gmailAppPassword) {
+      updatedData.gmailAppPassword = gmailAppPassword.replace(/\s/g, "");
+      updatedData.emailSendingEnabled = true;
+    }
+
+    const updatedClient = await dbHelpers.update("clients", id, updatedData);
+
+    res.json({
+      success: true,
+      data: updatedClient,
+      message: "Client updated successfully",
+    });
+  } catch (error) {
+    console.error("[Update Client Error]:", {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: ERROR_CODES.SERVER_ERROR,
+        message: "Internal server error",
+      },
+    });
+  }
+};
+
+exports.deleteClient = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userEmail = req.user?.email;
+
+    const existingClient = await dbHelpers.getById("clients", id);
+
+    if (!existingClient) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: ERROR_CODES.CLIENT_NOT_FOUND,
+          message: "Client not found",
+        },
+      });
+    }
+
+    if (existingClient.ownerEmail !== userEmail) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: ERROR_CODES.UNAUTHORIZED,
+          message: "Access denied",
+        },
+      });
+    }
+
+    await dbHelpers.delete("clients", id);
+
+    res.json({
+      success: true,
+      message: "Client deleted successfully",
+    });
+  } catch (error) {
+    console.error("[Delete Client Error]:", {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+    });
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: ERROR_CODES.SERVER_ERROR,
+        message: "Internal server error",
+      },
+    });
   }
 };
 
@@ -233,7 +377,7 @@ exports.verifyClientEmail = async (req, res) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    const client = await dbHelpers.findOne('companies', { email });
+    const client = await dbHelpers.findOne("companies", { email });
     if (!client) return res.status(404).json({ message: "Client not found" });
 
     if (client.email_verified) {
@@ -284,12 +428,14 @@ exports.updateClientEmailVerification = async (req, res) => {
     const isVerified = status === "Success";
 
     // Find client by email and update verification status
-    const client = await dbHelpers.findOne('companies', { email });
+    const client = await dbHelpers.findOne("companies", { email });
     if (!client) {
       return res.status(404).json({ message: "Client not found in database" });
     }
 
-    await dbHelpers.update('companies', client.id, { email_verified: isVerified });
+    await dbHelpers.update("companies", client.id, {
+      email_verified: isVerified,
+    });
 
     res.status(200).json({
       email,

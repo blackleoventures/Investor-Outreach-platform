@@ -1,6 +1,4 @@
-// Simple in-memory storage for testing
-let clients = [];
-let nextId = 1;
+
 
 exports.addClientData = async (req, res) => {
   try {
@@ -166,38 +164,5 @@ exports.deleteClientData = async (req, res) => {
     res.status(200).json({ message: "Client deleted successfully" });
   } catch (error) {
     res.status(500).json({ error: error.message });
-  }
-};
-
-exports.getActiveClientData = exports.getClientData;
-
-// Simple verification mock: immediately mark verified for the provided email
-exports.verifyClientEmail = (req, res) => {
-  try {
-    const { email } = req.body || {};
-    if (!email) return res.status(400).json({ error: "Email is required" });
-
-    const idx = clients.findIndex(c => c.email === email);
-    if (idx !== -1) {
-      clients[idx].email_verified = true;
-    }
-
-    return res.json({ success: true, email, verified: true });
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
-  }
-};
-
-exports.updateClientEmailVerification = (req, res) => {
-  try {
-    const { email, verified } = req.body || {};
-    if (!email) return res.status(400).json({ error: "Email is required" });
-    const idx = clients.findIndex(c => c.email === email);
-    if (idx !== -1 && typeof verified === 'boolean') {
-      clients[idx].email_verified = verified;
-    }
-    return res.json({ success: true, email, verified: !!verified });
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
   }
 };

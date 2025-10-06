@@ -1,142 +1,192 @@
-// Use the single, centralized Admin instance to avoid mismatched credentials
 const admin = require("./firebase.config");
 
 const db = admin.firestore();
 
-// Helper functions for common database operations
 const dbHelpers = {
-  // Create a new document
   async create(collection, data) {
     try {
-      console.log(`Creating document in ${collection}:`, data);
+      const timestamp = new Date().toISOString();
       const docRef = await db.collection(collection).add({
         ...data,
-        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        createdAt: timestamp,
+        updatedAt: timestamp,
       });
-      console.log(`Document created with ID: ${docRef.id}`);
-      return { id: docRef.id, ...data };
+
+      return {
+        id: docRef.id,
+        ...data,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      };
     } catch (error) {
-      console.error(`Error creating document in ${collection}:`, error);
-      throw new Error(`Error creating document: ${error.message}`);
+      console.error(`[DB] Create failed in ${collection}:`, error.message);
+      throw new Error(`Failed to create document: ${error.message}`);
     }
   },
 
-  // Get a document by ID
   async getById(collection, id) {
     try {
       const doc = await db.collection(collection).doc(id).get();
-      if (!doc.exists) {
-        return null;
-      }
-      return { id: doc.id, ...doc.data() };
+      return doc.exists ? { id: doc.id, ...doc.data() } : null;
     } catch (error) {
-      throw new Error(`Error getting document: ${error.message}`);
+      console.error(`[DB] GetById failed in ${collection}:`, error.message);
+      throw new Error(`Failed to retrieve document: ${error.message}`);
     }
   },
 
-  // Get all documents with optional filtering and pagination
   async getAll(collection, options = {}) {
     try {
       let query = db.collection(collection);
-      
-      // Apply filters
+
       if (options.filters) {
-        Object.keys(options.filters).forEach(key => {
-          if (options.filters[key] !== undefined && options.filters[key] !== null) {
-            query = query.where(key, '==', options.filters[key]);
+        Object.entries(options.filters).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            query = query.where(key, "==", value);
           }
         });
       }
 
-      // Apply sorting
       if (options.sortBy) {
-        query = query.orderBy(options.sortBy, options.sortOrder || 'desc');
+        query = query.orderBy(options.sortBy, options.sortOrder || "desc");
       }
 
-      // Apply pagination
       if (options.page && options.limit) {
         const skip = (parseInt(options.page) - 1) * parseInt(options.limit);
         query = query.offset(skip).limit(parseInt(options.limit));
       }
 
       const snapshot = await query.get();
-      const documents = [];
-      snapshot.forEach(doc => {
-        documents.push({ id: doc.id, ...doc.data() });
-      });
-
-      return documents;
+      return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
-      throw new Error(`Error getting documents: ${error.message}`);
+      console.error(`[DB] GetAll failed in ${collection}:`, error.message);
+      throw new Error(`Failed to retrieve documents: ${error.message}`);
     }
   },
 
-  // Update a document
   async update(collection, id, data) {
     try {
-      await db.collection(collection).doc(id).update({
+      const updateData = {
         ...data,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
-      return { id, ...data };
+        updatedAt: new Date().toISOString(),
+      };
+
+      await db.collection(collection).doc(id).update(updateData);
+      return { id, ...updateData };
     } catch (error) {
-      throw new Error(`Error updating document: ${error.message}`);
+      console.error(
+        `[DB] Update failed in ${collection}/${id}:`,
+        error.message
+      );
+      throw new Error(`Failed to update document: ${error.message}`);
     }
   },
 
-  // Delete a document
   async delete(collection, id) {
     try {
       await db.collection(collection).doc(id).delete();
       return { id };
     } catch (error) {
-      throw new Error(`Error deleting document: ${error.message}`);
+      console.error(
+        `[DB] Delete failed in ${collection}/${id}:`,
+        error.message
+      );
+      throw new Error(`Failed to delete document: ${error.message}`);
     }
   },
 
-  // Count documents
   async count(collection, filters = {}) {
     try {
       let query = db.collection(collection);
-      
-      // Apply filters
-      Object.keys(filters).forEach(key => {
-        if (filters[key] !== undefined && filters[key] !== null) {
-          query = query.where(key, '==', filters[key]);
+
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          query = query.where(key, "==", value);
         }
       });
 
-      const snapshot = await query.get();
-      return snapshot.size;
+      const snapshot = await query.count().get();
+      return snapshot.data().count;
     } catch (error) {
-      throw new Error(`Error counting documents: ${error.message}`);
+      console.error(`[DB] Count failed in ${collection}:`, error.message);
+      throw new Error(`Failed to count documents: ${error.message}`);
     }
   },
 
-  // Find one document with filters
   async findOne(collection, filters = {}) {
     try {
       let query = db.collection(collection);
-      
-      // Apply filters
-      Object.keys(filters).forEach(key => {
-        if (filters[key] !== undefined && filters[key] !== null) {
-          query = query.where(key, '==', filters[key]);
+
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          query = query.where(key, "==", value);
         }
       });
 
       const snapshot = await query.limit(1).get();
-      if (snapshot.empty) {
-        return null;
-      }
-      
+      if (snapshot.empty) return null;
+
       const doc = snapshot.docs[0];
       return { id: doc.id, ...doc.data() };
     } catch (error) {
-      throw new Error(`Error finding document: ${error.message}`);
+      console.error(`[DB] FindOne failed in ${collection}:`, error.message);
+      throw new Error(`Failed to find document: ${error.message}`);
     }
-  }
+  },
+
+  async batchCreate(collection, dataArray) {
+    try {
+      const batch = db.batch();
+      const timestamp = new Date().toISOString();
+      const results = [];
+
+      dataArray.forEach((data) => {
+        const docRef = db.collection(collection).doc();
+        batch.set(docRef, {
+          ...data,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        });
+        results.push({ id: docRef.id, ...data });
+      });
+
+      await batch.commit();
+      return results;
+    } catch (error) {
+      console.error(`[DB] BatchCreate failed in ${collection}:`, error.message);
+      throw new Error(`Failed to batch create documents: ${error.message}`);
+    }
+  },
+
+  async batchUpdate(collection, updates) {
+    try {
+      const batch = db.batch();
+      const timestamp = new Date().toISOString();
+
+      updates.forEach(({ id, data }) => {
+        const docRef = db.collection(collection).doc(id);
+        batch.update(docRef, { ...data, updatedAt: timestamp });
+      });
+
+      await batch.commit();
+      return { updated: updates.length };
+    } catch (error) {
+      console.error(`[DB] BatchUpdate failed in ${collection}:`, error.message);
+      throw new Error(`Failed to batch update documents: ${error.message}`);
+    }
+  },
+
+  async exists(collection, id) {
+    try {
+      const doc = await db.collection(collection).doc(id).get();
+      return doc.exists;
+    } catch (error) {
+      console.error(
+        `[DB] Exists check failed in ${collection}/${id}:`,
+        error.message
+      );
+      throw new Error(`Failed to check document existence: ${error.message}`);
+    }
+  },
 };
 
-module.exports = { db, dbHelpers }; 
+module.exports = { db, dbHelpers };

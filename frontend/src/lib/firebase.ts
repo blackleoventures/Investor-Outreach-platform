@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, connectAuthEmulator } from 'firebase/auth';
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getAuth ,GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore} from 'firebase/firestore';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -13,39 +13,10 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Validate Firebase configuration
-const isValidConfig = firebaseConfig.apiKey && firebaseConfig.projectId;
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
 
-if (!isValidConfig) {
-  console.warn('⚠️ Firebase configuration incomplete, using fallback');
-}
-
-// Initialize Firebase with error handling
-let app = null;
-if (isValidConfig) {
-  try {
-    app = initializeApp(firebaseConfig);
-  } catch (error) {
-    console.warn('Firebase initialization failed:', error);
-    app = null;
-  }
-}
-
-// Initialize Firebase services with null checks
-export const auth = app ? getAuth(app) : null;
-export const db = app ? getFirestore(app) : null;
-
-// Export config validation status
-export const isFirebaseConfigured = !!app;
-
-// Skip emulators for Google Sign-in to work properly
-
-// Lazy load analytics only when needed
-export const getAnalytics = async () => {
-  if (typeof window !== 'undefined' && app) {
-    const { getAnalytics } = await import('firebase/analytics');
-    return getAnalytics(app);
-  }
-  return null;
-};
-export default app; 
+// Initialize Firestore and Auth
+export const db = getFirestore(app);
+export const auth = getAuth(app);
+export const googleProvider = new GoogleAuthProvider();

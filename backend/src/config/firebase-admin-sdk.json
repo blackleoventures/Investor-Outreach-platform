@@ -1,0 +1,15 @@
+
+
+{
+  "type": "service_account",
+  "project_id": "investor-outreach-c71ad",
+  "private_key_id": "fe58b5695529dbe05f885",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvBgkqhkiG9w0BAAASCBKYwggSiAgEAAoIBAQC+pCwk/M+lSFiR\nrvzLKpa4XhnyIm0Y0anHC7GiC1DdHJN2MJ3l1IP3ikic0Tk57C2Q5ZJ0bKdVwPPt\nnIP5bOGVZn2bzQI1CZaMOWXcSB8bDpm+yMr+45zwjQqyz5Q+Hbi1SyRSyKRv68N5\nhhnH6OutrJZebaBdf8PROdjEN3diH8qoyW7rLy8yIeOTuWrjavvPlEB3CMi0/Ox7\norfEAvkgHjb0TTl5g0W/PiifDh5/q2qhMicnm6ypudUXr2Q9ICDK9/CxaQ0W0lsz\nnqRARGl5+bOmR+ePwx53xSuGLB1uiM6Dxq2BSftmU0kKfxkdpwIxwYgS2+K222iI\nz77RR5RlAgMBAAECggEAMgWJv7rGESxGcRNlKTnnikDGtg3qalS5I40h8s7dTOcu\nmhhvldqJNe6G1v7e8R/TZO2X3AyWa53RY0tqJYw4NKdL1hGYvqnhYrG81GvoHYVb\nOgAdo3u9tjCL2hc1YocR7B/nTAFxhBxskfpp0VaAYHWkjupc5aucic2P3wxeutQA\njTY0WQ9LA0t61wF+c6AHOsOklHexDph/o+J2Fl1JToBkfW/0PetSDA1hqVeSNiLg\nqrq/E+so83P8X8cUiKcXrBJ/kOXHdPUr4wQp1ccSb7RQdYqtN9uDlCg2brCulPe/\nabgSxglD1MBU6qWjBLwezleCLdSRrMQaypiNokTWEQKBgQDp++NRLeoPq0v/hmG6\n79wbDLagTnXWMZCtGYNfgVnusSoy3giXztMMbe5zzcKpmpFfkr6657WCddsnc4w/\nCXZmyIOC8TlKnjjyr0BI2dNGY3qgM0bllrEfeTOX9DdAKh1M2RCCF8LDy0MCwnwB\nTIt7rvomiPf+S8CZH+ZiAef4SwKBgQDQlEOk3cn5rLsfJaIpPEotAGV3TnFmEDuA\n4ZXCAbO0cr0vxL1Akw3VwvBX4YiALwuH9zxQONbJ0FmW5aYl3F6/+hXuJZP5ko2a\n5Hq/xTrijiX9F0CQje5k8l1BDUuMYCKNu8AMHiOQe2GX4NXuKC47BqUSvFi79wSL\nqaaa4JsYDwKBgHA7JNbMaien52UiRQBQisfiujp8R+M8lQOiaDRILCXkjrQlcgO2\n7d5ZYHXlbQjDHhW0oo2uFI8GDt+Gee/GjydP6FzHbc6PxAsL6o7HBKMPlkL/NXNs\na3sIPKoXNuUtDi7NMzDjSsV1WqgZNze8Sm9CB7SyIBm2piQMfAnoliavAoGAKClU\nOQuHl26d/SpW5g+4zJ916hoNlbRscK1/E4MWYhlxuh/svOFT2aQWeSVxDhWA5+ZA\nE8ZN/UAD8B0597JOADMcQ+Wyb2y7nWZ/CCvm4bazM99lTDA4BfHw6NSxhk8AeD/9\ng5fOC0TmjsL5DkloVW87G7ducormsimxbcLvuhsCgYADv5/MGTXOq0nfuMa5BgK0\n9MkRnnu4hY6QeXVY4Ox4IaJtjbPPaEabCkaT0z94LAxkg7kbJOtVjegREfE7EQtu\nWlWQVd+i+iX3/siVyPJIFFribPQJmUEJPjNLhwC8WvIcI/5VkhLx9vYFULRV5BhD\nggCZLLxhjNx0ajIGr4y/jQ==\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fstor-outreach-c71ad.iam.gserviceaccount.com",
+  "client_id": "107188098897179072712",
+  "auth_uri": "https://accountsauth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.corts",
+  "client_x509_cert_url": "https://www.googleapis1/metadata/x509/firebase-adminsdk-fbsvc%40investor-outreach-c71ad.iam.gserviceaccount.com",
+  "universe_domain": "googlpis.com"
+}
