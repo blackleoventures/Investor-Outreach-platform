@@ -168,6 +168,11 @@ export default function DashboardLayout({
           },
         ],
       },
+      {
+        key: "/dashboard/account-management",
+        icon: <UserOutlined />,
+        ...navItem("/dashboard/account-management", "Account Management"),
+      }
     ],
     [navItem]
   );

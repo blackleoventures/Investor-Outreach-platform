@@ -1,30 +1,38 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  User, 
-  signInWithPopup, 
-  signInWithRedirect,
-  GoogleAuthProvider, 
-  signOut, 
+import React, { createContext, useContext, useEffect, useState } from "react";
+import {
+  User,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
   onAuthStateChanged,
-  getRedirectResult,
+  signInWithEmailAndPassword,
   setPersistence,
   browserLocalPersistence,
-  browserSessionPersistence
-} from 'firebase/auth';
-import { auth } from '@/lib/firebase';
-import { detectBrowserEnvironment, getAuthErrorMessage, isAuthSupported, getAuthSettings } from '@/lib/auth-utils';
-import { prepareMobileAuth, handleMobileBackButton } from '@/lib/mobile-auth-fix';
+} from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
+import { message } from "antd";
+
+interface UserData {
+  uid: string;
+  email: string;
+  displayName: string;
+  role: "client" | "admin" | "subadmin";
+  photoURL?: string;
+  active?: boolean;
+  createdAt: any;
+  lastLogin: any;
+}
 
 interface AuthContextType {
   currentUser: User | null;
-  login: () => Promise<any>;
-  logout: () => Promise<void>;
+  userData: UserData | null;
   loading: boolean;
-  authError: string | null;
-  retryLogin: () => Promise<void>;
-  clearError: () => void;
+  loginWithGoogle: () => Promise<void>;
+  loginWithEmail: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -32,229 +40,237 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 }
 
-
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [loginAttempts, setLoginAttempts] = useState(0);
 
-  // Initialize mobile auth fixes
-  useEffect(() => {
-    const browserInfo = detectBrowserEnvironment();
-    if (browserInfo.isMobile) {
-      const cleanupMobileAuth = prepareMobileAuth();
-      const cleanupBackButton = handleMobileBackButton();
-      
-      return () => {
-        cleanupMobileAuth?.();
-        cleanupBackButton?.();
-      };
-    }
-  }, []);
+  const fetchUserData = async (
+    uid: string,
+    retryCount = 0
+  ): Promise<UserData | null> => {
+    try {
+      const userDocRef = doc(db, "users", uid);
+      const userDoc = await getDoc(userDocRef);
 
-  async function login() {
-    if (!auth) {
-      console.error('Firebase auth not initialized');
-      throw new Error('Authentication service not available');
-    }
-    
-    // Check if authentication is supported in this environment
-    if (!isAuthSupported()) {
-      const error = 'Your browser doesn\'t support the required features for authentication. Please enable cookies and local storage.';
-      setAuthError(error);
-      throw new Error(error);
-    }
-    
-    setAuthError(null);
-    const browserInfo = detectBrowserEnvironment();
-    const authSettings = getAuthSettings(browserInfo);
-    
-    console.log('Browser environment:', browserInfo);
-    console.log('Auth settings:', authSettings);
-    
-    // Set appropriate persistence based on browser
-    try {
-      const persistence = authSettings.persistence === 'local' ? browserLocalPersistence : browserSessionPersistence;
-      await setPersistence(auth, persistence);
-      console.log('Auth persistence set successfully');
-    } catch (error) {
-      console.warn('Could not set auth persistence:', error);
-    }
-    
-    const provider = new GoogleAuthProvider();
-    provider.addScope('email');
-    provider.addScope('profile');
-    provider.setCustomParameters(authSettings.customParameters);
-    
-    // Enhanced login strategy based on browser capabilities
-    try {
-      if (authSettings.method === 'popup' && browserInfo.supportsPopup) {
-        console.log(`Using popup method for ${browserInfo.browser}`);
-        const result = await signInWithPopup(auth, provider);
-        console.log('Popup login successful');
-        return result;
-      } else {
-        console.log(`Using redirect method for ${browserInfo.browser}`);
-        await signInWithRedirect(auth, provider);
-        return;
+      if (userDoc.exists()) {
+        const data = userDoc.data() as UserData;
+        setUserData(data);
+        return data;
       }
+
+      // If document doesn't exist and we haven't retried, wait and try again
+      if (retryCount < 2) {
+        console.log(
+          `User document not found, retrying... (${retryCount + 1}/2)`
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        return fetchUserData(uid, retryCount + 1);
+      }
+
+      return null;
     } catch (error: any) {
-      console.error('Primary login method failed:', error);
-      
-      // Set user-friendly error message
-      const errorMessage = getAuthErrorMessage(error.code, browserInfo);
-      setAuthError(errorMessage);
-      
-      // Fallback strategies
-      if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
-        console.log('Trying redirect as fallback');
-        try {
-          await signInWithRedirect(auth, provider);
-          return;
-        } catch (redirectError: any) {
-          console.error('Redirect fallback also failed:', redirectError);
-          const fallbackErrorMessage = getAuthErrorMessage(redirectError.code, browserInfo);
-          setAuthError(fallbackErrorMessage);
-          throw redirectError;
-        }
+      console.error("Error fetching user data:", error);
+
+      // If permission error and we haven't retried, wait and try again
+      if (error.code === "permission-denied" && retryCount < 2) {
+        console.log(`Permission denied, retrying... (${retryCount + 1}/2)`);
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        return fetchUserData(uid, retryCount + 1);
       }
-      
+
+      return null;
+    }
+  };
+
+  const createOrUpdateUser = async (
+    user: User,
+    role?: "client" | "admin" | "subadmin"
+  ) => {
+    try {
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+      const timestamp = new Date().toISOString();
+
+      // If document exists, just update lastLogin
+      if (userDoc.exists()) {
+        const existingData = userDoc.data() as UserData;
+        const updatedData: UserData = {
+          ...existingData,
+          lastLogin: timestamp,
+          // Update display name and photo if changed
+          displayName: user.displayName || existingData.displayName,
+          photoURL: user.photoURL || existingData.photoURL || "",
+        };
+
+        await setDoc(userDocRef, updatedData, { merge: true });
+        setUserData(updatedData);
+        return updatedData;
+      }
+
+      // Create new user document
+      const userData: UserData = {
+        uid: user.uid,
+        email: user.email || "",
+        displayName: user.displayName || "",
+        role: role || "client",
+        photoURL: user.photoURL || "",
+        active: true,
+        createdAt: timestamp,
+        lastLogin: timestamp,
+      };
+
+      await setDoc(userDocRef, userData);
+      setUserData(userData);
+      return userData;
+    } catch (error) {
+      console.error("Error creating/updating user:", error);
+      throw new Error("Failed to save user information");
+    }
+  };
+
+  async function loginWithGoogle() {
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      const provider = new GoogleAuthProvider();
+      provider.addScope("email");
+      provider.addScope("profile");
+
+      const result = await signInWithPopup(auth, provider);
+      await createOrUpdateUser(result.user, "client");
+
+      message.success("Welcome! You have successfully signed in.");
+    } catch (error: any) {
+      console.error("Google login error:", error);
+
+      if (error.code === "auth/popup-closed-by-user") {
+        message.warning("Sign in was cancelled. Please try again.");
+      } else if (error.code === "auth/popup-blocked") {
+        message.error(
+          "Pop-up was blocked by your browser. Please allow pop-ups and try again."
+        );
+      } else if (error.code === "auth/cancelled-popup-request") {
+        // Silent
+      } else if (error.code === "auth/network-request-failed") {
+        message.error("Network error. Please check your internet connection.");
+      } else {
+        message.error(
+          "Unable to sign in at the moment. Please try again later."
+        );
+      }
+      throw error;
+    }
+  }
+
+  async function loginWithEmail(email: string, password: string) {
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      const result = await signInWithEmailAndPassword(auth, email, password);
+
+      // Wait a bit for Firebase Auth to fully initialize
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Fetch user data with retry logic
+      const data = await fetchUserData(result.user.uid);
+
+      if (!data) {
+        await signOut(auth);
+        message.error("Account not found. Please contact administrator.");
+        throw new Error("User data not found");
+      }
+
+      if (data.role !== "admin" && data.role !== "subadmin") {
+        await signOut(auth);
+        message.error("Access denied. This area is for team members only.");
+        throw new Error("Unauthorized role");
+      }
+
+      // Check if account is active
+      if (data.active === false) {
+        await signOut(auth);
+        message.error(
+          "Your account has been deactivated. Please contact administrator."
+        );
+        throw new Error("Account deactivated");
+      }
+
+      // Update last login
+      await createOrUpdateUser(result.user, data.role);
+
+      message.success(`Welcome back, ${data.displayName || "Team Member"}!`);
+    } catch (error: any) {
+      console.error("Email login error:", error);
+
+      if (
+        error.message === "User data not found" ||
+        error.message === "Unauthorized role" ||
+        error.message === "Account deactivated"
+      ) {
+        throw error;
+      }
+
+      if (
+        error.code === "auth/invalid-credential" ||
+        error.code === "auth/wrong-password" ||
+        error.code === "auth/user-not-found"
+      ) {
+        message.error(
+          "Invalid email or password. Please check your credentials."
+        );
+      } else if (error.code === "auth/too-many-requests") {
+        message.error("Too many failed attempts. Please try again later.");
+      } else if (error.code === "auth/network-request-failed") {
+        message.error("Network error. Please check your internet connection.");
+      } else if (error.code === "auth/invalid-email") {
+        message.error("Please enter a valid email address.");
+      } else {
+        message.error("Unable to sign in. Please try again.");
+      }
       throw error;
     }
   }
 
   async function logout() {
-    if (!auth) {
-      console.error('Firebase auth not initialized');
-      throw new Error('Authentication service not available');
-    }
-    
     try {
       await signOut(auth);
+      setUserData(null);
+      message.success("You have been signed out successfully.");
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
+      message.error("Unable to sign out. Please try again.");
       throw error;
     }
   }
 
   useEffect(() => {
-    if (!auth) {
-      console.warn('Firebase auth not available, skipping auth state listener');
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      setCurrentUser(user);
+
+      if (user) {
+        await fetchUserData(user.uid);
+      } else {
+        setUserData(null);
+      }
+
       setLoading(false);
-      return;
-    }
-
-    let mounted = true;
-    const browserInfo = detectBrowserEnvironment();
-
-    // Enhanced redirect result handling
-    const handleRedirectResult = async () => {
-      if (!auth) return;
-      
-      try {
-        console.log('Checking for redirect result...');
-        const result = await getRedirectResult(auth);
-        
-        if (result && mounted) {
-          console.log('Redirect login successful:', result.user.email);
-          setCurrentUser(result.user);
-          setAuthError(null);
-          
-          // Clear any error states on successful login
-          if (typeof window !== 'undefined') {
-            // Remove any error parameters from URL
-            const url = new URL(window.location.href);
-            if (url.searchParams.has('error')) {
-              url.searchParams.delete('error');
-              window.history.replaceState({}, '', url.toString());
-            }
-          }
-        } else if (result === null) {
-          console.log('No redirect result found');
-        }
-      } catch (error: any) {
-        console.error('Redirect result error:', error);
-        
-        if (mounted) {
-          // Use utility function for consistent error messages
-          const errorMessage = getAuthErrorMessage(error.code, browserInfo);
-          setAuthError(errorMessage);
-        }
-      }
-    };
-
-    // Set up auth state listener with enhanced error handling
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (mounted) {
-        console.log('Auth state changed:', user ? user.email : 'No user');
-        setCurrentUser(user);
-        setLoading(false);
-        
-        // Clear auth error when user successfully logs in
-        if (user && authError) {
-          setAuthError(null);
-        }
-      }
-    }, (error) => {
-      console.error('Auth state change error:', error);
-      if (mounted) {
-        setLoading(false);
-        setAuthError(`Authentication error: ${error.message}`);
-      }
     });
 
-    // Handle redirect result with a small delay to ensure auth is ready
-    // Longer delay for mobile browsers
-    const delay = browserInfo.isMobile ? 500 : 100;
-    
-    const timeoutId = setTimeout(() => {
-      if (mounted) {
-        handleRedirectResult();
-      }
-    }, delay);
-
-    return () => {
-      mounted = false;
-      clearTimeout(timeoutId);
-      unsubscribe();
-    };
-  }, [authError]);
-
-  const retryLogin = async () => {
-    if (loginAttempts >= 3) {
-      setAuthError('Too many login attempts. Please refresh the page and try again.');
-      return;
-    }
-    
-    setLoginAttempts(prev => prev + 1);
-    await login();
-  };
-
-  const clearError = () => {
-    setAuthError(null);
-    setLoginAttempts(0);
-  };
+    return unsubscribe;
+  }, []);
 
   const value = {
     currentUser,
-    login,
-    logout,
+    userData,
     loading,
-    authError,
-    retryLogin,
-    clearError
+    loginWithGoogle,
+    loginWithEmail,
+    logout,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-} 
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}

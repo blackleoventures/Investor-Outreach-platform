@@ -1,7 +1,4 @@
 const fs = require("fs");
-const path = require("path");
-const { db, dbHelpers } = require("../config/firebase-db.config");
-
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 // Initialize Gemini AI

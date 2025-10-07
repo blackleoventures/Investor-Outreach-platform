@@ -1,10 +1,5 @@
 const admin = require("firebase-admin");
 
-/**
- * Firebase Admin SDK Configuration
- * Initializes once and exports for use across the application
- */
-
 // Prevent multiple initializations
 if (!admin.apps.length) {
   try {
@@ -58,4 +53,8 @@ if (!admin.apps.length) {
   }
 }
 
+// Export both admin and db
+const db = admin.firestore();
+
 module.exports = admin;
+module.exports.db = db;
