@@ -98,6 +98,8 @@ const dealRoomRoutes = require("./routes/dealRoom.route");
 
 const adminUsersRoutes = require("./routes/adminUsersRoutes");
 
+const clientSubmissionRoutes = require('./routes/clientSubmission.routes');
+
 app.get("/", (req, res) =>
   res.json({ message: "Send Email API Server", status: "running" })
 );
@@ -122,6 +124,8 @@ app.use("/api/deck-activity", deckActivityRoutes);
 app.use("/api/deal-rooms", dealRoomRoutes);
 
 app.use("/api/admin/users", adminUsersRoutes);
+
+app.use('/api/client-submissions', clientSubmissionRoutes);
 const PORT = process.env.PORT || 5000;
 
 // For Vercel deployment

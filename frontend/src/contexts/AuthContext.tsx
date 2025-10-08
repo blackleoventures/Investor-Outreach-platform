@@ -45,6 +45,16 @@ export function useAuth() {
   return context;
 }
 
+// Helper functions for cookies
+const setCookie = (name: string, value: string, days: number) => {
+  const maxAge = days * 24 * 60 * 60;
+  document.cookie = `${name}=${value}; path=/; max-age=${maxAge}; SameSite=Lax`;
+};
+
+const deleteCookie = (name: string) => {
+  document.cookie = `${name}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
@@ -61,10 +71,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (userDoc.exists()) {
         const data = userDoc.data() as UserData;
         setUserData(data);
+        // Set cookie immediately when user data is fetched
+        setCookie("userRole", data.role, 7);
+        console.log("User data fetched and cookie set:", data.role);
         return data;
       }
 
-      // If document doesn't exist and we haven't retried, wait and try again
       if (retryCount < 2) {
         console.log(
           `User document not found, retrying... (${retryCount + 1}/2)`
@@ -77,7 +89,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error: any) {
       console.error("Error fetching user data:", error);
 
-      // If permission error and we haven't retried, wait and try again
       if (error.code === "permission-denied" && retryCount < 2) {
         console.log(`Permission denied, retrying... (${retryCount + 1}/2)`);
         await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -97,23 +108,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userDoc = await getDoc(userDocRef);
       const timestamp = new Date().toISOString();
 
-      // If document exists, just update lastLogin
       if (userDoc.exists()) {
         const existingData = userDoc.data() as UserData;
         const updatedData: UserData = {
           ...existingData,
           lastLogin: timestamp,
-          // Update display name and photo if changed
           displayName: user.displayName || existingData.displayName,
           photoURL: user.photoURL || existingData.photoURL || "",
         };
 
         await setDoc(userDocRef, updatedData, { merge: true });
         setUserData(updatedData);
+
+        // Set cookie immediately
+        setCookie("userRole", existingData.role, 7);
+        console.log("Cookie set for existing user:", existingData.role);
+
         return updatedData;
       }
 
-      // Create new user document
       const userData: UserData = {
         uid: user.uid,
         email: user.email || "",
@@ -127,6 +140,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       await setDoc(userDocRef, userData);
       setUserData(userData);
+
+      // Set cookie immediately
+      setCookie("userRole", userData.role, 7);
+      console.log("Cookie set for new user:", userData.role);
+
       return userData;
     } catch (error) {
       console.error("Error creating/updating user:", error);
@@ -142,7 +160,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       provider.addScope("profile");
 
       const result = await signInWithPopup(auth, provider);
+
+      // Create/update user and wait for it to complete
       await createOrUpdateUser(result.user, "client");
+
+      // Small delay to ensure cookie is set
+      await new Promise((resolve) => setTimeout(resolve, 100));
 
       message.success("Welcome! You have successfully signed in.");
     } catch (error: any) {
@@ -172,34 +195,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await setPersistence(auth, browserLocalPersistence);
       const result = await signInWithEmailAndPassword(auth, email, password);
 
-      // Wait a bit for Firebase Auth to fully initialize
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Fetch user data with retry logic
       const data = await fetchUserData(result.user.uid);
 
       if (!data) {
         await signOut(auth);
+        deleteCookie("userRole");
         message.error("Account not found. Please contact administrator.");
         throw new Error("User data not found");
       }
 
       if (data.role !== "admin" && data.role !== "subadmin") {
         await signOut(auth);
+        deleteCookie("userRole");
         message.error("Access denied. This area is for team members only.");
         throw new Error("Unauthorized role");
       }
 
-      // Check if account is active
       if (data.active === false) {
         await signOut(auth);
+        deleteCookie("userRole");
         message.error(
           "Your account has been deactivated. Please contact administrator."
         );
         throw new Error("Account deactivated");
       }
 
-      // Update last login
       await createOrUpdateUser(result.user, data.role);
 
       message.success(`Welcome back, ${data.displayName || "Team Member"}!`);
@@ -239,6 +261,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await signOut(auth);
       setUserData(null);
+
+      // Clear role cookie
+      deleteCookie("userRole");
+      console.log("Cookie cleared on logout");
+
       message.success("You have been signed out successfully.");
     } catch (error) {
       console.error("Logout error:", error);
@@ -252,9 +279,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setCurrentUser(user);
 
       if (user) {
-        await fetchUserData(user.uid);
+        const data = await fetchUserData(user.uid);
+        if (data) {
+          // Cookie is already set in fetchUserData
+          console.log(
+            "Auth state changed - user logged in with role:",
+            data.role
+          );
+        }
       } else {
         setUserData(null);
+        deleteCookie("userRole");
       }
 
       setLoading(false);

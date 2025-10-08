@@ -656,7 +656,7 @@ const Profile = () => {
         </Modal>
       </motion.div>
 
-      <div className="max-w-7xl mx-auto py-8">
+      <div className="py-8">
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}

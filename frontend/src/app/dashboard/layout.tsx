@@ -27,6 +27,7 @@ import {
   MenuOutlined,
   CloseOutlined,
   PlusOutlined,
+  FileTextOutlined,
 } from "@ant-design/icons";
 import Image from "next/image";
 
@@ -38,7 +39,7 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { currentUser, logout, loading } = useAuth();
+  const { currentUser, userData, logout, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -90,7 +91,8 @@ export default function DashboardLayout({
     []
   );
 
-  const menuItems = useMemo(
+  // Admin menu items (full access)
+  const adminMenuItems = useMemo(
     () => [
       {
         key: "/dashboard",
@@ -172,10 +174,121 @@ export default function DashboardLayout({
         key: "/dashboard/account-management",
         icon: <UserOutlined />,
         ...navItem("/dashboard/account-management", "Account Management"),
-      }
+      },
     ],
     [navItem]
   );
+
+  // Subadmin menu items (exclude account management)
+  const subadminMenuItems = useMemo(
+    () => [
+      {
+        key: "/dashboard",
+        icon: <DashboardOutlined />,
+        ...navItem("/dashboard", "Dashboard"),
+      },
+      {
+        key: "client-management",
+        icon: <UserOutlined />,
+        label: "Client Management",
+        children: [
+          {
+            key: "/dashboard/all-client",
+            icon: <TeamOutlined />,
+            ...navItem("/dashboard/all-client", "All Clients"),
+          },
+          {
+            key: "/dashboard/add-client",
+            icon: <PlusOutlined />,
+            ...navItem("/dashboard/add-client", "Add Client"),
+          },
+        ],
+      },
+      {
+        key: "/dashboard/allCampaign",
+        icon: <NotificationOutlined />,
+        ...navItem("/dashboard/allCampaign", "Manage Campaigns"),
+      },
+      {
+        key: "/dashboard/select-campaign",
+        icon: <MailOutlined />,
+        ...navItem("/dashboard/select-campaign", "Select Campaign"),
+      },
+      {
+        key: "/dashboard/all-reports",
+        icon: <BarChartOutlined />,
+        ...navItem("/dashboard/all-reports", "Reports"),
+      },
+      {
+        key: "/dashboard/matchmaker",
+        icon: <SearchOutlined />,
+        ...navItem("/dashboard/matchmaker", "Matchmaker"),
+      },
+      {
+        key: "investor-management",
+        icon: <UserSwitchOutlined />,
+        label: "Investor Management",
+        children: [
+          {
+            key: "/dashboard/all-investors",
+            icon: <UserSwitchOutlined />,
+            ...navItem("/dashboard/all-investors", "All Investors"),
+          },
+          {
+            key: "/dashboard/add-investor",
+            icon: <PlusOutlined />,
+            ...navItem("/dashboard/add-investor", "Add Investor"),
+          },
+        ],
+      },
+      {
+        key: "incubator-management",
+        icon: <RobotOutlined />,
+        label: "Incubator Management",
+        children: [
+          {
+            key: "/dashboard/all-incubators",
+            icon: <RobotOutlined />,
+            ...navItem("/dashboard/all-incubators", "All Incubators"),
+          },
+          {
+            key: "/dashboard/add-incubator",
+            icon: <PlusOutlined />,
+            ...navItem("/dashboard/add-incubator", "Add Incubator"),
+          },
+        ],
+      },
+    ],
+    [navItem]
+  );
+
+  // Client menu items (only submit information)
+  const clientMenuItems = useMemo(
+    () => [
+      {
+        key: "/dashboard/submit-information",
+        icon: <FileTextOutlined />,
+        ...navItem("/dashboard/submit-information", "Submit Information"),
+      },
+    ],
+    [navItem]
+  );
+
+  // Get menu items based on user role
+  const menuItems = useMemo(() => {
+    if (!userData?.role) return [];
+
+    switch (userData.role) {
+      case "admin":
+        return adminMenuItems;
+      case "subadmin":
+        return subadminMenuItems;
+      case "client":
+        return clientMenuItems;
+      default:
+        return [];
+    }
+  }, [userData?.role, adminMenuItems, subadminMenuItems, clientMenuItems]);
 
   const userMenuItems = useMemo(
     () => [
@@ -189,6 +302,9 @@ export default function DashboardLayout({
             <Text type="secondary" className="block text-xs">
               {currentUser?.email}
             </Text>
+            <Text type="secondary" className="block text-xs mt-1 capitalize">
+              Role: {userData?.role || "N/A"}
+            </Text>
             <Text type="secondary" className="block text-xs mt-1">
               Last login: {new Date().toLocaleDateString()}
             </Text>
@@ -197,7 +313,7 @@ export default function DashboardLayout({
         disabled: true,
       },
       {
-        type: "divider",
+        type: "divider" as const,
       },
       {
         key: "logout",
@@ -207,7 +323,7 @@ export default function DashboardLayout({
         danger: true,
       },
     ],
-    [currentUser, handleLogout]
+    [currentUser, userData, handleLogout]
   );
 
   useEffect(() => {
@@ -299,6 +415,31 @@ export default function DashboardLayout({
             fontSize: "14px",
           }}
         />
+
+        {/* Role Badge */}
+        {/* {userData?.role && (
+          <div className="absolute bottom-4 left-6 right-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <Text className="text-xs text-gray-600 block mb-1">
+                Current Role
+              </Text>
+              <Text
+                strong
+                className="text-sm capitalize block"
+                style={{
+                  color:
+                    userData.role === "admin"
+                      ? "#1890ff"
+                      : userData.role === "subadmin"
+                      ? "#722ed1"
+                      : "#52c41a",
+                }}
+              >
+                {userData.role}
+              </Text>
+            </div>
+          </div>
+        )} */}
       </Sider>
 
       {/* Overlay for mobile */}

@@ -8,7 +8,8 @@ import { Mail, Lock, User, Shield, Loader2 } from "lucide-react";
 import Image from "next/image";
 
 export default function Home() {
-  const { currentUser, loginWithGoogle, loginWithEmail, loading } = useAuth();
+  const { currentUser, userData, loginWithGoogle, loginWithEmail, loading } =
+    useAuth();
   const { push: navigate } = useRouter();
   const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<"client" | "member">("client");
@@ -21,11 +22,20 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (currentUser && !loading) {
-      console.log("User authenticated, redirecting to dashboard");
-      navigate("/dashboard");
+    if (currentUser && !loading && userData) {
+      console.log(
+        "User authenticated, redirecting based on role:",
+        userData.role
+      );
+
+      // Redirect based on role
+      if (userData.role === "client") {
+        navigate("/dashboard/submit-information");
+      } else if (userData.role === "admin" || userData.role === "subadmin") {
+        navigate("/dashboard");
+      }
     }
-  }, [currentUser, loading, navigate]);
+  }, [currentUser, loading, userData, navigate]);
 
   const handleGoogleLogin = async () => {
     try {
@@ -84,7 +94,7 @@ export default function Home() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-          <p className="text-white text-sm">Redirecting to dashboard...</p>
+          <p className="text-white text-sm">Redirecting...</p>
         </div>
       </div>
     );
