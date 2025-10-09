@@ -364,8 +364,8 @@ export default function SubmitInformation() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#ffffff" }}>
-      <div style={{ maxWidth: 1400, margin: "0 auto" }}>
+<div className="min-h-screen">
+  <div>
         {/* Header */}
         <div
           style={{
