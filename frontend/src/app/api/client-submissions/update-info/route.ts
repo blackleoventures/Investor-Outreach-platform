@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyFirebaseToken, createAuthErrorResponse } from "@/lib/auth-middleware";
 import { dbHelpers } from "@/lib/db-helpers";
+import { encryptAES256 } from "@/lib/encryption";
 
 const COLLECTION = "clients";
 
+/**
+ * Update client information (including SMTP config)
+ * PUT /api/client-submissions/update-info
+ */
 export async function PUT(request: NextRequest) {
   try {
     // Authenticate user
@@ -12,12 +17,12 @@ export async function PUT(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { clientInformation } = body;
+    const { clientInformation, emailConfiguration } = body;
 
     console.log("[ClientSubmission] Updating info for userId:", userId);
 
     // Validate required fields
-    if (!clientInformation) {
+    if (!clientInformation && !emailConfiguration) {
       return NextResponse.json(
         {
           success: false,
@@ -31,17 +36,20 @@ export async function PUT(request: NextRequest) {
     }
 
     // Validate email if provided
-    if (clientInformation.email && !clientInformation.email.includes("@")) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: {
-            code: "INVALID_EMAIL",
-            message: "Please provide a valid email address.",
+    if (clientInformation?.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(clientInformation.email)) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: "INVALID_EMAIL",
+              message: "Please provide a valid email address.",
+            },
           },
-        },
-        { status: 400 }
-      );
+          { status: 400 }
+        );
+      }
     }
 
     // Find user's submission
@@ -76,18 +84,90 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Increment formEditCount
+    // ============= CHECK IF SMTP CHANGED =============
+    
+    let smtpChanged = false;
+    let encryptedPassword = submission.clientInformation.emailConfiguration.smtpPassword;
+
+    if (emailConfiguration) {
+      const currentSmtp = submission.clientInformation.emailConfiguration;
+      
+      // Check if any SMTP field changed
+      smtpChanged = 
+        emailConfiguration.platformName !== currentSmtp.platformName ||
+        emailConfiguration.senderEmail !== currentSmtp.senderEmail ||
+        emailConfiguration.smtpHost !== currentSmtp.smtpHost ||
+        emailConfiguration.smtpPort !== currentSmtp.smtpPort ||
+        emailConfiguration.smtpSecurity !== currentSmtp.smtpSecurity ||
+        emailConfiguration.smtpUsername !== currentSmtp.smtpUsername ||
+        (emailConfiguration.smtpPassword && emailConfiguration.smtpPassword !== "••••••••••••••");
+
+      if (smtpChanged) {
+        console.log("[ClientSubmission] SMTP configuration changed, re-test required");
+        
+        // Validate that SMTP test was passed
+        if (emailConfiguration.testStatus !== "passed") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: {
+                code: "SMTP_TEST_REQUIRED",
+                message: "You must re-test your email configuration before saving changes.",
+              },
+            },
+            { status: 400 }
+          );
+        }
+
+        // Encrypt new password if provided
+        if (emailConfiguration.smtpPassword && emailConfiguration.smtpPassword !== "••••••••••••••") {
+          console.log("[ClientSubmission] Encrypting new SMTP password...");
+          encryptedPassword = encryptAES256(emailConfiguration.smtpPassword);
+        }
+      }
+    }
+
+    // ============= INCREMENT EDIT COUNT =============
+
     const newFormEditCount = submission.usageLimits.formEditCount + 1;
     const canEditForm = newFormEditCount < submission.usageLimits.maxFormEdits;
 
-    const updatedData = {
-      clientInformation,
+    // ============= PREPARE UPDATE DATA =============
+
+    const updatedData: any = {
       usageLimits: {
         ...submission.usageLimits,
         formEditCount: newFormEditCount,
         canEditForm,
       },
     };
+
+    // Update client information if provided
+    if (clientInformation || emailConfiguration) {
+      updatedData.clientInformation = {
+        ...submission.clientInformation,
+        ...(clientInformation || {}),
+      };
+
+      // Update email configuration if provided
+      if (emailConfiguration) {
+        updatedData.clientInformation.emailConfiguration = {
+          ...submission.clientInformation.emailConfiguration,
+          platformName: emailConfiguration.platformName,
+          senderEmail: emailConfiguration.senderEmail,
+          smtpHost: emailConfiguration.smtpHost,
+          smtpPort: emailConfiguration.smtpPort,
+          smtpSecurity: emailConfiguration.smtpSecurity,
+          smtpUsername: emailConfiguration.smtpUsername,
+          smtpPassword: encryptedPassword, // ENCRYPTED
+          testStatus: smtpChanged ? "passed" : submission.clientInformation.emailConfiguration.testStatus,
+          testDate: smtpChanged ? new Date().toISOString() : submission.clientInformation.emailConfiguration.testDate,
+          testRecipient: smtpChanged ? (emailConfiguration.testRecipient || null) : submission.clientInformation.emailConfiguration.testRecipient,
+        };
+      }
+    }
+
+    // ============= UPDATE SUBMISSION =============
 
     const updatedSubmission = await dbHelpers.update(COLLECTION, submission.id, updatedData);
 
@@ -98,12 +178,22 @@ export async function PUT(request: NextRequest) {
       submission.usageLimits.maxFormEdits
     );
 
-    // Add id back to response
+    // ============= PREPARE RESPONSE =============
+
+    // Add id and other fields back to response
     const responseData = {
       id: submission.id,
       userId: submission.userId,
+      submissionId: submission.submissionId,
       ...updatedSubmission,
       pitchAnalyses: submission.pitchAnalyses,
+      clientInformation: {
+        ...updatedSubmission.clientInformation,
+        emailConfiguration: {
+          ...updatedSubmission.clientInformation.emailConfiguration,
+          smtpPassword: "••••••••••••••", // Masked
+        },
+      },
     };
 
     return NextResponse.json({
@@ -140,6 +230,7 @@ export async function PUT(request: NextRequest) {
         error: {
           code: "UPDATE_ERROR",
           message: "Unable to update your information. Please try again.",
+          details: error.message,
         },
       },
       { status: 500 }

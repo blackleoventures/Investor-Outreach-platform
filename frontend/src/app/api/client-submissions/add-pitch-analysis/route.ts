@@ -1,3 +1,4 @@
+// frontend/src/app/api/client-submissions/add-pitch-analysis/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { verifyFirebaseToken, createAuthErrorResponse } from "@/lib/auth-middleware";
 import { dbHelpers } from "@/lib/db-helpers";

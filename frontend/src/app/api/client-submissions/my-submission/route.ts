@@ -4,6 +4,10 @@ import { dbHelpers } from "@/lib/db-helpers";
 
 const COLLECTION = "clients";
 
+/**
+ * Get current user's submission
+ * GET /api/client-submissions/my-submission
+ */
 export async function GET(request: NextRequest) {
   try {
     // Authenticate user
@@ -26,9 +30,22 @@ export async function GET(request: NextRequest) {
 
     console.log("[ClientSubmission] Submission found:", submission.id);
 
+    // ============= MASK SMTP PASSWORD IN RESPONSE =============
+    
+    const responseData = {
+      ...submission,
+      clientInformation: {
+        ...submission.clientInformation,
+        emailConfiguration: {
+          ...submission.clientInformation.emailConfiguration,
+          smtpPassword: "••••••••••••••", // Never return actual password
+        },
+      },
+    };
+
     return NextResponse.json({
       success: true,
-      data: submission,
+      data: responseData,
     });
   } catch (error: any) {
     console.error("[ClientSubmission] Error fetching submission:", error);
@@ -44,6 +61,7 @@ export async function GET(request: NextRequest) {
         error: {
           code: "FETCH_ERROR",
           message: "Unable to load your submission. Please try again.",
+          details: error.message,
         },
       },
       { status: 500 }

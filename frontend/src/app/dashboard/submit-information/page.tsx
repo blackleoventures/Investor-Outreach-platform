@@ -26,7 +26,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import ClientInformationForm from "@/components/ClientInformationForm";
 import ClientAIPitchAnalysis from "@/components/ClientAIPitchAnalysis";
 
-const { Title, Text, Paragraph } = Typography;
+const { Title, Text } = Typography;
 
 interface UsageLimits {
   pitchAnalysisCount: number;
@@ -40,9 +40,11 @@ interface UsageLimits {
 interface ClientSubmission {
   id: string;
   userId: string;
+  submissionId: string;
   clientInformation: any;
   pitchAnalyses: any[];
   usageLimits: UsageLimits;
+  status: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -59,6 +61,7 @@ export default function SubmitInformation() {
   const [current, setCurrent] = useState(0);
   const [clientData, setClientData] = useState<any>(null);
   const [pitchData, setPitchData] = useState<any>(null);
+  const [emailConfiguration, setEmailConfiguration] = useState<any>(null);
 
   useEffect(() => {
     if (currentUser) {
@@ -70,15 +73,7 @@ export default function SubmitInformation() {
     setPageLoading(true);
     try {
       const token = await currentUser?.getIdToken();
-      console.log(
-        "[Frontend] Checking submission status for user:",
-        currentUser?.uid
-      );
-      console.log(
-        "[Frontend] API URL:",
-        `${API_BASE_URL}/client-submissions/my-submission`
-      );
-      console.log("[Frontend] Token exists:", !!token);
+      console.log("[Frontend] Checking submission status for user:", currentUser?.uid);
 
       const response = await fetch(
         `${API_BASE_URL}/client-submissions/my-submission`,
@@ -91,7 +86,6 @@ export default function SubmitInformation() {
       );
 
       console.log("[Frontend] Response status:", response.status);
-      console.log("[Frontend] Response ok:", response.ok);
 
       if (response.ok) {
         const data = await response.json();
@@ -107,10 +101,14 @@ export default function SubmitInformation() {
           // First time user - load from localStorage if exists
           console.log("[Frontend] First time user - no submission found");
           const savedClientData = localStorage.getItem("clientFormData");
+          const savedEmailConfig = localStorage.getItem("emailConfiguration");
           const savedPitchData = localStorage.getItem("pitchAnalysisData");
 
           if (savedClientData) {
             setClientData(JSON.parse(savedClientData));
+          }
+          if (savedEmailConfig) {
+            setEmailConfiguration(JSON.parse(savedEmailConfig));
           }
           if (savedPitchData) {
             setPitchData(JSON.parse(savedPitchData));
@@ -131,8 +129,43 @@ export default function SubmitInformation() {
 
   // FIRST TIME USER HANDLERS
   const handleFormNext = (formData: any) => {
-    setClientData(formData);
-    localStorage.setItem("clientFormData", JSON.stringify(formData));
+    console.log("[Frontend] Form data received:", formData);
+
+    // Extract SMTP configuration
+    const {
+      platformName,
+      senderEmail,
+      smtpHost,
+      smtpPort,
+      smtpSecurity,
+      smtpUsername,
+      smtpPassword,
+      smtpTestStatus,
+      smtpTestRecipient,
+      smtpTestDate,
+      ...clientInfo
+    } = formData;
+
+    const emailConfig = {
+      platformName,
+      senderEmail,
+      smtpHost,
+      smtpPort,
+      smtpSecurity,
+      smtpUsername,
+      smtpPassword,
+      testStatus: smtpTestStatus,
+      testRecipient: smtpTestRecipient,
+      testDate: smtpTestDate,
+    };
+
+    setClientData(clientInfo);
+    setEmailConfiguration(emailConfig);
+
+    // Save to localStorage
+    localStorage.setItem("clientFormData", JSON.stringify(clientInfo));
+    localStorage.setItem("emailConfiguration", JSON.stringify(emailConfig));
+
     message.success("Information saved!");
     setCurrent(1);
   };
@@ -150,6 +183,16 @@ export default function SubmitInformation() {
       return;
     }
 
+    if (!emailConfiguration || emailConfiguration.testStatus !== "passed") {
+      message.error("Please test your email configuration before submitting");
+      return;
+    }
+
+    if (!pitchData) {
+      message.error("Please upload and analyze your pitch deck before submitting");
+      return;
+    }
+
     setSubmitting(true);
     try {
       const token = await currentUser?.getIdToken();
@@ -157,10 +200,11 @@ export default function SubmitInformation() {
       const payload = {
         userId: currentUser?.uid,
         clientInformation: clientData,
-        pitchAnalyses: pitchData ? [pitchData] : [],
+        emailConfiguration: emailConfiguration,
+        pitchAnalyses: [pitchData],
         usageLimits: {
           formEditCount: 1,
-          pitchAnalysisCount: pitchData ? 1 : 0,
+          pitchAnalysisCount: 1,
           maxFormEdits: 4,
           maxPitchAnalysis: 2,
           canEditForm: true,
@@ -191,6 +235,7 @@ export default function SubmitInformation() {
 
       // Clear localStorage
       localStorage.removeItem("clientFormData");
+      localStorage.removeItem("emailConfiguration");
       localStorage.removeItem("pitchAnalysisData");
 
       setHasSubmitted(true);
@@ -198,7 +243,7 @@ export default function SubmitInformation() {
       setClientData(data.data.clientInformation);
       setCurrent(0);
 
-      message.success("Your application has been submitted successfully!");
+      message.success("Your application has been submitted successfully! We will review it within 24 hours.");
     } catch (error: any) {
       console.error("[Frontend] Submit error:", error);
       message.error(error.message || "Failed to submit application");
@@ -241,6 +286,32 @@ export default function SubmitInformation() {
       const token = await currentUser?.getIdToken();
       console.log("[Frontend] Updating client info");
 
+      // Extract SMTP configuration
+      const {
+        platformName,
+        senderEmail,
+        smtpHost,
+        smtpPort,
+        smtpSecurity,
+        smtpUsername,
+        smtpPassword,
+        smtpTestStatus,
+        smtpTestRecipient,
+        ...clientInfo
+      } = formData;
+
+      const emailConfig = {
+        platformName,
+        senderEmail,
+        smtpHost,
+        smtpPort,
+        smtpSecurity,
+        smtpUsername,
+        smtpPassword: smtpPassword === "••••••••••••••" ? undefined : smtpPassword,
+        testStatus: smtpTestStatus,
+        testRecipient: smtpTestRecipient,
+      };
+
       const response = await fetch(
         `${API_BASE_URL}/client-submissions/update-info`,
         {
@@ -249,7 +320,10 @@ export default function SubmitInformation() {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ clientInformation: formData }),
+          body: JSON.stringify({
+            clientInformation: clientInfo,
+            emailConfiguration: emailConfig,
+          }),
         }
       );
 
@@ -327,7 +401,7 @@ export default function SubmitInformation() {
     {
       title: "Client Information",
       icon: <FormOutlined />,
-      description: "Fill in your company details",
+      description: "Fill in your company details & email config",
     },
     {
       title: "Pitch Analysis",
@@ -364,8 +438,8 @@ export default function SubmitInformation() {
   }
 
   return (
-<div className="min-h-screen">
-  <div>
+    <div className="min-h-screen">
+      <div>
         {/* Header */}
         <div
           style={{
@@ -417,7 +491,7 @@ export default function SubmitInformation() {
           )}
         </div>
 
-        {/* Usage Limits Alert (For both first-time and returning users) */}
+        {/* Usage Limits Alert */}
         <Alert
           message="Available Credits"
           description={
@@ -445,7 +519,6 @@ export default function SubmitInformation() {
                 </Text>
               </div>
 
-              {/* Show usage summary for returning users */}
               {submission && (
                 <>
                   <Divider style={{ margin: "12px 0" }} />
@@ -467,7 +540,6 @@ export default function SubmitInformation() {
                 </>
               )}
 
-              {/* Warning when limits reached */}
               {submission &&
                 (!submission.usageLimits.canEditForm ||
                   !submission.usageLimits.canAnalyzePitch) && (
@@ -508,9 +580,9 @@ export default function SubmitInformation() {
         {/* FIRST TIME USER FLOW */}
         {!hasSubmitted && (
           <div>
-            {/* Step 1: Client Information */}
+            {/* Step 1: Client Information + Email Config */}
             {current === 0 && (
-              <Card title="Client Information" style={{ marginBottom: 32 }}>
+              <Card title="Client Information & Email Configuration" style={{ marginBottom: 32 }}>
                 <ClientInformationForm
                   onSave={handleFormNext}
                   initialData={clientData}
@@ -600,6 +672,29 @@ export default function SubmitInformation() {
                       )}
                     </Card>
 
+                    {/* Email Configuration Summary */}
+                    <Card size="small" title="Email Configuration">
+                      {emailConfiguration && (
+                        <div style={{ textAlign: "left" }}>
+                          <p>
+                            <strong>Platform:</strong> {emailConfiguration.platformName}
+                          </p>
+                          <p>
+                            <strong>Sender Email:</strong> {emailConfiguration.senderEmail}
+                          </p>
+                          <p>
+                            <strong>SMTP Host:</strong> {emailConfiguration.smtpHost}
+                          </p>
+                          <p>
+                            <strong>Test Status:</strong>{" "}
+                            <span style={{ color: "#52c41a", fontWeight: 600 }}>
+                              {emailConfiguration.testStatus === "passed" ? "✓ PASSED" : "NOT TESTED"}
+                            </span>
+                          </p>
+                        </div>
+                      )}
+                    </Card>
+
                     {/* Pitch Analysis Summary */}
                     <Card size="small" title="Pitch Analysis">
                       {pitchData ? (
@@ -631,7 +726,7 @@ export default function SubmitInformation() {
                         </div>
                       ) : (
                         <Text type="secondary">
-                          No pitch analysis completed (Optional)
+                          No pitch analysis completed
                         </Text>
                       )}
                     </Card>
@@ -681,7 +776,7 @@ export default function SubmitInformation() {
         {hasSubmitted && (
           <div>
             {/* Client Information Section */}
-            <Card title="Client Information" style={{ marginBottom: 32 }}>
+            <Card title="Client Information & Email Configuration" style={{ marginBottom: 32 }}>
               <ClientInformationForm
                 onSave={handleUpdateInfo}
                 initialData={clientData}

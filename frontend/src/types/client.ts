@@ -1,7 +1,42 @@
+import { SmtpConfigurationWithStatus } from "./smtp";
+
+/**
+ * Client Creation Method
+ */
+export type ClientCreationMethod = "client_submission" | "admin_creation";
+
+/**
+ * Client Status
+ */
+export type ClientStatus = 
+  | "draft" 
+  | "pending_review" 
+  | "approved" 
+  | "active" 
+  | "inactive"
+  | "rejected";
+
+/**
+ * Pitch Analysis Status
+ */
+export type PitchAnalysisStatus = "GREEN" | "YELLOW" | "RED";
+
+/**
+ * Created By Information
+ */
+export interface CreatedBy {
+  method: ClientCreationMethod;
+  userId: string | null;
+  role: "client" | "admin" | "subadmin";
+  timestamp: string; // ISO string format
+}
+
 /**
  * Client Information - nested object in client document
+ * UPDATED: Added SMTP configuration
  */
 export interface ClientInformation {
+  // Basic company info (existing)
   founderName: string;
   email: string;
   phone: string;
@@ -11,7 +46,9 @@ export interface ClientInformation {
   revenue: string;
   investment: string;
   city: string;
-  gmailAppPassword?: string;
+  
+  // Email configuration (NEW)
+  emailConfiguration: SmtpConfigurationWithStatus;
 }
 
 /**
@@ -69,26 +106,70 @@ export interface PitchAnalysis {
 }
 
 /**
+ * Admin Metadata (only for admin-created clients)
+ */
+export interface AdminMetadata {
+  internalNotes: string;
+  priorityLevel: "high" | "medium" | "low";
+  assignedTo: string; // Admin/Subadmin UID
+  tags: string[];
+}
+
+/**
  * Client Document (from Firestore) - with nested clientInformation
+ * UPDATED: Added new fields for client submission flow
  */
 export interface ClientDocument {
+  // Basic identifiers
   id: string;
   userId: string;
+  submissionId: string; 
+  
+  // Entry tracking
+  createdBy: CreatedBy;
+  
+  // Client information (includes SMTP config now)
   clientInformation: ClientInformation;
+  
+  // Pitch analyses
   pitchAnalyses: PitchAnalysis[];
+  
+  // Usage limits
   usageLimits: UsageLimits;
+  
+  // Status and review
+  status: ClientStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  rejectionReason: string | null;
+  
+  // Admin metadata (optional, only if created by admin)
+  adminMetadata?: AdminMetadata;
+  
+  // Existing fields
   emailVerified?: boolean;
   archived?: boolean;
-  createdAt: string;
+  
+  // Timestamps
+  createdAt: string; 
   updatedAt: string;
+  expiresAt?: string | null;
+
+  // Metadata
+  ipAddress?: string;
+  userAgent?: string;
 }
 
 /**
  * Transformed Client (flattened for API responses)
+ * UPDATED: Added SMTP fields at root level
  */
 export interface TransformedClient {
   id: string;
   userId: string;
+  submissionId: string;
+  
   // Flattened from clientInformation
   founderName: string;
   email: string;
@@ -99,21 +180,37 @@ export interface TransformedClient {
   revenue: string;
   investment: string;
   city: string;
-  gmailAppPassword?: string;
+  
+  // Email configuration (flattened)
+  platformName: string;
+  senderEmail: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecurity: "TLS" | "SSL" | "None";
+  smtpTestStatus: "pending" | "passed" | "failed";
+  dailyEmailLimit: number;
+  
   // Nested data
   pitchAnalyses: PitchAnalysis[];
   pitchAnalysisCount: number;
   usageLimits: UsageLimits;
+  
+  // Status
+  status: ClientStatus;
   emailVerified: boolean;
   archived: boolean;
+  
+  // Timestamps
   createdAt: string;
   updatedAt: string;
 }
 
 /**
  * Create Client Request Body
+ * UPDATED: Added SMTP configuration fields
  */
 export interface CreateClientRequest {
+  // Company information
   companyName: string;
   founderName: string;
   email: string;
@@ -123,13 +220,29 @@ export interface CreateClientRequest {
   investment: string;
   industry: string;
   city: string;
-  gmailAppPassword?: string;
+  
+  // SMTP configuration (NEW)
+  platformName: string;
+  senderEmail: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecurity: "TLS" | "SSL" | "None";
+  smtpUsername: string;
+  smtpPassword: string;
+  testRecipientEmail: string; // Email used for SMTP test
+  
+  // Pitch deck data (optional)
+  pitchDeckFileName?: string;
+  pitchDeckFileUrl?: string;
+  pitchDeckFileSize?: number;
 }
 
 /**
  * Update Client Request Body
+ * UPDATED: Added SMTP update fields
  */
 export interface UpdateClientRequest {
+  // Company information (optional)
   founderName?: string;
   email?: string;
   phone?: string;
@@ -139,9 +252,94 @@ export interface UpdateClientRequest {
   revenue?: string;
   investment?: string;
   city?: string;
-  gmailAppPassword?: string;
+  
+  // SMTP configuration (optional, but if any SMTP field is changed, must re-test)
+  platformName?: string;
+  senderEmail?: string;
+  smtpHost?: string;
+  smtpPort?: number;
+  smtpSecurity?: "TLS" | "SSL" | "None";
+  smtpUsername?: string;
+  smtpPassword?: string;
+  testRecipientEmail?: string; // For re-testing SMTP
+  
+  // Other fields
   archived?: boolean;
   usageLimits?: Partial<UsageLimits>;
+}
+
+/**
+ * Client Submission Form Values (frontend form data)
+ */
+export interface ClientSubmissionFormValues {
+  // Company information
+  companyName: string;
+  founderName: string;
+  email: string;
+  phone: string;
+  fundingStage: string;
+  revenue: string;
+  investment: string;
+  industry: string;
+  city: string;
+  
+  // SMTP configuration
+  platformName: string;
+  senderEmail: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecurity: "TLS" | "SSL" | "None";
+  smtpUsername: string;
+  smtpPassword: string;
+}
+
+/**
+ * Client Submission Request (API request body)
+ */
+export interface ClientSubmissionRequest {
+  companyInformation: {
+    companyName: string;
+    founderName: string;
+    email: string;
+    phone: string;
+    fundingStage: string;
+    revenue: string;
+    investment: string;
+    industry: string;
+    city: string;
+  };
+  emailConfiguration: {
+    platformName: string;
+    senderEmail: string;
+    smtpHost: string;
+    smtpPort: number;
+    smtpSecurity: "TLS" | "SSL" | "None";
+    smtpUsername: string;
+    smtpPassword: string;
+    testRecipient: string;
+  };
+  pitchDeckData?: {
+    fileName: string;
+    fileUrl: string;
+    fileSize: number;
+  } | null;
+  isDraft: boolean;
+}
+
+/**
+ * Client Submission Response (API response)
+ */
+export interface ClientSubmissionResponse {
+  success: boolean;
+  message: string;
+  data?: {
+    submissionId: string;
+    clientId: string;
+    status: ClientStatus;
+    resumeLink?: string | null;
+  };
+  error?: string;
+  errors?: Record<string, string>;
 }
 
 /**
@@ -179,4 +377,7 @@ export enum ErrorCode {
   INVALID_TOKEN = "INVALID_TOKEN",
   USER_NOT_FOUND = "USER_NOT_FOUND",
   ACCOUNT_DISABLED = "ACCOUNT_DISABLED",
+  SMTP_TEST_REQUIRED = "SMTP_TEST_REQUIRED",
+  SMTP_TEST_FAILED = "SMTP_TEST_FAILED",
+  PITCH_DECK_REQUIRED = "PITCH_DECK_REQUIRED",
 }
