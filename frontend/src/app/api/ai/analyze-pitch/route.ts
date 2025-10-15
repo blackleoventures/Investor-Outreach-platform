@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "Please provide both file name and text content for analysis.",
+          message:
+            "Please provide both file name and text content for analysis.",
         },
         { status: 400 }
       );
@@ -24,29 +25,90 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          message: "The provided text content is too short to analyze. Please provide a more detailed pitch deck.",
+          message:
+            "The provided text content is too short to analyze. Please provide a more detailed pitch deck.",
         },
         { status: 400 }
       );
     }
 
-    console.log("[AI] Pitch Analysis Request:", {   
+    console.log("[AI] Pitch Analysis Request:", {
       fileName,
       textLength: textContent.length,
       timestamp: new Date().toISOString(),
     });
 
     // Initialize Gemini model
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite"  });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
 
     // Craft the prompt for Gemini AI
     const prompt = `You are an expert venture capital analyst. Analyze the following pitch deck content and provide a comprehensive investment analysis.
 
+
 PITCH DECK CONTENT:
 ${textContent}
 
+
+SCORING CRITERIA (Each criterion scored 0-10):
+
+1. Problem & Solution Fit (0-10)
+   - Evaluate clarity of problem statement
+   - Assess originality and innovation of solution
+   - Check if solution directly addresses the problem
+
+2. Market Size & Opportunity (0-10)
+   - Look for TAM/SAM/SOM data
+   - Assess market growth potential
+   - Evaluate addressable market size
+
+3. Business Model (0-10)
+   - Analyze revenue model clarity
+   - Assess scalability of the model
+   - Evaluate pricing strategy
+   - Check for recurring revenue potential
+
+4. Traction & Metrics (0-10)
+   - Review revenue data (if available)
+   - Check user/customer metrics
+   - Look for partnerships or validation
+   - Assess MoM (Month-over-Month) growth
+
+5. Team (0-10)
+   - Evaluate founder/team experience
+   - Check domain expertise
+   - Assess execution ability and track record
+
+6. Competitive Advantage (0-10)
+   - Identify moat or defensibility
+   - Look for intellectual property (IP)
+   - Assess market differentiation
+
+7. Go-To-Market Strategy (0-10)
+   - Evaluate customer acquisition plan
+   - Check distribution channels
+   - Assess sales and marketing strategy
+
+8. Financials & Ask (0-10)
+   - Review burn rate and runway
+   - Check valuation reasonableness
+   - Assess fund utilization plan
+   - Evaluate financial projections
+
+9. Exit Potential (0-10)
+   - Look for M&A or IPO roadmap
+   - Check comparable exits
+   - Assess precedent transactions in sector
+
+10. Alignment with Investor (0-10)
+    - Evaluate stage appropriateness
+    - Check geography fit
+    - Assess sector alignment
+    - Review investment thesis fit
+
+
 ANALYSIS REQUIREMENTS:
 Provide your analysis in the following JSON format. Make sure to return ONLY valid JSON without any markdown formatting, code blocks, or additional text:
+
 
 {
   "summary": {
@@ -55,19 +117,19 @@ Provide your analysis in the following JSON format. Make sure to return ONLY val
     "market": "Describe the target market and industry sector (1-2 sentences)",
     "traction": "Summarize current traction, metrics, or validation (1-2 sentences)",
     "status": "GREEN or YELLOW or RED based on investment readiness",
-    "total_score": "Overall score out of 100"
+    "total_score": "Overall score out of 100 (average of all 10 criteria × 10)"
   },
   "scorecard": {
-    "Problem & Solution Fit": "Score 1-10",
-    "Market Size & Opportunity": "Score 1-10",
-    "Business Model": "Score 1-10",
-    "Traction & Metrics": "Score 1-10",
-    "Team": "Score 1-10",
-    "Competitive Advantage": "Score 1-10",
-    "Go-To-Market Strategy": "Score 1-10",
-    "Financials & Ask": "Score 1-10",
-    "Exit Potential": "Score 1-10",
-    "Alignment with Investor": "Score 1-10"
+    "Problem & Solution Fit": "Score 0-10 based on clarity of problem and originality of solution",
+    "Market Size & Opportunity": "Score 0-10 based on TAM/SAM/SOM data and growth potential",
+    "Business Model": "Score 0-10 based on revenue model, scalability, pricing, recurring revenue",
+    "Traction & Metrics": "Score 0-10 based on revenue, users, partnerships, MoM growth",
+    "Team": "Score 0-10 based on experience, domain expertise, execution ability",
+    "Competitive Advantage": "Score 0-10 based on moat, IP, market differentiation",
+    "Go-To-Market Strategy": "Score 0-10 based on customer acquisition plan and distribution channels",
+    "Financials & Ask": "Score 0-10 based on burn rate, runway, valuation, fund utilization",
+    "Exit Potential": "Score 0-10 based on M&A or IPO roadmap, comps, precedent exits",
+    "Alignment with Investor": "Score 0-10 based on stage, geography, sector alignment"
   },
   "suggested_questions": [
     "5 specific, insightful questions for the founders based on the pitch deck analysis"
@@ -79,16 +141,27 @@ Provide your analysis in the following JSON format. Make sure to return ONLY val
   "email_body": "Professional email body for an investor outreach. IMPORTANT: Use proper paragraph structure with double line breaks (\\n\\n) between paragraphs. Start with: Dear [Investor Name],\\n\\n Then add opening paragraph, key highlights as bullet points (• format), and closing. End with: \\n\\nWarm regards,\\n[Your Name]\\n[Your Title]\\n[Your Contact Information]\\n[Company Website]. No emojis, keep it professional and industry-standard."
 }
 
-IMPORTANT GUIDELINES:
-1. Status should be GREEN (70-100), YELLOW (40-69), or RED (0-39) based on total_score
-2. Total score should be realistic average of all scorecard items (multiply by 10)
-3. Email body must be professional, NO EMOJIS, NO special characters
-4. Email body should start with "Dear [Investor Name]," without any variation
-5. Email body should end exactly with the closing format provided
-6. Use bullet points in email as "•" for lists
-7. Do NOT include scores or numbers in the email body
-8. Keep email formal, concise, and investor-ready
-9. Return ONLY the JSON object, no markdown formatting or code blocks`;
+
+IMPORTANT SCORING GUIDELINES:
+1. Score each criterion independently from 0-10 based on the specific checks listed above
+2. If information is missing for a criterion, score it lower (3-5 range)
+3. If information is present but weak, score 5-7
+4. Only score 8-10 if the criterion shows strong evidence and quality
+5. Total score = (sum of all 10 scores) / 10 × 10 to get score out of 100
+6. Status should be: GREEN (70-100), YELLOW (40-69), RED (0-39)
+
+
+EMAIL FORMATTING RULES:
+1. Email body must be professional, NO EMOJIS, NO special characters
+2. Email body should start with "Dear [Investor Name]," without any variation
+3. Email body should end exactly with the closing format provided
+4. Use bullet points in email as "•" for lists
+5. Do NOT include scores or numbers in the email body
+6. Keep email formal, concise, and investor-ready (max 250 words)
+7. Focus on business opportunity, not technical details
+
+
+Return ONLY the JSON object, no markdown formatting or code blocks.`;
 
     console.log("[AI] Sending request to Gemini AI...");
 
@@ -97,9 +170,12 @@ IMPORTANT GUIDELINES:
     const response = await result.response;
     const generatedText = response.text();
 
-    console.log("[AI] Received response from Gemini AI, length:", generatedText.length);
+    console.log(
+      "[AI] Received response from Gemini AI, length:",
+      generatedText.length
+    );
 
-  // Clean the response - remove markdown code blocks if present
+    // Clean the response - remove markdown code blocks if present
     let cleanedResponse = generatedText.trim();
 
     // Remove markdown code blocks
@@ -116,12 +192,16 @@ IMPORTANT GUIDELINES:
       analysisData = JSON.parse(cleanedResponse);
     } catch (parseError) {
       console.error("[AI] JSON Parse Error:", parseError);
-      console.error("[AI] Attempted to parse:", cleanedResponse.substring(0, 500));
+      console.error(
+        "[AI] Attempted to parse:",
+        cleanedResponse.substring(0, 500)
+      );
 
       return NextResponse.json(
         {
           success: false,
-          message: "We encountered an issue processing the AI analysis. Please try again in a moment.",
+          message:
+            "We encountered an issue processing the AI analysis. Please try again in a moment.",
         },
         { status: 500 }
       );
@@ -130,7 +210,10 @@ IMPORTANT GUIDELINES:
     // Validate and sanitize the response
     const sanitizedAnalysis = sanitizeAnalysisData(analysisData);
 
-    console.log("[AI] Analysis completed successfully, score:", sanitizedAnalysis.summary.total_score);
+    console.log(
+      "[AI] Analysis completed successfully, score:",
+      sanitizedAnalysis.summary.total_score
+    );
 
     // Return successful response
     return NextResponse.json({
@@ -160,7 +243,8 @@ IMPORTANT GUIDELINES:
       return NextResponse.json(
         {
           success: false,
-          message: "Our AI analysis service is currently at capacity. Please try again in a few minutes.",
+          message:
+            "Our AI analysis service is currently at capacity. Please try again in a few minutes.",
         },
         { status: 429 }
       );
@@ -170,7 +254,8 @@ IMPORTANT GUIDELINES:
       return NextResponse.json(
         {
           success: false,
-          message: "Too many requests. Please wait a moment before trying again.",
+          message:
+            "Too many requests. Please wait a moment before trying again.",
         },
         { status: 429 }
       );
@@ -180,7 +265,8 @@ IMPORTANT GUIDELINES:
     return NextResponse.json(
       {
         success: false,
-        message: "An unexpected error occurred while analyzing your pitch deck. Please try again or contact support if the issue persists.",
+        message:
+          "An unexpected error occurred while analyzing your pitch deck. Please try again or contact support if the issue persists.",
       },
       { status: 500 }
     );
@@ -211,12 +297,25 @@ function sanitizeAnalysisData(data: any) {
 
   // Sanitize summary
   const sanitizedSummary = {
-    problem: cleanText(data.summary?.problem || "Problem statement not available"),
-    solution: cleanText(data.summary?.solution || "Solution description not available"),
-    market: cleanText(data.summary?.market || "Market information not available"),
-    traction: cleanText(data.summary?.traction || "Traction information not available"),
-    status: ["GREEN", "YELLOW", "RED"].includes(data.summary?.status) ? data.summary.status : "YELLOW",
-    total_score: Math.min(100, Math.max(0, parseInt(data.summary?.total_score) || 50)),
+    problem: cleanText(
+      data.summary?.problem || "Problem statement not available"
+    ),
+    solution: cleanText(
+      data.summary?.solution || "Solution description not available"
+    ),
+    market: cleanText(
+      data.summary?.market || "Market information not available"
+    ),
+    traction: cleanText(
+      data.summary?.traction || "Traction information not available"
+    ),
+    status: ["GREEN", "YELLOW", "RED"].includes(data.summary?.status)
+      ? data.summary.status
+      : "YELLOW",
+    total_score: Math.min(
+      100,
+      Math.max(0, parseInt(data.summary?.total_score) || 50)
+    ),
   };
 
   // Sanitize scorecard
@@ -236,7 +335,7 @@ function sanitizeAnalysisData(data: any) {
 
   expectedCriteria.forEach((criteria) => {
     const score = parseInt(data.scorecard?.[criteria]) || 5;
-    sanitizedScorecard[criteria] = Math.min(10, Math.max(1, score));
+    sanitizedScorecard[criteria] = Math.min(10, Math.max(0, score));
   });
 
   // Sanitize arrays
@@ -271,7 +370,8 @@ function sanitizeAnalysisData(data: any) {
     emailBody = "Dear [Investor Name],\n\n" + emailBody;
   }
 
-  const closingFormat = "\n\nWarm regards,\n[Your Name]\n[Your Title]\n[Your Contact Information]\n[Company Website]";
+  const closingFormat =
+    "\n\nWarm regards,\n[Your Name]\n[Your Title]\n[Your Contact Information]\n[Company Website]";
   if (!emailBody.includes("Warm regards,")) {
     emailBody = emailBody + closingFormat;
   }

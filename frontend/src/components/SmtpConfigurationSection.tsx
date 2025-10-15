@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Form,
   Input,
@@ -26,11 +26,29 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const { Text } = Typography;
 
+// LocalStorage key for SMTP test status
+const SMTP_TEST_STORAGE_KEY = "investor_reachout_smtp_test_status";
+
 interface SmtpConfigurationSectionProps {
   form: FormInstance;
   disabled?: boolean;
   onTestSuccess?: (result: any) => void;
   onTestFailure?: (error: any) => void;
+}
+
+// Type for stored SMTP test data
+interface StoredSmtpTestData {
+  testStatus: "passed" | "failed";
+  testRecipient: string;
+  testDate: string;
+  smtpConfig: {
+    platformName: string;
+    senderEmail: string;
+    smtpHost: string;
+    smtpPort: number;
+    smtpSecurity: string;
+    smtpUsername: string;
+  };
 }
 
 export default function SmtpConfigurationSection({
@@ -47,11 +65,108 @@ export default function SmtpConfigurationSection({
   >("idle");
   const [testError, setTestError] = useState<string | null>(null);
   const [testRecipientEmail, setTestRecipientEmail] = useState("");
+  const [hasLoadedFromStorage, setHasLoadedFromStorage] = useState(false);
+
+  // Load stored SMTP test status on mount
+  useEffect(() => {
+    if (!hasLoadedFromStorage) {
+      loadStoredSmtpTestStatus();
+      setHasLoadedFromStorage(true);
+    }
+  }, [hasLoadedFromStorage]);
+
+  // Function to load stored SMTP test status from localStorage
+  const loadStoredSmtpTestStatus = () => {
+    try {
+      const storedData = localStorage.getItem(SMTP_TEST_STORAGE_KEY);
+      if (storedData) {
+        const parsedData: StoredSmtpTestData = JSON.parse(storedData);
+
+        // Check if the current SMTP config matches the tested one
+        const currentValues = form.getFieldsValue();
+
+        // If form values are empty, we might be loading for the first time
+        const hasFormValues =
+          currentValues.platformName || currentValues.senderEmail;
+
+        if (!hasFormValues) {
+          // Form is empty, load the config from storage
+       //   console.log("[SMTP] Form empty, loading config from localStorage");
+          return;
+        }
+
+        const configMatches =
+          currentValues.platformName === parsedData.smtpConfig.platformName &&
+          currentValues.senderEmail === parsedData.smtpConfig.senderEmail &&
+          currentValues.smtpHost === parsedData.smtpConfig.smtpHost &&
+          currentValues.smtpPort === parsedData.smtpConfig.smtpPort &&
+          currentValues.smtpSecurity === parsedData.smtpConfig.smtpSecurity &&
+          currentValues.smtpUsername === parsedData.smtpConfig.smtpUsername;
+
+        if (configMatches && parsedData.testStatus === "passed") {
+          setTestStatus("passed");
+          form.setFieldValue("smtpTestStatus", "passed");
+          form.setFieldValue("smtpTestRecipient", parsedData.testRecipient);
+          form.setFieldValue("smtpTestDate", parsedData.testDate);
+          // console.log(
+          //   "[SMTP] Loaded stored test status from localStorage: PASSED"
+          // );
+        } else if (!configMatches && hasFormValues) {
+          // Config changed, clear stored test status
+          localStorage.removeItem(SMTP_TEST_STORAGE_KEY);
+          setTestStatus("idle");
+      //    console.log("[SMTP] Config changed, cleared stored test status");
+        }
+      }
+    } catch (error) {
+      console.error("[SMTP] Error loading stored test status:", error);
+    }
+  };
+
+  // Function to save SMTP test status to localStorage
+  const saveSmtpTestStatusToLocalStorage = (
+    status: "passed" | "failed",
+    recipient: string
+  ) => {
+    try {
+      const values = form.getFieldsValue();
+      const dataToStore: StoredSmtpTestData = {
+        testStatus: status,
+        testRecipient: recipient,
+        testDate: new Date().toISOString(),
+        smtpConfig: {
+          platformName: values.platformName,
+          senderEmail: values.senderEmail,
+          smtpHost: values.smtpHost,
+          smtpPort: values.smtpPort,
+          smtpSecurity: values.smtpSecurity,
+          smtpUsername: values.smtpUsername,
+        },
+      };
+
+      localStorage.setItem(SMTP_TEST_STORAGE_KEY, JSON.stringify(dataToStore));
+     // console.log("[SMTP] Saved test status to localStorage:", status);
+    } catch (error) {
+      console.error("[SMTP] Error saving test status to localStorage:", error);
+    }
+  };
+
+  // Clear stored test status when SMTP config changes
+  const handleSmtpConfigChange = () => {
+    // Only clear if test was passed before
+    if (testStatus === "passed") {
+      localStorage.removeItem(SMTP_TEST_STORAGE_KEY);
+      setTestStatus("idle");
+      form.setFieldValue("smtpTestStatus", undefined);
+      console.log("[SMTP] Config changed, cleared test status");
+    }
+  };
 
   // Auto-fill SMTP username when sender email changes
   const handleSenderEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const email = e.target.value;
     form.setFieldValue("smtpUsername", email);
+    handleSmtpConfigChange();
   };
 
   // Auto-adjust port based on security type
@@ -63,6 +178,7 @@ export default function SmtpConfigurationSection({
     } else {
       form.setFieldValue("smtpPort", 25);
     }
+    handleSmtpConfigChange();
   };
 
   // Check if all SMTP fields are filled
@@ -129,7 +245,7 @@ export default function SmtpConfigurationSection({
         smtpPassword: values.smtpPassword,
       };
 
-      console.log("[SMTP Test] Testing connection...");
+     // console.log("[SMTP Test] Testing connection...");
 
       const response = await fetch(
         `${process.env.NEXT_PUBLIC_API_BASE_URL}/client-submissions/test-smtp`,
@@ -153,10 +269,14 @@ export default function SmtpConfigurationSection({
         setTestStatus("passed");
         setTestError(null);
 
-        // Store test status in form
+        // Store test status in form - THIS IS CRITICAL
+        const testDate = new Date().toISOString();
         form.setFieldValue("smtpTestStatus", "passed");
         form.setFieldValue("smtpTestRecipient", testRecipientEmail);
-        form.setFieldValue("smtpTestDate", new Date().toISOString());
+        form.setFieldValue("smtpTestDate", testDate);
+
+        // Save to localStorage
+        saveSmtpTestStatusToLocalStorage("passed", testRecipientEmail);
 
         if (onTestSuccess) {
           onTestSuccess(data);
@@ -190,6 +310,9 @@ export default function SmtpConfigurationSection({
         console.error("[SMTP Test] Test failed:", data);
         setTestStatus("failed");
         setTestError(data.error?.message || "Test failed");
+
+        // Save failed status to localStorage (optional)
+        saveSmtpTestStatusToLocalStorage("failed", testRecipientEmail);
 
         if (onTestFailure) {
           onTestFailure(data.error);
@@ -287,6 +410,7 @@ export default function SmtpConfigurationSection({
             placeholder="Enter your email provider name"
             style={{ height: 48 }}
             disabled={disabled}
+            onChange={handleSmtpConfigChange}
           />
         </Form.Item>
 
@@ -338,6 +462,7 @@ export default function SmtpConfigurationSection({
             placeholder="smtp.gmail.com"
             style={{ height: 48 }}
             disabled={disabled}
+            onChange={handleSmtpConfigChange}
           />
         </Form.Item>
 
@@ -359,6 +484,7 @@ export default function SmtpConfigurationSection({
             placeholder="587"
             style={{ height: 48 }}
             disabled={disabled}
+            onChange={handleSmtpConfigChange}
           />
         </Form.Item>
 
@@ -402,6 +528,7 @@ export default function SmtpConfigurationSection({
             placeholder="founder@yourcompany.com"
             style={{ height: 48 }}
             disabled={disabled}
+            onChange={handleSmtpConfigChange}
           />
         </Form.Item>
 
@@ -458,6 +585,7 @@ export default function SmtpConfigurationSection({
             placeholder="Enter your email password or app password"
             style={{ height: 48 }}
             disabled={disabled}
+            onChange={handleSmtpConfigChange}
           />
         </Form.Item>
       </div>

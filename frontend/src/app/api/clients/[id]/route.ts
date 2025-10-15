@@ -16,10 +16,12 @@ import {
   ClientInformation,
 } from "@/types/client";
 
-/**
- * GET /api/clients/[id]
- */
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const user = await verifyFirebaseToken(request);
     verifyAdminOrSubadmin(user);
@@ -28,7 +30,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     console.log("[Get Client By ID]", id);
 
-    const client = (await dbHelpers.getById("clients", id)) as ClientDocument | null;
+    const client = (await dbHelpers.getById(
+      "clients",
+      id
+    )) as ClientDocument | null;
 
     if (!client) {
       const errorResponse: ApiResponse = {
@@ -41,9 +46,12 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json(errorResponse, { status: 404 });
     }
 
+    const emailConfig = client.clientInformation?.emailConfiguration;
+
     const transformedClient: TransformedClient = {
       id: client.id,
       userId: client.userId,
+      submissionId: client.submissionId || `SUB-${client.id.slice(0, 8)}`,
       founderName: client.clientInformation?.founderName || "",
       email: client.clientInformation?.email || "",
       phone: client.clientInformation?.phone || "",
@@ -53,7 +61,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       revenue: client.clientInformation?.revenue || "",
       investment: client.clientInformation?.investment || "",
       city: client.clientInformation?.city || "",
-      gmailAppPassword: client.clientInformation?.gmailAppPassword || "",
+      platformName: emailConfig?.platformName || "",
+      senderEmail: emailConfig?.senderEmail || "",
+      smtpHost: emailConfig?.smtpHost || "",
+      smtpPort: emailConfig?.smtpPort || 587,
+      smtpSecurity: emailConfig?.smtpSecurity || "TLS",
+      smtpTestStatus: emailConfig?.testStatus || "pending",
+      dailyEmailLimit: emailConfig?.dailyEmailLimit || 50,
       pitchAnalyses: client.pitchAnalyses || [],
       pitchAnalysisCount: client.pitchAnalyses?.length || 0,
       usageLimits: client.usageLimits || {
@@ -64,6 +78,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         canEditForm: true,
         canAnalyzePitch: true,
       },
+      status: client.status || "pending_review",
+      reviewedBy: client.reviewedBy || null,
+      reviewedAt: client.reviewedAt || null,
+      reviewNotes: client.reviewNotes || null,
       emailVerified: client.emailVerified || false,
       archived: client.archived || false,
       createdAt: client.createdAt,
@@ -95,10 +113,10 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-/**
- * PUT /api/clients/[id]
- */
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const user = await verifyFirebaseToken(request);
     verifyAdminOrSubadmin(user);
@@ -108,7 +126,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     console.log("[Update Client]", id, body);
 
-    const existingClient = (await dbHelpers.getById("clients", id)) as ClientDocument | null;
+    const existingClient = (await dbHelpers.getById(
+      "clients",
+      id
+    )) as ClientDocument | null;
 
     if (!existingClient) {
       const errorResponse: ApiResponse = {
@@ -131,7 +152,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       revenue,
       investment,
       city,
-      gmailAppPassword,
+      platformName,
+      senderEmail,
+      smtpHost,
+      smtpPort,
+      smtpSecurity,
+      smtpUsername,
+      smtpPassword,
       archived,
       usageLimits,
     } = body;
@@ -140,17 +167,71 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       ...existingClient.clientInformation,
     };
 
-    if (founderName !== undefined) updatedClientInformation.founderName = founderName;
+    if (founderName !== undefined)
+      updatedClientInformation.founderName = founderName;
     if (email !== undefined) updatedClientInformation.email = email;
     if (phone !== undefined) updatedClientInformation.phone = phone;
-    if (companyName !== undefined) updatedClientInformation.companyName = companyName;
+    if (companyName !== undefined)
+      updatedClientInformation.companyName = companyName;
     if (industry !== undefined) updatedClientInformation.industry = industry;
-    if (fundingStage !== undefined) updatedClientInformation.fundingStage = fundingStage;
+    if (fundingStage !== undefined)
+      updatedClientInformation.fundingStage = fundingStage;
     if (revenue !== undefined) updatedClientInformation.revenue = revenue;
-    if (investment !== undefined) updatedClientInformation.investment = investment;
+    if (investment !== undefined)
+      updatedClientInformation.investment = investment;
     if (city !== undefined) updatedClientInformation.city = city;
-    if (gmailAppPassword !== undefined) {
-      updatedClientInformation.gmailAppPassword = gmailAppPassword.replace(/\s/g, "");
+
+    // Update email configuration if provided
+    if (
+      platformName ||
+      senderEmail ||
+      smtpHost ||
+      smtpPort ||
+      smtpSecurity ||
+      smtpUsername ||
+      smtpPassword
+    ) {
+      const existingEmailConfig =
+        updatedClientInformation.emailConfiguration || {
+          platformName: "",
+          senderEmail: "",
+          smtpHost: "",
+          smtpPort: 587,
+          smtpSecurity: "TLS" as const,
+          smtpUsername: "",
+          smtpPassword: "",
+          testStatus: "pending" as const,
+          testRecipient: "",
+          dailyEmailLimit: 50,
+        };
+
+      updatedClientInformation.emailConfiguration = {
+        ...existingEmailConfig,
+        platformName:
+          platformName !== undefined
+            ? platformName
+            : existingEmailConfig.platformName,
+        senderEmail:
+          senderEmail !== undefined
+            ? senderEmail
+            : existingEmailConfig.senderEmail,
+        smtpHost:
+          smtpHost !== undefined ? smtpHost : existingEmailConfig.smtpHost,
+        smtpPort:
+          smtpPort !== undefined ? smtpPort : existingEmailConfig.smtpPort,
+        smtpSecurity:
+          smtpSecurity !== undefined
+            ? smtpSecurity
+            : existingEmailConfig.smtpSecurity,
+        smtpUsername:
+          smtpUsername !== undefined
+            ? smtpUsername
+            : existingEmailConfig.smtpUsername,
+        smtpPassword:
+          smtpPassword !== undefined
+            ? smtpPassword.replace(/\s/g, "")
+            : existingEmailConfig.smtpPassword,
+      };
     }
 
     const updateData: Partial<ClientDocument> = {
@@ -179,20 +260,27 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         updatedUsageLimits.maxPitchAnalysis = usageLimits.maxPitchAnalysis;
       }
 
-      updatedUsageLimits.canEditForm = updatedUsageLimits.formEditCount < updatedUsageLimits.maxFormEdits;
+      updatedUsageLimits.canEditForm =
+        updatedUsageLimits.formEditCount < updatedUsageLimits.maxFormEdits;
       updatedUsageLimits.canAnalyzePitch =
-        updatedUsageLimits.pitchAnalysisCount < updatedUsageLimits.maxPitchAnalysis;
+        updatedUsageLimits.pitchAnalysisCount <
+        updatedUsageLimits.maxPitchAnalysis;
 
       updateData.usageLimits = updatedUsageLimits;
     }
 
     await dbHelpers.update("clients", id, updateData);
 
-    const refreshedClient = (await dbHelpers.getById("clients", id)) as ClientDocument;
+    const refreshedClient = (await dbHelpers.getById(
+      "clients",
+      id
+    )) as ClientDocument;
+    const emailConfig = refreshedClient.clientInformation?.emailConfiguration;
 
     const transformedClient: TransformedClient = {
       id: id,
       userId: refreshedClient.userId,
+      submissionId: refreshedClient.submissionId || `SUB-${id.slice(0, 8)}`,
       founderName: refreshedClient.clientInformation?.founderName || "",
       email: refreshedClient.clientInformation?.email || "",
       phone: refreshedClient.clientInformation?.phone || "",
@@ -202,7 +290,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       revenue: refreshedClient.clientInformation?.revenue || "",
       investment: refreshedClient.clientInformation?.investment || "",
       city: refreshedClient.clientInformation?.city || "",
-      gmailAppPassword: refreshedClient.clientInformation?.gmailAppPassword || "",
+      platformName: emailConfig?.platformName || "",
+      senderEmail: emailConfig?.senderEmail || "",
+      smtpHost: emailConfig?.smtpHost || "",
+      smtpPort: emailConfig?.smtpPort || 587,
+      smtpSecurity: emailConfig?.smtpSecurity || "TLS",
+      smtpTestStatus: emailConfig?.testStatus || "pending",
+      dailyEmailLimit: emailConfig?.dailyEmailLimit || 50,
       pitchAnalyses: refreshedClient.pitchAnalyses || [],
       pitchAnalysisCount: refreshedClient.pitchAnalyses?.length || 0,
       usageLimits: refreshedClient.usageLimits || {
@@ -213,6 +307,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         canEditForm: true,
         canAnalyzePitch: true,
       },
+      status: refreshedClient.status || "pending_review",
+      reviewedBy: refreshedClient.reviewedBy || null,
+      reviewedAt: refreshedClient.reviewedAt || null,
+      reviewNotes: refreshedClient.reviewNotes || null,
       emailVerified: refreshedClient.emailVerified || false,
       archived: refreshedClient.archived || false,
       createdAt: refreshedClient.createdAt,
@@ -247,10 +345,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-/**
- * DELETE /api/clients/[id]
- */
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const user = await verifyFirebaseToken(request);
     verifyAdmin(user);
@@ -259,7 +357,10 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     console.log("[Delete Client]", id);
 
-    const existingClient = (await dbHelpers.getById("clients", id)) as ClientDocument | null;
+    const existingClient = (await dbHelpers.getById(
+      "clients",
+      id
+    )) as ClientDocument | null;
 
     if (!existingClient) {
       const errorResponse: ApiResponse = {

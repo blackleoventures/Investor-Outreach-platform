@@ -28,6 +28,14 @@ import ClientAIPitchAnalysis from "@/components/ClientAIPitchAnalysis";
 
 const { Title, Text } = Typography;
 
+// LocalStorage keys
+const STORAGE_KEYS = {
+  CLIENT_FORM: "clientFormData",
+  EMAIL_CONFIG: "emailConfiguration",
+  PITCH_DATA: "pitchAnalysisData",
+  SMTP_TEST: "investor_reachout_smtp_test_status",
+};
+
 interface UsageLimits {
   pitchAnalysisCount: number;
   formEditCount: number;
@@ -42,6 +50,7 @@ interface ClientSubmission {
   userId: string;
   submissionId: string;
   clientInformation: any;
+  emailConfiguration?: any;
   pitchAnalyses: any[];
   usageLimits: UsageLimits;
   status: string;
@@ -73,7 +82,10 @@ export default function SubmitInformation() {
     setPageLoading(true);
     try {
       const token = await currentUser?.getIdToken();
-      console.log("[Frontend] Checking submission status for user:", currentUser?.uid);
+      console.log(
+        "[Frontend] Checking submission status for user:",
+        currentUser?.uid
+      );
 
       const response = await fetch(
         `${API_BASE_URL}/client-submissions/my-submission`,
@@ -97,22 +109,14 @@ export default function SubmitInformation() {
           setHasSubmitted(true);
           setSubmission(data.data);
           setClientData(data.data.clientInformation);
+          setEmailConfiguration(data.data.emailConfiguration);
+
+          // Clear localStorage for first-time flow (not needed anymore)
+          clearFirstTimeFlowStorage();
         } else {
           // First time user - load from localStorage if exists
           console.log("[Frontend] First time user - no submission found");
-          const savedClientData = localStorage.getItem("clientFormData");
-          const savedEmailConfig = localStorage.getItem("emailConfiguration");
-          const savedPitchData = localStorage.getItem("pitchAnalysisData");
-
-          if (savedClientData) {
-            setClientData(JSON.parse(savedClientData));
-          }
-          if (savedEmailConfig) {
-            setEmailConfiguration(JSON.parse(savedEmailConfig));
-          }
-          if (savedPitchData) {
-            setPitchData(JSON.parse(savedPitchData));
-          }
+          loadFirstTimeFlowFromStorage();
         }
       } else {
         const errorData = await response.json().catch(() => null);
@@ -127,9 +131,50 @@ export default function SubmitInformation() {
     }
   };
 
+  // Load first-time flow data from localStorage
+  const loadFirstTimeFlowFromStorage = () => {
+    try {
+      const savedClientData = localStorage.getItem(STORAGE_KEYS.CLIENT_FORM);
+      const savedEmailConfig = localStorage.getItem(STORAGE_KEYS.EMAIL_CONFIG);
+      const savedPitchData = localStorage.getItem(STORAGE_KEYS.PITCH_DATA);
+
+      if (savedClientData) {
+        setClientData(JSON.parse(savedClientData));
+        console.log("[Frontend] Loaded client data from localStorage");
+      }
+      if (savedEmailConfig) {
+        setEmailConfiguration(JSON.parse(savedEmailConfig));
+        console.log("[Frontend] Loaded email config from localStorage");
+      }
+      if (savedPitchData) {
+        setPitchData(JSON.parse(savedPitchData));
+        console.log("[Frontend] Loaded pitch data from localStorage");
+      }
+    } catch (error) {
+      console.error("[Frontend] Error loading from localStorage:", error);
+    }
+  };
+
+  // Clear first-time flow storage after successful submission
+  const clearFirstTimeFlowStorage = () => {
+    try {
+      localStorage.removeItem(STORAGE_KEYS.CLIENT_FORM);
+      localStorage.removeItem(STORAGE_KEYS.EMAIL_CONFIG);
+      localStorage.removeItem(STORAGE_KEYS.PITCH_DATA);
+      // Note: We keep SMTP_TEST storage as it's managed by SmtpConfigurationSection
+      console.log("[Frontend] Cleared first-time flow localStorage");
+    } catch (error) {
+      console.error("[Frontend] Error clearing localStorage:", error);
+    }
+  };
+
   // FIRST TIME USER HANDLERS
   const handleFormNext = (formData: any) => {
     console.log("[Frontend] Form data received:", formData);
+    console.log(
+      "[Frontend] SMTP Test Status in formData:",
+      formData.smtpTestStatus
+    );
 
     // Extract SMTP configuration
     const {
@@ -159,12 +204,37 @@ export default function SubmitInformation() {
       testDate: smtpTestDate,
     };
 
-    setClientData(clientInfo);
+    const completeFormData = {
+      ...clientInfo,
+      platformName,
+      senderEmail,
+      smtpHost,
+      smtpPort,
+      smtpSecurity,
+      smtpUsername,
+      smtpPassword,
+      smtpTestStatus,
+      smtpTestRecipient,
+      smtpTestDate,
+    };
+
+    setClientData(completeFormData);
     setEmailConfiguration(emailConfig);
 
-    // Save to localStorage
-    localStorage.setItem("clientFormData", JSON.stringify(clientInfo));
-    localStorage.setItem("emailConfiguration", JSON.stringify(emailConfig));
+    // Save to localStorage with SMTP test status included
+    localStorage.setItem(
+      STORAGE_KEYS.CLIENT_FORM,
+      JSON.stringify(completeFormData)
+    );
+    localStorage.setItem(
+      STORAGE_KEYS.EMAIL_CONFIG,
+      JSON.stringify(emailConfig)
+    );
+
+    console.log(
+      "[Frontend] Saved to localStorage with test status:",
+      smtpTestStatus
+    );
 
     message.success("Information saved!");
     setCurrent(1);
@@ -172,9 +242,9 @@ export default function SubmitInformation() {
 
   const handlePitchNext = (analysis: any) => {
     setPitchData(analysis);
-    localStorage.setItem("pitchAnalysisData", JSON.stringify(analysis));
+    localStorage.setItem(STORAGE_KEYS.PITCH_DATA, JSON.stringify(analysis));
     message.success("Analysis saved!");
-    setCurrent(2);
+    // setCurrent(2);
   };
 
   const handleInitialSubmit = async () => {
@@ -189,7 +259,9 @@ export default function SubmitInformation() {
     }
 
     if (!pitchData) {
-      message.error("Please upload and analyze your pitch deck before submitting");
+      message.error(
+        "Please upload and analyze your pitch deck before submitting"
+      );
       return;
     }
 
@@ -233,17 +305,18 @@ export default function SubmitInformation() {
         throw new Error(data.error?.message || "Failed to submit");
       }
 
-      // Clear localStorage
-      localStorage.removeItem("clientFormData");
-      localStorage.removeItem("emailConfiguration");
-      localStorage.removeItem("pitchAnalysisData");
+      // Clear first-time flow localStorage (except SMTP test which is managed separately)
+      clearFirstTimeFlowStorage();
 
       setHasSubmitted(true);
       setSubmission(data.data);
       setClientData(data.data.clientInformation);
+      setEmailConfiguration(data.data.emailConfiguration);
       setCurrent(0);
 
-      message.success("Your application has been submitted successfully! We will review it within 24 hours.");
+      message.success(
+        "Your application has been submitted successfully! We will review it within 24 hours."
+      );
     } catch (error: any) {
       console.error("[Frontend] Submit error:", error);
       message.error(error.message || "Failed to submit application");
@@ -275,6 +348,7 @@ export default function SubmitInformation() {
     // Revert to original data
     if (submission) {
       setClientData(submission.clientInformation);
+      setEmailConfiguration(submission.emailConfiguration);
     }
   };
 
@@ -297,6 +371,7 @@ export default function SubmitInformation() {
         smtpPassword,
         smtpTestStatus,
         smtpTestRecipient,
+        smtpTestDate,
         ...clientInfo
       } = formData;
 
@@ -307,9 +382,12 @@ export default function SubmitInformation() {
         smtpPort,
         smtpSecurity,
         smtpUsername,
-        smtpPassword: smtpPassword === "••••••••••••••" ? undefined : smtpPassword,
+        // Don't send password if it's the masked version
+        smtpPassword:
+          smtpPassword === "••••••••••••••" ? undefined : smtpPassword,
         testStatus: smtpTestStatus,
         testRecipient: smtpTestRecipient,
+        testDate: smtpTestDate,
       };
 
       const response = await fetch(
@@ -336,6 +414,7 @@ export default function SubmitInformation() {
 
       setSubmission(data.data);
       setClientData(data.data.clientInformation);
+      setEmailConfiguration(data.data.emailConfiguration);
       setIsEditing(false);
 
       message.success(
@@ -582,10 +661,17 @@ export default function SubmitInformation() {
           <div>
             {/* Step 1: Client Information + Email Config */}
             {current === 0 && (
-              <Card title="Client Information & Email Configuration" style={{ marginBottom: 32 }}>
+              <Card
+                title="Client Information & Email Configuration"
+                style={{ marginBottom: 32 }}
+              >
                 <ClientInformationForm
                   onSave={handleFormNext}
-                  initialData={clientData}
+                  initialData={
+                    clientData && emailConfiguration
+                      ? { ...clientData, ...emailConfiguration }
+                      : null
+                  }
                   isFirstTime={true}
                 />
               </Card>
@@ -597,6 +683,7 @@ export default function SubmitInformation() {
                 <ClientAIPitchAnalysis
                   onAnalysisComplete={handlePitchNext}
                   isFirstTime={true}
+                  initialAnalysis={pitchData}
                 />
                 <div style={{ marginTop: 24, display: "flex", gap: 16 }}>
                   <Button
@@ -677,18 +764,23 @@ export default function SubmitInformation() {
                       {emailConfiguration && (
                         <div style={{ textAlign: "left" }}>
                           <p>
-                            <strong>Platform:</strong> {emailConfiguration.platformName}
+                            <strong>Platform:</strong>{" "}
+                            {emailConfiguration.platformName}
                           </p>
                           <p>
-                            <strong>Sender Email:</strong> {emailConfiguration.senderEmail}
+                            <strong>Sender Email:</strong>{" "}
+                            {emailConfiguration.senderEmail}
                           </p>
                           <p>
-                            <strong>SMTP Host:</strong> {emailConfiguration.smtpHost}
+                            <strong>SMTP Host:</strong>{" "}
+                            {emailConfiguration.smtpHost}
                           </p>
                           <p>
                             <strong>Test Status:</strong>{" "}
                             <span style={{ color: "#52c41a", fontWeight: 600 }}>
-                              {emailConfiguration.testStatus === "passed" ? "✓ PASSED" : "NOT TESTED"}
+                              {emailConfiguration.testStatus === "passed"
+                                ? "✓ PASSED"
+                                : "NOT TESTED"}
                             </span>
                           </p>
                         </div>
@@ -776,10 +868,21 @@ export default function SubmitInformation() {
         {hasSubmitted && (
           <div>
             {/* Client Information Section */}
-            <Card title="Client Information & Email Configuration" style={{ marginBottom: 32 }}>
+            <Card
+              title="Client Information & Email Configuration"
+              style={{ marginBottom: 32 }}
+            >
               <ClientInformationForm
                 onSave={handleUpdateInfo}
-                initialData={clientData}
+                initialData={
+                  // FIX: Properly merge client data with email configuration
+                  submission
+                    ? {
+                        ...submission.clientInformation,
+                        emailConfiguration: submission.emailConfiguration,
+                      }
+                    : null
+                }
                 disabled={!isEditing}
                 isEditing={isEditing}
                 loading={submitting}

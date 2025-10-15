@@ -11,6 +11,8 @@ import {
   Input,
   InputNumber,
   Tooltip,
+  Tag,
+  Select,
 } from "antd";
 import {
   Plus,
@@ -26,6 +28,9 @@ import {
   Copy,
   Check,
   Mail,
+  CheckCircle,
+  XCircle,
+  Clock,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -35,9 +40,11 @@ import { auth } from "@/lib/firebase";
 const { TabPane } = Tabs;
 const { Panel } = Collapse;
 const { TextArea } = Input;
+const { Option } = Select;
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
+// Updated interfaces to match new types
 interface PitchAnalysis {
   fileName?: string;
   analyzedAt?: string;
@@ -65,9 +72,11 @@ interface UsageLimits {
   canAnalyzePitch: boolean;
 }
 
+// Updated Client interface with new fields
 interface Client {
   id: string;
   userId: string;
+  submissionId: string;
   founderName: string;
   email: string;
   phone: string;
@@ -77,10 +86,24 @@ interface Client {
   revenue: string;
   investment: string;
   city: string;
-  gmailAppPassword?: string;
+  // Email configuration fields
+  platformName: string;
+  senderEmail: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecurity: "TLS" | "SSL" | "None";
+  smtpTestStatus: "pending" | "passed" | "failed";
+  dailyEmailLimit: number;
+  // Pitch and usage
   pitchAnalyses: PitchAnalysis[];
   pitchAnalysisCount: number;
   usageLimits: UsageLimits;
+  // Status and review
+  status: "draft" | "pending_review" | "approved" | "active" | "inactive" | "rejected";
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  // Legacy fields
   archived: boolean;
   emailVerified: boolean;
   createdAt: string;
@@ -97,7 +120,11 @@ interface EditFormData {
   revenue: string;
   investment: string;
   city: string;
-  gmailAppPassword: string;
+  platformName: string;
+  senderEmail: string;
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecurity: "TLS" | "SSL" | "None";
   archived: boolean;
 }
 
@@ -106,6 +133,12 @@ interface UsageLimitsFormData {
   pitchAnalysisCount: number;
   maxFormEdits: number;
   maxPitchAnalysis: number;
+}
+
+interface ReviewFormData {
+  status: "approved" | "rejected";
+  reviewNotes: string;
+  rejectionReason: string;
 }
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -130,10 +163,12 @@ const ClientsData = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [usageLimitsModalVisible, setUsageLimitsModalVisible] = useState(false);
+  const [reviewModalVisible, setReviewModalVisible] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [resetFormLoading, setResetFormLoading] = useState(false);
   const [resetAnalysisLoading, setResetAnalysisLoading] = useState(false);
   const [resetAllLoading, setResetAllLoading] = useState(false);
+  const [reviewLoading, setReviewLoading] = useState(false);
 
   const [editFormData, setEditFormData] = useState<EditFormData>({
     founderName: "",
@@ -145,36 +180,45 @@ const ClientsData = () => {
     revenue: "",
     investment: "",
     city: "",
-    gmailAppPassword: "",
+    platformName: "",
+    senderEmail: "",
+    smtpHost: "",
+    smtpPort: 587,
+    smtpSecurity: "TLS",
     archived: false,
   });
 
-  const [usageLimitsFormData, setUsageLimitsFormData] =
-    useState<UsageLimitsFormData>({
-      formEditCount: 0,
-      pitchAnalysisCount: 0,
-      maxFormEdits: 4,
-      maxPitchAnalysis: 2,
-    });
+  const [usageLimitsFormData, setUsageLimitsFormData] = useState<UsageLimitsFormData>({
+    formEditCount: 0,
+    pitchAnalysisCount: 0,
+    maxFormEdits: 4,
+    maxPitchAnalysis: 2,
+  });
 
-  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(
-    {
-      companyName: true,
-      founderName: true,
-      email: true,
-      phone: true,
-      fundingStage: true,
-      revenue: true,
-      investment: true,
-      industry: true,
-      city: true,
-      pitchAnalysis: true,
-      usageCredits: true,
-      emailVerified: false,
-      archived: false,
-      onboarding: false,
-    }
-  );
+  const [reviewFormData, setReviewFormData] = useState<ReviewFormData>({
+    status: "approved",
+    reviewNotes: "",
+    rejectionReason: "",
+  });
+
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
+    submissionId: true,
+    companyName: true,
+    founderName: true,
+    email: true,
+    phone: true,
+    fundingStage: true,
+    revenue: true,
+    investment: true,
+    industry: true,
+    city: true,
+    status: true,
+    reviewStatus: true,
+    pitchScore: true,
+    emailVerified: false,
+    archived: false,
+    onboarding: false,
+  });
 
   useEffect(() => {
     fetchAllClients();
@@ -223,8 +267,6 @@ const ClientsData = () => {
       const token = await getAuthToken();
       if (!token) return;
 
-      console.log("[Fetch Clients] Fetching from:", `${API_BASE_URL}/clients`);
-
       const response = await fetch(`${API_BASE_URL}/clients`, {
         method: "GET",
         headers: {
@@ -234,7 +276,7 @@ const ClientsData = () => {
       });
 
       const data = await response.json();
-      console.log("[Fetch Clients] Response:", data);
+     // console.log("[Fetch Clients] Response:", data);
 
       if (!response.ok) {
         const errorMessage = getUserFriendlyError(data.error?.code);
@@ -242,11 +284,9 @@ const ClientsData = () => {
       }
 
       setClients(data.data || []);
-      console.log("[Fetch Clients] First client data:", data.data[0]);
     } catch (error) {
       console.error("[Fetch Clients Error]:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
       setClients([]);
     } finally {
@@ -276,13 +316,10 @@ const ClientsData = () => {
       }
 
       message.success("Client deleted successfully");
-      setClients((prevClients) =>
-        prevClients.filter((client) => client.id !== clientId)
-      );
+      setClients((prevClients) => prevClients.filter((client) => client.id !== clientId));
     } catch (error) {
       console.error("[Delete Client Error]:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setDeleteLoading(null);
@@ -290,13 +327,12 @@ const ClientsData = () => {
   };
 
   const handleViewClient = (client: Client) => {
-    console.log("[View Client]", client);
     setSelectedClient(client);
     setModalVisible(true);
   };
 
   const handleEditClient = (client: Client) => {
-    console.log("[Edit Client]", client);
+  //  console.log("[Edit Client]", client);
     setSelectedClient(client);
     setModalVisible(false);
     setEditModalVisible(true);
@@ -310,13 +346,73 @@ const ClientsData = () => {
       revenue: client.revenue || "",
       investment: client.investment || "",
       city: client.city || "",
-      gmailAppPassword: client.gmailAppPassword || "",
+      platformName: client.platformName || "",
+      senderEmail: client.senderEmail || "",
+      smtpHost: client.smtpHost || "",
+      smtpPort: client.smtpPort || 587,
+      smtpSecurity: client.smtpSecurity || "TLS",
       archived: client.archived || false,
     });
   };
 
+  const handleReviewClient = (client: Client) => {
+    setSelectedClient(client);
+    setReviewFormData({
+      status: "approved",
+      reviewNotes: "",
+      rejectionReason: "",
+    });
+    setReviewModalVisible(true);
+  };
+
+  const handleSubmitReview = async () => {
+    if (!selectedClient) return;
+
+    if (reviewFormData.status === "rejected" && !reviewFormData.rejectionReason.trim()) {
+      message.error("Please provide a rejection reason");
+      return;
+    }
+
+    setReviewLoading(true);
+    try {
+      const token = await getAuthToken();
+      if (!token) return;
+
+      const payload = {
+        status: reviewFormData.status,
+        reviewNotes: reviewFormData.reviewNotes.trim() || undefined,
+        rejectionReason: reviewFormData.status === "rejected" ? reviewFormData.rejectionReason.trim() : undefined,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/clients/${selectedClient.id}/review`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = getUserFriendlyError(data.error?.code);
+        throw new Error(errorMessage);
+      }
+
+      message.success(`Client ${reviewFormData.status} successfully`);
+      setReviewModalVisible(false);
+      await fetchAllClients();
+    } catch (error) {
+      console.error("[Submit Review Error]:", error);
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      message.error(errorMessage);
+    } finally {
+      setReviewLoading(false);
+    }
+  };
+
   const handleManageUsageLimits = (client: Client) => {
-    console.log("[Manage Usage Limits]", client);
     setSelectedClient(client);
     setUsageLimitsFormData({
       formEditCount: client.usageLimits?.formEditCount || 0,
@@ -333,18 +429,13 @@ const ClientsData = () => {
       const token = await getAuthToken();
       if (!token) return;
 
-      console.log("[Reset Form Edits]", clientId);
-
-      const response = await fetch(
-        `${API_BASE_URL}/clients/${clientId}/reset-form-edits`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/clients/${clientId}/reset-form-limits`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
       const data = await response.json();
 
@@ -361,8 +452,7 @@ const ClientsData = () => {
       }
     } catch (error) {
       console.error("[Reset Form Edits Error]:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setResetFormLoading(false);
@@ -375,18 +465,13 @@ const ClientsData = () => {
       const token = await getAuthToken();
       if (!token) return;
 
-      console.log("[Reset Pitch Analysis]", clientId);
-
-      const response = await fetch(
-        `${API_BASE_URL}/clients/${clientId}/reset-pitch-analysis`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/clients/${clientId}/reset-pitch-limits`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
       const data = await response.json();
 
@@ -403,8 +488,7 @@ const ClientsData = () => {
       }
     } catch (error) {
       console.error("[Reset Pitch Analysis Error]:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setResetAnalysisLoading(false);
@@ -417,18 +501,13 @@ const ClientsData = () => {
       const token = await getAuthToken();
       if (!token) return;
 
-      console.log("[Reset All Limits]", clientId);
-
-      const response = await fetch(
-        `${API_BASE_URL}/clients/${clientId}/reset-all-limits`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/clients/${clientId}/reset-all-limits`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
 
       const data = await response.json();
 
@@ -445,8 +524,7 @@ const ClientsData = () => {
       }
     } catch (error) {
       console.error("[Reset All Limits Error]:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setResetAllLoading(false);
@@ -465,19 +543,14 @@ const ClientsData = () => {
         usageLimits: usageLimitsFormData,
       };
 
-      console.log("[Update Usage Limits] Payload:", payload);
-
-      const response = await fetch(
-        `${API_BASE_URL}/clients/${selectedClient.id}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/clients/${selectedClient.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
       const data = await response.json();
 
@@ -495,8 +568,7 @@ const ClientsData = () => {
       }
     } catch (error) {
       console.error("[Update Usage Limits Error]:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setUpdateLoading(false);
@@ -529,8 +601,7 @@ const ClientsData = () => {
       await fetchAllClients();
     } catch (error) {
       console.error("[Unarchive Client Error]:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setUpdateLoading(false);
@@ -557,23 +628,22 @@ const ClientsData = () => {
         revenue: editFormData.revenue,
         investment: editFormData.investment,
         city: editFormData.city,
-        gmailAppPassword: editFormData.gmailAppPassword,
+        platformName: editFormData.platformName,
+        senderEmail: editFormData.senderEmail,
+        smtpHost: editFormData.smtpHost,
+        smtpPort: editFormData.smtpPort,
+        smtpSecurity: editFormData.smtpSecurity,
         archived: editFormData.archived,
       };
 
-      console.log("[Update Client] Payload:", payload);
-
-      const response = await fetch(
-        `${API_BASE_URL}/clients/${selectedClient.id}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/clients/${selectedClient.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
       const data = await response.json();
 
@@ -588,8 +658,7 @@ const ClientsData = () => {
       await fetchAllClients();
     } catch (error) {
       console.error("[Update Client Error]:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setUpdateLoading(false);
@@ -609,6 +678,23 @@ const ClientsData = () => {
     }
   };
 
+  const getClientStatusColor = (status: string) => {
+    switch (status) {
+      case "approved":
+        return "bg-green-100 text-green-800";
+      case "active":
+        return "bg-blue-100 text-blue-800";
+      case "pending_review":
+        return "bg-yellow-100 text-yellow-800";
+      case "rejected":
+        return "bg-red-100 text-red-800";
+      case "inactive":
+        return "bg-gray-100 text-gray-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
   const getProgressColor = (score: number) => {
     if (score >= 70) return "#52c41a";
     if (score >= 40) return "#faad14";
@@ -620,15 +706,9 @@ const ClientsData = () => {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <FileText size={20} className="text-blue-600" />
-          <span className="font-semibold text-lg">
-            {analysis.fileName || `Analysis ${index + 1}`}
-          </span>
+          <span className="font-semibold text-lg">{analysis.fileName || `Analysis ${index + 1}`}</span>
         </div>
-        <span
-          className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
-            analysis.summary.status
-          )}`}
-        >
+        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(analysis.summary.status)}`}>
           {analysis.summary.status}
         </span>
       </div>
@@ -648,18 +728,10 @@ const ClientsData = () => {
 
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium">
-            Investment Readiness Score
-          </span>
-          <span className="text-xl font-bold">
-            {analysis.summary.total_score}/100
-          </span>
+          <span className="text-sm font-medium">Investment Readiness Score</span>
+          <span className="text-xl font-bold">{analysis.summary.total_score}/100</span>
         </div>
-        <Progress
-          percent={analysis.summary.total_score}
-          strokeColor={getProgressColor(analysis.summary.total_score)}
-          strokeWidth={12}
-        />
+        <Progress percent={analysis.summary.total_score} strokeColor={getProgressColor(analysis.summary.total_score)} strokeWidth={12} />
       </div>
 
       <Collapse ghost>
@@ -667,27 +739,19 @@ const ClientsData = () => {
           <div className="space-y-3">
             <div>
               <div className="font-semibold text-sm mb-1">Problem</div>
-              <div className="text-sm text-gray-700">
-                {analysis.summary.problem}
-              </div>
+              <div className="text-sm text-gray-700">{analysis.summary.problem}</div>
             </div>
             <div>
               <div className="font-semibold text-sm mb-1">Solution</div>
-              <div className="text-sm text-gray-700">
-                {analysis.summary.solution}
-              </div>
+              <div className="text-sm text-gray-700">{analysis.summary.solution}</div>
             </div>
             <div>
               <div className="font-semibold text-sm mb-1">Market</div>
-              <div className="text-sm text-gray-700">
-                {analysis.summary.market}
-              </div>
+              <div className="text-sm text-gray-700">{analysis.summary.market}</div>
             </div>
             <div>
               <div className="font-semibold text-sm mb-1">Traction</div>
-              <div className="text-sm text-gray-700">
-                {analysis.summary.traction}
-              </div>
+              <div className="text-sm text-gray-700">{analysis.summary.traction}</div>
             </div>
           </div>
         </Panel>
@@ -698,16 +762,9 @@ const ClientsData = () => {
               <div key={criteria}>
                 <div className="flex justify-between mb-1">
                   <span className="text-sm font-medium">{criteria}</span>
-                  <span className="text-sm font-bold text-blue-600">
-                    {score}/10
-                  </span>
+                  <span className="text-sm font-bold text-blue-600">{score}/10</span>
                 </div>
-                <Progress
-                  percent={score * 10}
-                  strokeColor="#1890ff"
-                  strokeWidth={8}
-                  showInfo={false}
-                />
+                <Progress percent={score * 10} strokeColor="#1890ff" strokeWidth={8} showInfo={false} />
               </div>
             ))}
           </div>
@@ -716,10 +773,7 @@ const ClientsData = () => {
         <Panel header="Key Highlights" key="highlights">
           <div className="space-y-2">
             {analysis.highlights.map((highlight, idx) => (
-              <div
-                key={idx}
-                className="flex items-start gap-2 p-2 bg-green-50 rounded"
-              >
+              <div key={idx} className="flex items-start gap-2 p-2 bg-green-50 rounded">
                 <span className="text-green-600 mt-1">✓</span>
                 <span className="text-sm">{highlight}</span>
               </div>
@@ -727,21 +781,6 @@ const ClientsData = () => {
           </div>
         </Panel>
 
-        <Panel header="Suggested Questions" key="questions">
-          <div className="space-y-2">
-            {analysis.suggested_questions.map((question, idx) => (
-              <div
-                key={idx}
-                className="flex items-start gap-2 p-2 bg-blue-50 rounded"
-              >
-                <span className="text-blue-600 mt-1">?</span>
-                <span className="text-sm">{question}</span>
-              </div>
-            ))}
-          </div>
-        </Panel>
-
-        {/* Email Content Panel */}
         {(analysis.email_subject || analysis.email_body) && (
           <Panel
             header={
@@ -755,37 +794,18 @@ const ClientsData = () => {
               {analysis.email_subject && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-semibold text-gray-700">
-                      Email Subject
-                    </label>
-                    <Tooltip
-                      title={
-                        copiedField === `subject-${index}`
-                          ? "Copied!"
-                          : "Copy Subject"
-                      }
-                    >
+                    <label className="text-sm font-semibold text-gray-700">Email Subject</label>
+                    <Tooltip title={copiedField === `subject-${index}` ? "Copied!" : "Copy Subject"}>
                       <button
-                        onClick={() =>
-                          handleCopyToClipboard(
-                            analysis.email_subject!,
-                            `subject-${index}`
-                          )
-                        }
+                        onClick={() => handleCopyToClipboard(analysis.email_subject!, `subject-${index}`)}
                         className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                       >
-                        {copiedField === `subject-${index}` ? (
-                          <Check size={16} />
-                        ) : (
-                          <Copy size={16} />
-                        )}
+                        {copiedField === `subject-${index}` ? <Check size={16} /> : <Copy size={16} />}
                       </button>
                     </Tooltip>
                   </div>
                   <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                    <p className="text-sm text-gray-800 font-medium">
-                      {analysis.email_subject}
-                    </p>
+                    <p className="text-sm text-gray-800 font-medium">{analysis.email_subject}</p>
                   </div>
                 </div>
               )}
@@ -793,30 +813,13 @@ const ClientsData = () => {
               {analysis.email_body && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-semibold text-gray-700">
-                      Email Body
-                    </label>
-                    <Tooltip
-                      title={
-                        copiedField === `body-${index}`
-                          ? "Copied!"
-                          : "Copy Email Body"
-                      }
-                    >
+                    <label className="text-sm font-semibold text-gray-700">Email Body</label>
+                    <Tooltip title={copiedField === `body-${index}` ? "Copied!" : "Copy Email Body"}>
                       <button
-                        onClick={() =>
-                          handleCopyToClipboard(
-                            analysis.email_body!,
-                            `body-${index}`
-                          )
-                        }
+                        onClick={() => handleCopyToClipboard(analysis.email_body!, `body-${index}`)}
                         className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                       >
-                        {copiedField === `body-${index}` ? (
-                          <Check size={16} />
-                        ) : (
-                          <Copy size={16} />
-                        )}
+                        {copiedField === `body-${index}` ? <Check size={16} /> : <Copy size={16} />}
                       </button>
                     </Tooltip>
                   </div>
@@ -841,9 +844,7 @@ const ClientsData = () => {
                 <AntButton
                   icon={<Copy size={16} />}
                   onClick={() => {
-                    const fullEmail = `Subject: ${
-                      analysis.email_subject || ""
-                    }\n\n${analysis.email_body || ""}`;
+                    const fullEmail = `Subject: ${analysis.email_subject || ""}\n\n${analysis.email_body || ""}`;
                     handleCopyToClipboard(fullEmail, `full-email-${index}`);
                   }}
                   type="default"
@@ -861,34 +862,79 @@ const ClientsData = () => {
 
   const columns: Column[] = [
     {
+      key: "submissionId",
+      title: "Submission ID",
+      render: (_, record: Client) => <span className="text-sm font-medium">{record.submissionId || "N/A"}</span>,
+    },
+    {
       key: "companyName",
       title: "Company Name",
-      render: (_, record: Client) => (
-        <span className="text-sm font-medium">
-          {record.companyName || "N/A"}
-        </span>
-      ),
+      render: (_, record: Client) => <span className="text-sm font-medium">{record.companyName || "N/A"}</span>,
     },
     {
       key: "founderName",
       title: "Founder Name",
-      render: (_, record: Client) => (
-        <span className="text-sm">{record.founderName || "N/A"}</span>
-      ),
+      render: (_, record: Client) => <span className="text-sm">{record.founderName || "N/A"}</span>,
     },
     {
       key: "email",
       title: "Email",
-      render: (_, record: Client) => (
-        <span className="text-sm">{record.email || "N/A"}</span>
-      ),
+      render: (_, record: Client) => <span className="text-sm">{record.email || "N/A"}</span>,
     },
     {
       key: "phone",
       title: "Phone",
+      render: (_, record: Client) => <span className="text-sm">{record.phone || "N/A"}</span>,
+    },
+    {
+      key: "status",
+      title: "Status",
       render: (_, record: Client) => (
-        <span className="text-sm">{record.phone || "N/A"}</span>
+        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getClientStatusColor(record.status)}`}>
+          {record.status.replace("_", " ").toUpperCase()}
+        </span>
       ),
+    },
+    {
+      key: "reviewStatus",
+      title: "Review Status",
+      render: (_, record: Client) => {
+        if (record.reviewedAt) {
+          return (
+            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              <CheckCircle size={14} className="mr-1" />
+              REVIEWED
+            </span>
+          );
+        }
+        return (
+          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+            <Clock size={14} className="mr-1" />
+            PENDING
+          </span>
+        );
+      },
+    },
+    {
+      key: "pitchScore",
+      title: "Pitch Score",
+      render: (_, record: Client) => {
+        const latestPitch = record.pitchAnalyses?.[record.pitchAnalyses.length - 1];
+        if (latestPitch) {
+          const score = latestPitch.summary?.total_score || 0;
+          return (
+            <span
+              className="text-sm font-bold"
+              style={{
+                color: getProgressColor(score),
+              }}
+            >
+              {score}/100
+            </span>
+          );
+        }
+        return <span className="text-sm text-gray-500">N/A</span>;
+      },
     },
     {
       key: "emailVerified",
@@ -896,9 +942,7 @@ const ClientsData = () => {
       render: (_, record: Client) => (
         <span
           className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            record.emailVerified
-              ? "bg-green-100 text-green-800"
-              : "bg-red-100 text-red-800"
+            record.emailVerified ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
           }`}
         >
           {record.emailVerified ? "Verified" : "Not Verified"}
@@ -911,9 +955,7 @@ const ClientsData = () => {
       render: (_, record: Client) => (
         <span
           className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            record.archived
-              ? "bg-red-100 text-red-800"
-              : "bg-green-100 text-green-800"
+            record.archived ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"
           }`}
         >
           {record.archived ? "Yes" : "No"}
@@ -932,16 +974,12 @@ const ClientsData = () => {
     {
       key: "revenue",
       title: "Revenue",
-      render: (_, record: Client) => (
-        <span className="text-sm">{record.revenue || "N/A"}</span>
-      ),
+      render: (_, record: Client) => <span className="text-sm">{record.revenue || "N/A"}</span>,
     },
     {
       key: "investment",
       title: "Investment Ask",
-      render: (_, record: Client) => (
-        <span className="text-sm">{record.investment || "N/A"}</span>
-      ),
+      render: (_, record: Client) => <span className="text-sm">{record.investment || "N/A"}</span>,
     },
     {
       key: "industry",
@@ -963,10 +1001,7 @@ const ClientsData = () => {
         return (
           <div className="flex flex-wrap gap-1">
             {industries.slice(0, 2).map((industry, idx) => (
-              <span
-                key={idx}
-                className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800"
-              >
+              <span key={idx} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
                 {industry}
               </span>
             ))}
@@ -982,9 +1017,7 @@ const ClientsData = () => {
     {
       key: "city",
       title: "City",
-      render: (_, record: Client) => (
-        <span className="text-sm">{record.city || "N/A"}</span>
-      ),
+      render: (_, record: Client) => <span className="text-sm">{record.city || "N/A"}</span>,
     },
     {
       key: "onboarding",
@@ -1017,6 +1050,15 @@ const ClientsData = () => {
           >
             <Eye size={18} />
           </button>
+          {!record.reviewedAt && (
+            <button
+              onClick={() => handleReviewClient(record)}
+              className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+              title="Mark as reviewed"
+            >
+              <CheckCircle size={18} />
+            </button>
+          )}
           <button
             onClick={() => handleEditClient(record)}
             className="p-2 text-gray-600 hover:bg-gray-50 rounded-full transition-colors"
@@ -1045,8 +1087,7 @@ const ClientsData = () => {
             onClick={() => {
               Modal.confirm({
                 title: "Delete this client?",
-                content:
-                  "This action cannot be undone. All pitch analyses will be deleted.",
+                content: "This action cannot be undone. All pitch analyses will be deleted.",
                 okText: "Delete",
                 cancelText: "Cancel",
                 okButtonProps: { danger: true },
@@ -1057,11 +1098,7 @@ const ClientsData = () => {
             title="Delete client"
             disabled={deleteLoading === record.id}
           >
-            {deleteLoading === record.id ? (
-              <Spin size="small" />
-            ) : (
-              <Trash2 size={18} />
-            )}
+            {deleteLoading === record.id ? <Spin size="small" /> : <Trash2 size={18} />}
           </button>
         </div>
       ),
@@ -1071,9 +1108,7 @@ const ClientsData = () => {
   return (
     <div>
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
-          Client Management
-        </h1>
+        <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Client Management</h1>
         <button
           onClick={() => router.push("/dashboard/add-client")}
           className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors"
@@ -1090,7 +1125,7 @@ const ClientsData = () => {
         loading={loading}
         onRefresh={fetchAllClients}
         searchPlaceholder="Search by email, company or founder name..."
-        searchKeys={["email", "companyName", "founderName", "phone"]}
+        searchKeys={["email", "companyName", "founderName", "phone", "submissionId"]}
         rowKey={(record: Client) => record.id}
         visibleColumns={visibleColumns}
         onColumnVisibilityChange={setVisibleColumns}
@@ -1113,131 +1148,120 @@ const ClientsData = () => {
             <TabPane tab="Basic Information" key="1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="col-span-2 border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">
-                    Founder Name
-                  </div>
-                  <div className="text-base text-gray-900">
-                    {selectedClient.founderName || "N/A"}
-                  </div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">Submission ID</div>
+                  <div className="text-base font-bold text-gray-900">{selectedClient.submissionId || "N/A"}</div>
                 </div>
 
                 <div className="col-span-2 border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">
-                    Email
-                  </div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">Founder Name</div>
+                  <div className="text-base text-gray-900">{selectedClient.founderName || "N/A"}</div>
+                </div>
+
+                <div className="col-span-2 border-b pb-3">
+                  <div className="text-sm font-medium text-gray-500 mb-1">Email</div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-base text-gray-900 break-all">
-                      {selectedClient.email || "N/A"}
-                    </span>
+                    <span className="text-base text-gray-900 break-all">{selectedClient.email || "N/A"}</span>
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                        selectedClient.emailVerified
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
+                        selectedClient.emailVerified ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
                       }`}
                     >
-                      {selectedClient.emailVerified
-                        ? "Verified"
-                        : "Not Verified"}
+                      {selectedClient.emailVerified ? "Verified" : "Not Verified"}
                     </span>
                   </div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">
-                    Phone
-                  </div>
-                  <div className="text-base text-gray-900">
-                    {selectedClient.phone || "N/A"}
-                  </div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">Phone</div>
+                  <div className="text-base text-gray-900">{selectedClient.phone || "N/A"}</div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">
-                    Company Name
-                  </div>
-                  <div className="text-base font-semibold text-gray-900">
-                    {selectedClient.companyName || "N/A"}
-                  </div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">Company Name</div>
+                  <div className="text-base font-semibold text-gray-900">{selectedClient.companyName || "N/A"}</div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">
-                    Industry
-                  </div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">Industry</div>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                     {selectedClient.industry || "N/A"}
                   </span>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">
-                    Funding Stage
-                  </div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">Funding Stage</div>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                     {selectedClient.fundingStage || "N/A"}
                   </span>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">
-                    Revenue
-                  </div>
-                  <div className="text-base text-gray-900">
-                    {selectedClient.revenue || "N/A"}
-                  </div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">Revenue</div>
+                  <div className="text-base text-gray-900">{selectedClient.revenue || "N/A"}</div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">
-                    Investment Ask
-                  </div>
-                  <div className="text-base text-gray-900">
-                    {selectedClient.investment || "N/A"}
-                  </div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">Investment Ask</div>
+                  <div className="text-base text-gray-900">{selectedClient.investment || "N/A"}</div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">
-                    City
-                  </div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">City</div>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                     {selectedClient.city || "N/A"}
                   </span>
                 </div>
 
+                <div className="col-span-2 border-b pb-3">
+                  <div className="text-sm font-medium text-gray-500 mb-1">Status</div>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getClientStatusColor(selectedClient.status)}`}>
+                    {selectedClient.status.replace("_", " ").toUpperCase()}
+                  </span>
+                </div>
+
+                {selectedClient.reviewedAt && (
+                  <>
+                    <div className="col-span-2 border-b pb-3">
+                      <div className="text-sm font-medium text-gray-500 mb-1">Reviewed At</div>
+                      <div className="text-base text-gray-900">
+                        {new Date(selectedClient.reviewedAt).toLocaleString("en-US", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                    </div>
+
+                    {selectedClient.reviewNotes && (
+                      <div className="col-span-2 border-b pb-3">
+                        <div className="text-sm font-medium text-gray-500 mb-1">Review Notes</div>
+                        <div className="text-base text-gray-900">{selectedClient.reviewNotes}</div>
+                      </div>
+                    )}
+                  </>
+                )}
+
                 {selectedClient.createdAt && (
                   <div className="border-b pb-3">
-                    <div className="text-sm font-medium text-gray-500 mb-1">
-                      Onboarded
-                    </div>
+                    <div className="text-sm font-medium text-gray-500 mb-1">Onboarded</div>
                     <div className="text-base text-gray-900">
                       {(() => {
-                        const onboardedDate = new Date(
-                          selectedClient.createdAt
-                        );
+                        const onboardedDate = new Date(selectedClient.createdAt);
                         const today = new Date();
-                        const diffDays = Math.floor(
-                          (today.getTime() - onboardedDate.getTime()) /
-                            (1000 * 60 * 60 * 24)
-                        );
-                        return `${diffDays} day${
-                          diffDays !== 1 ? "s" : ""
-                        } ago`;
+                        const diffDays = Math.floor((today.getTime() - onboardedDate.getTime()) / (1000 * 60 * 60 * 24));
+                        return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
                       })()}
                     </div>
                   </div>
                 )}
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">
-                    Is Archived
-                  </div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">Is Archived</div>
                   <span
                     className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      selectedClient.archived
-                        ? "bg-red-100 text-red-800"
-                        : "bg-green-100 text-green-800"
+                      selectedClient.archived ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"
                     }`}
                   >
                     {selectedClient.archived ? "Yes" : "No"}
@@ -1246,24 +1270,60 @@ const ClientsData = () => {
               </div>
             </TabPane>
 
-            <TabPane
-              tab={`Pitch Analyses (${
-                selectedClient.pitchAnalyses?.length || 0
-              })`}
-              key="2"
-            >
+            <TabPane tab="Email Configuration" key="email-config">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border-b pb-3">
+                  <div className="text-sm font-medium text-gray-500 mb-1">Platform Name</div>
+                  <div className="text-base text-gray-900">{selectedClient.platformName || "N/A"}</div>
+                </div>
+
+                <div className="border-b pb-3">
+                  <div className="text-sm font-medium text-gray-500 mb-1">Sender Email</div>
+                  <div className="text-base text-gray-900 break-all">{selectedClient.senderEmail || "N/A"}</div>
+                </div>
+
+                <div className="border-b pb-3">
+                  <div className="text-sm font-medium text-gray-500 mb-1">SMTP Host</div>
+                  <div className="text-base text-gray-900">{selectedClient.smtpHost || "N/A"}</div>
+                </div>
+
+                <div className="border-b pb-3">
+                  <div className="text-sm font-medium text-gray-500 mb-1">SMTP Port</div>
+                  <div className="text-base text-gray-900">{selectedClient.smtpPort || "N/A"}</div>
+                </div>
+
+                <div className="border-b pb-3">
+                  <div className="text-sm font-medium text-gray-500 mb-1">Security Type</div>
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    {selectedClient.smtpSecurity || "N/A"}
+                  </span>
+                </div>
+
+                <div className="border-b pb-3">
+                  <div className="text-sm font-medium text-gray-500 mb-1">Test Status</div>
+                  <span
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      selectedClient.smtpTestStatus === "passed" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
+                    }`}
+                  >
+                    {selectedClient.smtpTestStatus?.toUpperCase() || "PENDING"}
+                  </span>
+                </div>
+
+                <div className="col-span-2 border-b pb-3">
+                  <div className="text-sm font-medium text-gray-500 mb-1">Daily Email Limit</div>
+                  <div className="text-base text-gray-900">{selectedClient.dailyEmailLimit || 50}</div>
+                </div>
+              </div>
+            </TabPane>
+
+            <TabPane tab={`Pitch Analyses (${selectedClient.pitchAnalyses?.length || 0})`} key="2">
               <div className="max-h-[500px] overflow-y-auto">
-                {selectedClient.pitchAnalyses &&
-                selectedClient.pitchAnalyses.length > 0 ? (
-                  selectedClient.pitchAnalyses.map((analysis, index) =>
-                    renderPitchAnalysis(analysis, index)
-                  )
+                {selectedClient.pitchAnalyses && selectedClient.pitchAnalyses.length > 0 ? (
+                  selectedClient.pitchAnalyses.map((analysis, index) => renderPitchAnalysis(analysis, index))
                 ) : (
                   <div className="text-center py-8 text-gray-500">
-                    <FileText
-                      size={48}
-                      className="mx-auto mb-3 text-gray-300"
-                    />
+                    <FileText size={48} className="mx-auto mb-3 text-gray-300" />
                     <p>No pitch analyses yet</p>
                   </div>
                 )}
@@ -1279,22 +1339,15 @@ const ClientsData = () => {
                       <span className="font-semibold">Form Edits</span>
                     </div>
                     <span className="text-lg font-bold">
-                      {selectedClient.usageLimits?.formEditCount || 0} /{" "}
-                      {selectedClient.usageLimits?.maxFormEdits || 4}
+                      {selectedClient.usageLimits?.formEditCount || 0} / {selectedClient.usageLimits?.maxFormEdits || 4}
                     </span>
                   </div>
                   <Progress
-                    percent={
-                      ((selectedClient.usageLimits?.formEditCount || 0) /
-                        (selectedClient.usageLimits?.maxFormEdits || 4)) *
-                      100
-                    }
+                    percent={((selectedClient.usageLimits?.formEditCount || 0) / (selectedClient.usageLimits?.maxFormEdits || 4)) * 100}
                     strokeColor="#1890ff"
                   />
                   <div className="mt-2 text-sm text-gray-600">
-                    {selectedClient.usageLimits?.canEditForm
-                      ? "Can still edit"
-                      : "Edit limit reached"}
+                    {selectedClient.usageLimits?.canEditForm ? "Can still edit" : "Edit limit reached"}
                   </div>
                   <div className="mt-3">
                     <AntButton
@@ -1317,29 +1370,20 @@ const ClientsData = () => {
                       <span className="font-semibold">Pitch Analyses</span>
                     </div>
                     <span className="text-lg font-bold">
-                      {selectedClient.usageLimits?.pitchAnalysisCount || 0} /{" "}
-                      {selectedClient.usageLimits?.maxPitchAnalysis || 2}
+                      {selectedClient.usageLimits?.pitchAnalysisCount || 0} / {selectedClient.usageLimits?.maxPitchAnalysis || 2}
                     </span>
                   </div>
                   <Progress
-                    percent={
-                      ((selectedClient.usageLimits?.pitchAnalysisCount || 0) /
-                        (selectedClient.usageLimits?.maxPitchAnalysis || 2)) *
-                      100
-                    }
+                    percent={((selectedClient.usageLimits?.pitchAnalysisCount || 0) / (selectedClient.usageLimits?.maxPitchAnalysis || 2)) * 100}
                     strokeColor="#52c41a"
                   />
                   <div className="mt-2 text-sm text-gray-600">
-                    {selectedClient.usageLimits?.canAnalyzePitch
-                      ? "Can add more analyses"
-                      : "Analysis limit reached"}
+                    {selectedClient.usageLimits?.canAnalyzePitch ? "Can add more analyses" : "Analysis limit reached"}
                   </div>
                   <div className="mt-3">
                     <AntButton
                       icon={<RefreshCw size={16} />}
-                      onClick={() =>
-                        handleResetPitchAnalysis(selectedClient.id)
-                      }
+                      onClick={() => handleResetPitchAnalysis(selectedClient.id)}
                       loading={resetAnalysisLoading}
                       type="default"
                       size="small"
@@ -1351,13 +1395,7 @@ const ClientsData = () => {
                 </div>
 
                 <div className="flex gap-2 pt-4 border-t">
-                  <AntButton
-                    icon={<RefreshCw size={16} />}
-                    onClick={() => handleResetAllLimits(selectedClient.id)}
-                    loading={resetAllLoading}
-                    type="default"
-                    danger
-                  >
+                  <AntButton icon={<RefreshCw size={16} />} onClick={() => handleResetAllLimits(selectedClient.id)} loading={resetAllLoading} type="default" danger>
                     Reset Both to 0
                   </AntButton>
                   <AntButton
@@ -1389,47 +1427,18 @@ const ClientsData = () => {
         footer={[
           <button
             key="cancel"
-            onClick={() => setUsageLimitsModalVisible(false)}
+            onClick={() => setEditModalVisible(false)}
             disabled={updateLoading}
             className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Cancel
           </button>,
           <button
-            key="reset-form"
-            onClick={() =>
-              selectedClient && handleResetFormEdits(selectedClient.id)
-            }
-            disabled={updateLoading || resetFormLoading}
-            className="px-4 py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-300 rounded-lg hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
-          >
-            {resetFormLoading ? <Spin size="small" /> : "Reset Form Edits"}
-          </button>,
-          <button
-            key="reset-analysis"
-            onClick={() =>
-              selectedClient && handleResetPitchAnalysis(selectedClient.id)
-            }
-            disabled={updateLoading || resetAnalysisLoading}
-            className="px-4 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-300 rounded-lg hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
-          >
-            {resetAnalysisLoading ? <Spin size="small" /> : "Reset Analysis"}
-          </button>,
-          <button
-            key="reset-all"
-            onClick={() =>
-              selectedClient && handleResetAllLimits(selectedClient.id)
-            }
-            disabled={updateLoading || resetAllLoading}
-            className="px-4 py-2 text-sm font-medium text-orange-700 bg-orange-50 border border-orange-300 rounded-lg hover:bg-orange-100 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
-          >
-            {resetAllLoading ? <Spin size="small" /> : "Reset Both"}
-          </button>,
-          <button
             key="save"
-            onClick={handleUpdateUsageLimits}
+            onClick={handleUpdateClient}
             disabled={updateLoading}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
+            className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
+            style={{ backgroundColor: "#1890ff" }}
           >
             {updateLoading ? <Spin size="small" /> : "Save Changes"}
           </button>,
@@ -1440,9 +1449,7 @@ const ClientsData = () => {
           <form onSubmit={handleUpdateClient} className="space-y-4 p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Founder Name
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Founder Name</label>
                 <input
                   type="text"
                   value={editFormData.founderName}
@@ -1458,39 +1465,29 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Email
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input
                   type="email"
                   value={editFormData.email}
-                  onChange={(e) =>
-                    setEditFormData({ ...editFormData, email: e.target.value })
-                  }
+                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={updateLoading}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
                 <input
                   type="text"
                   value={editFormData.phone}
-                  onChange={(e) =>
-                    setEditFormData({ ...editFormData, phone: e.target.value })
-                  }
+                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={updateLoading}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Company Name
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
                 <input
                   type="text"
                   value={editFormData.companyName}
@@ -1506,9 +1503,7 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Industry
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
                 <input
                   type="text"
                   value={editFormData.industry}
@@ -1524,9 +1519,7 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Funding Stage
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Funding Stage</label>
                 <select
                   value={editFormData.fundingStage}
                   onChange={(e) =>
@@ -1549,9 +1542,7 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Revenue
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Revenue</label>
                 <input
                   type="text"
                   value={editFormData.revenue}
@@ -1567,9 +1558,7 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Investment Ask
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Investment Ask</label>
                 <input
                   type="text"
                   value={editFormData.investment}
@@ -1585,14 +1574,30 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  City
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
                 <input
                   type="text"
                   value={editFormData.city}
+                  onChange={(e) => setEditFormData({ ...editFormData, city: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={updateLoading}
+                />
+              </div>
+
+              <div className="col-span-2">
+                <h3 className="font-semibold text-gray-900 mb-3 pt-2 border-t">Email Configuration</h3>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Platform Name</label>
+                <input
+                  type="text"
+                  value={editFormData.platformName}
                   onChange={(e) =>
-                    setEditFormData({ ...editFormData, city: e.target.value })
+                    setEditFormData({
+                      ...editFormData,
+                      platformName: e.target.value,
+                    })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={updateLoading}
@@ -1600,22 +1605,70 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Gmail App Password
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Sender Email</label>
                 <input
-                  type="text"
-                  value={editFormData.gmailAppPassword}
+                  type="email"
+                  value={editFormData.senderEmail}
                   onChange={(e) =>
                     setEditFormData({
                       ...editFormData,
-                      gmailAppPassword: e.target.value,
+                      senderEmail: e.target.value,
                     })
                   }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={updateLoading}
-                  placeholder="16 character app password"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">SMTP Host</label>
+                <input
+                  type="text"
+                  value={editFormData.smtpHost}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      smtpHost: e.target.value,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={updateLoading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">SMTP Port</label>
+                <input
+                  type="number"
+                  value={editFormData.smtpPort}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      smtpPort: parseInt(e.target.value) || 587,
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={updateLoading}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Security Type</label>
+                <select
+                  value={editFormData.smtpSecurity}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      smtpSecurity: e.target.value as "TLS" | "SSL" | "None",
+                    })
+                  }
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={updateLoading}
+                >
+                  <option value="TLS">TLS</option>
+                  <option value="SSL">SSL</option>
+                  <option value="None">None</option>
+                </select>
               </div>
 
               <div className="flex items-center">
@@ -1632,16 +1685,111 @@ const ClientsData = () => {
                   id="archive-checkbox"
                   disabled={updateLoading}
                 />
-                <label
-                  htmlFor="archive-checkbox"
-                  className="ml-2 text-sm text-gray-700"
-                >
+                <label htmlFor="archive-checkbox" className="ml-2 text-sm text-gray-700">
                   Archive Client
                 </label>
               </div>
             </div>
           </form>
         )}
+      </Modal>
+
+      {/* Review Modal */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <CheckCircle size={20} />
+            <span className="text-lg font-semibold">Review Client Submission</span>
+          </div>
+        }
+        open={reviewModalVisible}
+        onCancel={() => !reviewLoading && setReviewModalVisible(false)}
+        footer={[
+          <button
+            key="cancel"
+            onClick={() => setReviewModalVisible(false)}
+            disabled={reviewLoading}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>,
+          <button
+            key="submit"
+            onClick={handleSubmitReview}
+            disabled={reviewLoading}
+            className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
+            style={{ backgroundColor: "#52c41a" }}
+          >
+            {reviewLoading ? <Spin size="small" /> : "Submit Review"}
+          </button>,
+        ]}
+        width={600}
+      >
+        <div className="p-4 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Review Decision</label>
+            <Select
+              value={reviewFormData.status}
+              onChange={(value) =>
+                setReviewFormData({
+                  ...reviewFormData,
+                  status: value as "approved" | "rejected",
+                })
+              }
+              className="w-full"
+              size="large"
+            >
+              <Option value="approved">
+                <span className="flex items-center gap-2">
+                  <CheckCircle size={16} className="text-green-600" />
+                  Approve
+                </span>
+              </Option>
+              <Option value="rejected">
+                <span className="flex items-center gap-2">
+                  <XCircle size={16} className="text-red-600" />
+                  Reject
+                </span>
+              </Option>
+            </Select>
+          </div>
+
+          {reviewFormData.status === "rejected" && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Rejection Reason <span className="text-red-500">*</span>
+              </label>
+              <TextArea
+                value={reviewFormData.rejectionReason}
+                onChange={(e) =>
+                  setReviewFormData({
+                    ...reviewFormData,
+                    rejectionReason: e.target.value,
+                  })
+                }
+                rows={4}
+                placeholder="Please explain why this submission is being rejected..."
+                className="w-full"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Additional Notes (Optional)</label>
+            <TextArea
+              value={reviewFormData.reviewNotes}
+              onChange={(e) =>
+                setReviewFormData({
+                  ...reviewFormData,
+                  reviewNotes: e.target.value,
+                })
+              }
+              rows={4}
+              placeholder="Add any additional notes about this review..."
+              className="w-full"
+            />
+          </div>
+        </div>
       </Modal>
 
       {/* Usage Limits Management Modal */}
@@ -1664,20 +1812,11 @@ const ClientsData = () => {
             Cancel
           </button>,
           <button
-            key="reset"
-            onClick={() =>
-              selectedClient && handleResetUsageLimits(selectedClient.id)
-            }
-            disabled={updateLoading || resetLoading}
-            className="px-4 py-2 text-sm font-medium text-orange-700 bg-orange-50 border border-orange-300 rounded-lg hover:bg-orange-100 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
-          >
-            {resetLoading ? <Spin size="small" /> : "Reset to Default"}
-          </button>,
-          <button
             key="save"
             onClick={handleUpdateUsageLimits}
             disabled={updateLoading}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
+            className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
+            style={{ backgroundColor: "#1890ff" }}
           >
             {updateLoading ? <Spin size="small" /> : "Save Changes"}
           </button>,
@@ -1688,9 +1827,7 @@ const ClientsData = () => {
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Current Form Edits
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Current Form Edits</label>
                 <InputNumber
                   min={0}
                   max={usageLimitsFormData.maxFormEdits}
@@ -1707,9 +1844,7 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Max Form Edits
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Max Form Edits</label>
                 <InputNumber
                   min={usageLimitsFormData.formEditCount}
                   max={100}
@@ -1726,9 +1861,7 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Current Pitch Analyses
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Current Pitch Analyses</label>
                 <InputNumber
                   min={0}
                   max={usageLimitsFormData.maxPitchAnalysis}
@@ -1745,9 +1878,7 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Max Pitch Analyses
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Max Pitch Analyses</label>
                 <InputNumber
                   min={usageLimitsFormData.pitchAnalysisCount}
                   max={100}
@@ -1770,16 +1901,13 @@ const ClientsData = () => {
               <div className="font-semibold mb-2">💡 Usage Limits Guide:</div>
               <ul className="list-disc pl-5 space-y-1">
                 <li>
-                  <strong>Current:</strong> How many times the client has
-                  already used this feature
+                  <strong>Current:</strong> How many times the client has already used this feature
                 </li>
                 <li>
-                  <strong>Max:</strong> Maximum allowed uses (increase to give
-                  more credits)
+                  <strong>Max:</strong> Maximum allowed uses (increase to give more credits)
                 </li>
                 <li>
-                  <strong>Reset:</strong> Sets "Current" back to 0 while keeping
-                  "Max" unchanged
+                  <strong>Reset:</strong> Sets "Current" back to 0 while keeping "Max" unchanged
                 </li>
               </ul>
             </div>

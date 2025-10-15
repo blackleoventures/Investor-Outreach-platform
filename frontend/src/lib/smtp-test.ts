@@ -2,11 +2,15 @@
 
 import nodemailer from "nodemailer";
 import type { Transporter } from "nodemailer";
-import { SmtpConfiguration, SmtpTestResponse, SmtpErrorType } from "@/types/smtp";
+import {
+  SmtpConfiguration,
+  SmtpTestResponse,
+  SmtpErrorType,
+} from "@/types/smtp";
 
 /**
  * Test SMTP connection and send a test email for CLIENT
- * 
+ *
  * @param smtpConfig - SMTP configuration
  * @param testRecipientEmail - Email address to send test email to
  * @returns Test result with success status and details
@@ -20,7 +24,7 @@ export async function testSmtpConnectionClient(
 
 /**
  * Test SMTP connection and send a test email for ADMIN
- * 
+ *
  * @param smtpConfig - SMTP configuration
  * @param testRecipientEmail - Email address to send test email to
  * @returns Test result with success status and details
@@ -34,7 +38,7 @@ export async function testSmtpConnectionAdmin(
 
 /**
  * Internal function to test SMTP connection
- * 
+ *
  * @param smtpConfig - SMTP configuration
  * @param testRecipientEmail - Email address to send test email to
  * @param senderType - Type of sender (client or admin)
@@ -49,7 +53,12 @@ async function testSmtpConnection(
 
   try {
     // Validate inputs
-    if (!smtpConfig.smtpHost || !smtpConfig.smtpPort || !smtpConfig.smtpUsername || !smtpConfig.smtpPassword) {
+    if (
+      !smtpConfig.smtpHost ||
+      !smtpConfig.smtpPort ||
+      !smtpConfig.smtpUsername ||
+      !smtpConfig.smtpPassword
+    ) {
       return {
         success: false,
         message: "Missing required email configuration fields",
@@ -90,15 +99,19 @@ async function testSmtpConnection(
     // Step 2: Send test email
     console.log("[Email Test] Sending test email...");
     const info = await transporter.sendMail({
-      from: `${smtpConfig.platformName || "Campaign Platform"} <${smtpConfig.senderEmail}>`,
+      from: `${smtpConfig.platformName || "Campaign Platform"} <${
+        smtpConfig.senderEmail
+      }>`,
       to: testRecipientEmail,
       subject: "Test Email from Campaign Platform",
-      text: senderType === "client" 
-        ? generateClientTestEmailText(smtpConfig)
-        : generateAdminTestEmailText(smtpConfig),
-      html: senderType === "client"
-        ? generateClientTestEmailHtml(smtpConfig)
-        : generateAdminTestEmailHtml(smtpConfig),
+      text:
+        senderType === "client"
+          ? generateClientTestEmailText(smtpConfig)
+          : generateAdminTestEmailText(smtpConfig),
+      html:
+        senderType === "client"
+          ? generateClientTestEmailHtml(smtpConfig)
+          : generateAdminTestEmailHtml(smtpConfig),
     });
 
     console.log("[Email Test] Test email sent successfully:", info.messageId);
@@ -137,7 +150,8 @@ function parseSmtpError(error: any): SmtpTestResponse {
 
   // Authentication errors
   if (error.code === "EAUTH" || error.responseCode === 535) {
-    errorMessage = "Authentication failed. Please check your username and password.";
+    errorMessage =
+      "Authentication failed. Please check your username and password.";
     errorCode = SmtpErrorType.AUTH_FAILED;
   }
   // Connection errors
@@ -207,69 +221,86 @@ function generateClientTestEmailHtml(smtpConfig: SmtpConfiguration): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Test Email</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
-  <div style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f4f4f4;">
+  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
     
     <!-- Header -->
-    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center;">
-      <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">
-        Test Email Successful
+    <div style="background-color: #000000; padding: 30px 20px; border-bottom: 4px solid #FFC107;">
+      <h1 style="margin: 0; color: #FFC107; font-size: 24px; font-weight: bold; letter-spacing: 0.5px;">
+        EMAIL CONFIGURATION TEST
       </h1>
+      <p style="margin: 8px 0 0 0; color: #ffffff; font-size: 14px;">
+        ${smtpConfig.platformName || "Campaign Platform"}
+      </p>
     </div>
     
     <!-- Content -->
     <div style="padding: 40px 30px;">
-      <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #333333;">
+      <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #000000;">
         This is a test email to verify your email configuration.
       </p>
       
-      <div style="background-color: #f0f9ff; border-left: 4px solid #3b82f6; padding: 16px; margin: 20px 0; border-radius: 4px;">
-        <p style="margin: 0; font-size: 16px; font-weight: 600; color: #1e40af;">
-          If you received this email, your email settings are working correctly!
+      <div style="background-color: #FFFDE7; border: 2px solid #FFC107; padding: 20px; margin: 24px 0;">
+        <p style="margin: 0; font-size: 16px; font-weight: bold; color: #000000;">
+          ✓ Configuration Test Successful
+        </p>
+        <p style="margin: 8px 0 0 0; font-size: 14px; color: #424242;">
+          If you received this email, your email settings are working correctly.
         </p>
       </div>
       
-      <h2 style="margin: 30px 0 15px 0; font-size: 18px; font-weight: 600; color: #333333;">
+      <h2 style="margin: 32px 0 16px 0; font-size: 18px; font-weight: bold; color: #000000; border-bottom: 2px solid #000000; padding-bottom: 8px;">
         Configuration Details
       </h2>
       
       <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
         <tr>
-          <td style="padding: 12px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-weight: 600; color: #374151; width: 40%;">Platform</td>
-          <td style="padding: 12px; background-color: #ffffff; border: 1px solid #e5e7eb; color: #6b7280;">${smtpConfig.platformName}</td>
+          <td style="padding: 12px 16px; background-color: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold; color: #000000; width: 40%;">Platform</td>
+          <td style="padding: 12px 16px; background-color: #ffffff; border: 1px solid #e0e0e0; color: #424242;">${
+            smtpConfig.platformName
+          }</td>
         </tr>
         <tr>
-          <td style="padding: 12px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-weight: 600; color: #374151;">Mail Server</td>
-          <td style="padding: 12px; background-color: #ffffff; border: 1px solid #e5e7eb; color: #6b7280;">${smtpConfig.smtpHost}</td>
+          <td style="padding: 12px 16px; background-color: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold; color: #000000;">Mail Server</td>
+          <td style="padding: 12px 16px; background-color: #ffffff; border: 1px solid #e0e0e0; color: #424242;">${
+            smtpConfig.smtpHost
+          }</td>
         </tr>
         <tr>
-          <td style="padding: 12px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-weight: 600; color: #374151;">Port</td>
-          <td style="padding: 12px; background-color: #ffffff; border: 1px solid #e5e7eb; color: #6b7280;">${smtpConfig.smtpPort}</td>
+          <td style="padding: 12px 16px; background-color: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold; color: #000000;">Port</td>
+          <td style="padding: 12px 16px; background-color: #ffffff; border: 1px solid #e0e0e0; color: #424242;">${
+            smtpConfig.smtpPort
+          }</td>
         </tr>
         <tr>
-          <td style="padding: 12px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-weight: 600; color: #374151;">Security</td>
-          <td style="padding: 12px; background-color: #ffffff; border: 1px solid #e5e7eb; color: #6b7280;">${smtpConfig.smtpSecurity}</td>
+          <td style="padding: 12px 16px; background-color: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold; color: #000000;">Security</td>
+          <td style="padding: 12px 16px; background-color: #ffffff; border: 1px solid #e0e0e0; color: #424242;">${
+            smtpConfig.smtpSecurity
+          }</td>
         </tr>
         <tr>
-          <td style="padding: 12px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-weight: 600; color: #374151;">Sender Email</td>
-          <td style="padding: 12px; background-color: #ffffff; border: 1px solid #e5e7eb; color: #6b7280;">${smtpConfig.senderEmail}</td>
+          <td style="padding: 12px 16px; background-color: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold; color: #000000;">Sender Email</td>
+          <td style="padding: 12px 16px; background-color: #ffffff; border: 1px solid #e0e0e0; color: #424242;">${
+            smtpConfig.senderEmail
+          }</td>
         </tr>
       </table>
       
-      <div style="background-color: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 30px 0; border-radius: 4px;">
-        <h3 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #92400e;">
-          Next Steps
+      <div style="background-color: #ffffff; border: 2px solid #000000; padding: 20px; margin: 32px 0;">
+        <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: bold; color: #000000;">
+          NEXT STEPS
         </h3>
-        <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #92400e;">
+        <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #424242;">
           Please complete the remaining steps and submit your registration. Our platform will contact you once your registration is complete.
         </p>
       </div>
     </div>
     
     <!-- Footer -->
-    <div style="background-color: #f9fafb; padding: 20px 30px; border-top: 1px solid #e5e7eb; text-align: center;">
-      <p style="margin: 0; font-size: 14px; color: #6b7280;">
-        This is an automated test email from the Campaign Platform
+    <div style="background-color: #f5f5f5; padding: 24px 30px; border-top: 1px solid #e0e0e0;">
+      <p style="margin: 0; font-size: 13px; color: #757575; line-height: 1.5;">
+        This is an automated test email from the Campaign Platform.<br>
+        Please do not reply to this email.
       </p>
     </div>
     
@@ -314,64 +345,86 @@ function generateAdminTestEmailHtml(smtpConfig: SmtpConfiguration): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Admin Test Email</title>
 </head>
-<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
-  <div style="max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden;">
+<body style="margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; background-color: #f4f4f4;">
+  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff;">
     
     <!-- Header -->
-    <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 20px; text-align: center;">
-      <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">
-        Admin Test Successful
+    <div style="background-color: #000000; padding: 30px 20px; border-bottom: 4px solid #FFC107;">
+      <h1 style="margin: 0; color: #FFC107; font-size: 24px; font-weight: bold; letter-spacing: 0.5px;">
+        ADMIN: CLIENT EMAIL TEST
       </h1>
+      <p style="margin: 8px 0 0 0; color: #ffffff; font-size: 14px;">
+        ${smtpConfig.platformName || "Campaign Platform"} - Admin Panel
+      </p>
     </div>
     
     <!-- Content -->
     <div style="padding: 40px 30px;">
-      <p style="margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #333333;">
+      <p style="margin: 0 0 24px 0; font-size: 16px; line-height: 1.6; color: #000000;">
         This is a test email to verify the client's email configuration.
       </p>
       
-      <div style="background-color: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; margin: 20px 0; border-radius: 4px;">
-        <p style="margin: 0; font-size: 16px; font-weight: 600; color: #065f46;">
-          If you received this email, the email settings are working correctly and the client can proceed.
+      <div style="background-color: #FFFDE7; border: 2px solid #FFC107; padding: 20px; margin: 24px 0;">
+        <p style="margin: 0; font-size: 16px; font-weight: bold; color: #000000;">
+          ✓ Client Configuration Test Successful
+        </p>
+        <p style="margin: 8px 0 0 0; font-size: 14px; color: #424242;">
+          The email settings are working correctly and the client can proceed with their registration.
         </p>
       </div>
       
-      <h2 style="margin: 30px 0 15px 0; font-size: 18px; font-weight: 600; color: #333333;">
-        Configuration Details
+      <h2 style="margin: 32px 0 16px 0; font-size: 18px; font-weight: bold; color: #000000; border-bottom: 2px solid #000000; padding-bottom: 8px;">
+        Client Configuration Details
       </h2>
       
       <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
         <tr>
-          <td style="padding: 12px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-weight: 600; color: #374151; width: 40%;">Platform</td>
-          <td style="padding: 12px; background-color: #ffffff; border: 1px solid #e5e7eb; color: #6b7280;">${smtpConfig.platformName}</td>
+          <td style="padding: 12px 16px; background-color: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold; color: #000000; width: 40%;">Platform</td>
+          <td style="padding: 12px 16px; background-color: #ffffff; border: 1px solid #e0e0e0; color: #424242;">${
+            smtpConfig.platformName
+          }</td>
         </tr>
         <tr>
-          <td style="padding: 12px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-weight: 600; color: #374151;">Mail Server</td>
-          <td style="padding: 12px; background-color: #ffffff; border: 1px solid #e5e7eb; color: #6b7280;">${smtpConfig.smtpHost}</td>
+          <td style="padding: 12px 16px; background-color: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold; color: #000000;">Mail Server</td>
+          <td style="padding: 12px 16px; background-color: #ffffff; border: 1px solid #e0e0e0; color: #424242;">${
+            smtpConfig.smtpHost
+          }</td>
         </tr>
         <tr>
-          <td style="padding: 12px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-weight: 600; color: #374151;">Port</td>
-          <td style="padding: 12px; background-color: #ffffff; border: 1px solid #e5e7eb; color: #6b7280;">${smtpConfig.smtpPort}</td>
+          <td style="padding: 12px 16px; background-color: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold; color: #000000;">Port</td>
+          <td style="padding: 12px 16px; background-color: #ffffff; border: 1px solid #e0e0e0; color: #424242;">${
+            smtpConfig.smtpPort
+          }</td>
         </tr>
         <tr>
-          <td style="padding: 12px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-weight: 600; color: #374151;">Security</td>
-          <td style="padding: 12px; background-color: #ffffff; border: 1px solid #e5e7eb; color: #6b7280;">${smtpConfig.smtpSecurity}</td>
+          <td style="padding: 12px 16px; background-color: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold; color: #000000;">Security</td>
+          <td style="padding: 12px 16px; background-color: #ffffff; border: 1px solid #e0e0e0; color: #424242;">${
+            smtpConfig.smtpSecurity
+          }</td>
         </tr>
         <tr>
-          <td style="padding: 12px; background-color: #f9fafb; border: 1px solid #e5e7eb; font-weight: 600; color: #374151;">Sender Email</td>
-          <td style="padding: 12px; background-color: #ffffff; border: 1px solid #e5e7eb; color: #6b7280;">${smtpConfig.senderEmail}</td>
+          <td style="padding: 12px 16px; background-color: #f5f5f5; border: 1px solid #e0e0e0; font-weight: bold; color: #000000;">Sender Email</td>
+          <td style="padding: 12px 16px; background-color: #ffffff; border: 1px solid #e0e0e0; color: #424242;">${
+            smtpConfig.senderEmail
+          }</td>
         </tr>
       </table>
       
-      <p style="margin: 30px 0 0 0; font-size: 16px; line-height: 1.6; color: #333333;">
-        The client's email configuration has been successfully tested and is ready for campaign use.
-      </p>
+      <div style="background-color: #ffffff; border: 2px solid #000000; padding: 20px; margin: 32px 0;">
+        <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: bold; color: #000000;">
+          STATUS: READY FOR CAMPAIGNS
+        </h3>
+        <p style="margin: 0; font-size: 14px; line-height: 1.6; color: #424242;">
+          The client's email configuration has been successfully tested and is ready for campaign use.
+        </p>
+      </div>
     </div>
     
     <!-- Footer -->
-    <div style="background-color: #f9fafb; padding: 20px 30px; border-top: 1px solid #e5e7eb; text-align: center;">
-      <p style="margin: 0; font-size: 14px; color: #6b7280;">
-        This is an automated test email from the Campaign Platform Admin Panel
+    <div style="background-color: #f5f5f5; padding: 24px 30px; border-top: 1px solid #e0e0e0;">
+      <p style="margin: 0; font-size: 13px; color: #757575; line-height: 1.5;">
+        This is an automated test email from the Campaign Platform Admin Panel.<br>
+        Please do not reply to this email.
       </p>
     </div>
     

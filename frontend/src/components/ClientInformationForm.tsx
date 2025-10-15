@@ -1,7 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button, Form, Input, Select, Divider, Typography, Space, message } from "antd";
+import {
+  Button,
+  Form,
+  Input,
+  Select,
+  Divider,
+  Typography,
+  Space,
+  message,
+} from "antd";
 import {
   UserOutlined,
   MailOutlined,
@@ -27,7 +36,7 @@ interface ClientFormValues {
   investment: string;
   industry: string;
   city: string;
-  
+
   // SMTP configuration
   platformName: string;
   senderEmail: string;
@@ -74,6 +83,9 @@ const FUNDING_STAGES = [
   { value: "Growth", label: "Growth Stage" },
 ];
 
+// SMTP test storage key - must match SmtpConfigurationSection
+const SMTP_TEST_STORAGE_KEY = "investor_reachout_smtp_test_status";
+
 export default function ClientInformationForm({
   onSave,
   initialData,
@@ -85,34 +97,114 @@ export default function ClientInformationForm({
   const [form] = Form.useForm<ClientFormValues>();
   const [smtpTestPassed, setSmtpTestPassed] = useState(false);
 
+  // Check SMTP test status from multiple sources on mount
+  useEffect(() => {
+    checkSmtpTestStatus();
+  }, []);
+
+  // Load initial data when provided
   useEffect(() => {
     if (initialData) {
-      // Extract email configuration from nested structure if it exists
-      let formData: Partial<ClientFormValues> = { ...initialData };
-      
-      // Check if emailConfiguration exists (data from backend)
-      if ('emailConfiguration' in initialData && initialData.emailConfiguration) {
-        formData = {
-          ...initialData,
-          platformName: initialData.emailConfiguration.platformName,
-          senderEmail: initialData.emailConfiguration.senderEmail,
-          smtpHost: initialData.emailConfiguration.smtpHost,
-          smtpPort: initialData.emailConfiguration.smtpPort,
-          smtpSecurity: initialData.emailConfiguration.smtpSecurity,
-          smtpUsername: initialData.emailConfiguration.smtpUsername,
-          smtpPassword: initialData.emailConfiguration.smtpPassword,
-          smtpTestStatus: initialData.emailConfiguration.testStatus,
-        };
+      loadInitialData();
+    }
+  }, [initialData]);
+
+  const loadInitialData = () => {
+    if (!initialData) return;
+
+    // Extract email configuration from nested structure if it exists
+    let formData: Partial<ClientFormValues> = { ...initialData };
+
+    // Check if emailConfiguration exists (data from backend)
+    if ("emailConfiguration" in initialData && initialData.emailConfiguration) {
+      formData = {
+        ...initialData,
+        platformName: initialData.emailConfiguration.platformName,
+        senderEmail: initialData.emailConfiguration.senderEmail,
+        smtpHost: initialData.emailConfiguration.smtpHost,
+        smtpPort: initialData.emailConfiguration.smtpPort,
+        smtpSecurity: initialData.emailConfiguration.smtpSecurity,
+        smtpUsername: initialData.emailConfiguration.smtpUsername,
+        smtpPassword: initialData.emailConfiguration.smtpPassword,
+        smtpTestStatus: initialData.emailConfiguration.testStatus,
+      };
+    }
+
+    form.setFieldsValue(formData as ClientFormValues);
+
+    // Check if SMTP test was already passed
+    if (formData.smtpTestStatus === "passed") {
+      setSmtpTestPassed(true);
+      // console.log(
+      //   "[ClientForm] SMTP test status loaded as PASSED from initialData"
+      // );
+    }
+  };
+
+  const checkSmtpTestStatus = () => {
+    try {
+      // Check 1: Form values
+      const formTestStatus = form.getFieldValue("smtpTestStatus");
+      if (formTestStatus === "passed") {
+        setSmtpTestPassed(true);
+      //  console.log("[ClientForm] SMTP test PASSED - from form values");
+        return;
       }
 
-      form.setFieldsValue(formData as ClientFormValues);
-      
-      // Check if SMTP test was already passed
-      if (formData.smtpTestStatus === "passed") {
-        setSmtpTestPassed(true);
+      // Check 2: localStorage
+      const storedData = localStorage.getItem(SMTP_TEST_STORAGE_KEY);
+      if (storedData) {
+        const parsedData = JSON.parse(storedData);
+        if (parsedData.testStatus === "passed") {
+          // Verify config matches current form values
+          const currentValues = form.getFieldsValue();
+          const configMatches =
+            currentValues.platformName === parsedData.smtpConfig.platformName &&
+            currentValues.senderEmail === parsedData.smtpConfig.senderEmail &&
+            currentValues.smtpHost === parsedData.smtpConfig.smtpHost &&
+            currentValues.smtpPort === parsedData.smtpConfig.smtpPort &&
+            currentValues.smtpSecurity === parsedData.smtpConfig.smtpSecurity &&
+            currentValues.smtpUsername === parsedData.smtpConfig.smtpUsername;
+
+          if (configMatches) {
+            setSmtpTestPassed(true);
+            // Update form with test status
+            form.setFieldValue("smtpTestStatus", "passed");
+            form.setFieldValue("smtpTestRecipient", parsedData.testRecipient);
+            form.setFieldValue("smtpTestDate", parsedData.testDate);
+          //  console.log("[ClientForm] SMTP test PASSED - from localStorage");
+            return;
+          } else {
+            console.log(
+              "[ClientForm] SMTP config changed, test status invalid"
+            );
+          }
+        }
       }
+
+      // No valid test status found
+     // console.log("[ClientForm] SMTP test NOT passed or not found");
+      setSmtpTestPassed(false);
+    } catch (error) {
+      console.error("[ClientForm] Error checking SMTP test status:", error);
+      setSmtpTestPassed(false);
     }
-  }, [initialData, form]);
+  };
+
+  // Watch for SMTP test status changes from SmtpConfigurationSection
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const testStatus = form.getFieldValue("smtpTestStatus");
+      const newTestPassed = testStatus === "passed";
+
+      if (newTestPassed !== smtpTestPassed) {
+        setSmtpTestPassed(newTestPassed);
+      //  console.log("[ClientForm] SMTP test status changed to:", testStatus);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [form, smtpTestPassed]);
 
   const handleSubmit = async (values: ClientFormValues) => {
     try {
@@ -137,15 +229,26 @@ export default function ClientInformationForm({
   };
 
   const handleSmtpTestSuccess = (result: any) => {
-    console.log("[Form] SMTP test passed:", result);
+  //  console.log("[ClientForm] SMTP test passed:", result);
     setSmtpTestPassed(true);
     message.success("Email configuration tested successfully!");
   };
 
   const handleSmtpTestFailure = (error: any) => {
-    console.error("[Form] SMTP test failed:", error);
+    console.error("[ClientForm] SMTP test failed:", error);
     setSmtpTestPassed(false);
   };
+
+  useEffect(() => {
+    if (initialData) {
+      // Small delay to ensure form values are set
+      const timer = setTimeout(() => {
+        checkSmtpTestStatus();
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [initialData]);
 
   return (
     <div>
@@ -165,15 +268,29 @@ export default function ClientInformationForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Form.Item
               name="companyName"
-              label={<span style={{ fontSize: 16, fontWeight: 600 }}>Company Name</span>}
+              label={
+                <span style={{ fontSize: 16, fontWeight: 600 }}>
+                  Company Name
+                </span>
+              }
               rules={[
                 { required: true, message: "Company name is required" },
-                { min: 2, message: "Company name must be at least 2 characters" },
-                { max: 100, message: "Company name must not exceed 100 characters" },
+                {
+                  min: 2,
+                  message: "Company name must be at least 2 characters",
+                },
+                {
+                  max: 100,
+                  message: "Company name must not exceed 100 characters",
+                },
               ]}
             >
               <Input
-                prefix={<BankOutlined style={{ color: disabled ? "#bfbfbf" : "#1890ff" }} />}
+                prefix={
+                  <BankOutlined
+                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                  />
+                }
                 placeholder="e.g., Acme Inc, TechStart Solutions"
                 style={{ height: 48 }}
               />
@@ -181,15 +298,29 @@ export default function ClientInformationForm({
 
             <Form.Item
               name="founderName"
-              label={<span style={{ fontSize: 16, fontWeight: 600 }}>Founder Name</span>}
+              label={
+                <span style={{ fontSize: 16, fontWeight: 600 }}>
+                  Founder Name
+                </span>
+              }
               rules={[
                 { required: true, message: "Founder name is required" },
-                { min: 2, message: "Founder name must be at least 2 characters" },
-                { max: 100, message: "Founder name must not exceed 100 characters" },
+                {
+                  min: 2,
+                  message: "Founder name must be at least 2 characters",
+                },
+                {
+                  max: 100,
+                  message: "Founder name must not exceed 100 characters",
+                },
               ]}
             >
               <Input
-                prefix={<UserOutlined style={{ color: disabled ? "#bfbfbf" : "#1890ff" }} />}
+                prefix={
+                  <UserOutlined
+                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                  />
+                }
                 placeholder="e.g., John Doe"
                 style={{ height: 48 }}
               />
@@ -197,14 +328,25 @@ export default function ClientInformationForm({
 
             <Form.Item
               name="email"
-              label={<span style={{ fontSize: 16, fontWeight: 600 }}>Email Address</span>}
+              label={
+                <span style={{ fontSize: 16, fontWeight: 600 }}>
+                  Email Address
+                </span>
+              }
               rules={[
                 { required: true, message: "Email is required" },
-                { type: "email", message: "Please enter a valid email address" },
+                {
+                  type: "email",
+                  message: "Please enter a valid email address",
+                },
               ]}
             >
               <Input
-                prefix={<MailOutlined style={{ color: disabled ? "#bfbfbf" : "#1890ff" }} />}
+                prefix={
+                  <MailOutlined
+                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                  />
+                }
                 placeholder="founder@company.com"
                 style={{ height: 48 }}
               />
@@ -212,17 +354,26 @@ export default function ClientInformationForm({
 
             <Form.Item
               name="phone"
-              label={<span style={{ fontSize: 16, fontWeight: 600 }}>Phone Number</span>}
+              label={
+                <span style={{ fontSize: 16, fontWeight: 600 }}>
+                  Phone Number
+                </span>
+              }
               rules={[
                 { required: true, message: "Phone number is required" },
                 {
-                  pattern: /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/,
+                  pattern:
+                    /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/,
                   message: "Please enter a valid phone number",
                 },
               ]}
             >
               <Input
-                prefix={<PhoneOutlined style={{ color: disabled ? "#bfbfbf" : "#1890ff" }} />}
+                prefix={
+                  <PhoneOutlined
+                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                  />
+                }
                 placeholder="+1 555 000 0000"
                 style={{ height: 48 }}
               />
@@ -230,7 +381,11 @@ export default function ClientInformationForm({
 
             <Form.Item
               name="fundingStage"
-              label={<span style={{ fontSize: 16, fontWeight: 600 }}>Funding Stage</span>}
+              label={
+                <span style={{ fontSize: 16, fontWeight: 600 }}>
+                  Funding Stage
+                </span>
+              }
               rules={[{ required: true, message: "Funding stage is required" }]}
             >
               <Select
@@ -242,7 +397,11 @@ export default function ClientInformationForm({
 
             <Form.Item
               name="revenue"
-              label={<span style={{ fontSize: 16, fontWeight: 600 }}>Annual Revenue</span>}
+              label={
+                <span style={{ fontSize: 16, fontWeight: 600 }}>
+                  Annual Revenue
+                </span>
+              }
               rules={[{ required: true, message: "Revenue is required" }]}
               extra={
                 <Text type="secondary" style={{ fontSize: 13 }}>
@@ -251,7 +410,11 @@ export default function ClientInformationForm({
               }
             >
               <Input
-                prefix={<DollarOutlined style={{ color: disabled ? "#bfbfbf" : "#1890ff" }} />}
+                prefix={
+                  <DollarOutlined
+                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                  />
+                }
                 placeholder="e.g., $1.5M or 1500000"
                 style={{ height: 48 }}
               />
@@ -259,8 +422,14 @@ export default function ClientInformationForm({
 
             <Form.Item
               name="investment"
-              label={<span style={{ fontSize: 16, fontWeight: 600 }}>Investment Ask</span>}
-              rules={[{ required: true, message: "Investment ask is required" }]}
+              label={
+                <span style={{ fontSize: 16, fontWeight: 600 }}>
+                  Investment Ask
+                </span>
+              }
+              rules={[
+                { required: true, message: "Investment ask is required" },
+              ]}
               extra={
                 <Text type="secondary" style={{ fontSize: 13 }}>
                   How much funding are you seeking?
@@ -268,7 +437,11 @@ export default function ClientInformationForm({
               }
             >
               <Input
-                prefix={<DollarOutlined style={{ color: disabled ? "#bfbfbf" : "#1890ff" }} />}
+                prefix={
+                  <DollarOutlined
+                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                  />
+                }
                 placeholder="e.g., $2M or 2000000"
                 style={{ height: 48 }}
               />
@@ -276,7 +449,9 @@ export default function ClientInformationForm({
 
             <Form.Item
               name="industry"
-              label={<span style={{ fontSize: 16, fontWeight: 600 }}>Industry</span>}
+              label={
+                <span style={{ fontSize: 16, fontWeight: 600 }}>Industry</span>
+              }
               rules={[
                 { required: true, message: "Industry is required" },
                 { min: 2, message: "Industry must be at least 2 characters" },
@@ -288,7 +463,11 @@ export default function ClientInformationForm({
               }
             >
               <Input
-                prefix={<BankOutlined style={{ color: disabled ? "#bfbfbf" : "#1890ff" }} />}
+                prefix={
+                  <BankOutlined
+                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                  />
+                }
                 placeholder="Enter your industry"
                 style={{ height: 48 }}
               />
@@ -296,14 +475,22 @@ export default function ClientInformationForm({
 
             <Form.Item
               name="city"
-              label={<span style={{ fontSize: 16, fontWeight: 600 }}>City/Location</span>}
+              label={
+                <span style={{ fontSize: 16, fontWeight: 600 }}>
+                  City/Location
+                </span>
+              }
               rules={[
                 { required: true, message: "City is required" },
                 { min: 2, message: "City must be at least 2 characters" },
               ]}
             >
               <Input
-                prefix={<EnvironmentOutlined style={{ color: disabled ? "#bfbfbf" : "#1890ff" }} />}
+                prefix={
+                  <EnvironmentOutlined
+                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                  />
+                }
                 placeholder="e.g., San Francisco, CA, USA"
                 style={{ height: 48 }}
               />
@@ -323,26 +510,43 @@ export default function ClientInformationForm({
         />
 
         {/* ========== SUBMIT BUTTON ========== */}
-        <div style={{ marginTop: 48, paddingTop: 24, borderTop: "1px solid #f0f0f0" }}>
+        <div
+          style={{
+            marginTop: 48,
+            paddingTop: 24,
+            borderTop: "1px solid #f0f0f0",
+          }}
+        >
           {isFirstTime ? (
-            <Button
-              type="primary"
-              htmlType="submit"
-              size="large"
-              disabled={disabled || !smtpTestPassed}
-              icon={<ArrowRightOutlined />}
-              style={{
-                height: 56,
-                paddingLeft: 40,
-                paddingRight: 40,
-                fontSize: 16,
-                fontWeight: 600,
-                backgroundColor: smtpTestPassed ? "#1890ff" : undefined,
-                borderColor: smtpTestPassed ? "#1890ff" : undefined,
-              }}
-            >
-              {smtpTestPassed ? "Next" : "Test Email Configuration First"}
-            </Button>
+            <div>
+              <Button
+                type="primary"
+                htmlType="submit"
+                size="large"
+                disabled={disabled || !smtpTestPassed}
+                icon={<ArrowRightOutlined />}
+                style={{
+                  height: 56,
+                  paddingLeft: 40,
+                  paddingRight: 40,
+                  fontSize: 16,
+                  fontWeight: 600,
+                  backgroundColor: smtpTestPassed ? "#1890ff" : undefined,
+                  borderColor: smtpTestPassed ? "#1890ff" : undefined,
+                }}
+              >
+                {smtpTestPassed ? "Next" : "Test Email Configuration First"}
+              </Button>
+
+              {/* Debug Info - Remove in production */}
+              {process.env.NODE_ENV === "development" && (
+                <div style={{ marginTop: 16, fontSize: 12, color: "#999" }}>
+                  Debug: Test Status ={" "}
+                  {form.getFieldValue("smtpTestStatus") || "not set"} | Button
+                  Enabled = {smtpTestPassed ? "Yes" : "No"}
+                </div>
+              )}
+            </div>
           ) : isEditing ? (
             <Space>
               <Button

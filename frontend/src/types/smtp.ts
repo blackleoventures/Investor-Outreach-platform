@@ -1,46 +1,27 @@
 // src/types/smtp.ts
 
-/**
- * SMTP Security Types
- */
 export type SmtpSecurityType = "TLS" | "SSL" | "None";
-
-/**
- * SMTP Test Status
- */
 export type SmtpTestStatus = "pending" | "passed" | "failed";
 
-/**
- * SMTP Configuration Interface
- */
 export interface SmtpConfiguration {
-  platformName: string; // e.g., "Google Workspace", "Zoho", etc.
+  platformName: string;
   senderEmail: string;
   smtpHost: string;
   smtpPort: number;
   smtpSecurity: SmtpSecurityType;
   smtpUsername: string;
-  smtpPassword: string; // Will be encrypted before storage
+  smtpPassword: string;
 }
 
-/**
- * SMTP Test Configuration (includes test recipient)
- */
 export interface SmtpTestConfig extends SmtpConfiguration {
   testRecipientEmail: string;
 }
 
-/**
- * SMTP Test Request (API request body)
- */
 export interface SmtpTestRequest {
   smtpConfig: SmtpConfiguration;
   testRecipientEmail: string;
 }
 
-/**
- * SMTP Test Response (API response)
- */
 export interface SmtpTestResponse {
   success: boolean;
   message: string;
@@ -54,9 +35,7 @@ export interface SmtpTestResponse {
   details?: string;
 }
 
-/**
- * SMTP Configuration with Test Status (stored in DB)
- */
+
 export interface SmtpConfigurationWithStatus {
   platformName: string;
   senderEmail: string;
@@ -64,28 +43,22 @@ export interface SmtpConfigurationWithStatus {
   smtpPort: number;
   smtpSecurity: SmtpSecurityType;
   smtpUsername: string;
-  smtpPassword: string; // ENCRYPTED in database
-  
-  // System-wide fixed limit
-  dailyEmailLimit: 50; // Fixed for MVP
-  
-  // Test status
+  smtpPassword: string;
+
+  dailyEmailLimit: number; 
+
   testStatus: SmtpTestStatus;
-  testDate: Date | null;
+  testDate: string | null; 
   testRecipient: string | null;
-  testError: string | null;
-  
-  // Sending schedule (system default)
-  sendingHours: {
-    start: string; // "09:00"
-    end: string; // "18:00"
-    timezone: string; // "Asia/Kolkata"
+  testError?: string | null;
+
+  sendingHours?: {
+    start: string;
+    end: string;
+    timezone: string;
   };
 }
 
-/**
- * Common SMTP providers and their default settings
- */
 export const SMTP_PROVIDERS = {
   GOOGLE: {
     name: "Google Workspace / Gmail",
@@ -113,9 +86,6 @@ export const SMTP_PROVIDERS = {
   },
 } as const;
 
-/**
- * SMTP Error Types
- */
 export enum SmtpErrorType {
   AUTH_FAILED = "authentication_failed",
   CONNECTION_FAILED = "connection_failed",

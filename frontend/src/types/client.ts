@@ -8,11 +8,11 @@ export type ClientCreationMethod = "client_submission" | "admin_creation";
 /**
  * Client Status
  */
-export type ClientStatus = 
-  | "draft" 
-  | "pending_review" 
-  | "approved" 
-  | "active" 
+export type ClientStatus =
+  | "draft"
+  | "pending_review"
+  | "approved"
+  | "active"
   | "inactive"
   | "rejected";
 
@@ -46,8 +46,8 @@ export interface ClientInformation {
   revenue: string;
   investment: string;
   city: string;
-  
-  // Email configuration (NEW)
+
+  // Email configuration
   emailConfiguration: SmtpConfigurationWithStatus;
 }
 
@@ -83,7 +83,7 @@ export interface PitchScorecard {
   "Market Size & Opportunity": number;
   "Business Model": number;
   "Traction & Metrics": number;
-  "Team": number;
+  Team: number;
   "Competitive Advantage": number;
   "Go-To-Market Strategy": number;
   "Financials & Ask": number;
@@ -123,36 +123,36 @@ export interface ClientDocument {
   // Basic identifiers
   id: string;
   userId: string;
-  submissionId: string; 
-  
+  submissionId: string;
+
   // Entry tracking
   createdBy: CreatedBy;
-  
+
   // Client information (includes SMTP config now)
   clientInformation: ClientInformation;
-  
+
   // Pitch analyses
   pitchAnalyses: PitchAnalysis[];
-  
+
   // Usage limits
   usageLimits: UsageLimits;
-  
+
   // Status and review
   status: ClientStatus;
   reviewedBy: string | null;
   reviewedAt: string | null;
   reviewNotes: string | null;
   rejectionReason: string | null;
-  
+
   // Admin metadata (optional, only if created by admin)
   adminMetadata?: AdminMetadata;
-  
+
   // Existing fields
   emailVerified?: boolean;
   archived?: boolean;
-  
+
   // Timestamps
-  createdAt: string; 
+  createdAt: string;
   updatedAt: string;
   expiresAt?: string | null;
 
@@ -169,7 +169,7 @@ export interface TransformedClient {
   id: string;
   userId: string;
   submissionId: string;
-  
+
   // Flattened from clientInformation
   founderName: string;
   email: string;
@@ -180,8 +180,8 @@ export interface TransformedClient {
   revenue: string;
   investment: string;
   city: string;
-  
-  // Email configuration (flattened)
+
+  // Email configuration
   platformName: string;
   senderEmail: string;
   smtpHost: string;
@@ -189,17 +189,20 @@ export interface TransformedClient {
   smtpSecurity: "TLS" | "SSL" | "None";
   smtpTestStatus: "pending" | "passed" | "failed";
   dailyEmailLimit: number;
-  
+
   // Nested data
   pitchAnalyses: PitchAnalysis[];
   pitchAnalysisCount: number;
   usageLimits: UsageLimits;
-  
+
   // Status
   status: ClientStatus;
   emailVerified: boolean;
-  archived: boolean;
-  
+  archived?: boolean;
+
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  reviewNotes?: string | null;
   // Timestamps
   createdAt: string;
   updatedAt: string;
@@ -220,7 +223,7 @@ export interface CreateClientRequest {
   investment: string;
   industry: string;
   city: string;
-  
+
   // SMTP configuration (NEW)
   platformName: string;
   senderEmail: string;
@@ -230,7 +233,7 @@ export interface CreateClientRequest {
   smtpUsername: string;
   smtpPassword: string;
   testRecipientEmail: string; // Email used for SMTP test
-  
+
   // Pitch deck data (optional)
   pitchDeckFileName?: string;
   pitchDeckFileUrl?: string;
@@ -252,7 +255,7 @@ export interface UpdateClientRequest {
   revenue?: string;
   investment?: string;
   city?: string;
-  
+
   // SMTP configuration (optional, but if any SMTP field is changed, must re-test)
   platformName?: string;
   senderEmail?: string;
@@ -262,7 +265,7 @@ export interface UpdateClientRequest {
   smtpUsername?: string;
   smtpPassword?: string;
   testRecipientEmail?: string; // For re-testing SMTP
-  
+
   // Other fields
   archived?: boolean;
   usageLimits?: Partial<UsageLimits>;
@@ -282,7 +285,7 @@ export interface ClientSubmissionFormValues {
   investment: string;
   industry: string;
   city: string;
-  
+
   // SMTP configuration
   platformName: string;
   senderEmail: string;
@@ -324,6 +327,12 @@ export interface ClientSubmissionRequest {
     fileSize: number;
   } | null;
   isDraft: boolean;
+}
+
+export interface ReviewClientRequest {
+  status: "approved" | "rejected";
+  reviewNotes?: string;
+  rejectionReason?: string;
 }
 
 /**

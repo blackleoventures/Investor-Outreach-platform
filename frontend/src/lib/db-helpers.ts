@@ -52,6 +52,27 @@ export const dbHelpers = {
   },
 
   /**
+   * Get a document by a specific field value
+   * Supports nested fields using dot notation (e.g., "clientInformation.email")
+   */
+  async getByField(collection: string, field: string, value: any) {
+    try {
+      const query = adminDb.collection(collection).where(field, "==", value).limit(1);
+      const snapshot = await query.get();
+
+      if (snapshot.empty) {
+        return null;
+      }
+
+      const doc = snapshot.docs[0];
+      return { id: doc.id, ...doc.data() };
+    } catch (error: any) {
+      console.error(`[DB] GetByField failed in ${collection} for ${field}:`, error.message);
+      throw new Error(`Failed to retrieve document by field: ${error.message}`);
+    }
+  },
+
+  /**
    * Get all documents with optional filtering, sorting, and pagination
    */
   async getAll(collection: string, options: GetAllOptions = {}) {

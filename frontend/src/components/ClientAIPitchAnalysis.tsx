@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Card,
   Upload,
@@ -35,6 +35,9 @@ const { Dragger } = Upload;
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE_URL + "/ai/analyze-pitch";
 
+// LocalStorage key for pitch analysis
+const PITCH_ANALYSIS_STORAGE_KEY = "pitchAnalysisData";
+
 interface PitchAnalysis {
   fileName?: string;
   analyzedAt?: string;
@@ -59,6 +62,7 @@ interface ClientAIPitchAnalysisProps {
   disabled?: boolean;
   loading?: boolean;
   isFirstTime?: boolean;
+  initialAnalysis?: PitchAnalysis | null; // Add this prop
 }
 
 export default function ClientAIPitchAnalysis({
@@ -67,10 +71,68 @@ export default function ClientAIPitchAnalysis({
   disabled = false,
   loading = false,
   isFirstTime = false,
+  initialAnalysis = null, // Add this prop
 }: ClientAIPitchAnalysisProps) {
   const [analysisLoading, setAnalysisLoading] = useState(false);
-  const [currentAnalysis, setCurrentAnalysis] = useState<PitchAnalysis | null>(null);
+  const [currentAnalysis, setCurrentAnalysis] = useState<PitchAnalysis | null>(
+    null
+  );
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
+
+  // Load analysis from localStorage or props on mount
+  useEffect(() => {
+    loadSavedAnalysis();
+  }, []);
+
+  // Update currentAnalysis when initialAnalysis prop changes
+  useEffect(() => {
+    if (initialAnalysis) {
+      setCurrentAnalysis(initialAnalysis);
+      setUploadedFileName(initialAnalysis.fileName || "");
+      console.log(
+        "[PitchAnalysis] Loaded analysis from props:",
+        initialAnalysis.fileName
+      );
+    }
+  }, [initialAnalysis]);
+
+  const loadSavedAnalysis = () => {
+    try {
+      // For first-time users, try to load from localStorage
+      if (isFirstTime) {
+        const savedAnalysis = localStorage.getItem(PITCH_ANALYSIS_STORAGE_KEY);
+        if (savedAnalysis) {
+          const parsed = JSON.parse(savedAnalysis);
+          setCurrentAnalysis(parsed);
+          setUploadedFileName(parsed.fileName || "");
+          // console.log(
+          //   "[PitchAnalysis] Loaded analysis from localStorage:",
+          //   parsed.fileName
+          // );
+        }
+      }
+    } catch (error) {
+      console.error("[PitchAnalysis] Error loading saved analysis:", error);
+    }
+  };
+
+  const saveAnalysisToStorage = (analysis: PitchAnalysis) => {
+    try {
+      localStorage.setItem(
+        PITCH_ANALYSIS_STORAGE_KEY,
+        JSON.stringify(analysis)
+      );
+      // console.log(
+      //   "[PitchAnalysis] Saved analysis to localStorage:",
+      //   analysis.fileName
+      // );
+    } catch (error) {
+      console.error(
+        "[PitchAnalysis] Error saving analysis to localStorage:",
+        error
+      );
+    }
+  };
 
   const parseTextFile = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -118,7 +180,9 @@ export default function ClientAIPitchAnalysis({
   const extractTextFromFile = async (file: File): Promise<string> => {
     const maxSizeInBytes = 10 * 1024 * 1024;
     if (file.size > maxSizeInBytes) {
-      throw new Error("File size is too large. Please use a file smaller than 10MB.");
+      throw new Error(
+        "File size is too large. Please use a file smaller than 10MB."
+      );
     }
 
     const fileExtension = file.name.split(".").pop()?.toLowerCase();
@@ -141,7 +205,10 @@ export default function ClientAIPitchAnalysis({
     return extractedText;
   };
 
-  const callAnalysisAPI = async (extractedText: string, fileName: string): Promise<PitchAnalysis> => {
+  const callAnalysisAPI = async (
+    extractedText: string,
+    fileName: string
+  ): Promise<PitchAnalysis> => {
     try {
       const response = await fetch(BACKEND_URL, {
         method: "POST",
@@ -151,7 +218,9 @@ export default function ClientAIPitchAnalysis({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || "Failed to analyze the pitch deck.");
+        throw new Error(
+          errorData?.message || "Failed to analyze the pitch deck."
+        );
       }
 
       const result = await response.json();
@@ -175,7 +244,9 @@ export default function ClientAIPitchAnalysis({
     const allowedExtensions = ["pdf", "doc", "docx", "txt"];
 
     if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
-      message.error("Unsupported file type. Please upload PDF, Word, or Text files only.");
+      message.error(
+        "Unsupported file type. Please upload PDF, Word, or Text files only."
+      );
       return false;
     }
 
@@ -196,7 +267,10 @@ export default function ClientAIPitchAnalysis({
       message.destroy();
       message.success(`File processed successfully!`);
 
-      message.loading("Analyzing content with AI... This may take a moment.", 0);
+      message.loading(
+        "Analyzing content with AI... This may take a moment.",
+        0
+      );
       const analysis = await callAnalysisAPI(extractedText, file.name);
 
       const analysisWithMetadata = {
@@ -207,9 +281,11 @@ export default function ClientAIPitchAnalysis({
 
       setCurrentAnalysis(analysisWithMetadata);
 
-      // Auto-save for first-time users
+      // Save to localStorage for persistence
+      saveAnalysisToStorage(analysisWithMetadata);
+
+      // Auto-complete for first-time users
       if (isFirstTime) {
-        localStorage.setItem("pitchAnalysisData", JSON.stringify(analysisWithMetadata));
         onAnalysisComplete(analysisWithMetadata);
       }
 
@@ -247,13 +323,19 @@ export default function ClientAIPitchAnalysis({
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "GREEN":
-        return <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 24 }} />;
+        return (
+          <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 24 }} />
+        );
       case "YELLOW":
         return <WarningOutlined style={{ color: "#faad14", fontSize: 24 }} />;
       case "RED":
-        return <CloseCircleOutlined style={{ color: "#ff4d4f", fontSize: 24 }} />;
+        return (
+          <CloseCircleOutlined style={{ color: "#ff4d4f", fontSize: 24 }} />
+        );
       default:
-        return <CheckCircleOutlined style={{ color: "#1890ff", fontSize: 24 }} />;
+        return (
+          <CheckCircleOutlined style={{ color: "#1890ff", fontSize: 24 }} />
+        );
     }
   };
 
@@ -272,7 +354,9 @@ export default function ClientAIPitchAnalysis({
             <Title level={3} style={{ marginTop: 16, marginBottom: 0 }}>
               {analysis.summary.total_score}/100
             </Title>
-            <Text style={{ fontSize: 14, color: "#666" }}>Investment Readiness Score</Text>
+            <Text style={{ fontSize: 14, color: "#666" }}>
+              Investment Readiness Score
+            </Text>
           </Col>
           <Col xs={24} md={16}>
             <Progress
@@ -292,15 +376,23 @@ export default function ClientAIPitchAnalysis({
                         : analysis.summary.status === "YELLOW"
                         ? "#faad14"
                         : "#ff4d4f",
-                    fontWeight: 600,
+                    fontWeight: 800,
                   }}
                 >
                   {analysis.summary.status}
                 </Text>
+                <Text type="secondary" style={{ marginLeft: 8 ,fontWeight: 800, color: "black", textTransform: "capitalize"}}>
+                  {analysis.summary.status === "GREEN"
+                    ? "- Investment ready"
+                    : analysis.summary.status === "YELLOW"
+                    ? "- Promising, needs refinement"
+                    : "- Not ready"}
+                </Text>
               </div>
               {analysis.fileName && (
                 <div>
-                  <FileTextOutlined /> <Text type="secondary">{analysis.fileName}</Text>
+                  <FileTextOutlined />{" "}
+                  <Text type="secondary">{analysis.fileName}</Text>
                 </div>
               )}
               {analysis.analyzedAt && (
@@ -328,25 +420,33 @@ export default function ClientAIPitchAnalysis({
             <Text strong style={{ fontSize: 16 }}>
               Problem
             </Text>
-            <Paragraph style={{ marginTop: 8, marginBottom: 0 }}>{analysis.summary.problem}</Paragraph>
+            <Paragraph style={{ marginTop: 8, marginBottom: 0 }}>
+              {analysis.summary.problem}
+            </Paragraph>
           </div>
           <div>
             <Text strong style={{ fontSize: 16 }}>
               Solution
             </Text>
-            <Paragraph style={{ marginTop: 8, marginBottom: 0 }}>{analysis.summary.solution}</Paragraph>
+            <Paragraph style={{ marginTop: 8, marginBottom: 0 }}>
+              {analysis.summary.solution}
+            </Paragraph>
           </div>
           <div>
             <Text strong style={{ fontSize: 16 }}>
               Market
             </Text>
-            <Paragraph style={{ marginTop: 8, marginBottom: 0 }}>{analysis.summary.market}</Paragraph>
+            <Paragraph style={{ marginTop: 8, marginBottom: 0 }}>
+              {analysis.summary.market}
+            </Paragraph>
           </div>
           <div>
             <Text strong style={{ fontSize: 16 }}>
               Traction
             </Text>
-            <Paragraph style={{ marginTop: 8, marginBottom: 0 }}>{analysis.summary.traction}</Paragraph>
+            <Paragraph style={{ marginTop: 8, marginBottom: 0 }}>
+              {analysis.summary.traction}
+            </Paragraph>
           </div>
         </Space>
 
@@ -358,13 +458,25 @@ export default function ClientAIPitchAnalysis({
         <Space direction="vertical" size="middle" style={{ width: "100%" }}>
           {Object.entries(analysis.scorecard).map(([criteria, score]) => (
             <div key={criteria}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: 4,
+                }}
+              >
                 <Text strong>{criteria}</Text>
                 <Text strong style={{ color: "#1890ff" }}>
                   {score}/10
                 </Text>
               </div>
-              <Progress percent={score * 10} strokeColor="#1890ff" trailColor="#f0f0f0" strokeWidth={10} showInfo={false} />
+              <Progress
+                percent={score * 10}
+                strokeColor="#1890ff"
+                trailColor="#f0f0f0"
+                strokeWidth={10}
+                showInfo={false}
+              />
             </div>
           ))}
         </Space>
@@ -372,36 +484,45 @@ export default function ClientAIPitchAnalysis({
         <Divider />
 
         <Row gutter={16}>
-          <Col xs={24} lg={12}>
+          <Col xs={24}>
             <Title level={5}>
               <BulbOutlined /> Key Highlights
             </Title>
             <Space direction="vertical" size="small" style={{ width: "100%" }}>
               {analysis.highlights.map((highlight, idx) => (
-                <div key={idx} style={{ padding: 12, backgroundColor: "#f0f0f0", borderRadius: 6 }}>
+                <div
+                  key={idx}
+                  style={{
+                    padding: 12,
+                    backgroundColor: "#f0f0f0",
+                    borderRadius: 6,
+                  }}
+                >
                   <Space align="start">
-                    <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16 }} />
+                    <CheckCircleOutlined
+                      style={{ color: "#52c41a", fontSize: 16 }}
+                    />
                     <Text>{highlight}</Text>
                   </Space>
                 </div>
               ))}
             </Space>
           </Col>
-          <Col xs={24} lg={12}>
-            <Title level={5}>
-              <QuestionCircleOutlined /> Suggested Questions
-            </Title>
-            <Space direction="vertical" size="small" style={{ width: "100%" }}>
-              {analysis.suggested_questions.map((question, idx) => (
-                <div key={idx} style={{ padding: 12, backgroundColor: "#f0f0f0", borderRadius: 6 }}>
-                  <Space align="start">
-                    <QuestionCircleOutlined style={{ color: "#1890ff", fontSize: 16 }} />
-                    <Text>{question}</Text>
-                  </Space>
-                </div>
-              ))}
-            </Space>
-          </Col>
+          {/* <Col xs={24} lg={12}>
+    <Title level={5}>
+      <QuestionCircleOutlined /> Suggested Questions
+    </Title>
+    <Space direction="vertical" size="small" style={{ width: "100%" }}>
+      {analysis.suggested_questions.map((question, idx) => (
+        <div key={idx} style={{ padding: 12, backgroundColor: "#f0f0f0", borderRadius: 6 }}>
+          <Space align="start">
+            <QuestionCircleOutlined style={{ color: "#1890ff", fontSize: 16 }} />
+            <Text>{question}</Text>
+          </Space>
+        </div>
+      ))}
+    </Space>
+  </Col> */}
         </Row>
       </Card>
     </div>
@@ -415,7 +536,9 @@ export default function ClientAIPitchAnalysis({
           <Title level={4} style={{ marginBottom: 16 }}>
             <FileTextOutlined /> Your Pitch Analyses ({existingAnalyses.length})
           </Title>
-          {existingAnalyses.map((analysis, index) => renderAnalysisCard(analysis, index))}
+          {existingAnalyses.map((analysis, index) =>
+            renderAnalysisCard(analysis, index)
+          )}
         </div>
       )}
 
@@ -423,7 +546,10 @@ export default function ClientAIPitchAnalysis({
       {!disabled && (
         <div>
           <Title level={4} style={{ marginBottom: 16 }}>
-            <RobotOutlined /> {isFirstTime ? "AI-Powered Pitch Deck Analysis" : "Upload New Pitch Deck"}
+            <RobotOutlined />{" "}
+            {isFirstTime
+              ? "AI-Powered Pitch Deck Analysis"
+              : "Upload New Pitch Deck"}
           </Title>
 
           <Card style={{ marginBottom: 24, border: "1px solid #d9d9d9" }}>
@@ -434,12 +560,17 @@ export default function ClientAIPitchAnalysis({
               <Title level={5} style={{ marginBottom: 8 }}>
                 Click or drag file to upload
               </Title>
-              <Text style={{ fontSize: 14 }}>Supported formats: PDF, Word (.doc, .docx), Text (.txt) | Max size: 10MB</Text>
+              <Text style={{ fontSize: 14 }}>
+                Supported formats: PDF, Word (.doc, .docx), Text (.txt) | Max
+                size: 10MB
+              </Text>
             </Dragger>
 
             {analysisLoading && (
               <div style={{ textAlign: "center", marginTop: 24 }}>
-                <LoadingOutlined style={{ fontSize: 48, color: "#1890ff", marginBottom: 16 }} />
+                <LoadingOutlined
+                  style={{ fontSize: 48, color: "#1890ff", marginBottom: 16 }}
+                />
                 <div>
                   <Text strong style={{ fontSize: 16 }}>
                     Analyzing your pitch deck...
@@ -472,6 +603,9 @@ export default function ClientAIPitchAnalysis({
           {/* Current Analysis Results */}
           {currentAnalysis && (
             <div>
+              <Title level={4} style={{ marginBottom: 16, color: "#52c41a" }}>
+                <CheckCircleOutlined /> Analysis Complete
+              </Title>
               {renderAnalysisCard(currentAnalysis)}
 
               {/* Action Button - Only for returning users */}
@@ -501,8 +635,29 @@ export default function ClientAIPitchAnalysis({
       )}
 
       {/* Empty State */}
-      {!isFirstTime && existingAnalyses.length === 0 && !currentAnalysis && !disabled && (
-        <Empty description="No pitch analyses yet. Upload your first pitch deck to get started!" style={{ padding: 32 }} />
+      {!isFirstTime &&
+        existingAnalyses.length === 0 &&
+        !currentAnalysis &&
+        !disabled && (
+          <Empty
+            description="No pitch analyses yet. Upload your first pitch deck to get started!"
+            style={{ padding: 32 }}
+          />
+        )}
+
+      {/* Debug Info - Remove in production */}
+      {process.env.NODE_ENV === "development" && isFirstTime && (
+        <div
+          style={{
+            marginTop: 16,
+            fontSize: 12,
+            color: "#999",
+            textAlign: "center",
+          }}
+        >
+          Debug: Has Analysis = {currentAnalysis ? "Yes" : "No"} | File ={" "}
+          {currentAnalysis?.fileName || "None"}
+        </div>
       )}
     </div>
   );
