@@ -17,17 +17,16 @@ import {
   UserOutlined,
   TeamOutlined,
   MailOutlined,
-  BarChartOutlined,
   LogoutOutlined,
   DashboardOutlined,
-  NotificationOutlined,
-  SearchOutlined,
   UserSwitchOutlined,
   RobotOutlined,
   MenuOutlined,
   CloseOutlined,
   PlusOutlined,
   FileTextOutlined,
+  SendOutlined,
+  UnorderedListOutlined,
 } from "@ant-design/icons";
 import Image from "next/image";
 
@@ -117,24 +116,21 @@ export default function DashboardLayout({
         ],
       },
       {
-        key: "/dashboard/allCampaign",
-        icon: <NotificationOutlined />,
-        ...navItem("/dashboard/allCampaign", "Manage Campaigns"),
-      },
-      {
-        key: "/dashboard/select-campaign",
-        icon: <MailOutlined />,
-        ...navItem("/dashboard/select-campaign", "Select Campaign"),
-      },
-      {
-        key: "/dashboard/all-reports",
-        icon: <BarChartOutlined />,
-        ...navItem("/dashboard/all-reports", "Reports"),
-      },
-      {
-        key: "/dashboard/matchmaker",
-        icon: <SearchOutlined />,
-        ...navItem("/dashboard/matchmaker", "Matchmaker"),
+        key: "campaign-management",
+        icon: <SendOutlined />,
+        label: "Campaign Management",
+        children: [
+          {
+            key: "/dashboard/campaigns/create",
+            icon: <PlusOutlined />,
+            ...navItem("/dashboard/campaigns/create", "Create Campaign"),
+          },
+          {
+            key: "/dashboard/campaigns",
+            icon: <UnorderedListOutlined />,
+            ...navItem("/dashboard/campaigns", "All Campaigns"),
+          },
+        ],
       },
       {
         key: "investor-management",
@@ -205,24 +201,21 @@ export default function DashboardLayout({
         ],
       },
       {
-        key: "/dashboard/allCampaign",
-        icon: <NotificationOutlined />,
-        ...navItem("/dashboard/allCampaign", "Manage Campaigns"),
-      },
-      {
-        key: "/dashboard/select-campaign",
-        icon: <MailOutlined />,
-        ...navItem("/dashboard/select-campaign", "Select Campaign"),
-      },
-      {
-        key: "/dashboard/all-reports",
-        icon: <BarChartOutlined />,
-        ...navItem("/dashboard/all-reports", "Reports"),
-      },
-      {
-        key: "/dashboard/matchmaker",
-        icon: <SearchOutlined />,
-        ...navItem("/dashboard/matchmaker", "Matchmaker"),
+        key: "campaign-management",
+        icon: <SendOutlined />,
+        label: "Campaign Management",
+        children: [
+          {
+            key: "/dashboard/campaigns/create",
+            icon: <PlusOutlined />,
+            ...navItem("/dashboard/campaigns/create", "Create Campaign"),
+          },
+          {
+            key: "/dashboard/campaigns",
+            icon: <UnorderedListOutlined />,
+            ...navItem("/dashboard/campaigns", "All Campaigns"),
+          },
+        ],
       },
       {
         key: "investor-management",
@@ -415,31 +408,6 @@ export default function DashboardLayout({
             fontSize: "14px",
           }}
         />
-
-        {/* Role Badge */}
-        {/* {userData?.role && (
-          <div className="absolute bottom-4 left-6 right-6">
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-              <Text className="text-xs text-gray-600 block mb-1">
-                Current Role
-              </Text>
-              <Text
-                strong
-                className="text-sm capitalize block"
-                style={{
-                  color:
-                    userData.role === "admin"
-                      ? "#1890ff"
-                      : userData.role === "subadmin"
-                      ? "#722ed1"
-                      : "#52c41a",
-                }}
-              >
-                {userData.role}
-              </Text>
-            </div>
-          </div>
-        )} */}
       </Sider>
 
       {/* Overlay for mobile */}
