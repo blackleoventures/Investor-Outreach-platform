@@ -115,6 +115,11 @@ export default function TargetAudience({
           size="large"
           onClick={onBack}
           icon={<ArrowLeftOutlined />}
+          style={{
+            backgroundColor: "#6c757d",
+            borderColor: "#6c757d",
+            color: "white",
+          }}
         >
           Back
         </Button>
@@ -123,6 +128,10 @@ export default function TargetAudience({
           size="large"
           onClick={onNext}
           icon={<ArrowRightOutlined />}
+          style={{
+            backgroundColor: "#1890ff",
+            borderColor: "#1890ff",
+          }}
         >
           Find Matches
         </Button>

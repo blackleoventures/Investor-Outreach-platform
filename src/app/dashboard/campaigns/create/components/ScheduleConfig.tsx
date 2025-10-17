@@ -13,6 +13,7 @@ import {
   Alert,
   Divider,
   message,
+  Checkbox,
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -20,6 +21,7 @@ import {
   CalendarOutlined,
   ClockCircleOutlined,
   WarningOutlined,
+  ThunderboltOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 
@@ -62,6 +64,9 @@ export default function ScheduleConfig({
     medium: scheduleConfig?.priorityAllocation?.medium || 50,
     low: scheduleConfig?.priorityAllocation?.low || 25,
   });
+  const [startInstantly, setStartInstantly] = useState(
+    scheduleConfig?.startInstantly || false
+  );
 
   const [duration, setDuration] = useState(0);
   const [endDate, setEndDate] = useState<dayjs.Dayjs | null>(null);
@@ -69,11 +74,20 @@ export default function ScheduleConfig({
 
   useEffect(() => {
     calculateSchedule();
-  }, [dailyLimit, startDate, pauseOnWeekends, matchResults]);
+  }, [dailyLimit, startDate, pauseOnWeekends, matchResults, startInstantly]);
 
   useEffect(() => {
     checkConflicts();
   }, [dailyLimit]);
+
+  // Handle instant start toggle
+  useEffect(() => {
+    if (startInstantly) {
+      // Set start date to now + 1 minute
+      const instantStart = dayjs().add(1, "minute");
+      setStartDate(instantStart);
+    }
+  }, [startInstantly]);
 
   const calculateSchedule = () => {
     if (!matchResults?.totalMatches) return;
@@ -148,6 +162,7 @@ export default function ScheduleConfig({
       sendingWindow,
       pauseOnWeekends,
       priorityAllocation,
+      startInstantly, // Include instant start flag
     };
 
     onScheduleUpdate(config);
@@ -170,6 +185,35 @@ export default function ScheduleConfig({
           <p className="text-sm text-gray-500 mt-1">
             {campaignName.length}/100 characters
           </p>
+        </div>
+
+        <Divider />
+
+        {/* Instant Start Option */}
+        <div className="mb-6">
+          <Alert
+            message={
+              <div className="flex items-center gap-2">
+                <ThunderboltOutlined />
+                <span className="font-semibold">Quick Start Option</span>
+              </div>
+            }
+            description={
+              <div className="mt-2">
+                <Checkbox
+                  checked={startInstantly}
+                  onChange={(e) => setStartInstantly(e.target.checked)}
+                >
+                  <strong>Start sending immediately after campaign creation</strong>
+                  <p className="text-xs text-gray-600 ml-6 mt-1">
+                    When enabled, emails will start sending 1 minute after campaign activation
+                  </p>
+                </Checkbox>
+              </div>
+            }
+            type="info"
+            showIcon={false}
+          />
         </div>
 
         <Divider />
@@ -199,8 +243,14 @@ export default function ScheduleConfig({
               onChange={(date) => setStartDate(date || dayjs().add(1, "day"))}
               size="large"
               style={{ width: "100%" }}
+              disabled={startInstantly}
               disabledDate={(current) => current && current < dayjs().startOf("day")}
             />
+            {startInstantly && (
+              <p className="text-xs text-orange-600 mt-1">
+                Auto-set to now + 1 minute (instant start enabled)
+              </p>
+            )}
           </div>
         </div>
 
@@ -231,7 +281,7 @@ export default function ScheduleConfig({
           </div>
           <div className="text-center">
             <p className="text-2xl font-bold text-purple-600">
-              {startDate.format("MMM DD")}
+              {startInstantly ? "Now" : startDate.format("MMM DD")}
             </p>
             <p className="text-gray-600">Start Date</p>
           </div>
@@ -357,6 +407,11 @@ export default function ScheduleConfig({
           size="large"
           onClick={onBack}
           icon={<ArrowLeftOutlined />}
+          style={{
+            backgroundColor: "#6c757d",
+            borderColor: "#6c757d",
+            color: "white",
+          }}
         >
           Back
         </Button>
@@ -365,6 +420,10 @@ export default function ScheduleConfig({
           size="large"
           onClick={handleNext}
           icon={<ArrowRightOutlined />}
+          style={{
+            backgroundColor: "#1890ff",
+            borderColor: "#1890ff",
+          }}
         >
           Review Campaign
         </Button>

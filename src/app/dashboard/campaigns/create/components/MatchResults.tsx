@@ -13,7 +13,7 @@ import {
   Input,
   Select,
   Space,
-  Alert,
+  Modal,
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -21,6 +21,8 @@ import {
   SearchOutlined,
   DownloadOutlined,
   CheckCircleOutlined,
+  DeleteOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -49,6 +51,7 @@ export default function MatchResults({
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [filteredData, setFilteredData] = useState<any[]>([]);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
   useEffect(() => {
     if (!matchResults) {
@@ -102,7 +105,8 @@ export default function MatchResults({
       filtered = filtered.filter(
         (item: any) =>
           item.name.toLowerCase().includes(searchText.toLowerCase()) ||
-          item.organization.toLowerCase().includes(searchText.toLowerCase())
+          item.organization.toLowerCase().includes(searchText.toLowerCase()) ||
+          item.email.toLowerCase().includes(searchText.toLowerCase())
       );
     }
 
@@ -117,6 +121,63 @@ export default function MatchResults({
     setFilteredData(filtered);
   };
 
+  const handleDeleteSelected = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning("Please select contacts to delete");
+      return;
+    }
+
+    Modal.confirm({
+      title: "Delete Selected Contacts?",
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <div>
+          <p>Are you sure you want to remove <strong>{selectedRowKeys.length}</strong> selected contacts from this campaign?</p>
+          <p className="text-gray-600 text-sm mt-2">
+            This action cannot be undone. The removed contacts will not receive emails from this campaign.
+          </p>
+        </div>
+      ),
+      okText: "Yes, Delete",
+      okType: "danger",
+      cancelText: "Cancel",
+      onOk: () => {
+        // Remove selected contacts from matchResults
+        const updatedMatches = matchResults.matches.filter(
+          (match: any) => !selectedRowKeys.includes(match.id)
+        );
+
+        // Recalculate statistics
+        const highPriority = updatedMatches.filter((m: any) => m.priority === "high").length;
+        const mediumPriority = updatedMatches.filter((m: any) => m.priority === "medium").length;
+        const lowPriority = updatedMatches.filter((m: any) => m.priority === "low").length;
+        const investorCount = updatedMatches.filter((m: any) => m.type === "investor").length;
+        const incubatorCount = updatedMatches.filter((m: any) => m.type === "incubator").length;
+        const totalMatches = updatedMatches.length;
+
+        const updatedResults = {
+          ...matchResults,
+          matches: updatedMatches,
+          totalMatches,
+          highPriority,
+          highPriorityPercent: totalMatches > 0 ? Math.round((highPriority / totalMatches) * 100) : 0,
+          mediumPriority,
+          mediumPriorityPercent: totalMatches > 0 ? Math.round((mediumPriority / totalMatches) * 100) : 0,
+          lowPriority,
+          lowPriorityPercent: totalMatches > 0 ? Math.round((lowPriority / totalMatches) * 100) : 0,
+          investorCount,
+          investorPercent: totalMatches > 0 ? Math.round((investorCount / totalMatches) * 100) : 0,
+          incubatorCount,
+          incubatorPercent: totalMatches > 0 ? Math.round((incubatorCount / totalMatches) * 100) : 0,
+        };
+
+        onMatchComplete(updatedResults);
+        setSelectedRowKeys([]);
+        message.success(`${selectedRowKeys.length} contacts removed successfully`);
+      },
+    });
+  };
+
   const exportToCSV = () => {
     if (!matchResults?.matches) return;
 
@@ -129,7 +190,7 @@ export default function MatchResults({
         item.type,
         item.priority,
         item.matchScore,
-        item.matchedCriteria.join(", "),
+        item.matchedCriteria.join("; "),
       ]),
     ]
       .map((row) => row.join(","))
@@ -158,29 +219,48 @@ export default function MatchResults({
     }
   };
 
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (selectedKeys: React.Key[]) => {
+      setSelectedRowKeys(selectedKeys);
+    },
+  };
+
   const columns = [
     {
       title: "Rank",
       dataIndex: "rank",
       key: "rank",
-      width: 80,
+      width: 70,
       render: (_: any, __: any, index: number) => index + 1,
     },
     {
       title: "Name",
       dataIndex: "name",
       key: "name",
+      width: 150,
       render: (text: string) => <strong>{text}</strong>,
+    },
+    {
+      title: "Email",
+      dataIndex: "email",
+      key: "email",
+      width: 200,
+      render: (email: string) => (
+        <span className="text-blue-600">{email}</span>
+      ),
     },
     {
       title: "Organization",
       dataIndex: "organization",
       key: "organization",
+      width: 180,
     },
     {
       title: "Type",
       dataIndex: "type",
       key: "type",
+      width: 100,
       render: (type: string) => (
         <Tag color={type === "investor" ? "blue" : "green"}>
           {type === "investor" ? "Investor" : "Incubator"}
@@ -191,6 +271,7 @@ export default function MatchResults({
       title: "Match Score",
       dataIndex: "matchScore",
       key: "matchScore",
+      width: 150,
       render: (score: number) => (
         <div className="flex items-center gap-2">
           <Progress
@@ -207,6 +288,7 @@ export default function MatchResults({
       title: "Priority",
       dataIndex: "priority",
       key: "priority",
+      width: 100,
       render: (priority: string) => (
         <Tag color={getPriorityColor(priority)}>
           {priority.toUpperCase()}
@@ -217,6 +299,7 @@ export default function MatchResults({
       title: "Matched Criteria",
       dataIndex: "matchedCriteria",
       key: "matchedCriteria",
+      width: 200,
       render: (criteria: string[]) => (
         <div className="flex gap-1 flex-wrap">
           {criteria.map((c, i) => (
@@ -302,11 +385,11 @@ export default function MatchResults({
         </Card>
       )}
 
-      {/* Filters */}
+      {/* Filters and Actions */}
       <Card title="Matched Contacts" className="mb-6">
         <div className="flex gap-4 mb-4 flex-wrap">
           <Input
-            placeholder="Search by name or organization..."
+            placeholder="Search by name, email or organization..."
             prefix={<SearchOutlined />}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
@@ -336,15 +419,31 @@ export default function MatchResults({
           <Button
             icon={<DownloadOutlined />}
             onClick={exportToCSV}
+            style={{
+              backgroundColor: "#52c41a",
+              borderColor: "#52c41a",
+              color: "white",
+            }}
           >
             Export CSV
           </Button>
+          {selectedRowKeys.length > 0 && (
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={handleDeleteSelected}
+            >
+              Delete Selected ({selectedRowKeys.length})
+            </Button>
+          )}
         </div>
 
         <Table
+          rowSelection={rowSelection}
           columns={columns}
           dataSource={filteredData}
           rowKey="id"
+          scroll={{ x: 1200 }}
           pagination={{
             pageSize: 50,
             showSizeChanger: false,
@@ -358,6 +457,11 @@ export default function MatchResults({
           size="large"
           onClick={onBack}
           icon={<ArrowLeftOutlined />}
+          style={{
+            backgroundColor: "#6c757d",
+            borderColor: "#6c757d",
+            color: "white",
+          }}
         >
           Back
         </Button>
@@ -366,6 +470,10 @@ export default function MatchResults({
           size="large"
           onClick={onNext}
           icon={<ArrowRightOutlined />}
+          style={{
+            backgroundColor: "#1890ff",
+            borderColor: "#1890ff",
+          }}
         >
           Continue to Email Template
         </Button>

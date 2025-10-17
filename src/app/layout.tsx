@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Poppins } from "next/font/google";
 import "./globals.css";
-import "../styles/mobile.css";
 import Providers from "./providers";
 import NextTopLoader from "nextjs-toploader";
 
@@ -15,6 +14,7 @@ export const metadata: Metadata = {
   title: "Send Email - Email Campaign Management",
   description:
     "Modern email campaign management platform built with Next.js and React",
+
 };
 
 export const viewport: Viewport = {

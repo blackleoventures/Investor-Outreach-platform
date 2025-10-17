@@ -11,6 +11,7 @@ import {
   Spin,
   Alert,
   Divider,
+  Space,
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -40,15 +41,21 @@ export default function EmailTemplate({
   getAuthToken,
 }: EmailTemplateProps) {
   const [currentSubject, setCurrentSubject] = useState(
-    emailTemplate?.currentSubject || selectedClient?.pitchAnalysis?.email_subject || ""
+    emailTemplate?.currentSubject ||
+      selectedClient?.pitchAnalysis?.email_subject ||
+      ""
   );
   const [currentBody, setCurrentBody] = useState(
-    emailTemplate?.currentBody || selectedClient?.pitchAnalysis?.email_body || ""
+    emailTemplate?.currentBody ||
+      selectedClient?.pitchAnalysis?.email_body ||
+      ""
   );
 
   const [subjectModalVisible, setSubjectModalVisible] = useState(false);
   const [bodyModalVisible, setBodyModalVisible] = useState(false);
-  const [improvementMethod, setImprovementMethod] = useState<"optimized" | "custom">("optimized");
+  const [improvementMethod, setImprovementMethod] = useState<
+    "optimized" | "custom"
+  >("optimized");
   const [customInstructions, setCustomInstructions] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -73,7 +80,8 @@ export default function EmailTemplate({
             metrics: selectedClient.pitchAnalysis?.summary,
           },
           useOptimizedPrompt: improvementMethod === "optimized",
-          customInstructions: improvementMethod === "custom" ? customInstructions : undefined,
+          customInstructions:
+            improvementMethod === "custom" ? customInstructions : undefined,
         }),
       });
 
@@ -84,6 +92,7 @@ export default function EmailTemplate({
       const data = await response.json();
       setCurrentSubject(data.improvedSubject);
       setSubjectModalVisible(false);
+      setCustomInstructions(""); // Reset custom instructions
       message.success("Subject improved successfully!");
     } catch (error: any) {
       console.error("Subject improvement error:", error);
@@ -114,7 +123,8 @@ export default function EmailTemplate({
             traction: selectedClient.pitchAnalysis?.summary?.traction,
           },
           useOptimizedPrompt: improvementMethod === "optimized",
-          customInstructions: improvementMethod === "custom" ? customInstructions : undefined,
+          customInstructions:
+            improvementMethod === "custom" ? customInstructions : undefined,
         }),
       });
 
@@ -125,6 +135,7 @@ export default function EmailTemplate({
       const data = await response.json();
       setCurrentBody(data.improvedBody);
       setBodyModalVisible(false);
+      setCustomInstructions(""); // Reset custom instructions
       message.success("Email body improved successfully!");
     } catch (error: any) {
       console.error("Body improvement error:", error);
@@ -143,7 +154,8 @@ export default function EmailTemplate({
     onTemplateUpdate({
       originalSubject: selectedClient?.pitchAnalysis?.email_subject,
       currentSubject,
-      subjectImproved: currentSubject !== selectedClient?.pitchAnalysis?.email_subject,
+      subjectImproved:
+        currentSubject !== selectedClient?.pitchAnalysis?.email_subject,
       originalBody: selectedClient?.pitchAnalysis?.email_body,
       currentBody,
       bodyImproved: currentBody !== selectedClient?.pitchAnalysis?.email_body,
@@ -161,6 +173,11 @@ export default function EmailTemplate({
           <Button
             icon={<ThunderboltOutlined />}
             onClick={() => setSubjectModalVisible(true)}
+            style={{
+              backgroundColor: "#722ed1",
+              borderColor: "#722ed1",
+              color: "white",
+            }}
           >
             Improve Subject
           </Button>
@@ -178,8 +195,7 @@ export default function EmailTemplate({
           onChange={(e) => setCurrentSubject(e.target.value)}
           size="large"
           placeholder="Email subject line..."
-          readOnly
-          style={{ backgroundColor: "#f5f5f5" }}
+          style={{ backgroundColor: "#ffffff" }}
         />
         <p className="text-sm text-gray-500 mt-2">
           Character count: {currentSubject.length} (recommended: 40-60)
@@ -193,6 +209,11 @@ export default function EmailTemplate({
           <Button
             icon={<ThunderboltOutlined />}
             onClick={() => setBodyModalVisible(true)}
+            style={{
+              backgroundColor: "#722ed1",
+              borderColor: "#722ed1",
+              color: "white",
+            }}
           >
             Improve Body
           </Button>
@@ -210,8 +231,7 @@ export default function EmailTemplate({
           onChange={(e) => setCurrentBody(e.target.value)}
           rows={15}
           placeholder="Email body content..."
-          readOnly
-          style={{ backgroundColor: "#f5f5f5", fontFamily: "monospace" }}
+          style={{ backgroundColor: "#ffffff", fontFamily: "monospace" }}
         />
         <p className="text-sm text-gray-500 mt-2">
           Word count: {currentBody.split(" ").length} (recommended: 150-300)
@@ -222,19 +242,47 @@ export default function EmailTemplate({
       <Modal
         title="Improve Email Subject"
         open={subjectModalVisible}
-        onCancel={() => setSubjectModalVisible(false)}
-        onOk={improveSubject}
-        confirmLoading={loading}
-        okText="Generate Improved Subject"
+        onCancel={() => {
+          setSubjectModalVisible(false);
+          setCustomInstructions("");
+          setImprovementMethod("optimized");
+        }}
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => {
+              setSubjectModalVisible(false);
+              setCustomInstructions("");
+              setImprovementMethod("optimized");
+            }}
+            style={{
+              backgroundColor: "#6c757d",
+              borderColor: "#6c757d",
+              color: "white",
+            }}
+          >
+            Cancel
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={loading}
+            onClick={improveSubject}
+            style={{
+              backgroundColor: "#52c41a",
+              borderColor: "#52c41a",
+            }}
+          >
+            Generate Improved Subject
+          </Button>,
+        ]}
         width={700}
       >
         <div className="py-4">
           <p className="mb-4">
             <strong>Current Subject:</strong>
           </p>
-          <div className="bg-gray-50 p-3 rounded mb-4">
-            {currentSubject}
-          </div>
+          <div className="bg-gray-50 p-3 rounded mb-4">{currentSubject}</div>
 
           <Divider />
 
@@ -247,7 +295,9 @@ export default function EmailTemplate({
             className="mb-4"
           >
             <Space direction="vertical">
-              <Radio value="optimized">Use our optimized AI prompt (recommended)</Radio>
+              <Radio value="optimized">
+                Use our optimized AI prompt (recommended)
+              </Radio>
               <Radio value="custom">Custom instructions (advanced)</Radio>
             </Space>
           </Radio.Group>
@@ -267,10 +317,40 @@ export default function EmailTemplate({
       <Modal
         title="Improve Email Body"
         open={bodyModalVisible}
-        onCancel={() => setBodyModalVisible(false)}
-        onOk={improveBody}
-        confirmLoading={loading}
-        okText="Generate Improved Body"
+        onCancel={() => {
+          setBodyModalVisible(false);
+          setCustomInstructions("");
+          setImprovementMethod("optimized");
+        }}
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => {
+              setBodyModalVisible(false);
+              setCustomInstructions("");
+              setImprovementMethod("optimized");
+            }}
+            style={{
+              backgroundColor: "#6c757d",
+              borderColor: "#6c757d",
+              color: "white",
+            }}
+          >
+            Cancel
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={loading}
+            onClick={improveBody}
+            style={{
+              backgroundColor: "#52c41a",
+              borderColor: "#52c41a",
+            }}
+          >
+            Generate Improved Body
+          </Button>,
+        ]}
         width={800}
       >
         <div className="py-4">
@@ -292,7 +372,9 @@ export default function EmailTemplate({
             className="mb-4"
           >
             <Space direction="vertical">
-              <Radio value="optimized">Use our optimized AI prompt (recommended)</Radio>
+              <Radio value="optimized">
+                Use our optimized AI prompt (recommended)
+              </Radio>
               <Radio value="custom">Custom instructions (advanced)</Radio>
             </Space>
           </Radio.Group>
@@ -313,6 +395,11 @@ export default function EmailTemplate({
           size="large"
           onClick={onBack}
           icon={<ArrowLeftOutlined />}
+          style={{
+            backgroundColor: "#6c757d",
+            borderColor: "#6c757d",
+            color: "white",
+          }}
         >
           Back
         </Button>
@@ -321,6 +408,10 @@ export default function EmailTemplate({
           size="large"
           onClick={handleNext}
           icon={<ArrowRightOutlined />}
+          style={{
+            backgroundColor: "#1890ff",
+            borderColor: "#1890ff",
+          }}
         >
           Continue to Schedule
         </Button>

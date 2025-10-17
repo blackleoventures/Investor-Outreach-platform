@@ -27,6 +27,7 @@ import {
   FileTextOutlined,
   SendOutlined,
   UnorderedListOutlined,
+  ThunderboltOutlined,
 } from "@ant-design/icons";
 import Image from "next/image";
 
@@ -167,6 +168,13 @@ export default function DashboardLayout({
         ],
       },
       {
+        key: "/dashboard/admin/cron-control",
+        icon: <ThunderboltOutlined />,
+        ...navItem("/dashboard/admin/cron-control", "Cron Control"),
+        // Only show in development
+        hidden: process.env.NODE_ENV === "production",
+      },
+      {
         key: "/dashboard/account-management",
         icon: <UserOutlined />,
         ...navItem("/dashboard/account-management", "Account Management"),
@@ -250,6 +258,13 @@ export default function DashboardLayout({
             ...navItem("/dashboard/add-incubator", "Add Incubator"),
           },
         ],
+      },
+      {
+        key: "/dashboard/admin/cron-control",
+        icon: <ThunderboltOutlined />,
+        label: "Cron Control",
+        // Only show in development
+        hidden: process.env.NODE_ENV === "production",
       },
     ],
     [navItem]

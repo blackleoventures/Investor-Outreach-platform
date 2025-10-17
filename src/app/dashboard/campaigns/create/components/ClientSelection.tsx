@@ -1,17 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import {
-  Card,
-  Table,
-  Button,
-  Input,
-  message,
-  Tag,
-  Space,
-  Spin,
-  Alert,
-} from "antd";
+import { Card, Table, Button, Input, message, Tag, Space, Spin } from "antd";
 import {
   SearchOutlined,
   CheckCircleOutlined,
@@ -44,10 +34,11 @@ export default function ClientSelection({
 
   useEffect(() => {
     if (searchText) {
-      const filtered = clients.filter((client) =>
-        client.companyName.toLowerCase().includes(searchText.toLowerCase()) ||
-        client.founderName.toLowerCase().includes(searchText.toLowerCase()) ||
-        client.industry.toLowerCase().includes(searchText.toLowerCase())
+      const filtered = clients.filter(
+        (client) =>
+          client.companyName.toLowerCase().includes(searchText.toLowerCase()) ||
+          client.founderName.toLowerCase().includes(searchText.toLowerCase()) ||
+          client.industry.toLowerCase().includes(searchText.toLowerCase())
       );
       setFilteredClients(filtered);
     } else {
@@ -61,12 +52,15 @@ export default function ClientSelection({
       const token = await getAuthToken();
       if (!token) return;
 
-      const response = await fetch(`${API_BASE_URL}/campaigns/eligible-clients`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/campaigns/eligible-clients`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
       if (!response.ok) {
         throw new Error("Failed to fetch clients");
@@ -164,7 +158,15 @@ export default function ClientSelection({
           size="small"
           onClick={() => handleSelectClient(record)}
           disabled={selectedClient?.id === record.id}
-          icon={selectedClient?.id === record.id ? <CheckCircleOutlined /> : null}
+          icon={
+            selectedClient?.id === record.id ? <CheckCircleOutlined /> : null
+          }
+          style={{
+            backgroundColor:
+              selectedClient?.id === record.id ? "#52c41a" : "#1890ff",
+            borderColor:
+              selectedClient?.id === record.id ? "#52c41a" : "#1890ff",
+          }}
         >
           {selectedClient?.id === record.id ? "Selected" : "Select"}
         </Button>
@@ -185,14 +187,6 @@ export default function ClientSelection({
   return (
     <div>
       <Card title="Select Client for Campaign" className="mb-6">
-        <Alert
-          message="Client Eligibility Criteria"
-          description="Only approved, active clients with verified SMTP configuration are shown."
-          type="info"
-          showIcon
-          className="mb-4"
-        />
-
         <Input
           placeholder="Search by company name, founder, or industry..."
           prefix={<SearchOutlined />}
@@ -247,6 +241,10 @@ export default function ClientSelection({
           onClick={onNext}
           disabled={!selectedClient}
           icon={<ArrowRightOutlined />}
+          style={{
+            backgroundColor: selectedClient ? "#1890ff" : undefined,
+            borderColor: selectedClient ? "#1890ff" : undefined,
+          }}
         >
           Next: Select Audience
         </Button>

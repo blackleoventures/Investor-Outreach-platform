@@ -1,7 +1,6 @@
 "use client";
 
 import type React from "react";
-
 import { useState, useEffect, useMemo } from "react";
 import {
   Search,
@@ -12,6 +11,7 @@ import {
   ChevronsLeft,
   ChevronsRight,
   X,
+  Filter,
 } from "lucide-react";
 
 export interface Column<T = any> {
@@ -21,6 +21,13 @@ export interface Column<T = any> {
   align?: "left" | "center" | "right";
   render?: (value: any, record: T, index: number) => React.ReactNode;
   dataIndex?: string;
+}
+
+// NEW: Filter column definition
+export interface FilterColumn {
+  key: string;
+  title: string;
+  options: { label: string; value: string }[];
 }
 
 export interface DataTableProps<T = any> {
@@ -38,6 +45,7 @@ export interface DataTableProps<T = any> {
   pageSizeOptions?: number[];
   dataSource?: string;
   lastUpdated?: string;
+  filterColumns?: FilterColumn[]; // NEW: Dynamic filter columns
 }
 
 export default function DataTable<T = any>({
@@ -55,11 +63,16 @@ export default function DataTable<T = any>({
   pageSizeOptions = [10, 20, 50, 100],
   dataSource,
   lastUpdated,
+  filterColumns = [], // NEW: Default empty array
 }: DataTableProps<T>) {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const [showFilters, setShowFilters] = useState(false); // NEW: Filter panel toggle
+  const [activeFilters, setActiveFilters] = useState<Record<string, string>>(
+    {}
+  ); // NEW: Active filters
   const [internalVisibleColumns, setInternalVisibleColumns] = useState<
     Record<string, boolean>
   >({});
@@ -80,12 +93,44 @@ export default function DataTable<T = any>({
     }
   }, [columns, externalVisibleColumns]);
 
-  // Filter data based on search query
+  // NEW: Handle filter changes
+  const handleFilterChange = (key: string, value: string) => {
+    if (value === "all") {
+      const newFilters = { ...activeFilters };
+      delete newFilters[key];
+      setActiveFilters(newFilters);
+    } else {
+      setActiveFilters({ ...activeFilters, [key]: value });
+    }
+    setCurrentPage(1); // Reset to first page
+  };
+
+  // NEW: Clear all filters
+  const clearAllFilters = () => {
+    setActiveFilters({});
+    setCurrentPage(1);
+  };
+
+  // Filter data based on search query AND active filters
   const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) return data;
+    let result = data;
+
+    // Apply active filters first
+    if (Object.keys(activeFilters).length > 0) {
+      result = result.filter((record: any) => {
+        return Object.entries(activeFilters).every(([key, value]) => {
+          const recordValue = record[key];
+          if (recordValue == null) return false;
+          return String(recordValue).toLowerCase() === value.toLowerCase();
+        });
+      });
+    }
+
+    // Then apply search query
+    if (!searchQuery.trim()) return result;
 
     const query = searchQuery.toLowerCase();
-    return data.filter((record: any) => {
+    return result.filter((record: any) => {
       // If searchKeys provided, search only those fields
       if (searchKeys.length > 0) {
         return searchKeys.some((key) => {
@@ -107,7 +152,7 @@ export default function DataTable<T = any>({
         return String(value).toLowerCase().includes(query);
       });
     });
-  }, [data, searchQuery, searchKeys]);
+  }, [data, searchQuery, searchKeys, activeFilters]);
 
   // Paginate data
   const paginatedData = useMemo(() => {
@@ -141,6 +186,9 @@ export default function DataTable<T = any>({
   const goToPage = (page: number) => {
     setCurrentPage(Math.max(1, Math.min(page, totalPages)));
   };
+
+  // NEW: Count active filters
+  const activeFilterCount = Object.keys(activeFilters).length;
 
   return (
     <div className="w-full space-y-4">
@@ -188,6 +236,69 @@ export default function DataTable<T = any>({
           </div>
 
           <div className="flex gap-2 w-full sm:w-auto">
+            {/* NEW: Filters Button */}
+            {filterColumns.length > 0 && (
+              <div className="relative flex-1 sm:flex-initial">
+                <button
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <Filter className="h-4 w-4" />
+                  <span>Filters</span>
+                  {activeFilterCount > 0 && (
+                    <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+
+                {showFilters && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowFilters(false)}
+                    />
+                    <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 md:absolute md:left-auto md:right-0 md:top-auto md:translate-x-0 md:translate-y-0 md:mt-2 w-[90vw] max-w-xs md:w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-20 max-h-[80vh] md:max-h-96 overflow-y-auto">
+                      <div className="p-3 border-b border-gray-200 sticky top-0 bg-white flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-900">Filters</h3>
+                        {activeFilterCount > 0 && (
+                          <button
+                            onClick={clearAllFilters}
+                            className="text-xs text-blue-600 hover:text-blue-700"
+                          >
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+                      <div className="p-3 space-y-4">
+                        {filterColumns.map((filter) => (
+                          <div key={filter.key}>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              {filter.title}
+                            </label>
+                            <select
+                              value={activeFilters[filter.key] || "all"}
+                              onChange={(e) =>
+                                handleFilterChange(filter.key, e.target.value)
+                              }
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            >
+                              <option value="all">All</option>
+                              {filter.options.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
             {onRefresh && (
               <button
                 onClick={onRefresh}
@@ -254,9 +365,34 @@ export default function DataTable<T = any>({
             )}
           </div>
         </div>
+
+        {/* NEW: Active Filters Display */}
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(activeFilters).map(([key, value]) => {
+              const filter = filterColumns.find((f) => f.key === key);
+              const option = filter?.options.find((o) => o.value === value);
+              return (
+                <span
+                  key={key}
+                  className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
+                >
+                  <span className="font-medium">{filter?.title}:</span>
+                  <span>{option?.label || value}</span>
+                  <button
+                    onClick={() => handleFilterChange(key, "all")}
+                    className="ml-1 hover:text-blue-900"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Table */}
+      {/* Table - Rest remains the same */}
       <div className="border border-gray-200 rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -298,7 +434,9 @@ export default function DataTable<T = any>({
                     colSpan={displayColumns.length}
                     className="px-4 py-12 text-center text-gray-500"
                   >
-                    {searchQuery ? "No results found" : "No data available"}
+                    {searchQuery || activeFilterCount > 0
+                      ? "No results found"
+                      : "No data available"}
                   </td>
                 </tr>
               ) : (
@@ -311,8 +449,8 @@ export default function DataTable<T = any>({
                     >
                       {displayColumns.map((col) => {
                         const value = col.dataIndex
-                          ? record[col.dataIndex]
-                          : record[col.key];
+                          ? (record as any)[col.dataIndex]
+                          : (record as any)[col.key];
                         const cellContent = col.render
                           ? col.render(
                               value,
@@ -345,7 +483,7 @@ export default function DataTable<T = any>({
         </div>
       </div>
 
-      {/* Pagination */}
+      {/* Pagination - Remains the same */}
       {filteredData.length > 0 && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2">
           <div className="flex items-center gap-2 text-sm text-gray-700">

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyFirebaseToken, verifyAdminOrSubadmin } from "@/lib/auth-middleware";
+import {
+  verifyFirebaseToken,
+  verifyAdminOrSubadmin,
+} from "@/lib/auth-middleware";
 import { adminDb } from "@/lib/firebase-admin";
 import { v4 as uuidv4 } from "uuid";
+import { getBaseUrl } from "@/lib/env-helper"; // Import the helper
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,16 +13,22 @@ export async function POST(request: NextRequest) {
     verifyAdminOrSubadmin(user);
 
     const body = await request.json();
-    const { 
-      clientId, 
-      targetType, 
-      matchResults, 
-      emailTemplate, 
-      scheduleConfig 
+    const {
+      clientId,
+      targetType,
+      matchResults,
+      emailTemplate,
+      scheduleConfig,
     } = body;
 
     // Validation
-    if (!clientId || !targetType || !matchResults || !emailTemplate || !scheduleConfig) {
+    if (
+      !clientId ||
+      !targetType ||
+      !matchResults ||
+      !emailTemplate ||
+      !scheduleConfig
+    ) {
       return NextResponse.json(
         { success: false, message: "Missing required fields" },
         { status: 400 }
@@ -29,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     // Verify client still exists and is eligible
     const clientDoc = await adminDb.collection("clients").doc(clientId).get();
-    
+
     if (!clientDoc.exists) {
       return NextResponse.json(
         { success: false, message: "Client not found" },
@@ -47,6 +57,15 @@ export async function POST(request: NextRequest) {
     console.log("[Campaign Activation] Campaign ID:", campaignId);
     console.log("[Campaign Activation] Public Token:", publicToken);
 
+    // Handle instant start
+    let actualStartDate = scheduleConfig.startDate;
+    if (scheduleConfig.startInstantly) {
+      // Set to now + 1 minute
+      const now = new Date();
+      now.setMinutes(now.getMinutes() + 1);
+      actualStartDate = now.toISOString().split("T")[0];
+    }
+
     // Create campaign document
     const campaignData = {
       id: campaignId,
@@ -55,7 +74,7 @@ export async function POST(request: NextRequest) {
       campaignName: scheduleConfig.campaignName,
       targetType,
       totalRecipients: matchResults.totalMatches,
-      
+
       emailTemplate: {
         originalSubject: emailTemplate.originalSubject,
         currentSubject: emailTemplate.currentSubject,
@@ -64,9 +83,9 @@ export async function POST(request: NextRequest) {
         currentBody: emailTemplate.currentBody,
         bodyImproved: emailTemplate.bodyImproved || false,
       },
-      
+
       schedule: {
-        startDate: scheduleConfig.startDate,
+        startDate: actualStartDate,
         endDate: scheduleConfig.endDate,
         duration: scheduleConfig.duration,
         dailyLimit: scheduleConfig.dailyLimit,
@@ -81,10 +100,11 @@ export async function POST(request: NextRequest) {
           medium: 50,
           low: 25,
         },
+        startInstantly: scheduleConfig.startInstantly || false,
       },
-      
+
       status: "active",
-      
+
       stats: {
         totalRecipients: matchResults.totalMatches,
         sent: 0,
@@ -99,13 +119,13 @@ export async function POST(request: NextRequest) {
         openRate: 0,
         replyRate: 0,
       },
-      
+
       followUps: {
         totalSent: 0,
         openedNoReplyCandidates: 0,
         deliveredNotOpenedCandidates: 0,
       },
-      
+
       publicToken,
       createdBy: user.uid,
       createdAt: new Date().toISOString(),
@@ -120,56 +140,64 @@ export async function POST(request: NextRequest) {
     // Calculate timestamp distribution
     const { timestamps, errors } = await distributeTimestamps(
       matchResults.matches,
-      scheduleConfig,
+      { ...scheduleConfig, startDate: actualStartDate },
       matchResults
     );
 
     if (errors.length > 0) {
-      console.error("[Campaign Activation] Timestamp distribution errors:", errors);
+      console.error(
+        "[Campaign Activation] Timestamp distribution errors:",
+        errors
+      );
     }
 
-    console.log("[Campaign Activation] Timestamps distributed:", timestamps.length);
+    console.log(
+      "[Campaign Activation] Timestamps distributed:",
+      timestamps.length
+    );
 
     // Create recipient documents in batches
     const batchSize = 500; // Firestore limit
     const totalBatches = Math.ceil(matchResults.matches.length / batchSize);
-    
-    console.log(`[Campaign Activation] Creating ${matchResults.matches.length} recipients in ${totalBatches} batches`);
+
+    console.log(
+      `[Campaign Activation] Creating ${matchResults.matches.length} recipients in ${totalBatches} batches`
+    );
 
     for (let i = 0; i < totalBatches; i++) {
       const batch = adminDb.batch();
       const start = i * batchSize;
       const end = Math.min(start + batchSize, matchResults.matches.length);
-      
+
       for (let j = start; j < end; j++) {
         const match = matchResults.matches[j];
         const recipientId = adminDb.collection("campaignRecipients").doc().id;
-        
+
         const recipientData = {
           id: recipientId,
           campaignId,
           recipientType: match.type,
-          
+
           contactInfo: {
             name: match.name,
             email: match.email,
             organization: match.organization,
           },
-          
+
           matchScore: match.matchScore,
           priority: match.priority,
           matchedCriteria: match.matchedCriteria,
-          
+
           trackingId: uuidv4(), // For open tracking
-          
+
           scheduledFor: timestamps[j] || new Date().toISOString(),
-          
+
           status: "pending",
           sentAt: null,
           deliveredAt: null,
           openedAt: null,
           repliedAt: null,
-          
+
           trackingData: {
             opened: false,
             openCount: 0,
@@ -177,23 +205,27 @@ export async function POST(request: NextRequest) {
             replied: false,
             replyReceivedAt: null,
           },
-          
+
           followUpsSent: 0,
           lastFollowUpSentAt: null,
-          
+
           errorMessage: null,
           failureReason: null,
           retryCount: 0,
-          
+
           createdAt: new Date().toISOString(),
         };
-        
-        const recipientRef = adminDb.collection("campaignRecipients").doc(recipientId);
+
+        const recipientRef = adminDb
+          .collection("campaignRecipients")
+          .doc(recipientId);
         batch.set(recipientRef, recipientData);
       }
-      
+
       await batch.commit();
-      console.log(`[Campaign Activation] Batch ${i + 1}/${totalBatches} created`);
+      console.log(
+        `[Campaign Activation] Batch ${i + 1}/${totalBatches} created`
+      );
     }
 
     // Create audit log
@@ -209,14 +241,17 @@ export async function POST(request: NextRequest) {
         clientName: clientInfo.companyName,
         totalRecipients: matchResults.totalMatches,
         targetType,
-        startDate: scheduleConfig.startDate,
+        startDate: actualStartDate,
         duration: scheduleConfig.duration,
+        startInstantly: scheduleConfig.startInstantly || false,
       },
     });
 
     console.log("[Campaign Activation] Audit log created");
 
-    const publicReportUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/campaign-report/${publicToken}`;
+    // Generate public report URL using helper (works in dev and prod)
+    const baseUrl = getBaseUrl();
+    const publicReportUrl = `${baseUrl}/campaign-report/${publicToken}`;
 
     return NextResponse.json({
       success: true,
@@ -227,17 +262,17 @@ export async function POST(request: NextRequest) {
         campaignId,
         campaignName: scheduleConfig.campaignName,
         totalRecipients: matchResults.totalMatches,
-        startDate: scheduleConfig.startDate,
+        startDate: actualStartDate,
         endDate: scheduleConfig.endDate,
         duration: scheduleConfig.duration,
-        firstSendTime: timestamps[0] || scheduleConfig.startDate,
+        firstSendTime: timestamps[0] || actualStartDate,
         publicReportUrl,
+        startInstantly: scheduleConfig.startInstantly || false,
       },
     });
-
   } catch (error: any) {
     console.error("[Campaign Activation Error]:", error);
-    
+
     if (error.name === "AuthenticationError") {
       return NextResponse.json(
         { success: false, message: error.message },
@@ -246,8 +281,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         message: "Campaign activation failed",
         error: error.message,
       },
@@ -267,22 +302,51 @@ async function distributeTimestamps(
 
   try {
     const startDate = new Date(scheduleConfig.startDate);
+
+    // If instant start, use current time + 1 minute
+    if (scheduleConfig.startInstantly) {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() + 1);
+      startDate.setTime(now.getTime());
+    }
+
     const dailyLimit = scheduleConfig.dailyLimit;
-    const sendingStart = scheduleConfig.sendingWindow.start.split(":").map(Number);
+    const sendingStart = scheduleConfig.sendingWindow.start
+      .split(":")
+      .map(Number);
     const sendingEnd = scheduleConfig.sendingWindow.end.split(":").map(Number);
-    
-    const windowMinutes = (sendingEnd[0] - sendingStart[0]) * 60 + (sendingEnd[1] - sendingStart[1]);
+
+    const windowMinutes =
+      (sendingEnd[0] - sendingStart[0]) * 60 +
+      (sendingEnd[1] - sendingStart[1]);
     const minutesBetweenEmails = windowMinutes / dailyLimit;
 
     // Group by priority
-    const highPriority = matches.filter(m => m.priority === "high");
-    const mediumPriority = matches.filter(m => m.priority === "medium");
-    const lowPriority = matches.filter(m => m.priority === "low");
+    const highPriority = matches.filter((m: any) => m.priority === "high");
+    const mediumPriority = matches.filter((m: any) => m.priority === "medium");
+    const lowPriority = matches.filter((m: any) => m.priority === "low");
 
     let currentDate = new Date(startDate);
     let emailsToday = 0;
     let currentTime = new Date(currentDate);
-    currentTime.setHours(sendingStart[0], sendingStart[1], 0, 0);
+
+    // If instant start and within sending window, use current time
+    if (scheduleConfig.startInstantly) {
+      const currentHour = currentTime.getHours();
+      const currentMinute = currentTime.getMinutes();
+
+      // Check if current time is within sending window
+      if (currentHour >= sendingStart[0] && currentHour < sendingEnd[0]) {
+        currentTime.setHours(currentHour, currentMinute, 0, 0);
+      } else {
+        // If outside window, start from next day's window start
+        currentDate.setDate(currentDate.getDate() + 1);
+        currentTime = new Date(currentDate);
+        currentTime.setHours(sendingStart[0], sendingStart[1], 0, 0);
+      }
+    } else {
+      currentTime.setHours(sendingStart[0], sendingStart[1], 0, 0);
+    }
 
     // Process in order: high, medium, low
     const orderedMatches = [...highPriority, ...mediumPriority, ...lowPriority];
@@ -291,14 +355,14 @@ async function distributeTimestamps(
       // Check if we need to move to next day
       if (emailsToday >= dailyLimit) {
         currentDate.setDate(currentDate.getDate() + 1);
-        
+
         // Skip weekends if configured
         if (scheduleConfig.pauseOnWeekends) {
           while (currentDate.getDay() === 0 || currentDate.getDay() === 6) {
             currentDate.setDate(currentDate.getDate() + 1);
           }
         }
-        
+
         currentTime = new Date(currentDate);
         currentTime.setHours(sendingStart[0], sendingStart[1], 0, 0);
         emailsToday = 0;
@@ -306,15 +370,18 @@ async function distributeTimestamps(
 
       // Add slight random variance (±2 minutes)
       const variance = (Math.random() - 0.5) * 4;
-      const scheduledTime = new Date(currentTime.getTime() + variance * 60 * 1000);
-      
+      const scheduledTime = new Date(
+        currentTime.getTime() + variance * 60 * 1000
+      );
+
       timestamps.push(scheduledTime.toISOString());
 
       // Move to next time slot
-      currentTime = new Date(currentTime.getTime() + minutesBetweenEmails * 60 * 1000);
+      currentTime = new Date(
+        currentTime.getTime() + minutesBetweenEmails * 60 * 1000
+      );
       emailsToday++;
     }
-
   } catch (error: any) {
     errors.push(`Timestamp distribution error: ${error.message}`);
   }
