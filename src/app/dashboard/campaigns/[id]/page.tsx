@@ -34,6 +34,8 @@ import {
   FileTextOutlined,
 } from "@ant-design/icons";
 import DataTable, { Column, FilterColumn } from "@/components/data-table";
+import FollowupTab from "@/components/campaigns/FollowupTab";
+import EngagementStatsCards from "@/components/campaigns/EngagementStatsCards";
 import { auth } from "@/lib/firebase";
 import { getBaseUrl } from "@/lib/env-helper";
 
@@ -267,7 +269,9 @@ export default function CampaignDetailPage() {
           }
 
           message.success(
-            `Campaign ${newStatus === "paused" ? "paused" : "resumed"} successfully`
+            `Campaign ${
+              newStatus === "paused" ? "paused" : "resumed"
+            } successfully`
           );
           fetchCampaignDetails();
         } catch (error: any) {
@@ -587,6 +591,10 @@ export default function CampaignDetailPage() {
       ),
       children: (
         <div className="space-y-6">
+          <EngagementStatsCards
+            campaignId={campaignId}
+            campaignName={campaign.campaignName}
+          />
           {client && (
             <Card title="Client Information">
               <Descriptions bordered column={2}>
@@ -622,9 +630,7 @@ export default function CampaignDetailPage() {
               <div className="mt-4">
                 <Button
                   type="link"
-                  onClick={() =>
-                    router.push(`/dashboard/clients/${client.id}`)
-                  }
+                  onClick={() => router.push(`/dashboard/clients/${client.id}`)}
                 >
                   View Full Client Profile →
                 </Button>
@@ -925,79 +931,10 @@ export default function CampaignDetailPage() {
         </span>
       ),
       children: (
-        <div className="space-y-6">
-          <Card title="Follow-up Strategy">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card type="inner" title="Opened but Not Replied">
-                <Statistic
-                  value={campaign.stats.openedNotReplied}
-                  suffix="candidates"
-                  valueStyle={{ color: "#1890ff" }}
-                />
-                <p className="text-sm text-gray-600 mt-2">
-                  Recipients who opened the email but haven&apos;t replied yet
-                </p>
-                <Button
-                  type="primary"
-                  className="mt-4"
-                  disabled={campaign.stats.openedNotReplied === 0}
-                  style={{
-                    backgroundColor: "#1890ff",
-                    borderColor: "#1890ff",
-                  }}
-                >
-                  Send Follow-up to {campaign.stats.openedNotReplied}
-                </Button>
-              </Card>
-
-              <Card type="inner" title="Delivered but Not Opened">
-                <Statistic
-                  value={campaign.stats.deliveredNotOpened}
-                  suffix="candidates"
-                  valueStyle={{ color: "#52c41a" }}
-                />
-                <p className="text-sm text-gray-600 mt-2">
-                  Recipients who received but haven&apos;t opened the email
-                </p>
-                <Button
-                  type="primary"
-                  className="mt-4"
-                  disabled={campaign.stats.deliveredNotOpened === 0}
-                  style={{
-                    backgroundColor: "#52c41a",
-                    borderColor: "#52c41a",
-                  }}
-                >
-                  Send Follow-up to {campaign.stats.deliveredNotOpened}
-                </Button>
-              </Card>
-            </div>
-          </Card>
-
-          <Card title="Follow-up Summary">
-            <Descriptions bordered>
-              <Descriptions.Item label="Total Follow-ups Sent">
-                {campaign.followUps?.totalSent || 0}
-              </Descriptions.Item>
-              <Descriptions.Item label="Opened No Reply Candidates">
-                {campaign.followUps?.openedNoReplyCandidates || 0}
-              </Descriptions.Item>
-              <Descriptions.Item label="Delivered Not Opened Candidates">
-                {campaign.followUps?.deliveredNotOpenedCandidates || 0}
-              </Descriptions.Item>
-            </Descriptions>
-          </Card>
-
-          <Card>
-            <div className="text-center py-8 text-gray-500">
-              <MessageOutlined style={{ fontSize: 48, marginBottom: 16 }} />
-              <p>Follow-up feature coming soon!</p>
-              <p className="text-sm mt-2">
-                Automated follow-ups will be sent based on recipient engagement
-              </p>
-            </div>
-          </Card>
-        </div>
+        <FollowupTab
+          campaignId={campaignId}
+          campaignName={campaign.campaignName}
+        />
       ),
     },
   ];

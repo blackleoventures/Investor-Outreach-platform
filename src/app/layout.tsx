@@ -3,6 +3,7 @@ import { Poppins } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
 import NextTopLoader from "nextjs-toploader";
+import { startAutoCronScheduler } from "@/lib/cron/auto-scheduler";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -14,7 +15,6 @@ export const metadata: Metadata = {
   title: "Send Email - Email Campaign Management",
   description:
     "Modern email campaign management platform built with Next.js and React",
-
 };
 
 export const viewport: Viewport = {
@@ -24,6 +24,15 @@ export const viewport: Viewport = {
   userScalable: true,
   viewportFit: "cover",
 };
+
+// ============================================
+// AUTO CRON SCHEDULER INITIALIZATION
+// Start cron jobs automatically (server-side only)
+// ============================================
+if (typeof window === "undefined") {
+  // Only run on server side
+  startAutoCronScheduler();
+}
 
 export default function RootLayout({
   children,

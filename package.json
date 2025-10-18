@@ -31,6 +31,8 @@
     "mammoth": "^1.11.0",
     "next": "14.0.4",
     "nextjs-toploader": "^3.8.16",
+    "node-cron": "^4.2.1",
+    "node-imap": "^0.9.6",
     "nodemailer": "^7.0.9",
     "pdf-parse": "^2.1.7",
     "pdfjs-dist": "^5.4.149",
@@ -40,12 +42,15 @@
     "react-hot-toast": "^2.6.0",
     "react-pdftotext": "^1.3.4",
     "recharts": "^2.15.4",
-    "sweetalert2": "^11.12.4"
+    "sweetalert2": "^11.12.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/imap": "^0.8.42",
     "@types/mailparser": "^3.4.6",
     "@types/node": "20",
+    "@types/node-cron": "^3.0.11",
+    "@types/node-imap": "^0.9.3",
     "@types/nodemailer": "^7.0.2",
     "@types/react": "18",
     "@types/react-dom": "18",

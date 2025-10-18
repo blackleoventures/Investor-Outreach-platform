@@ -1,44 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
-import {
-  verifyFirebaseToken,
-  verifyAdminOrSubadmin,
-  createAuthErrorResponse,
-} from "@/lib/auth-middleware";
 
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { token: string } }
 ) {
   try {
-    // ADMIN AUTHENTICATION REQUIRED
-    const user = await verifyFirebaseToken(request);
-    verifyAdminOrSubadmin(user);
+    const { token } = params;
 
-    const campaignId = params.id;
+    console.log(`[Public Export] Exporting campaign via token ${token}`);
 
-    // Verify campaign exists
-    const campaignDoc = await adminDb
+    // Find campaign by public token (NO AUTHENTICATION REQUIRED)
+    const campaignsSnapshot = await adminDb
       .collection("campaigns")
-      .doc(campaignId)
+      .where("publicToken", "==", token)
+      .limit(1)
       .get();
 
-    if (!campaignDoc.exists) {
+    if (campaignsSnapshot.empty) {
       return NextResponse.json(
         { success: false, error: "Campaign not found" },
         { status: 404 }
       );
     }
 
+    const campaignDoc = campaignsSnapshot.docs[0];
     const campaignData = campaignDoc.data();
+    const campaignId = campaignDoc.id;
 
-    console.log(
-      `[Admin Export] User ${user.email} exporting campaign ${campaignId}`
-    );
-
-    // Get all recipients
+    // Get recipients
     const recipientsSnapshot = await adminDb
       .collection("campaignRecipients")
       .where("campaignId", "==", campaignId)
@@ -52,46 +44,39 @@ export async function GET(
       );
     }
 
-    // Build CSV with FULL engagement details
+    // Build CSV with engagement details
     const csvRows: string[] = [];
 
-    // ENHANCED HEADERS (Admin gets everything)
+    // ENHANCED HEADERS (Now includes WHO opened/replied)
     const headers = [
       "Name",
       "Email",
       "Organization",
       "Type",
-      "Priority",
-      "Match Score",
       "Status",
-      "Scheduled For",
       "Sent At",
       "Delivered At",
       "Total Opens",
       "WHO Opened (Names)",
       "WHO Opened (Emails)",
-      "First Opened At",
+      "Opened At",
       "Last Opened At",
       "Total Replies",
       "WHO Replied (Names)",
       "WHO Replied (Emails)",
       "WHO Replied (Organizations)",
-      "First Replied At",
+      "Replied At",
       "Last Replied At",
-      "Follow-ups Sent",
-      "Engagement Level",
-      "Retry Count",
-      "Error Message",
     ];
 
     csvRows.push(headers.join(","));
 
-    // Process each recipient
+    // Process each recipient with full engagement details
     recipientsSnapshot.forEach((doc) => {
       const data = doc.data();
       const contactInfo = data.contactInfo || {};
+      const trackingData = data.trackingData || {};
       const aggregatedTracking = data.aggregatedTracking || {};
-      const followUps = data.followUps || {};
 
       // Extract WHO opened
       const uniqueOpeners = aggregatedTracking.uniqueOpeners || [];
@@ -114,7 +99,7 @@ export async function GET(
         .map((r: any) => r.organization || "Unknown")
         .join("; ");
 
-      // Timestamps
+      // Get timestamps
       let firstOpenAt = "";
       let lastOpenAt = "";
       let firstReplyAt = "";
@@ -135,30 +120,23 @@ export async function GET(
         escapeCSV(contactInfo.email || ""),
         escapeCSV(contactInfo.organization || "Unknown"),
         data.recipientType || "investor",
-        data.priority || "medium",
-        data.matchScore || 0,
         data.status || "pending",
-        formatDate(data.scheduledFor),
         formatDate(data.sentAt),
         formatDate(data.deliveredAt),
-        aggregatedTracking.totalOpensAcrossAllEmails || 0,
+        aggregatedTracking.totalOpensAcrossAllEmails || trackingData.openCount || 0,
         escapeCSV(openerNames),
         escapeCSV(openerEmails),
-        formatDate(firstOpenAt),
+        formatDate(firstOpenAt || data.openedAt),
         formatDate(lastOpenAt),
         uniqueRepliers.reduce(
           (sum: number, r: any) => sum + (r.totalReplies || 0),
           0
-        ),
+        ) || (trackingData.replied ? 1 : 0),
         escapeCSV(replierNames),
         escapeCSV(replierEmails),
         escapeCSV(replierOrgs),
-        formatDate(firstReplyAt),
+        formatDate(firstReplyAt || data.repliedAt),
         formatDate(lastReplyAt),
-        followUps.totalSent || 0,
-        aggregatedTracking.engagementLevel || "none",
-        data.retryCount || 0,
-        escapeCSV(data.errorMessage || ""),
       ];
 
       csvRows.push(row.join(","));
@@ -174,27 +152,19 @@ export async function GET(
     csvRows.push(`Total Recipients,${recipientsSnapshot.size}`);
     csvRows.push(`Total Sent,${campaignData?.stats?.sent || 0}`);
     csvRows.push(`Total Delivered,${campaignData?.stats?.delivered || 0}`);
-    csvRows.push(`Unique Openers,${campaignData?.stats?.uniqueOpened || 0}`);
-    csvRows.push(`Total Opens,${campaignData?.stats?.totalOpens || 0}`);
-    csvRows.push(
-      `Unique Repliers,${campaignData?.stats?.uniqueResponded || 0}`
-    );
-    csvRows.push(`Total Replies,${campaignData?.stats?.totalResponses || 0}`);
-    csvRows.push(`Total Failed,${campaignData?.stats?.failed || 0}`);
-    csvRows.push(
-      `Follow-ups Sent,${campaignData?.stats?.totalFollowUpsSent || 0}`
-    );
+    csvRows.push(`Total Opened,${campaignData?.stats?.opened || 0}`);
+    csvRows.push(`Total Replied,${campaignData?.stats?.replied || 0}`);
     csvRows.push(`Open Rate,${campaignData?.stats?.openRate || 0}%`);
     csvRows.push(`Reply Rate,${campaignData?.stats?.replyRate || 0}%`);
 
     const csvContent = csvRows.join("\n");
     const timestamp = new Date().toISOString().split("T")[0];
-    const filename = `admin-export-${
-      campaignData?.campaignName || campaignId
+    const filename = `campaign-report-${
+      campaignData?.campaignName || "export"
     }-${timestamp}.csv`;
 
     console.log(
-      `[Admin Export] Exported ${recipientsSnapshot.size} recipients with full details`
+      `[Public Export] Exported ${recipientsSnapshot.size} recipients with engagement details`
     );
 
     return new NextResponse(csvContent, {
@@ -205,8 +175,11 @@ export async function GET(
       },
     });
   } catch (error: any) {
-    console.error("[Admin Export] Error:", error.message);
-    return createAuthErrorResponse(error);
+    console.error("[Public Export] Error:", error.message);
+    return NextResponse.json(
+      { success: false, error: "Failed to export campaign" },
+      { status: 500 }
+    );
   }
 }
 
@@ -236,7 +209,7 @@ function formatDate(dateString: string | null | undefined): string {
       hour: "2-digit",
       minute: "2-digit",
     });
-  } catch (error) {
+  } catch {
     return "";
   }
 }

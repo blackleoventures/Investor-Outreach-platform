@@ -3,17 +3,26 @@ import { adminDb } from "@/lib/firebase-admin";
 import nodemailer from "nodemailer";
 import { getBaseUrl } from "@/lib/env-helper";
 import * as admin from "firebase-admin";
+import { getCurrentTimestamp } from "@/lib/utils/date-helper";
+import { generateEmailId } from "@/lib/utils/email-helper";
+import type { SendEmailsResult } from "@/types";
 
 export const maxDuration = 300; // 5 minutes
 
 export async function GET(request: NextRequest) {
+  // Security: Verify CRON_SECRET
+  const authHeader = request.headers.get('authorization');
+  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    console.log("[Cron Send Emails] Starting job...");
+    console.log("[Cron Send Emails] Starting email sending job");
+
     const startTime = Date.now();
 
     const now = new Date();
 
-    // Query pending emails scheduled for now or earlier
     // Query pending emails scheduled for now or earlier
     const recipientsSnapshot = await adminDb
       .collection("campaignRecipients")
@@ -29,6 +38,7 @@ export async function GET(request: NextRequest) {
         success: true,
         sent: 0,
         failed: 0,
+        pending: 0,
         message: "No pending emails",
       });
     }
@@ -139,6 +149,7 @@ export async function GET(request: NextRequest) {
             `[Cron Send Emails] SMTP verification failed:`,
             error.message
           );
+
           // Mark all recipients as failed
           for (const recipient of recipients) {
             await adminDb
@@ -148,6 +159,7 @@ export async function GET(request: NextRequest) {
                 status: "failed",
                 errorMessage: `SMTP Auth Failed: ${error.message}`,
                 failureReason: "AUTH_FAILED",
+                updatedAt: getCurrentTimestamp(),
               });
             totalFailed++;
           }
@@ -160,6 +172,9 @@ export async function GET(request: NextRequest) {
         // Send to each recipient
         for (const recipient of recipients) {
           try {
+            // Generate unique email ID
+            const emailId = generateEmailId();
+
             // Personalize email
             const personalizedSubject = personalizeText(
               campaignData.emailTemplate?.currentSubject || "",
@@ -175,7 +190,7 @@ export async function GET(request: NextRequest) {
 
             // Add tracking pixel to HTML body
             const baseUrl = getBaseUrl();
-            const trackingPixelUrl = `${baseUrl}/track/open/${recipient.trackingId}`;
+            const trackingPixelUrl = `${baseUrl}/api/track/open/${recipient.trackingId}`;
             const trackingPixel = `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;opacity:0" alt="" />`;
 
             const htmlBody = convertToHtml(personalizedBody) + trackingPixel;
@@ -193,26 +208,70 @@ export async function GET(request: NextRequest) {
 
             // Update recipient as sent/delivered
             if (info.accepted && info.accepted.length > 0) {
+              const sentTimestamp = getCurrentTimestamp();
+
+              // Create email history entry
+              const emailHistoryEntry = {
+                emailId: emailId,
+                type: "initial",
+                subject: personalizedSubject,
+                sentAt: sentTimestamp,
+                deliveredAt: sentTimestamp,
+                status: "delivered",
+                openedBy: [],
+                repliedBy: [],
+                tracking: {
+                  totalOpens: 0,
+                  uniqueOpenersCount: 0,
+                  firstOpenAt: null,
+                  lastOpenAt: null,
+                  totalReplies: 0,
+                  firstReplyAt: null,
+                  lastReplyAt: null,
+                },
+              };
+
+              // Initialize aggregated tracking if first email
+              const existingEmailHistory = recipient.emailHistory || [];
+              const isFirstEmail = existingEmailHistory.length === 0;
+
+              const updateData: any = {
+                status: "delivered",
+                sentAt: sentTimestamp,
+                deliveredAt: sentTimestamp,
+                emailHistory:
+                  admin.firestore.FieldValue.arrayUnion(emailHistoryEntry),
+                updatedAt: sentTimestamp,
+              };
+
+              // Initialize aggregatedTracking for first email
+              if (isFirstEmail) {
+                updateData.aggregatedTracking = {
+                  everOpened: false,
+                  totalOpensAcrossAllEmails: 0,
+                  uniqueOpeners: [],
+                  everReplied: false,
+                  uniqueRepliers: [],
+                  engagementLevel: "none",
+                };
+              }
+
               await adminDb
                 .collection("campaignRecipients")
                 .doc(recipient.id)
-                .update({
-                  status: "delivered",
-                  sentAt: now.toISOString(),
-                  deliveredAt: now.toISOString(),
-                });
+                .update(updateData);
 
               campaignSent++;
               totalSent++;
               console.log(
-                `[Cron Send Emails] ✓ Sent to ${recipient.contactInfo.email}`
+                `[Cron Send Emails] Email sent to ${recipient.contactInfo.email} (${emailId})`
               );
             } else {
               throw new Error("Email rejected by server");
             }
           } catch (error: any) {
             console.error(
-              `[Cron Send Emails] ✗ Failed to send to ${recipient.contactInfo.email}:`,
+              `[Cron Send Emails] Failed to send to ${recipient.contactInfo.email}:`,
               error.message
             );
 
@@ -227,6 +286,7 @@ export async function GET(request: NextRequest) {
                 errorMessage: error.message,
                 failureReason: errorCategory,
                 retryCount: (recipient.retryCount || 0) + 1,
+                updatedAt: getCurrentTimestamp(),
               });
 
             campaignFailed++;
@@ -239,7 +299,7 @@ export async function GET(request: NextRequest) {
               recipientEmail: recipient.contactInfo.email,
               errorType: errorCategory,
               errorMessage: error.message,
-              timestamp: now.toISOString(),
+              timestamp: getCurrentTimestamp(),
               retryCount: (recipient.retryCount || 0) + 1,
             });
 
@@ -259,7 +319,7 @@ export async function GET(request: NextRequest) {
                 });
 
               console.log(
-                `[Cron Send Emails] Scheduled retry for ${
+                `[Cron Send Emails] Retry scheduled for ${
                   recipient.contactInfo.email
                 } at ${retryTime.toISOString()}`
               );
@@ -275,36 +335,55 @@ export async function GET(request: NextRequest) {
             "stats.sent": admin.firestore.FieldValue.increment(campaignSent),
             "stats.delivered":
               admin.firestore.FieldValue.increment(campaignSent),
+            "stats.totalEmailsSent":
+              admin.firestore.FieldValue.increment(campaignSent),
+            "stats.totalDelivered":
+              admin.firestore.FieldValue.increment(campaignSent),
             "stats.pending": admin.firestore.FieldValue.increment(
               -(campaignSent + campaignFailed)
             ),
             "stats.failed":
               admin.firestore.FieldValue.increment(campaignFailed),
+            "stats.totalFailed":
+              admin.firestore.FieldValue.increment(campaignFailed),
             "stats.deliveredNotOpened":
               admin.firestore.FieldValue.increment(campaignSent),
-            lastSentAt: now.toISOString(),
-            lastUpdated: now.toISOString(),
+            "stats.conversionFunnel.sent":
+              admin.firestore.FieldValue.increment(campaignSent),
+            "stats.conversionFunnel.delivered":
+              admin.firestore.FieldValue.increment(campaignSent),
+            lastSentAt: getCurrentTimestamp(),
+            lastUpdated: getCurrentTimestamp(),
           });
 
         transporter.close();
       } catch (error: any) {
-        console.error(`[Cron Send Emails] Campaign processing error:`, error);
+        console.error(
+          `[Cron Send Emails] Campaign processing error:`,
+          error.message
+        );
       }
     }
 
     const duration = Math.round((Date.now() - startTime) / 1000);
+    const result: SendEmailsResult = {
+      sent: totalSent,
+      failed: totalFailed,
+      pending: recipientsSnapshot.size - totalSent - totalFailed,
+      campaignsProcessed: Object.keys(campaignGroups).length,
+    };
+
     console.log(
       `[Cron Send Emails] Completed: ${totalSent} sent, ${totalFailed} failed in ${duration}s`
     );
 
     return NextResponse.json({
       success: true,
-      sent: totalSent,
-      failed: totalFailed,
+      ...result,
       duration,
     });
   } catch (error: any) {
-    console.error("[Cron Send Emails] Error:", error);
+    console.error("[Cron Send Emails] Job failed:", error.message);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }
@@ -331,7 +410,6 @@ function personalizeText(
 }
 
 function convertToHtml(text: string): string {
-  // Convert plain text to HTML with proper formatting
   return text
     .split("\n\n")
     .map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`)
