@@ -1,7 +1,7 @@
-// Main IMAP reply checker - professional logging
-
+// lib/imap/reply-checker.ts
 import Imap from "node-imap";
-import { simpleParser, ParsedMail } from "mailparser";
+import { simpleParser, ParsedMail, AddressObject } from "mailparser";
+import { Readable } from "stream";
 import {
   getClientImapConfig,
   getAllActiveClientsImapConfigs,
@@ -61,10 +61,26 @@ function checkRepliesWithConfig(
   return new Promise((resolve, reject) => {
     const imap = new Imap(config);
     const replies: EmailReplyDetected[] = [];
+    let isConnectionClosed = false;
 
     console.log(`[IMAP] Client ${clientId}: Connecting to ${config.host}`);
 
+    // Add connection timeout
+    const connectionTimeout = setTimeout(() => {
+      if (!isConnectionClosed) {
+        console.error(`[IMAP] Client ${clientId}: Connection timeout after 30s`);
+        try {
+          imap.end();
+        } catch (e) {
+          // Ignore
+        }
+        isConnectionClosed = true;
+        reject(new Error('IMAP connection timeout'));
+      }
+    }, 30000);
+
     imap.once("ready", () => {
+      clearTimeout(connectionTimeout);
       console.log(`[IMAP] Client ${clientId}: Connection established`);
 
       imap.openBox("INBOX", true, (err, box) => {
@@ -84,7 +100,9 @@ function checkRepliesWithConfig(
         const searchDate = new Date();
         searchDate.setDate(searchDate.getDate() - searchDays);
 
-        const searchCriteria = [["SINCE", searchDate], ["UNSEEN"]];
+        // FIXED: Search for ALL emails (not just UNSEEN) since last 7 days
+        // We'll track which ones we've processed in the database
+        const searchCriteria = [["SINCE", searchDate]];
 
         console.log(
           `[IMAP] Client ${clientId}: Searching emails since ${searchDate.toISOString()}`
@@ -102,44 +120,75 @@ function checkRepliesWithConfig(
 
           if (!results || results.length === 0) {
             console.log(
-              `[IMAP] Client ${clientId}: No new unread emails found`
+              `[IMAP] Client ${clientId}: No emails found in the last ${searchDays} days`
             );
             imap.end();
             return resolve([]);
           }
 
           console.log(
-            `[IMAP] Client ${clientId}: Found ${results.length} unread emails`
+            `[IMAP] Client ${clientId}: Found ${results.length} emails to check`
           );
 
           const fetch = imap.fetch(results, {
             bodies: "",
-            markSeen: false,
+            markSeen: false, // Don't mark as seen
           });
 
-          let processed = 0;
+          let parseCompleted = 0;
+          const totalEmails = results.length;
 
-          fetch.on("message", (msg) => {
-            msg.on("body", (stream) => {
-              simpleParser(stream, (err, parsed) => {
-                if (err) {
-                  console.error(
-                    `[IMAP] Client ${clientId}: Email parse error -`,
-                    err.message
-                  );
-                  return;
-                }
+          fetch.on("message", (msg, seqno) => {
+            msg.on("body", (stream, info) => {
+              const chunks: Buffer[] = [];
 
-                const reply = parseEmailToReply(parsed);
+              stream.on("data", (chunk: Buffer) => {
+                chunks.push(chunk);
+              });
 
-                if (reply) {
-                  replies.push(reply);
-                  console.log(
-                    `[IMAP] Client ${clientId}: Parsed reply from ${reply.from.email}`
-                  );
-                }
+              stream.once("end", () => {
+                const buffer = Buffer.concat(chunks);
+                const readableStream = Readable.from(buffer);
 
-                processed++;
+                simpleParser(readableStream)
+                  .then((parsed: ParsedMail) => {
+                    const reply = parseEmailToReply(parsed);
+
+                    if (reply) {
+                      replies.push(reply);
+                      console.log(
+                        `[IMAP] Client ${clientId}: Parsed reply from ${reply.from.email}`
+                      );
+                    }
+
+                    parseCompleted++;
+
+                    if (parseCompleted === totalEmails) {
+                      console.log(
+                        `[IMAP] Client ${clientId}: All emails parsed - Found ${replies.length} replies`
+                      );
+                      setTimeout(() => {
+                        if (!isConnectionClosed) {
+                          imap.end();
+                        }
+                      }, 500);
+                    }
+                  })
+                  .catch((err) => {
+                    console.error(
+                      `[IMAP] Client ${clientId}: Email parse error -`,
+                      err.message
+                    );
+                    parseCompleted++;
+
+                    if (parseCompleted === totalEmails) {
+                      setTimeout(() => {
+                        if (!isConnectionClosed) {
+                          imap.end();
+                        }
+                      }, 500);
+                    }
+                  });
               });
             });
           });
@@ -149,38 +198,42 @@ function checkRepliesWithConfig(
               `[IMAP] Client ${clientId}: Fetch error -`,
               err.message
             );
+            if (!isConnectionClosed) {
+              imap.end();
+            }
             reject(err);
           });
 
           fetch.once("end", () => {
             console.log(
-              `[IMAP] Client ${clientId}: Fetch completed - Processed ${processed} emails, found ${replies.length} replies`
+              `[IMAP] Client ${clientId}: Fetch completed - Processed ${parseCompleted} messages`
             );
-
-            setTimeout(() => {
-              imap.end();
-            }, 1000);
           });
         });
       });
     });
 
     imap.once("error", (err) => {
+      clearTimeout(connectionTimeout);
       console.error(
         `[IMAP] Client ${clientId}: Connection error -`,
         err.message
       );
+      isConnectionClosed = true;
       reject(err);
     });
 
     imap.once("end", () => {
+      clearTimeout(connectionTimeout);
       console.log(`[IMAP] Client ${clientId}: Connection closed`);
+      isConnectionClosed = true;
       resolve(replies);
     });
 
     try {
       imap.connect();
     } catch (err: any) {
+      clearTimeout(connectionTimeout);
       console.error(
         `[IMAP] Client ${clientId}: Failed to initialize connection -`,
         err.message
@@ -190,30 +243,72 @@ function checkRepliesWithConfig(
   });
 }
 
-function parseEmailToReply(parsed: ParsedMail): EmailReplyDetected | null {
-  try {
-    const fromAddress = parsed.from?.value[0];
+function extractEmailAddress(
+  addressObj: AddressObject | AddressObject[] | undefined
+): string | null {
+  if (!addressObj) return null;
 
-    if (!fromAddress?.address) {
-      return null;
-    }
+  if (Array.isArray(addressObj)) {
+    if (addressObj.length === 0) return null;
+    const firstAddress = addressObj[0];
+    return firstAddress.value?.[0]?.address || null;
+  }
 
-    const toAddress = parsed.to?.value[0]?.address;
+  return addressObj.value?.[0]?.address || null;
+}
 
-    if (!toAddress) {
-      return null;
-    }
+function extractEmailInfo(
+  addressObj: AddressObject | AddressObject[] | undefined
+): { name: string; email: string } | null {
+  if (!addressObj) return null;
+
+  if (Array.isArray(addressObj)) {
+    if (addressObj.length === 0) return null;
+    const firstAddress = addressObj[0];
+    const addressValue = firstAddress.value?.[0];
+    if (!addressValue?.address) return null;
 
     return {
+      name: addressValue.name || "",
+      email: addressValue.address,
+    };
+  }
+
+  const addressValue = addressObj.value?.[0];
+  if (!addressValue?.address) return null;
+
+  return {
+    name: addressValue.name || "",
+    email: addressValue.address,
+  };
+}
+
+function parseEmailToReply(parsed: ParsedMail): EmailReplyDetected | null {
+  try {
+    const fromInfo = extractEmailInfo(parsed.from);
+    if (!fromInfo) {
+      console.warn("[IMAP] Email missing 'from' address, skipping");
+      return null;
+    }
+
+    const toAddress = extractEmailAddress(parsed.to);
+    if (!toAddress) {
+      console.warn("[IMAP] Email missing 'to' address, skipping");
+      return null;
+    }
+
+    const reply: EmailReplyDetected = {
       from: {
-        name: fromAddress.name || "",
-        email: fromAddress.address,
+        name: fromInfo.name,
+        email: fromInfo.email,
       },
       to: toAddress,
       date: parsed.date || new Date(),
       messageId: parsed.messageId || "",
       inReplyTo: parsed.inReplyTo || undefined,
     };
+
+    return reply;
   } catch (error: any) {
     console.error("[IMAP] Error parsing email to reply format:", error.message);
     return null;
@@ -229,7 +324,20 @@ export async function testClientImapConnection(
     return new Promise((resolve) => {
       const imap = new Imap(config);
 
+      const timeout = setTimeout(() => {
+        console.error(
+          `[IMAP Test] Client ${clientId}: Connection timeout after 10s`
+        );
+        try {
+          imap.end();
+        } catch (e) {
+          // Ignore
+        }
+        resolve(false);
+      }, 10000);
+
       imap.once("ready", () => {
+        clearTimeout(timeout);
         console.log(
           `[IMAP Test] Client ${clientId}: Connection test successful`
         );
@@ -238,6 +346,7 @@ export async function testClientImapConnection(
       });
 
       imap.once("error", (err) => {
+        clearTimeout(timeout);
         console.error(
           `[IMAP Test] Client ${clientId}: Connection test failed -`,
           err.message

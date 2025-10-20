@@ -1,3 +1,4 @@
+//types/corn.ts
 // Cron job related types
 
 export interface CronJobResult {

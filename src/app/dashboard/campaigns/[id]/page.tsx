@@ -1,3 +1,5 @@
+// app/dashboard/campaigns/[id]/page.tsx (UPDATED)
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -18,8 +20,6 @@ import {
 } from "antd";
 import {
   ArrowLeftOutlined,
-  PauseCircleOutlined,
-  PlayCircleOutlined,
   LinkOutlined,
   DownloadOutlined,
   MailOutlined,
@@ -32,10 +32,13 @@ import {
   CalendarOutlined,
   ThunderboltOutlined,
   FileTextOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import DataTable, { Column, FilterColumn } from "@/components/data-table";
 import FollowupTab from "@/components/campaigns/FollowupTab";
 import EngagementStatsCards from "@/components/campaigns/EngagementStatsCards";
+import FailedRecipientsTab from "@/components/campaigns/FailedRecipientsTab";
+import CampaignActions from "@/components/campaigns/CampaignActions";
 import { auth } from "@/lib/firebase";
 import { getBaseUrl } from "@/lib/env-helper";
 
@@ -152,10 +155,11 @@ export default function CampaignDetailPage() {
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [loading, setLoading] = useState(true);
   const [recipientsLoading, setRecipientsLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+  const [userRole, setUserRole] = useState<string>("");
 
   useEffect(() => {
+    fetchUserRole();
     fetchCampaignDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId]);
@@ -166,6 +170,14 @@ export default function CampaignDetailPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  const fetchUserRole = async () => {
+    const user = auth.currentUser;
+    if (user) {
+      const tokenResult = await user.getIdTokenResult();
+      setUserRole((tokenResult.claims.role as string) || "client");
+    }
+  };
 
   const getAuthToken = async () => {
     const user = auth.currentUser;
@@ -232,55 +244,6 @@ export default function CampaignDetailPage() {
     } finally {
       setRecipientsLoading(false);
     }
-  };
-
-  const handlePauseResume = async () => {
-    if (!campaign) return;
-
-    Modal.confirm({
-      title: `${campaign.status === "paused" ? "Resume" : "Pause"} Campaign?`,
-      content: `Are you sure you want to ${
-        campaign.status === "paused" ? "resume" : "pause"
-      } this campaign?`,
-      okText: "Yes",
-      cancelText: "No",
-      onOk: async () => {
-        try {
-          setActionLoading(true);
-          const token = await getAuthToken();
-          if (!token) return;
-
-          const newStatus = campaign.status === "paused" ? "active" : "paused";
-
-          const response = await fetch(
-            `${API_BASE_URL}/campaigns/${campaignId}`,
-            {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-              },
-              body: JSON.stringify({ status: newStatus }),
-            }
-          );
-
-          if (!response.ok) {
-            throw new Error("Failed to update campaign");
-          }
-
-          message.success(
-            `Campaign ${
-              newStatus === "paused" ? "paused" : "resumed"
-            } successfully`
-          );
-          fetchCampaignDetails();
-        } catch (error: any) {
-          message.error(error.message || "Failed to update campaign");
-        } finally {
-          setActionLoading(false);
-        }
-      },
-    });
   };
 
   const copyPublicLink = () => {
@@ -432,6 +395,8 @@ export default function CampaignDetailPage() {
             100
         )
       : 0;
+
+  const isAdminOrSubadmin = userRole === "admin" || userRole === "subadmin";
 
   const recipientColumns: Column<Recipient>[] = [
     {
@@ -937,6 +902,29 @@ export default function CampaignDetailPage() {
         />
       ),
     },
+    {
+      key: "failed",
+      label: (
+        <span>
+          <WarningOutlined /> Failed Emails
+          {campaign.stats.failed > 0 && (
+            <Badge
+              count={campaign.stats.failed}
+              style={{
+                backgroundColor: "#ff4d4f",
+                marginLeft: 8,
+              }}
+            />
+          )}
+        </span>
+      ),
+      children: (
+        <FailedRecipientsTab
+          campaignId={campaignId}
+          campaignName={campaign.campaignName}
+        />
+      ),
+    },
   ];
 
   return (
@@ -967,26 +955,17 @@ export default function CampaignDetailPage() {
           </div>
 
           <div className="flex gap-2">
-            <Button
-              icon={
-                campaign.status === "paused" ? (
-                  <PlayCircleOutlined />
-                ) : (
-                  <PauseCircleOutlined />
-                )
-              }
-              onClick={handlePauseResume}
-              loading={actionLoading}
-              style={{
-                backgroundColor:
-                  campaign.status === "paused" ? "#52c41a" : "#fa8c16",
-                borderColor:
-                  campaign.status === "paused" ? "#52c41a" : "#fa8c16",
-                color: "white",
-              }}
-            >
-              {campaign.status === "paused" ? "Resume" : "Pause"}
-            </Button>
+            {/* Campaign Actions Component */}
+            <CampaignActions
+              campaignId={campaignId}
+              campaignName={campaign.campaignName}
+              campaignStatus={campaign.status}
+              stats={campaign.stats}
+              totalRecipients={campaign.totalRecipients}
+              userRole={userRole}
+              onStatusChange={fetchCampaignDetails}
+            />
+
             <Button
               icon={<EyeOutlined />}
               onClick={openPublicReport}
@@ -998,10 +977,26 @@ export default function CampaignDetailPage() {
             >
               Public Report
             </Button>
-            <Button icon={<LinkOutlined />} onClick={copyPublicLink}>
+            <Button
+              icon={<LinkOutlined />}
+              onClick={copyPublicLink}
+              style={{
+                backgroundColor: "#52c41a",
+                borderColor: "#52c41a",
+                color: "white",
+              }}
+            >
               Copy Link
             </Button>
-            <Button icon={<DownloadOutlined />} onClick={downloadCSV}>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={downloadCSV}
+              style={{
+                backgroundColor: "#722ed1",
+                borderColor: "#722ed1",
+                color: "white",
+              }}
+            >
               Export CSV
             </Button>
           </div>
@@ -1053,14 +1048,26 @@ export default function CampaignDetailPage() {
             valueStyle={{ color: "#722ed1" }}
           />
         </Card>
-        <Card>
-          <Statistic
-            title="Failed"
-            value={campaign.stats.failed}
-            prefix={<CloseCircleOutlined />}
-            valueStyle={{ color: "#ff4d4f" }}
-          />
-        </Card>
+        {/* Failed Card - ONLY visible to admin/subadmin */}
+        {isAdminOrSubadmin ? (
+          <Card>
+            <Statistic
+              title="Failed"
+              value={campaign.stats.failed}
+              prefix={<CloseCircleOutlined />}
+              valueStyle={{ color: "#ff4d4f" }}
+            />
+          </Card>
+        ) : (
+          <Card>
+            <Statistic
+              title="Delivered"
+              value={campaign.stats.delivered}
+              prefix={<CheckCircleOutlined />}
+              valueStyle={{ color: "#52c41a" }}
+            />
+          </Card>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">

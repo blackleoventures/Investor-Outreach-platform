@@ -1,4 +1,5 @@
 // Recipient-related type definitions
+import { EmailError, ErrorCategory } from './error';
 import { EmailHistoryItem, AggregatedTracking, FollowUpTracking } from './tracking';
 
 export interface RecipientContact {
@@ -12,7 +13,6 @@ export interface CampaignRecipient {
   id?: string;
   campaignId: string;
   
-  // Original contact (who we sent TO)
   originalContact: RecipientContact;
   
   recipientType: 'investor' | 'incubator';
@@ -20,31 +20,36 @@ export interface CampaignRecipient {
   matchScore: number;
   matchedCriteria?: string[];
   
-  // Email sending history
   emailHistory: EmailHistoryItem[];
-  
-  // AGGREGATED tracking across ALL emails
   aggregatedTracking: AggregatedTracking;
   
-  // Follow-up tracking
-  followUps: FollowUpTracking;
+  // followUps: FollowUpTracking; 
   
-  // Current status
+  followupSent: boolean;             
+  followupSentAt?: string;           
+  followupCount: number;             
+  
   status: 'pending' | 'delivered' | 'opened' | 'replied' | 'failed';
   currentStage: 'initial' | 'followup_1' | 'followup_2' | 'responded' | 'closed';
   
-  // Scheduling
   scheduledFor: string;
   sentAt?: string;
   deliveredAt?: string;
   openedAt?: string;
   repliedAt?: string;
   
-  // Tracking ID for pixel
   trackingId: string;
+
+  // Error tracking 
+  errorHistory?: EmailError[];
+  lastError?: EmailError;
+  retryCount: number;
+  canRetry: boolean;
+  failureReason?: ErrorCategory;
   
   // Metadata
   createdAt: string;
   updatedAt: string;
-  errorMessage?: string;
+  errorMessage?: string;  
 }
+

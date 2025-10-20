@@ -1,6 +1,6 @@
 // Parse email replies and extract identity information
 
-import { extractDomain, extractOrganization, normalizeEmail } from '@/lib/utils/email-helper';
+import { extractDomain, normalizeEmail } from '@/lib/utils/email-helper';
 import type { EmailReplyDetected } from '@/types';
 
 export interface ParsedReply {

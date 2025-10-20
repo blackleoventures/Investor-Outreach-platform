@@ -3,7 +3,7 @@ import { Poppins } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
 import NextTopLoader from "nextjs-toploader";
-import { startAutoCronScheduler } from "@/lib/cron/auto-scheduler";
+import { startAutoCronScheduler } from "@/lib/cron/auto-cron-scheduler";
 
 const poppins = Poppins({
   variable: "--font-poppins",

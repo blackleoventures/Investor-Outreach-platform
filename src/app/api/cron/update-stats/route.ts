@@ -1,231 +1,229 @@
+// app/api/cron/update-stats/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronRequest, createCronErrorResponse } from "@/lib/cron/auth";
 import { adminDb } from "@/lib/firebase-admin";
 import { getCurrentTimestamp } from "@/lib/utils/date-helper";
-import type { UpdateStatsResult } from "@/types";
 
-export const maxDuration = 60; // 1 minute
+// Import Phase 1 utility
+import { calculateCampaignStats } from "@/lib/utils/stats-calculator";
+import { logError } from "@/lib/utils/error-helper";
+import type { CampaignRecipient, ErrorCategory } from "@/types";
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 export async function GET(request: NextRequest) {
-  // Security: Verify CRON_SECRET
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const startTime = Date.now();
+  
+  console.log('[Cron: Update Stats] Job triggered');
+  console.log('[Cron: Update Stats] Timestamp:', new Date().toISOString());
+
+  const authResult = verifyCronRequest(request);
+  
+  if (!authResult.authorized) {
+    console.error('[Cron: Update Stats] Unauthorized request blocked');
+    return createCronErrorResponse(authResult.error || 'Unauthorized');
   }
 
+  console.log('[Cron: Update Stats] Authentication verified');
+  console.log('[Cron: Update Stats] Source:', authResult.source);
+
   try {
-    console.log("[Cron Update Stats] Starting stats update job");
+    console.log('[Cron: Update Stats] Querying active campaigns');
 
-    const startTime = Date.now();
-
-    // Get all non-completed campaigns
     const campaignsSnapshot = await adminDb
       .collection("campaigns")
       .where("status", "in", ["active", "paused"])
       .get();
 
     if (campaignsSnapshot.empty) {
-      console.log("[Cron Update Stats] No campaigns to update");
+      const duration = Date.now() - startTime;
+      console.log('[Cron: Update Stats] No active campaigns found');
+      console.log('[Cron: Update Stats] Duration:', duration + 'ms');
+      
       return NextResponse.json({
         success: true,
-        campaignsUpdated: 0,
-        totalRecipients: 0,
+        message: 'No campaigns to update',
+        summary: {
+          campaignsUpdated: 0,
+          totalRecipients: 0,
+          duration: duration + 'ms',
+        },
       });
     }
 
-    console.log(`[Cron Update Stats] Found ${campaignsSnapshot.size} campaigns to update`);
+    console.log('[Cron: Update Stats] Campaigns found:', campaignsSnapshot.size);
 
     let campaignsUpdated = 0;
-    let campaignsCompleted = 0;
     let totalRecipientsProcessed = 0;
 
     for (const campaignDoc of campaignsSnapshot.docs) {
+      const campaignId = campaignDoc.id;
+      
       try {
         const campaignData = campaignDoc.data();
 
         if (!campaignData) {
-          console.error(`[Cron Update Stats] Campaign ${campaignDoc.id} has no data`);
+          console.error('[Cron: Update Stats] Campaign has no data:', campaignId);
           continue;
         }
 
-        // Query all recipients for this campaign
+        console.log('[Cron: Update Stats] Processing campaign:', campaignId);
+
+        // Fetch all recipients for this campaign
         const recipientsSnapshot = await adminDb
           .collection("campaignRecipients")
-          .where("campaignId", "==", campaignDoc.id)
+          .where("campaignId", "==", campaignId)
           .get();
 
         if (recipientsSnapshot.empty) {
-          console.log(`[Cron Update Stats] Campaign ${campaignDoc.id} has no recipients`);
+          console.log('[Cron: Update Stats] No recipients for campaign:', campaignId);
           continue;
         }
 
-        totalRecipientsProcessed += recipientsSnapshot.size;
+        const recipientCount = recipientsSnapshot.size;
+        totalRecipientsProcessed += recipientCount;
 
-        // Count by status
-        let pending = 0;
-        let sent = 0;
-        let delivered = 0;
-        let opened = 0;
-        let replied = 0;
-        let failed = 0;
-        let openedNotReplied = 0;
-        let deliveredNotOpened = 0;
+        console.log('[Cron: Update Stats] Recipients found:', recipientCount);
 
-        // Enhanced metrics
-        const uniqueOpenersSet = new Set<string>();
-        const uniqueRepliersSet = new Set<string>();
-        let totalOpens = 0;
-        let totalReplies = 0;
-
+        // Convert to array of recipients
+        const recipients: CampaignRecipient[] = [];
         recipientsSnapshot.forEach((doc) => {
-          const data = doc.data();
-
-          switch (data.status) {
-            case "pending":
-              pending++;
-              break;
-            case "delivered":
-              delivered++;
-              sent++;
-              if (!data.trackingData?.opened) {
-                deliveredNotOpened++;
-              }
-              break;
-            case "opened":
-              opened++;
-              sent++;
-              delivered++;
-              if (!data.trackingData?.replied) {
-                openedNotReplied++;
-              }
-              break;
-            case "replied":
-              replied++;
-              opened++;
-              sent++;
-              delivered++;
-              break;
-            case "failed":
-              failed++;
-              break;
-          }
-
-          // Calculate unique openers
-          if (data.aggregatedTracking?.everOpened) {
-            const uniqueOpeners = data.aggregatedTracking.uniqueOpeners || [];
-            uniqueOpeners.forEach((opener: any) => {
-              uniqueOpenersSet.add(opener.email);
-            });
-            totalOpens += data.aggregatedTracking.totalOpensAcrossAllEmails || 0;
-          }
-
-          // Calculate unique repliers
-          if (data.aggregatedTracking?.everReplied) {
-            const uniqueRepliers = data.aggregatedTracking.uniqueRepliers || [];
-            uniqueRepliers.forEach((replier: any) => {
-              uniqueRepliersSet.add(replier.email);
-              totalReplies += replier.totalReplies || 0;
-            });
-          }
+          recipients.push({
+            id: doc.id,
+            ...doc.data()
+          } as CampaignRecipient);
         });
 
-        const totalRecipients = recipientsSnapshot.size;
-        const uniqueOpened = uniqueOpenersSet.size;
-        const uniqueResponded = uniqueRepliersSet.size;
+        // Use stats calculator utility to calculate all stats
+        console.log('[Cron: Update Stats] Calculating campaign statistics');
+        const calculatedStats = calculateCampaignStats(recipients);
 
-        // Calculate rates
-        const deliveryRate = sent > 0 ? Math.round((delivered / sent) * 100) : 0;
-        const openRate = delivered > 0 ? Math.round((uniqueOpened / delivered) * 100) : 0;
-        const replyRate = delivered > 0 ? Math.round((uniqueResponded / delivered) * 100) : 0;
-        const averageOpensPerPerson = uniqueOpened > 0 ? Math.round((totalOpens / uniqueOpened) * 100) / 100 : 0;
+        console.log('[Cron: Update Stats] Statistics calculated');
+        console.log('[Cron: Update Stats] Sent:', calculatedStats.sent);
+        console.log('[Cron: Update Stats] Delivered:', calculatedStats.delivered);
+        console.log('[Cron: Update Stats] Unique opened:', calculatedStats.uniqueOpened);
+        console.log('[Cron: Update Stats] Total opens:', calculatedStats.totalOpens);
+        console.log('[Cron: Update Stats] Unique responded:', calculatedStats.uniqueResponded);
+        console.log('[Cron: Update Stats] Total replies:', calculatedStats.totalResponses);
+        console.log('[Cron: Update Stats] Open rate:', calculatedStats.openRate + '%');
+        console.log('[Cron: Update Stats] Reply rate:', calculatedStats.replyRate + '%');
 
-        // Check if campaign is completed
-        let status = campaignData.status;
-        let completedAt = campaignData.completedAt || null;
 
-        if (pending === 0 && (sent + failed) === totalRecipients && status === "active") {
-          status = "completed";
-          completedAt = getCurrentTimestamp();
-          campaignsCompleted++;
-          console.log(`[Cron Update Stats] Campaign ${campaignDoc.id} marked as completed`);
-        }
+        // Update campaign with calculated stats
+        const updateData: any = {
+          totalRecipients: recipientCount,
+          
+          // Basic counts
+          "stats.pending": calculatedStats.pending,
+          "stats.sent": calculatedStats.sent,
+          "stats.delivered": calculatedStats.delivered,
+          "stats.opened": calculatedStats.opened,
+          "stats.replied": calculatedStats.replied,
+          "stats.failed": calculatedStats.failed,
+          
+          // Totals
+          "stats.totalEmailsSent": calculatedStats.totalEmailsSent,
+          "stats.totalDelivered": calculatedStats.totalDelivered,
+          "stats.totalFailed": calculatedStats.totalFailed,
+          
+          // Unique tracking (FIXED)
+          "stats.uniqueOpened": calculatedStats.uniqueOpened,
+          "stats.totalOpens": calculatedStats.totalOpens,
+          "stats.averageOpensPerPerson": calculatedStats.averageOpensPerPerson,
+          "stats.uniqueResponded": calculatedStats.uniqueResponded,
+          "stats.totalResponses": calculatedStats.totalResponses,
+          
+          // Engagement
+          "stats.openedNotReplied": calculatedStats.openedNotReplied,
+          "stats.deliveredNotOpened": calculatedStats.deliveredNotOpened,
+          
+          // Engagement quality
+          "stats.engagementQuality.openedOnce": calculatedStats.engagementQuality?.openedOnce || 0,
+          "stats.engagementQuality.openedMultiple": calculatedStats.engagementQuality?.openedMultiple || 0,
+          "stats.engagementQuality.openedButNoReply": calculatedStats.engagementQuality?.openedButNoReply || 0,
+          "stats.engagementQuality.deliveredButNoOpen": calculatedStats.engagementQuality?.deliveredButNoOpen || 0,
+          
+          // Rates
+          "stats.deliveryRate": calculatedStats.deliveryRate,
+          "stats.openRate": calculatedStats.openRate,
+          "stats.replyRate": calculatedStats.replyRate,
+          "stats.responseRate": calculatedStats.responseRate,
+          
+          // Conversion funnel
+          "stats.conversionFunnel.sent": calculatedStats.conversionFunnel?.sent || 0,
+          "stats.conversionFunnel.delivered": calculatedStats.conversionFunnel?.delivered || 0,
+          "stats.conversionFunnel.opened": calculatedStats.conversionFunnel?.opened || 0,
+          "stats.conversionFunnel.replied": calculatedStats.conversionFunnel?.replied || 0,
+          
+          // Follow-up tracking
+          "stats.totalFollowUpsSent": calculatedStats.totalFollowUpsSent || 0,
+          "stats.followupCandidates.notOpened48h": calculatedStats.followupCandidates?.notOpened48h || 0,
+          "stats.followupCandidates.openedNotReplied72h": calculatedStats.followupCandidates?.openedNotReplied72h || 0,
+          "stats.followupCandidates.total": calculatedStats.followupCandidates?.total || 0,
+          "stats.followupCandidates.readyForFollowup": calculatedStats.followupCandidates?.readyForFollowup || 0,
+          
+          // Error breakdown
+          "stats.errorBreakdown": calculatedStats.errorBreakdown,
+          
 
-        // Update campaign document with enhanced stats
-        await adminDb
-          .collection("campaigns")
-          .doc(campaignDoc.id)
-          .update({
-            // Basic counts
-            totalRecipients: totalRecipients,
-            "stats.pending": pending,
-            "stats.sent": sent,
-            "stats.delivered": delivered,
-            "stats.opened": opened,
-            "stats.replied": replied,
-            "stats.failed": failed,
-            
-            // Enhanced metrics
-            "stats.totalEmailsSent": sent,
-            "stats.totalDelivered": delivered,
-            "stats.totalFailed": failed,
-            "stats.uniqueOpened": uniqueOpened,
-            "stats.totalOpens": totalOpens,
-            "stats.averageOpensPerPerson": averageOpensPerPerson,
-            "stats.uniqueResponded": uniqueResponded,
-            "stats.totalResponses": totalReplies,
-            
-            // Engagement quality
-            "stats.openedNotReplied": openedNotReplied,
-            "stats.deliveredNotOpened": deliveredNotOpened,
-            "stats.engagementQuality.openedOnce": opened - (totalOpens - opened), // Approximation
-            "stats.engagementQuality.openedMultiple": totalOpens - opened, // Approximation
-            "stats.engagementQuality.openedButNoReply": openedNotReplied,
-            "stats.engagementQuality.deliveredButNoOpen": deliveredNotOpened,
-            
-            // Rates
-            "stats.deliveryRate": deliveryRate,
-            "stats.openRate": openRate,
-            "stats.replyRate": replyRate,
-            "stats.responseRate": replyRate, // Same as replyRate
-            
-            // Conversion funnel
-            "stats.conversionFunnel.sent": sent,
-            "stats.conversionFunnel.delivered": delivered,
-            "stats.conversionFunnel.opened": uniqueOpened,
-            "stats.conversionFunnel.replied": uniqueResponded,
-            
-            status: status,
-            completedAt: completedAt,
-            lastUpdated: getCurrentTimestamp(),
-          });
+          lastUpdated: getCurrentTimestamp(),
+        };
+
+        await adminDb.collection("campaigns").doc(campaignId).update(updateData);
 
         campaignsUpdated++;
-        console.log(
-          `[Cron Update Stats] Updated campaign ${campaignDoc.id}: ${sent}/${totalRecipients} sent, ${uniqueOpened} opened, ${uniqueResponded} replied`
-        );
+        console.log('[Cron: Update Stats] Campaign updated successfully:', campaignId);
+
+        // Log follow-up candidates if any
+        if (calculatedStats.followupCandidates && calculatedStats.followupCandidates.total > 0) {
+          console.log('[Cron: Update Stats] Follow-up candidates found:', calculatedStats.followupCandidates.total);
+          console.log('[Cron: Update Stats] Not opened (48h):', calculatedStats.followupCandidates.notOpened48h);
+          console.log('[Cron: Update Stats] Opened not replied (72h):', calculatedStats.followupCandidates.openedNotReplied72h);
+        }
+
+        // Log error breakdown if any failures
+        if (calculatedStats.failed && calculatedStats.failed > 0) {
+          console.log('[Cron: Update Stats] Error breakdown:', calculatedStats.errorBreakdown);
+        }
+
       } catch (error: any) {
-        console.error(`[Cron Update Stats] Error updating campaign ${campaignDoc.id}:`, error.message);
+        console.error('[Cron: Update Stats] Error updating campaign:', campaignId);
+        logError('Update Campaign Stats', error, { campaignId });
       }
     }
 
-    const duration = Math.round((Date.now() - startTime) / 1000);
-    const result: UpdateStatsResult = {
-      campaignsUpdated,
-      totalRecipients: totalRecipientsProcessed,
-      errors: 0,
-    };
+    const duration = Date.now() - startTime;
 
-    console.log(
-      `[Cron Update Stats] Completed: ${campaignsUpdated} campaigns updated, ${campaignsCompleted} completed, ${totalRecipientsProcessed} recipients processed in ${duration}s`
-    );
+    console.log('[Cron: Update Stats] Job completed');
+    console.log('[Cron: Update Stats] Campaigns updated:', campaignsUpdated);
+    console.log('[Cron: Update Stats] Total recipients processed:', totalRecipientsProcessed);
+    console.log('[Cron: Update Stats] Duration:', duration + 'ms');
 
     return NextResponse.json({
       success: true,
-      ...result,
-      campaignsCompleted,
-      duration,
+      message: 'Stats update job completed',
+      summary: {
+        campaignsUpdated,
+        totalRecipients: totalRecipientsProcessed,
+        duration: duration + 'ms',
+      },
     });
+
   } catch (error: any) {
-    console.error("[Cron Update Stats] Job failed:", error.message);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const duration = Date.now() - startTime;
+    
+    console.error('[Cron: Update Stats] Critical error occurred');
+    logError('Update Stats Cron', error);
+    console.error('[Cron: Update Stats] Duration:', duration + 'ms');
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: error.message,
+        duration: duration + 'ms',
+      },
+      { status: 500 }
+    );
   }
 }

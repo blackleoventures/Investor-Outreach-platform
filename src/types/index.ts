@@ -5,6 +5,10 @@ export * from './tracking';
 export * from './recipient';
 export * from './reply';
 export * from './cron';
+export * from './error';        // NEW
+export * from './followup';     // NEW
+export * from './environment';  // NEW
+
 
 // Re-export commonly used types 
 export type {
@@ -42,3 +46,20 @@ export type {
   UpdateStatsResult,
   SendRemindersResult,
 } from './cron';
+
+export type {
+  ErrorCategory,
+  EmailError,
+  FailedRecipient,
+} from './error';
+
+export type {
+  FollowupReason,
+  FollowupCandidate,
+  FollowupStats,
+} from './followup';
+
+export type {
+  Environment,
+  EnvironmentConfig,
+} from './environment';

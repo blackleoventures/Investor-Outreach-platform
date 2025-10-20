@@ -26,19 +26,19 @@ export interface EmailTracking {
 
 export interface EmailHistoryItem {
   emailId: string;
-  type: 'initial' | 'followup_opened_no_reply' | 'followup_not_opened';
+  type: "initial" | "followup_opened_no_reply" | "followup_not_opened";
   subject: string;
   sentAt: string;
   deliveredAt: string | null;
-  status: 'delivered' | 'failed';
+  status: "delivered" | "failed";
   failureReason?: string;
-  
+
   // WHO opened this email
   openedBy: OpenedBy[];
-  
+
   // WHO replied to this email
   repliedBy: RepliedBy[];
-  
+
   // Tracking summary
   tracking: EmailTracking;
 }
@@ -52,7 +52,7 @@ export interface OpenerInfo {
   totalOpens: number;
   opensHistory: {
     emailId: string;
-    emailType: 'initial' | 'followup';
+    emailType: "initial" | "followup";
     openedAt: string;
   }[];
 }
@@ -75,14 +75,21 @@ export interface AggregatedTracking {
   everOpened: boolean;
   totalOpensAcrossAllEmails: number;
   uniqueOpeners: OpenerInfo[];
-  
+
   // Reply metrics
   everReplied: boolean;
   uniqueRepliers: ReplierInfo[];
-  
+
+  // ADD THESE (all optional for backward compatibility):
+  uniqueOpenerCount?: number;           // uniqueOpeners.length
+  uniqueReplierCount?: number;          // uniqueRepliers.length
+  openerEmailIndex?: string[];          // ['email1', 'email2'] for fast lookup
+  totalRepliesAcrossAllEmails?: number; // Sum of all replies 
+
   // Engagement level
-  engagementLevel: 'high' | 'medium' | 'low' | 'none';
+  engagementLevel: "high" | "medium" | "low" | "none";
 }
+
 
 export interface FollowUpTracking {
   totalSent: number;

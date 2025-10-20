@@ -294,7 +294,7 @@ export async function POST(request: NextRequest) {
       );
 
       return {
-        id: contact.id || `${contact.type}-${Math.random()}`,
+        id: contact.email, // Use email as unique ID
         name: contact.partnerName || contact.name,
         email: contact.email,
         organization: contact.firm || contact.programName || contact.name,
@@ -302,7 +302,7 @@ export async function POST(request: NextRequest) {
         matchScore: score,
         matchedCriteria,
         priority: score >= 80 ? "high" : score >= 60 ? "medium" : "low",
-        rawData: contact, // Store for later use in campaign activation
+        rawData: contact,
       };
     });
 

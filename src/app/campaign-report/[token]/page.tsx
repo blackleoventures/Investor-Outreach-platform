@@ -17,10 +17,8 @@ import {
   Col,
 } from "antd";
 import {
-  MailOutlined,
   EyeOutlined,
   MessageOutlined,
-  CheckCircleOutlined,
   UserOutlined,
   TeamOutlined,
   CloseCircleOutlined,
@@ -29,7 +27,6 @@ import {
   SendOutlined,
   ReloadOutlined,
   ClockCircleOutlined,
-  ThunderboltOutlined,
 } from "@ant-design/icons";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -400,7 +397,7 @@ export default function CampaignReportPage() {
           </div>
         </div>
 
-        {/* Main Stats Grid - 6 Cards */}
+        {/* Main Stats Grid - 5 Cards  */}
         <Row gutter={[16, 16]} className="mb-8">
           <Col xs={24} sm={12} lg={8}>
             <Card className="shadow-lg hover:shadow-xl transition-shadow">
@@ -469,14 +466,10 @@ export default function CampaignReportPage() {
             </Card>
           </Col>
 
-          <Col xs={24} sm={12} lg={8}>
+          <Col xs={24} sm={12} lg={12}>
             <Card className="shadow-lg hover:shadow-xl transition-shadow">
               <Statistic
-                title={
-                  <span className="text-base font-semibold">
-                    Unique Openers
-                  </span>
-                }
+                title={<span className="text-base font-semibold">Openers</span>}
                 value={campaign.stats.uniqueOpened || campaign.stats.opened}
                 prefix={<EyeOutlined className="text-green-500" />}
                 valueStyle={{
@@ -494,13 +487,11 @@ export default function CampaignReportPage() {
             </Card>
           </Col>
 
-          <Col xs={24} sm={12} lg={8}>
+          <Col xs={24} sm={12} lg={12}>
             <Card className="shadow-lg hover:shadow-xl transition-shadow">
               <Statistic
                 title={
-                  <span className="text-base font-semibold">
-                    Unique Repliers
-                  </span>
+                  <span className="text-base font-semibold">Repliers</span>
                 }
                 value={campaign.stats.uniqueResponded || campaign.stats.replied}
                 prefix={<MessageOutlined className="text-purple-500" />}
@@ -515,26 +506,6 @@ export default function CampaignReportPage() {
               />
               <div className="mt-2 text-sm font-semibold text-purple-600">
                 {campaign.stats.replyRate}% reply rate
-              </div>
-            </Card>
-          </Col>
-
-          <Col xs={24} sm={12} lg={8}>
-            <Card className="shadow-lg hover:shadow-xl transition-shadow">
-              <Statistic
-                title={
-                  <span className="text-base font-semibold">Failed Emails</span>
-                }
-                value={campaign.stats.failed || 0}
-                prefix={<CloseCircleOutlined className="text-red-500" />}
-                valueStyle={{
-                  color: "#ff4d4f",
-                  fontSize: "2.5rem",
-                  fontWeight: "bold",
-                }}
-              />
-              <div className="mt-2 text-sm text-red-500">
-                Delivery rate: {campaign.stats.deliveryRate}%
               </div>
             </Card>
           </Col>
@@ -561,182 +532,114 @@ export default function CampaignReportPage() {
           />
         </Card>
 
-        {/* Engagement Breakdown */}
-        <Row gutter={[16, 16]} className="mb-8">
-          <Col xs={24} sm={12} lg={6}>
-            <Card className="text-center shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
-              <div className="text-4xl font-bold text-blue-600 mb-2">
-                {campaign.stats.delivered}
-              </div>
-              <div className="text-gray-700 font-semibold">Delivered</div>
-              <div className="text-sm text-gray-500 mt-1">
-                {campaign.stats.deliveryRate}%
-              </div>
-            </Card>
-          </Col>
+        {/* Target Breakdown - Show only if both types exist OR show single type */}
+        {(() => {
+          const hasInvestors =
+            (campaign.aggregates.typeCounts.investor || 0) > 0;
+          const hasIncubators =
+            (campaign.aggregates.typeCounts.incubator || 0) > 0;
+          const hasBoth = hasInvestors && hasIncubators;
 
-          <Col xs={24} sm={12} lg={6}>
-            <Card className="text-center shadow-lg bg-gradient-to-br from-yellow-50 to-yellow-100">
-              <div className="text-4xl font-bold text-yellow-600 mb-2">
-                {campaign.stats.deliveredNotOpened || 0}
-              </div>
-              <div className="text-gray-700 font-semibold">Not Opened</div>
-              <div className="text-sm text-gray-500 mt-1">Need follow-up</div>
-            </Card>
-          </Col>
+          if (!hasInvestors && !hasIncubators) return null;
 
-          <Col xs={24} sm={12} lg={6}>
-            <Card className="text-center shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
-              <div className="text-4xl font-bold text-purple-600 mb-2">
-                {campaign.stats.openedNotReplied || 0}
-              </div>
-              <div className="text-gray-700 font-semibold">Opened No Reply</div>
-              <div className="text-sm text-gray-500 mt-1">
-                Awaiting response
-              </div>
-            </Card>
-          </Col>
-
-          <Col xs={24} sm={12} lg={6}>
-            <Card className="text-center shadow-lg bg-gradient-to-br from-green-50 to-green-100">
-              <div className="text-4xl font-bold text-green-600 mb-2">
-                {campaign.stats.replied}
-              </div>
-              <div className="text-gray-700 font-semibold">Replied</div>
-              <div className="text-sm text-gray-500 mt-1">
-                {campaign.stats.replyRate}% conversion
-              </div>
-            </Card>
-          </Col>
-        </Row>
-
-        {/* WHO Sections */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-          {/* WHO Opened */}
-          <Card
-            title={
-              <span className="text-xl font-bold">
-                👁️ WHO Opened ({campaign.stats.uniqueOpened || 0})
-              </span>
-            }
-            className="shadow-lg"
-          >
-            {campaign.uniqueOpeners && campaign.uniqueOpeners.length > 0 ? (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {campaign.uniqueOpeners
-                  .slice(0, 10)
-                  .map((opener: any, index: number) => (
-                    <div
-                      key={index}
-                      className="flex items-center justify-between p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
-                    >
-                      <div>
-                        <p className="font-semibold text-gray-900">
-                          {opener.name}
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {opener.organization}
-                        </p>
+          if (hasBoth) {
+            // Show both cards
+            return (
+              <Card title="Target Audience" className="mb-8 shadow-lg">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="flex justify-between items-center p-6 bg-gradient-to-r from-blue-100 to-blue-50 rounded-xl">
+                    <span className="flex items-center gap-3">
+                      <UserOutlined className="text-blue-600 text-3xl" />
+                      <span className="font-bold text-2xl text-gray-800">
+                        Investors
+                      </span>
+                    </span>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-blue-600">
+                        {campaign.aggregates.typeCounts.investor}
                       </div>
-                      <Badge
-                        count={opener.totalOpens}
-                        style={{ backgroundColor: "#52c41a" }}
-                      />
+                      <div className="text-sm text-gray-600">
+                        {Math.round(
+                          (campaign.aggregates.typeCounts.investor /
+                            campaign.totalRecipients) *
+                            100
+                        )}
+                        % of total
+                      </div>
                     </div>
-                  ))}
-                {campaign.uniqueOpeners.length > 10 && (
-                  <p className="text-center text-sm text-gray-500 pt-2">
-                    +{campaign.uniqueOpeners.length - 10} more opened
-                  </p>
-                )}
-              </div>
-            ) : (
-              <p className="text-center text-gray-500 py-8">No opens yet</p>
-            )}
-          </Card>
-
-          {/* WHO Replied */}
-          <Card
-            title={
-              <span className="text-xl font-bold">
-                💬 WHO Replied ({campaign.stats.uniqueResponded || 0})
-              </span>
-            }
-            className="shadow-lg"
-          >
-            {campaign.uniqueRepliers && campaign.uniqueRepliers.length > 0 ? (
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {campaign.uniqueRepliers.map((replier: any, index: number) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
-                  >
-                    <div>
-                      <p className="font-semibold text-gray-900">
-                        {replier.name}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {replier.organization}
-                      </p>
-                    </div>
-                    <CheckCircleOutlined className="text-green-600 text-2xl" />
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-center text-gray-500 py-8">No replies yet</p>
-            )}
-          </Card>
-        </div>
 
-        {/* Target Breakdown */}
-        <Card title="🎯 Target Audience" className="mb-8 shadow-lg">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="flex justify-between items-center p-6 bg-gradient-to-r from-blue-100 to-blue-50 rounded-xl">
-              <span className="flex items-center gap-3">
-                <UserOutlined className="text-blue-600 text-3xl" />
-                <span className="font-bold text-2xl text-gray-800">
-                  Investors
-                </span>
-              </span>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-blue-600">
-                  {campaign.aggregates.typeCounts.investor || 0}
+                  <div className="flex justify-between items-center p-6 bg-gradient-to-r from-green-100 to-green-50 rounded-xl">
+                    <span className="flex items-center gap-3">
+                      <TeamOutlined className="text-green-600 text-3xl" />
+                      <span className="font-bold text-2xl text-gray-800">
+                        Incubators
+                      </span>
+                    </span>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-green-600">
+                        {campaign.aggregates.typeCounts.incubator}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {Math.round(
+                          (campaign.aggregates.typeCounts.incubator /
+                            campaign.totalRecipients) *
+                            100
+                        )}
+                        % of total
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-sm text-gray-600">
-                  {Math.round(
-                    ((campaign.aggregates.typeCounts.investor || 0) /
-                      campaign.totalRecipients) *
-                      100
-                  )}
-                  % of total
+              </Card>
+            );
+          } else {
+            // Show only one card (centered)
+            return (
+              <Card title="Target Audience" className="mb-8 shadow-lg">
+                <div className="flex justify-center">
+                  <div className="w-full max-w-md">
+                    {hasInvestors ? (
+                      <div className="flex justify-between items-center p-6 bg-gradient-to-r from-blue-100 to-blue-50 rounded-xl">
+                        <span className="flex items-center gap-3">
+                          <UserOutlined className="text-blue-600 text-3xl" />
+                          <span className="font-bold text-2xl text-gray-800">
+                            Investors
+                          </span>
+                        </span>
+                        <div className="text-right">
+                          <div className="text-3xl font-bold text-blue-600">
+                            {campaign.aggregates.typeCounts.investor}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            100% of campaign
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center p-6 bg-gradient-to-r from-green-100 to-green-50 rounded-xl">
+                        <span className="flex items-center gap-3">
+                          <TeamOutlined className="text-green-600 text-3xl" />
+                          <span className="font-bold text-2xl text-gray-800">
+                            Incubators
+                          </span>
+                        </span>
+                        <div className="text-right">
+                          <div className="text-3xl font-bold text-green-600">
+                            {campaign.aggregates.typeCounts.incubator}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            100% of campaign
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center p-6 bg-gradient-to-r from-green-100 to-green-50 rounded-xl">
-              <span className="flex items-center gap-3">
-                <TeamOutlined className="text-green-600 text-3xl" />
-                <span className="font-bold text-2xl text-gray-800">
-                  Incubators
-                </span>
-              </span>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-green-600">
-                  {campaign.aggregates.typeCounts.incubator || 0}
-                </div>
-                <div className="text-sm text-gray-600">
-                  {Math.round(
-                    ((campaign.aggregates.typeCounts.incubator || 0) /
-                      campaign.totalRecipients) *
-                      100
-                  )}
-                  % of total
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
+              </Card>
+            );
+          }
+        })()}
 
         {/* Action Buttons */}
         <div className="flex justify-center gap-4 mb-8">

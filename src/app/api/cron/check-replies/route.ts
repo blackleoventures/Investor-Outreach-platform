@@ -1,209 +1,308 @@
+// app/api/cron/check-replies/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { verifyCronRequest, createCronErrorResponse } from "@/lib/cron/auth";
 import { adminDb } from "@/lib/firebase-admin";
 import * as admin from "firebase-admin";
 import { checkAllClientsReplies } from "@/lib/imap/reply-checker";
 import { parseReplyIdentity } from "@/lib/imap/reply-parser";
 import { matchReplyToRecipient, shouldProcessReply } from "@/lib/imap/recipient-matcher";
 import { getCurrentTimestamp } from "@/lib/utils/date-helper";
-import type { CheckRepliesResult } from "@/types";
+import { markAsReplied } from "@/lib/services/recipient-status-manager";
+import { logError } from "@/lib/utils/error-helper";
 
-export const maxDuration = 300; // 5 minutes
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
+
+// Global lock to prevent concurrent executions
+let isJobRunning = false;
+let jobStartTime = 0;
 
 export async function GET(request: NextRequest) {
-  // Security: Verify CRON_SECRET
-  const authHeader = request.headers.get('authorization');
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const startTime = Date.now();
+  
+  console.log('[Cron: Check Replies] Job triggered');
+  console.log('[Cron: Check Replies] Timestamp:', new Date().toISOString());
+
+  // Prevent concurrent executions
+  if (isJobRunning) {
+    const runningDuration = Date.now() - jobStartTime;
+    console.log('[Cron: Check Replies] Job already running');
+    console.log('[Cron: Check Replies] Running duration:', runningDuration + 'ms');
+    
+    if (runningDuration > 240000) { // 4 minutes timeout
+      console.log('[Cron: Check Replies] Job timeout detected, forcing unlock');
+      isJobRunning = false;
+    } else {
+      return NextResponse.json({
+        success: true,
+        message: 'Job already in progress',
+        skipped: true,
+        runningDuration: runningDuration + 'ms',
+      });
+    }
   }
 
+  // Set lock
+  isJobRunning = true;
+  jobStartTime = Date.now();
+
   try {
-    console.log("[Cron Check Replies] Starting reply detection job");
+    const authResult = verifyCronRequest(request);
+    
+    if (!authResult.authorized) {
+      console.error('[Cron: Check Replies] Unauthorized request blocked');
+      return createCronErrorResponse(authResult.error || 'Unauthorized');
+    }
 
-    const startTime = Date.now();
+    console.log('[Cron: Check Replies] Authentication verified');
+    console.log('[Cron: Check Replies] Source:', authResult.source);
 
-    // Check IMAP for all active clients
-    const clientRepliesMap = await checkAllClientsReplies(7); // Check last 7 days
+    console.log('[Cron: Check Replies] Starting IMAP reply detection');
+    console.log('[Cron: Check Replies] Checking last 7 days of emails');
+
+    const clientRepliesMap = await checkAllClientsReplies(7);
+
+    console.log('[Cron: Check Replies] IMAP check completed');
+    console.log('[Cron: Check Replies] Clients checked:', clientRepliesMap.size);
 
     let totalRepliesFound = 0;
     let totalRecipientsUpdated = 0;
+    let totalNewRepliers = 0;
+    let totalExistingRepliers = 0;
+    let totalSkipped = 0;
     let totalErrors = 0;
 
-    // Process replies for each client
     for (const [clientId, replies] of clientRepliesMap) {
-      console.log(`[Cron Check Replies] Processing ${replies.length} replies for client ${clientId}`);
+      console.log('[Cron: Check Replies] Processing client:', clientId);
+      console.log('[Cron: Check Replies] Replies for client:', replies.length);
 
       for (const reply of replies) {
         try {
-          // Parse reply identity
           const parsedReply = parseReplyIdentity(reply);
 
-          // Get all campaigns for this client
-          const campaignsSnapshot = await adminDb
-            .collection('campaigns')
-            .where('clientId', '==', clientId)
-            .where('status', 'in', ['active', 'paused'])
+          console.log('[Cron: Check Replies] Processing reply from:', parsedReply.from.email);
+          console.log('[Cron: Check Replies] Message ID:', parsedReply.messageId);
+
+          // CRITICAL: Check if this exact reply was already processed
+          const existingReplyCheck = await adminDb
+            .collection('campaignReplies')
+            .where('messageId', '==', parsedReply.messageId)
+            .limit(1)
             .get();
 
-          if (campaignsSnapshot.empty) {
-            console.log(`[Cron Check Replies] No active campaigns found for client ${clientId}`);
+          if (!existingReplyCheck.empty) {
+            console.log('[Cron: Check Replies] Reply already processed (duplicate), skipping');
+            console.log('[Cron: Check Replies] Message ID:', parsedReply.messageId);
+            totalSkipped++;
             continue;
           }
 
-          // Try to match reply to a recipient in any of this client's campaigns
+          // Get active campaigns for this client
+          const campaignsSnapshot = await adminDb
+            .collection('campaigns')
+            .where('clientId', '==', clientId)
+            .where('status', 'in', ['active', 'paused', 'completed'])
+            .get();
+
+          if (campaignsSnapshot.empty) {
+            console.log('[Cron: Check Replies] No active campaigns for client:', clientId);
+            continue;
+          }
+
+          console.log('[Cron: Check Replies] Active campaigns found:', campaignsSnapshot.size);
+
           let matched = false;
+          let isNewReplier = false;
 
           for (const campaignDoc of campaignsSnapshot.docs) {
             const campaignId = campaignDoc.id;
 
-            // Match reply to recipient
+            console.log('[Cron: Check Replies] Matching reply to campaign:', campaignId);
+
             const matchResult = await matchReplyToRecipient(campaignId, parsedReply);
 
             if (!matchResult) {
+              console.log('[Cron: Check Replies] No match in campaign:', campaignId);
               continue;
             }
 
             const { recipient, matchType, confidence } = matchResult;
 
+            console.log('[Cron: Check Replies] Match found!');
+            console.log('[Cron: Check Replies] Recipient:', recipient.originalContact.email);
+            console.log('[Cron: Check Replies] Match type:', matchType);
+            console.log('[Cron: Check Replies] Confidence:', confidence);
+
             // Check if we should process this reply
             const shouldProcess = shouldProcessReply(recipient, parsedReply);
 
             if (!shouldProcess.should) {
-              console.log(`[Cron Check Replies] Skipping reply from ${parsedReply.from.email}: ${shouldProcess.reason}`);
+              console.log('[Cron: Check Replies] Reply skipped');
+              console.log('[Cron: Check Replies] Reason:', shouldProcess.reason);
+              totalSkipped++;
               continue;
             }
 
-            // Check if already marked as replied
-            if (recipient.aggregatedTracking?.everReplied) {
-              // Check if this specific person already replied
-              const alreadyReplied = recipient.aggregatedTracking.uniqueRepliers?.some(
-                r => r.email === parsedReply.from.email
-              );
+            // Check if this person already replied before
+            const existingReplierIndex = recipient.aggregatedTracking?.uniqueRepliers?.findIndex(
+              (r: any) => r.email.toLowerCase() === parsedReply.from.email.toLowerCase()
+            );
 
-              if (alreadyReplied) {
-                console.log(`[Cron Check Replies] Reply from ${parsedReply.from.email} already recorded`);
-                continue;
-              }
+            isNewReplier = existingReplierIndex === undefined || existingReplierIndex < 0;
+
+            if (isNewReplier) {
+              console.log('[Cron: Check Replies] NEW REPLIER detected:', parsedReply.from.email);
+              console.log('[Cron: Check Replies] This is their FIRST reply');
+              totalNewRepliers++;
+            } else {
+              console.log('[Cron: Check Replies] EXISTING REPLIER detected:', parsedReply.from.email);
+              console.log('[Cron: Check Replies] This is a follow-up reply');
+              totalExistingRepliers++;
             }
 
-            // Find which email this is a reply to
+            // Update recipient status using markAsReplied
+            console.log('[Cron: Check Replies] Updating recipient status...');
+            await markAsReplied(
+              recipient.id!,
+              parsedReply.from.email,
+              parsedReply.from.name,
+              parsedReply.from.organization,
+              parsedReply.receivedAt
+            );
+            console.log('[Cron: Check Replies] Recipient status updated');
+
+            // Store reply metadata in campaignReplies collection
             const emailHistory = recipient.emailHistory || [];
             const latestEmail = emailHistory[emailHistory.length - 1];
 
-            if (!latestEmail) {
-              console.log(`[Cron Check Replies] No email history found for recipient ${recipient.id}`);
-              continue;
+            if (latestEmail) {
+              console.log('[Cron: Check Replies] Storing reply metadata in campaignReplies collection');
+
+              await adminDb.collection('campaignReplies').add({
+                campaignId,
+                recipientId: recipient.id,
+                emailId: latestEmail.emailId,
+                messageId: parsedReply.messageId, // CRITICAL: Store messageId for deduplication
+                replyFrom: {
+                  name: parsedReply.from.name,
+                  email: parsedReply.from.email,
+                  organization: parsedReply.from.organization
+                },
+                replyTo: {
+                  name: campaignDoc.data().clientName,
+                  email: parsedReply.to
+                },
+                replyReceivedAt: parsedReply.receivedAt,
+                threadPosition: 1,
+                isNewReplier,
+                createdAt: getCurrentTimestamp()
+              });
+
+              console.log('[Cron: Check Replies] Reply metadata stored successfully');
             }
 
-            // Add to repliedBy array for this specific email
-            const repliedByData = {
-              name: parsedReply.from.name,
-              email: parsedReply.from.email,
-              organization: parsedReply.from.organization,
-              repliedAt: parsedReply.receivedAt
-            };
-
-            // Update email history
-            const emailIndex = emailHistory.length - 1;
-            await adminDb.collection('campaignRecipients').doc(recipient.id).update({
-              [`emailHistory.${emailIndex}.repliedBy`]: admin.firestore.FieldValue.arrayUnion(repliedByData),
-              [`emailHistory.${emailIndex}.tracking.totalReplies`]: admin.firestore.FieldValue.increment(1),
-              [`emailHistory.${emailIndex}.tracking.firstReplyAt`]: latestEmail.tracking.firstReplyAt || parsedReply.receivedAt,
-              [`emailHistory.${emailIndex}.tracking.lastReplyAt`]: parsedReply.receivedAt,
-            });
-
-            // Update aggregated tracking
-            const replierInfo = {
-              name: parsedReply.from.name,
-              email: parsedReply.from.email,
-              organization: parsedReply.from.organization,
-              firstRepliedAt: parsedReply.receivedAt,
-              lastRepliedAt: parsedReply.receivedAt,
-              totalReplies: 1,
-              repliesHistory: [{
-                emailId: latestEmail.emailId,
-                repliedAt: parsedReply.receivedAt
-              }]
-            };
-
-            await adminDb.collection('campaignRecipients').doc(recipient.id).update({
-              'aggregatedTracking.everReplied': true,
-              'aggregatedTracking.uniqueRepliers': admin.firestore.FieldValue.arrayUnion(replierInfo),
-              'aggregatedTracking.engagementLevel': 'high',
-              status: 'replied',
-              repliedAt: parsedReply.receivedAt,
-              updatedAt: getCurrentTimestamp()
-            });
-
-            // Store reply metadata in campaignReplies collection
-            await adminDb.collection('campaignReplies').add({
-              campaignId,
-              recipientId: recipient.id,
-              emailId: latestEmail.emailId,
-              replyFrom: {
-                name: parsedReply.from.name,
-                email: parsedReply.from.email,
-                organization: parsedReply.from.organization
-              },
-              replyTo: {
-                name: campaignDoc.data().clientName,
-                email: parsedReply.to
-              },
-              replyReceivedAt: parsedReply.receivedAt,
-              threadPosition: 1, // Will be incremented for subsequent replies
-              createdAt: getCurrentTimestamp()
-            });
-
             // Update campaign stats
+            console.log('[Cron: Check Replies] Updating campaign stats');
+
             const wasOpenedNotReplied = recipient.status === 'opened';
 
-            await adminDb.collection('campaigns').doc(campaignId).update({
-              'stats.replied': admin.firestore.FieldValue.increment(1),
-              'stats.openedNotReplied': wasOpenedNotReplied 
-                ? admin.firestore.FieldValue.increment(-1) 
-                : admin.firestore.FieldValue.increment(0),
-              lastUpdated: getCurrentTimestamp()
-            });
+            if (isNewReplier) {
+              // Only increment unique replied count for new repliers
+              console.log('[Cron: Check Replies] Incrementing unique replied count');
+              await adminDb.collection('campaigns').doc(campaignId).update({
+                'stats.replied': admin.firestore.FieldValue.increment(1),
+                'stats.uniqueResponded': admin.firestore.FieldValue.increment(1),
+                'stats.totalResponses': admin.firestore.FieldValue.increment(1),
+                'stats.conversionFunnel.replied': admin.firestore.FieldValue.increment(1),
+                'stats.openedNotReplied': wasOpenedNotReplied 
+                  ? admin.firestore.FieldValue.increment(-1) 
+                  : 0,
+                lastUpdated: getCurrentTimestamp()
+              });
+            } else {
+              // For existing repliers, only increment total response count
+              console.log('[Cron: Check Replies] Incrementing total responses only (existing replier)');
+              await adminDb.collection('campaigns').doc(campaignId).update({
+                'stats.totalResponses': admin.firestore.FieldValue.increment(1),
+                lastUpdated: getCurrentTimestamp()
+              });
+            }
+
+            console.log('[Cron: Check Replies] Campaign stats updated successfully');
 
             totalRecipientsUpdated++;
             matched = true;
 
-            console.log(`[Cron Check Replies] Reply processed from ${parsedReply.from.email} (match: ${matchType}, confidence: ${confidence})`);
+            console.log('[Cron: Check Replies] Reply processed successfully');
+            console.log('[Cron: Check Replies] From:', parsedReply.from.email);
+            console.log('[Cron: Check Replies] Is new replier:', isNewReplier);
+            console.log('[Cron: Check Replies] Match type:', matchType);
+            
             break; // Stop checking other campaigns once matched
           }
 
           if (matched) {
             totalRepliesFound++;
           } else {
-            console.log(`[Cron Check Replies] No matching recipient found for ${parsedReply.from.email}`);
+            console.log('[Cron: Check Replies]  No matching recipient found for:', parsedReply.from.email);
           }
 
         } catch (error: any) {
-          console.error(`[Cron Check Replies] Error processing reply from ${reply.from.email}:`, error.message);
+          console.error('[Cron: Check Replies]  Error processing reply from:', reply.from.email);
+          logError('Process Reply', error, { 
+            replyFrom: reply.from.email,
+            clientId 
+          });
           totalErrors++;
         }
       }
     }
 
-    const duration = Math.round((Date.now() - startTime) / 1000);
-    const result: CheckRepliesResult = {
-      repliesFound: totalRepliesFound,
-      recipientsUpdated: totalRecipientsUpdated,
-      errors: totalErrors
-    };
+    const duration = Date.now() - startTime;
 
-    console.log(`[Cron Check Replies] Completed: ${totalRepliesFound} replies found, ${totalRecipientsUpdated} recipients updated in ${duration}s`);
+    console.log('[Cron: Check Replies] ========================================');
+    console.log('[Cron: Check Replies] Job completed');
+    console.log('[Cron: Check Replies] Replies found:', totalRepliesFound);
+    console.log('[Cron: Check Replies] Recipients updated:', totalRecipientsUpdated);
+    console.log('[Cron: Check Replies] New unique repliers:', totalNewRepliers);
+    console.log('[Cron: Check Replies] Existing repliers (follow-ups):', totalExistingRepliers);
+    console.log('[Cron: Check Replies] Skipped (duplicates):', totalSkipped);
+    console.log('[Cron: Check Replies] Errors:', totalErrors);
+    console.log('[Cron: Check Replies] Duration:', duration + 'ms');
+    console.log('[Cron: Check Replies] ========================================');
 
     return NextResponse.json({
       success: true,
-      ...result,
-      duration
+      message: 'Reply checking job completed',
+      summary: {
+        repliesFound: totalRepliesFound,
+        recipientsUpdated: totalRecipientsUpdated,
+        newUniqueRepliers: totalNewRepliers,
+        existingRepliers: totalExistingRepliers,
+        skipped: totalSkipped,
+        errors: totalErrors,
+        duration: duration + 'ms',
+      },
     });
 
   } catch (error: any) {
-    console.error("[Cron Check Replies] Job failed:", error.message);
+    const duration = Date.now() - startTime;
+    
+    console.error('[Cron: Check Replies] Critical error occurred');
+    logError('Check Replies Cron', error);
+    console.error('[Cron: Check Replies] Duration:', duration + 'ms');
+
     return NextResponse.json(
-      { success: false, error: error.message },
+      {
+        success: false,
+        error: error.message,
+        duration: duration + 'ms',
+      },
       { status: 500 }
     );
+  } finally {
+    // Always release lock
+    isJobRunning = false;
+    console.log('[Cron: Check Replies] Job lock released');
   }
 }
