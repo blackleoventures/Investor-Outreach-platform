@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyFirebaseToken, verifyAdminOrSubadmin } from "@/lib/auth-middleware";
+import {
+  verifyFirebaseToken,
+  verifyAdminOrSubadmin,
+} from "@/lib/auth-middleware";
 import { adminDb } from "@/lib/firebase-admin";
+import { normalizeToArray } from "@/lib/utils/data-normalizer";
 
 export async function GET(
   request: NextRequest,
@@ -12,7 +16,9 @@ export async function GET(
 
     const { id } = params;
 
-    console.log(`[Campaign Recipients] Fetching recipients for campaign ${id}...`);
+    console.log(
+      `[Campaign Recipients] Fetching recipients for campaign ${id}...`
+    );
 
     // Get query parameters for filtering
     const { searchParams } = new URL(request.url);
@@ -41,7 +47,7 @@ export async function GET(
     // Order by scheduled time
     query = query.orderBy("scheduledFor", "asc");
 
-    // Get all recipients (we'll paginate in memory for simplicity)
+    // Get all recipients
     const recipientsSnapshot = await query.get();
 
     if (recipientsSnapshot.empty) {
@@ -54,51 +60,67 @@ export async function GET(
       });
     }
 
-    // Map recipients data
+    // Map recipients data with correct field names
     const allRecipients = recipientsSnapshot.docs.map((doc) => {
       const data = doc.data();
+
+      // Normalize aggregatedTracking data
+      const aggregatedTracking = data.aggregatedTracking || {};
+      const uniqueOpeners = normalizeToArray(
+        aggregatedTracking.uniqueOpeners || []
+      );
+      const uniqueRepliers = normalizeToArray(
+        aggregatedTracking.uniqueRepliers || []
+      );
+
       return {
         id: doc.id,
-        contactInfo: {
-          name: data.contactInfo?.name || "",
-          email: data.contactInfo?.email || "",
-          organization: data.contactInfo?.organization || "",
+        // FIXED: Use originalContact instead of contactInfo
+        originalContact: {
+          name: data.originalContact?.name || "",
+          email: data.originalContact?.email || "",
+          organization: data.originalContact?.organization || "",
+          title: data.originalContact?.title || "",
         },
-        recipientType: data.recipientType,
-        priority: data.priority,
-        matchScore: data.matchScore,
-        matchedCriteria: data.matchedCriteria,
-        status: data.status,
-        scheduledFor: data.scheduledFor,
-        sentAt: data.sentAt,
-        deliveredAt: data.deliveredAt,
-        openedAt: data.openedAt,
-        repliedAt: data.repliedAt,
+        recipientType: data.recipientType || "investor",
+        priority: data.priority || "medium",
+        matchScore: data.matchScore || 0,
+        matchedCriteria: data.matchedCriteria || [],
+        status: data.status || "pending",
+        scheduledFor: data.scheduledFor || "",
+        sentAt: data.sentAt || "",
+        deliveredAt: data.deliveredAt || "",
+        openedAt: data.openedAt || "",
+        repliedAt: data.repliedAt || "",
+        // FIXED: Use aggregatedTracking data for accurate counts
         trackingData: {
-          opened: data.trackingData?.opened || false,
-          openCount: data.trackingData?.openCount || 0,
-          lastOpenedAt: data.trackingData?.lastOpenedAt || null,
-          replied: data.trackingData?.replied || false,
-          replyReceivedAt: data.trackingData?.replyReceivedAt || null,
+          opened: aggregatedTracking.everOpened || false,
+          openCount: aggregatedTracking.totalOpensAcrossAllEmails || 0,
+          lastOpenedAt: uniqueOpeners[0]?.lastOpenedAt || null,
+          replied: aggregatedTracking.everReplied || false,
+          replyReceivedAt: uniqueRepliers[0]?.lastRepliedAt || null,
         },
-        errorMessage: data.errorMessage,
-        failureReason: data.failureReason,
+        errorMessage: data.errorMessage || null,
+        failureReason: data.failureReason || null,
         retryCount: data.retryCount || 0,
-        createdAt: data.createdAt,
+        createdAt: data.createdAt || "",
       };
     });
 
-    console.log(`[Campaign Recipients] Found ${allRecipients.length} recipients`);
+    console.log(
+      `[Campaign Recipients] Found ${allRecipients.length} recipients`
+    );
+    console.log(`[Campaign Recipients] Sample recipient:`, allRecipients[0]);
 
     return NextResponse.json({
       success: true,
       recipients: allRecipients,
       total: allRecipients.length,
     });
-
   } catch (error: any) {
     console.error("[Campaign Recipients] Error:", error);
-    
+    console.error("[Campaign Recipients] Error stack:", error.stack);
+
     if (error.name === "AuthenticationError") {
       return NextResponse.json(
         { success: false, message: error.message },
@@ -107,7 +129,11 @@ export async function GET(
     }
 
     return NextResponse.json(
-      { success: false, message: "Failed to fetch recipients" },
+      {
+        success: false,
+        message: "Failed to fetch recipients",
+        error: error.message,
+      },
       { status: 500 }
     );
   }

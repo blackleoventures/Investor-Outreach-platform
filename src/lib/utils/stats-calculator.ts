@@ -1,5 +1,6 @@
 // lib/utils/stats-calculator.ts
 
+import { SafeArray } from './data-normalizer';
 import type { CampaignRecipient, CampaignStats } from '@/types';
 
 /**
@@ -83,30 +84,32 @@ export function calculateCampaignStats(
         break;
     }
 
-    // Unique opens
-    if (recipient.aggregatedTracking?.uniqueOpeners) {
-      recipient.aggregatedTracking.uniqueOpeners.forEach((opener) => {
+    // Unique opens - SAFE OPERATION
+    SafeArray.forEach(
+      recipient.aggregatedTracking?.uniqueOpeners,
+      (opener: any) => {
         uniqueOpenerEmails.add(opener.email);
         totalOpens += opener.totalOpens || 0;
-      });
-    }
+      }
+    );
 
-    // Total opens from tracking
+    // Total opens from tracking (fallback)
     if (recipient.aggregatedTracking?.totalOpensAcrossAllEmails) {
-      // Already counted above, but keep this as fallback
+      // Already counted above via uniqueOpeners, this is just a fallback check
     }
 
-    // Unique replies
-    if (recipient.aggregatedTracking?.uniqueRepliers) {
-      recipient.aggregatedTracking.uniqueRepliers.forEach((replier) => {
+    // Unique replies - SAFE OPERATION
+    SafeArray.forEach(
+      recipient.aggregatedTracking?.uniqueRepliers,
+      (replier: any) => {
         uniqueReplierEmails.add(replier.email);
         totalReplies += replier.totalReplies || 0;
-      });
-    }
+      }
+    );
 
-    // Total replies from tracking
+    // Total replies from tracking (fallback)
     if (recipient.aggregatedTracking?.totalRepliesAcrossAllEmails) {
-      // Already counted above
+      // Already counted above via uniqueRepliers
     }
 
     // Follow-up tracking
@@ -216,11 +219,13 @@ export function countUniqueOpeners(recipients: CampaignRecipient[]): number {
   const uniqueEmails = new Set<string>();
 
   recipients.forEach((recipient) => {
-    if (recipient.aggregatedTracking?.uniqueOpeners) {
-      recipient.aggregatedTracking.uniqueOpeners.forEach((opener) => {
+    // SAFE OPERATION
+    SafeArray.forEach(
+      recipient.aggregatedTracking?.uniqueOpeners,
+      (opener: any) => {
         uniqueEmails.add(opener.email);
-      });
-    }
+      }
+    );
   });
 
   return uniqueEmails.size;
@@ -233,11 +238,13 @@ export function countUniqueRepliers(recipients: CampaignRecipient[]): number {
   const uniqueEmails = new Set<string>();
 
   recipients.forEach((recipient) => {
-    if (recipient.aggregatedTracking?.uniqueRepliers) {
-      recipient.aggregatedTracking.uniqueRepliers.forEach((replier) => {
+    // SAFE OPERATION
+    SafeArray.forEach(
+      recipient.aggregatedTracking?.uniqueRepliers,
+      (replier: any) => {
         uniqueEmails.add(replier.email);
-      });
-    }
+      }
+    );
   });
 
   return uniqueEmails.size;

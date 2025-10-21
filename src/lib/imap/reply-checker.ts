@@ -62,20 +62,34 @@ function checkRepliesWithConfig(
     const imap = new Imap(config);
     const replies: EmailReplyDetected[] = [];
     let isConnectionClosed = false;
+    let promiseResolved = false;
 
     console.log(`[IMAP] Client ${clientId}: Connecting to ${config.host}`);
 
-    // Add connection timeout
+    // Helper to resolve promise only once
+    const resolvePromise = () => {
+      if (!promiseResolved) {
+        promiseResolved = true;
+        console.log(
+          `[IMAP] Client ${clientId}: Promise resolved with ${replies.length} replies`
+        );
+        resolve(replies);
+      }
+    };
+
+    // Connection timeout
     const connectionTimeout = setTimeout(() => {
       if (!isConnectionClosed) {
-        console.error(`[IMAP] Client ${clientId}: Connection timeout after 30s`);
+        console.error(
+          `[IMAP] Client ${clientId}: Connection timeout after 30s`
+        );
         try {
           imap.end();
         } catch (e) {
           // Ignore
         }
         isConnectionClosed = true;
-        reject(new Error('IMAP connection timeout'));
+        resolvePromise();
       }
     }, 30000);
 
@@ -100,8 +114,6 @@ function checkRepliesWithConfig(
         const searchDate = new Date();
         searchDate.setDate(searchDate.getDate() - searchDays);
 
-        // FIXED: Search for ALL emails (not just UNSEEN) since last 7 days
-        // We'll track which ones we've processed in the database
         const searchCriteria = [["SINCE", searchDate]];
 
         console.log(
@@ -123,7 +135,8 @@ function checkRepliesWithConfig(
               `[IMAP] Client ${clientId}: No emails found in the last ${searchDays} days`
             );
             imap.end();
-            return resolve([]);
+            setTimeout(() => resolvePromise(), 1000);
+            return;
           }
 
           console.log(
@@ -132,11 +145,34 @@ function checkRepliesWithConfig(
 
           const fetch = imap.fetch(results, {
             bodies: "",
-            markSeen: false, // Don't mark as seen
+            markSeen: false,
           });
 
           let parseCompleted = 0;
           const totalEmails = results.length;
+          let fetchEnded = false;
+
+          // Function to check if we should close and resolve
+          const checkIfComplete = () => {
+            if (fetchEnded && parseCompleted === totalEmails) {
+              console.log(`[IMAP] Client ${clientId}: All parsing complete`);
+              console.log(
+                `[IMAP] Client ${clientId}: Parsed ${parseCompleted} of ${totalEmails} messages`
+              );
+              console.log(
+                `[IMAP] Client ${clientId}: Found ${replies.length} total replies`
+              );
+
+              if (!isConnectionClosed) {
+                console.log(`[IMAP] Client ${clientId}: Closing connection`);
+                isConnectionClosed = true;
+                imap.end();
+
+                // Resolve promise after a short delay
+                setTimeout(() => resolvePromise(), 1000);
+              }
+            }
+          };
 
           fetch.on("message", (msg, seqno) => {
             msg.on("body", (stream, info) => {
@@ -162,17 +198,11 @@ function checkRepliesWithConfig(
                     }
 
                     parseCompleted++;
+                    console.log(
+                      `[IMAP] Client ${clientId}: Parse progress: ${parseCompleted}/${totalEmails}`
+                    );
 
-                    if (parseCompleted === totalEmails) {
-                      console.log(
-                        `[IMAP] Client ${clientId}: All emails parsed - Found ${replies.length} replies`
-                      );
-                      setTimeout(() => {
-                        if (!isConnectionClosed) {
-                          imap.end();
-                        }
-                      }, 500);
-                    }
+                    checkIfComplete();
                   })
                   .catch((err) => {
                     console.error(
@@ -180,14 +210,7 @@ function checkRepliesWithConfig(
                       err.message
                     );
                     parseCompleted++;
-
-                    if (parseCompleted === totalEmails) {
-                      setTimeout(() => {
-                        if (!isConnectionClosed) {
-                          imap.end();
-                        }
-                      }, 500);
-                    }
+                    checkIfComplete();
                   });
               });
             });
@@ -205,9 +228,34 @@ function checkRepliesWithConfig(
           });
 
           fetch.once("end", () => {
-            console.log(
-              `[IMAP] Client ${clientId}: Fetch completed - Processed ${parseCompleted} messages`
-            );
+            console.log(`[IMAP] Client ${clientId}: Fetch ended`);
+            fetchEnded = true;
+
+            checkIfComplete();
+
+            // Safety timeout: always resolve after 5 seconds
+            setTimeout(() => {
+              console.log(
+                `[IMAP] Client ${clientId}: Safety timeout triggered`
+              );
+              console.log(
+                `[IMAP] Client ${clientId}: Parsed ${parseCompleted} of ${totalEmails} messages`
+              );
+              console.log(
+                `[IMAP] Client ${clientId}: Found ${replies.length} total replies`
+              );
+
+              if (!isConnectionClosed) {
+                console.log(
+                  `[IMAP] Client ${clientId}: Force closing connection`
+                );
+                isConnectionClosed = true;
+                imap.end();
+              }
+
+              // Always resolve on safety timeout
+              resolvePromise();
+            }, 5000);
           });
         });
       });
@@ -227,7 +275,7 @@ function checkRepliesWithConfig(
       clearTimeout(connectionTimeout);
       console.log(`[IMAP] Client ${clientId}: Connection closed`);
       isConnectionClosed = true;
-      resolve(replies);
+      resolvePromise();
     });
 
     try {

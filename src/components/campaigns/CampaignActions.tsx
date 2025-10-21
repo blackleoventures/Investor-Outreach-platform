@@ -231,7 +231,7 @@ export default function CampaignActions({
       )}
 
       {/* Mark Complete Button - Admin/Subadmin Only */}
-      {canMarkComplete && (
+     
         <Button
           icon={<CheckCircleOutlined />}
           onClick={handleMarkComplete}
@@ -244,7 +244,6 @@ export default function CampaignActions({
         >
           Mark as Complete
         </Button>
-      )}
     </div>
   );
 }

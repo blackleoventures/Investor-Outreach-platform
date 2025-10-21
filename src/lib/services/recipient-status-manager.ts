@@ -10,6 +10,7 @@ import type {
 } from '@/types';
 import { createEmailError } from '@/lib/utils/error-helper';
 import { logError } from '@/lib/utils/error-helper';
+import { SafeArray, normalizeToArray } from '@/lib/utils/data-normalizer';
 
 /**
  * Update recipient status to delivered
@@ -62,7 +63,7 @@ export async function markAsDelivered(
 }
 
 /**
- * Mark recipient as opened (unique tracking)
+ * Mark recipient as opened (unique tracking) - ATOMIC TRANSACTION VERSION
  */
 export async function markAsOpened(
   recipientId: string,
@@ -72,117 +73,187 @@ export async function markAsOpened(
 ): Promise<void> {
   try {
     const recipientRef = adminDb.collection('campaignRecipients').doc(recipientId);
-    const recipientDoc = await recipientRef.get();
 
-    if (!recipientDoc.exists) {
-      console.error('[Recipient Status] Recipient not found:', recipientId);
-      return;
-    }
+    // Use transaction to ensure atomic updates
+    await adminDb.runTransaction(async (transaction) => {
+      const recipientDoc = await transaction.get(recipientRef);
 
-    const recipient = recipientDoc.data() as CampaignRecipient;
-    const timestamp = new Date().toISOString();
+      if (!recipientDoc.exists) {
+        console.error('[Recipient Status] Recipient not found:', recipientId);
+        throw new Error('Recipient not found');
+      }
 
-    // Get existing tracking
-    const aggregatedTracking = recipient.aggregatedTracking || {
-      everOpened: false,
-      totalOpensAcrossAllEmails: 0,
-      uniqueOpeners: [],
-      everReplied: false,
-      uniqueRepliers: [],
-      totalRepliesAcrossAllEmails: 0,
-      engagementLevel: 'none' as const,
-    };
+      const recipient = recipientDoc.data() as CampaignRecipient;
+      const timestamp = new Date().toISOString();
 
-    // Check if this opener already exists
-    const existingOpenerIndex = aggregatedTracking.uniqueOpeners?.findIndex(
-      (opener) => opener.email.toLowerCase() === openerEmail.toLowerCase()
-    );
-
-    const emailHistory = recipient.emailHistory || [];
-    const latestEmailIndex = emailHistory.length - 1;
-
-    if (existingOpenerIndex !== undefined && existingOpenerIndex >= 0) {
-      // Existing opener - increment their count
-      console.log('[Recipient Status] Existing opener detected:', openerEmail);
-
-      const existingOpener = aggregatedTracking.uniqueOpeners[existingOpenerIndex];
-      
-      // Update opener info
-      await recipientRef.update({
-        [`aggregatedTracking.uniqueOpeners.${existingOpenerIndex}.totalOpens`]:
-          admin.firestore.FieldValue.increment(1),
-        [`aggregatedTracking.uniqueOpeners.${existingOpenerIndex}.lastOpenedAt`]: timestamp,
-        'aggregatedTracking.totalOpensAcrossAllEmails':
-          admin.firestore.FieldValue.increment(1),
-        
-        // Update latest email tracking
-        [`emailHistory.${latestEmailIndex}.tracking.totalOpens`]:
-          admin.firestore.FieldValue.increment(1),
-        [`emailHistory.${latestEmailIndex}.tracking.lastOpenAt`]: timestamp,
-        
-        updatedAt: timestamp,
-      });
-
-      console.log('[Recipient Status] Incremented open count for:', openerEmail);
-    } else {
-      // New opener - add to array
-      console.log('[Recipient Status] New opener detected:', openerEmail);
-
-      const newOpener: OpenerInfo = {
-        name: openerName,
-        email: openerEmail,
-        organization: openerOrganization,
-        firstOpenedAt: timestamp,
-        lastOpenedAt: timestamp,
-        totalOpens: 1,
-        opensHistory: [
-          {
-            emailId: emailHistory[latestEmailIndex]?.emailId || '',
-            emailType: 'initial' as const,
-            openedAt: timestamp,
-          },
-        ],
+      // Get existing tracking with safe normalization
+      const aggregatedTracking = recipient.aggregatedTracking || {
+        everOpened: false,
+        totalOpensAcrossAllEmails: 0,
+        uniqueOpeners: [],
+        everReplied: false,
+        uniqueRepliers: [],
+        totalRepliesAcrossAllEmails: 0,
+        engagementLevel: 'none' as const,
       };
 
-      // Update with new opener
-      await recipientRef.update({
-        status: 'opened',
-        openedAt: timestamp,
-        'aggregatedTracking.everOpened': true,
-        'aggregatedTracking.totalOpensAcrossAllEmails':
-          admin.firestore.FieldValue.increment(1),
-        'aggregatedTracking.uniqueOpeners':
-          admin.firestore.FieldValue.arrayUnion(newOpener),
-        'aggregatedTracking.uniqueOpenerCount':
-          admin.firestore.FieldValue.increment(1),
-        'aggregatedTracking.engagementLevel': 'medium',
-        
-        // Update latest email tracking
-        [`emailHistory.${latestEmailIndex}.tracking.totalOpens`]: 1,
-        [`emailHistory.${latestEmailIndex}.tracking.uniqueOpenersCount`]: 1,
-        [`emailHistory.${latestEmailIndex}.tracking.firstOpenAt`]: timestamp,
-        [`emailHistory.${latestEmailIndex}.tracking.lastOpenAt`]: timestamp,
-        [`emailHistory.${latestEmailIndex}.openedBy`]:
-          admin.firestore.FieldValue.arrayUnion({
-            name: openerName,
-            email: openerEmail,
-            organization: openerOrganization,
-            openedAt: timestamp,
-          }),
-        
-        updatedAt: timestamp,
-      });
+      // SAFE: Normalize uniqueOpeners to array
+      const uniqueOpeners = normalizeToArray<OpenerInfo>(
+        aggregatedTracking.uniqueOpeners
+      );
 
-      console.log('[Recipient Status] Added new opener:', openerEmail);
-    }
+      // Check if this opener already exists with null-safe check
+      const existingOpenerIndex = uniqueOpeners.findIndex(
+        (opener) => opener && opener.email && opener.email.toLowerCase() === openerEmail.toLowerCase()
+      );
+
+      const emailHistory = normalizeToArray(recipient.emailHistory || []);
+      const latestEmailIndex = emailHistory.length - 1;
+
+      let updatedOpeners: OpenerInfo[];
+      let totalOpens: number;
+      const isNewOpener = existingOpenerIndex === -1;
+
+      if (existingOpenerIndex >= 0) {
+        // Existing opener - update their count
+        console.log('[Recipient Status] Existing opener detected:', openerEmail);
+
+        updatedOpeners = [...uniqueOpeners];
+        const existingOpener = updatedOpeners[existingOpenerIndex];
+
+        // Update opener info
+        existingOpener.lastOpenedAt = timestamp;
+        existingOpener.totalOpens = (existingOpener.totalOpens || 0) + 1;
+
+        // Add to opens history
+        if (!existingOpener.opensHistory) {
+          existingOpener.opensHistory = [];
+        }
+        existingOpener.opensHistory.push({
+          emailId: emailHistory[latestEmailIndex]?.emailId || '',
+          emailType: 'initial' as const,
+          openedAt: timestamp,
+        });
+
+        totalOpens = aggregatedTracking.totalOpensAcrossAllEmails + 1;
+
+        console.log('[Recipient Status] Updated existing opener - Total opens:', existingOpener.totalOpens);
+      } else {
+        // New opener - add to array
+        console.log('[Recipient Status] New opener detected:', openerEmail);
+
+        const newOpener: OpenerInfo = {
+          name: openerName,
+          email: openerEmail,
+          organization: openerOrganization,
+          firstOpenedAt: timestamp,
+          lastOpenedAt: timestamp,
+          totalOpens: 1,
+          opensHistory: [
+            {
+              emailId: emailHistory[latestEmailIndex]?.emailId || '',
+              emailType: 'initial' as const,
+              openedAt: timestamp,
+            },
+          ],
+        };
+
+        updatedOpeners = [...uniqueOpeners, newOpener];
+        totalOpens = aggregatedTracking.totalOpensAcrossAllEmails + 1;
+
+        console.log('[Recipient Status] Added new opener - Total unique openers:', updatedOpeners.length);
+      }
+
+      // Calculate engagement level
+      let engagementLevel: 'high' | 'medium' | 'low' | 'none' = 'low';
+      if (totalOpens >= 3) {
+        engagementLevel = 'high';
+      } else if (totalOpens >= 2) {
+        engagementLevel = 'medium';
+      }
+
+      // Build opener email index
+      const openerEmailIndex = updatedOpeners.map((o) => o.email);
+
+      // Determine status (don't override 'replied')
+      const newStatus = recipient.status === 'replied' ? 'replied' : 'opened';
+
+      // Build update object
+      const updates: any = {
+        status: newStatus,
+        openedAt: isNewOpener ? timestamp : (recipient.openedAt || timestamp),
+        'aggregatedTracking.everOpened': true,
+        'aggregatedTracking.uniqueOpeners': updatedOpeners,
+        'aggregatedTracking.totalOpensAcrossAllEmails': totalOpens,
+        'aggregatedTracking.uniqueOpenerCount': updatedOpeners.length,
+        'aggregatedTracking.openerEmailIndex': openerEmailIndex,
+        'aggregatedTracking.engagementLevel': engagementLevel,
+        updatedAt: timestamp,
+      };
+
+      // Update email history tracking
+      if (latestEmailIndex >= 0) {
+        const currentEmailTracking = emailHistory[latestEmailIndex]?.tracking || {
+          totalOpens: 0,
+          uniqueOpenersCount: 0,
+          firstOpenAt: null,
+          lastOpenAt: null,
+        };
+
+        const updatedEmailTracking = {
+          ...currentEmailTracking,
+          totalOpens: (currentEmailTracking.totalOpens || 0) + 1,
+          uniqueOpenersCount: isNewOpener 
+            ? (currentEmailTracking.uniqueOpenersCount || 0) + 1 
+            : currentEmailTracking.uniqueOpenersCount,
+          firstOpenAt: currentEmailTracking.firstOpenAt || timestamp,
+          lastOpenAt: timestamp,
+        };
+
+        const updatedEmailHistory = [...emailHistory];
+        if (updatedEmailHistory[latestEmailIndex]) {
+          updatedEmailHistory[latestEmailIndex] = {
+            ...updatedEmailHistory[latestEmailIndex],
+            tracking: updatedEmailTracking,
+            openedBy: [
+              ...(updatedEmailHistory[latestEmailIndex].openedBy || []),
+              {
+                name: openerName,
+                email: openerEmail,
+                organization: openerOrganization,
+                openedAt: timestamp,
+              },
+            ],
+          };
+        }
+
+        updates.emailHistory = updatedEmailHistory;
+      }
+
+      // Perform atomic transaction update
+      transaction.update(recipientRef, updates);
+
+      console.log('[Recipient Status] Transaction successful - Updated opener data');
+      console.log('[Recipient Status] Unique openers count:', updatedOpeners.length);
+      console.log('[Recipient Status] Total opens across all emails:', totalOpens);
+    });
+
+    console.log('[Recipient Status] Open tracking completed successfully');
   } catch (error: any) {
+    console.error('[markAsOpened] Error occurred:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      recipientId,
+      openerEmail,
+    });
     logError('markAsOpened', error, { recipientId, openerEmail });
     throw error;
   }
 }
 
 /**
- * Mark recipient as replied (unique tracking)
+ * Mark recipient as replied (unique tracking) - ATOMIC TRANSACTION VERSION
  */
 export async function markAsReplied(
   recipientId: string,
@@ -193,105 +264,162 @@ export async function markAsReplied(
 ): Promise<void> {
   try {
     const recipientRef = adminDb.collection('campaignRecipients').doc(recipientId);
-    const recipientDoc = await recipientRef.get();
 
-    if (!recipientDoc.exists) {
-      console.error('[Recipient Status] Recipient not found:', recipientId);
-      return;
-    }
+    // Use transaction to ensure atomic updates
+    await adminDb.runTransaction(async (transaction) => {
+      const recipientDoc = await transaction.get(recipientRef);
 
-    const recipient = recipientDoc.data() as CampaignRecipient;
-    const timestamp = new Date().toISOString();
+      if (!recipientDoc.exists) {
+        console.error('[Recipient Status] Recipient not found:', recipientId);
+        throw new Error('Recipient not found');
+      }
 
-    // Get existing tracking
-    const aggregatedTracking = recipient.aggregatedTracking || {
-      everOpened: false,
-      totalOpensAcrossAllEmails: 0,
-      uniqueOpeners: [],
-      everReplied: false,
-      uniqueRepliers: [],
-      totalRepliesAcrossAllEmails: 0,
-      engagementLevel: 'none' as const,
-    };
+      const recipient = recipientDoc.data() as CampaignRecipient;
+      const timestamp = new Date().toISOString();
 
-    // Check if this replier already exists
-    const existingReplierIndex = aggregatedTracking.uniqueRepliers?.findIndex(
-      (replier) => replier.email.toLowerCase() === replierEmail.toLowerCase()
-    );
-
-    const emailHistory = recipient.emailHistory || [];
-    const latestEmailIndex = emailHistory.length - 1;
-    const latestEmail = emailHistory[latestEmailIndex];
-
-    if (existingReplierIndex !== undefined && existingReplierIndex >= 0) {
-      // Existing replier - increment their count
-      console.log('[Recipient Status] Existing replier detected:', replierEmail);
-
-      await recipientRef.update({
-        [`aggregatedTracking.uniqueRepliers.${existingReplierIndex}.totalReplies`]:
-          admin.firestore.FieldValue.increment(1),
-        [`aggregatedTracking.uniqueRepliers.${existingReplierIndex}.lastRepliedAt`]: replyReceivedAt,
-        'aggregatedTracking.totalRepliesAcrossAllEmails':
-          admin.firestore.FieldValue.increment(1),
-        
-        // Update latest email tracking
-        [`emailHistory.${latestEmailIndex}.tracking.totalReplies`]:
-          admin.firestore.FieldValue.increment(1),
-        [`emailHistory.${latestEmailIndex}.tracking.lastReplyAt`]: replyReceivedAt,
-        
-        updatedAt: timestamp,
-      });
-
-      console.log('[Recipient Status] Incremented reply count for:', replierEmail);
-    } else {
-      // New replier - add to array
-      console.log('[Recipient Status] New replier detected:', replierEmail);
-
-      const newReplier: ReplierInfo = {
-        name: replierName,
-        email: replierEmail,
-        organization: replierOrganization,
-        firstRepliedAt: replyReceivedAt,
-        lastRepliedAt: replyReceivedAt,
-        totalReplies: 1,
-        repliesHistory: [
-          {
-            emailId: latestEmail?.emailId || '',
-            repliedAt: replyReceivedAt,
-          },
-        ],
+      // Get existing tracking with safe normalization
+      const aggregatedTracking = recipient.aggregatedTracking || {
+        everOpened: false,
+        totalOpensAcrossAllEmails: 0,
+        uniqueOpeners: [],
+        everReplied: false,
+        uniqueRepliers: [],
+        totalRepliesAcrossAllEmails: 0,
+        engagementLevel: 'none' as const,
       };
 
-      // Update with new replier
-      await recipientRef.update({
-        status: 'replied',
-        repliedAt: replyReceivedAt,
-        'aggregatedTracking.everReplied': true,
-        'aggregatedTracking.totalRepliesAcrossAllEmails': 1,
-        'aggregatedTracking.uniqueRepliers':
-          admin.firestore.FieldValue.arrayUnion(newReplier),
-        'aggregatedTracking.uniqueReplierCount':
-          admin.firestore.FieldValue.increment(1),
-        'aggregatedTracking.engagementLevel': 'high',
-        
-        // Update latest email tracking
-        [`emailHistory.${latestEmailIndex}.tracking.totalReplies`]: 1,
-        [`emailHistory.${latestEmailIndex}.tracking.firstReplyAt`]: replyReceivedAt,
-        [`emailHistory.${latestEmailIndex}.tracking.lastReplyAt`]: replyReceivedAt,
-        [`emailHistory.${latestEmailIndex}.repliedBy`]:
-          admin.firestore.FieldValue.arrayUnion({
-            name: replierName,
-            email: replierEmail,
-            organization: replierOrganization,
-            repliedAt: replyReceivedAt,
-          }),
-        
-        updatedAt: timestamp,
-      });
+      // SAFE: Normalize uniqueRepliers to array
+      const uniqueRepliers = normalizeToArray<ReplierInfo>(
+        aggregatedTracking.uniqueRepliers
+      );
 
-      console.log('[Recipient Status] Added new replier:', replierEmail);
-    }
+      // Check if this replier already exists with null-safe check
+      const existingReplierIndex = uniqueRepliers.findIndex(
+        (replier) => replier && replier.email && replier.email.toLowerCase() === replierEmail.toLowerCase()
+      );
+
+      const emailHistory = normalizeToArray(recipient.emailHistory || []);
+      const latestEmailIndex = emailHistory.length - 1;
+      const latestEmail = emailHistory[latestEmailIndex];
+
+      let updatedRepliers: ReplierInfo[];
+      let totalReplies: number;
+      const isNewReplier = existingReplierIndex === -1;
+
+      if (existingReplierIndex >= 0) {
+        // Existing replier - update their count
+        console.log('[Recipient Status] Existing replier detected:', replierEmail);
+
+        updatedRepliers = [...uniqueRepliers];
+        const existingReplier = updatedRepliers[existingReplierIndex];
+
+        // Update replier info
+        existingReplier.lastRepliedAt = replyReceivedAt;
+        existingReplier.totalReplies = (existingReplier.totalReplies || 0) + 1;
+
+        // Add to replies history
+        if (!existingReplier.repliesHistory) {
+          existingReplier.repliesHistory = [];
+        }
+        existingReplier.repliesHistory.push({
+          emailId: latestEmail?.emailId || '',
+          repliedAt: replyReceivedAt,
+        });
+
+        totalReplies = aggregatedTracking.totalRepliesAcrossAllEmails + 1;
+
+        console.log('[Recipient Status] Updated existing replier - Total replies:', existingReplier.totalReplies);
+      } else {
+        // New replier - add to array
+        console.log('[Recipient Status] New replier detected:', replierEmail);
+
+        const newReplier: ReplierInfo = {
+          name: replierName,
+          email: replierEmail,
+          organization: replierOrganization,
+          firstRepliedAt: replyReceivedAt,
+          lastRepliedAt: replyReceivedAt,
+          totalReplies: 1,
+          repliesHistory: [
+            {
+              emailId: latestEmail?.emailId || '',
+              repliedAt: replyReceivedAt,
+            },
+          ],
+        };
+
+        updatedRepliers = [...uniqueRepliers, newReplier];
+        totalReplies = aggregatedTracking.totalRepliesAcrossAllEmails + 1;
+
+        console.log('[Recipient Status] Added new replier - Total unique repliers:', updatedRepliers.length);
+      }
+
+      // Build update object
+      const updates: any = {
+        status: 'replied',
+        repliedAt: isNewReplier ? replyReceivedAt : (recipient.repliedAt || replyReceivedAt),
+        'aggregatedTracking.everReplied': true,
+        'aggregatedTracking.uniqueRepliers': updatedRepliers,
+        'aggregatedTracking.totalRepliesAcrossAllEmails': totalReplies,
+        'aggregatedTracking.uniqueReplierCount': updatedRepliers.length,
+        'aggregatedTracking.engagementLevel': 'high',
+        updatedAt: timestamp,
+      };
+
+      // Update email history tracking (only if index exists)
+      if (latestEmailIndex >= 0) {
+        // Get current email tracking
+        const currentEmailTracking = emailHistory[latestEmailIndex]?.tracking || {
+          totalReplies: 0,
+          firstReplyAt: null,
+          lastReplyAt: null,
+        };
+
+        const updatedEmailTracking = {
+          ...currentEmailTracking,
+          totalReplies: (currentEmailTracking.totalReplies || 0) + 1,
+          firstReplyAt: currentEmailTracking.firstReplyAt || replyReceivedAt,
+          lastReplyAt: replyReceivedAt,
+        };
+
+        // Update the entire email history array with modified tracking
+        const updatedEmailHistory = [...emailHistory];
+        if (updatedEmailHistory[latestEmailIndex]) {
+          updatedEmailHistory[latestEmailIndex] = {
+            ...updatedEmailHistory[latestEmailIndex],
+            tracking: updatedEmailTracking,
+            repliedBy: [
+              ...(updatedEmailHistory[latestEmailIndex].repliedBy || []),
+              {
+                name: replierName,
+                email: replierEmail,
+                organization: replierOrganization,
+                repliedAt: replyReceivedAt,
+              },
+            ],
+          };
+        }
+
+        updates.emailHistory = updatedEmailHistory;
+      }
+
+      // Perform atomic transaction update
+      transaction.update(recipientRef, updates);
+
+      console.log('[Recipient Status] Transaction successful - Updated replier data');
+      console.log('[Recipient Status] Unique repliers count:', updatedRepliers.length);
+      console.log('[Recipient Status] Total replies across all emails:', totalReplies);
+    });
+
+    console.log('[Recipient Status] Reply tracking completed successfully');
   } catch (error: any) {
+    console.error('[markAsReplied] Error occurred:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      recipientId,
+      replierEmail,
+    });
     logError('markAsReplied', error, { recipientId, replierEmail });
     throw error;
   }

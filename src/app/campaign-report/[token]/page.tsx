@@ -350,7 +350,7 @@ export default function CampaignReportPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <Spin size="large" tip="Loading campaign report..." />
       </div>
     );
@@ -358,9 +358,9 @@ export default function CampaignReportPage() {
 
   if (error || !campaign) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-        <Card className="text-center shadow-lg">
-          <CloseCircleOutlined className="text-red-500 text-6xl mb-4" />
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <Card className="text-center shadow-md max-w-md">
+          <CloseCircleOutlined className="text-red-500 text-5xl mb-4" />
           <p className="text-gray-700 text-lg mb-4">
             {error || "Campaign report not found"}
           </p>
@@ -377,19 +377,21 @@ export default function CampaignReportPage() {
   const remaining = campaign.totalRecipients - campaign.stats.sent;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-12">
-      <div className="max-w-7xl mx-auto px-4">
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-8 md:py-12">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-10">
-          <div className="inline-block bg-white rounded-2xl shadow-xl px-8 py-6 mb-4">
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-3">
-              {campaign.campaignName}
-            </h1>
-            <p className="text-gray-600 text-xl">{campaign.clientName}</p>
-            <div className="mt-4">
+        <div className="bg-white border border-gray-200 rounded-lg shadow-sm px-4 sm:px-6 md:px-8 py-4 sm:py-6 mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <div className="flex-1">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">
+                {campaign.campaignName}
+              </h1>
+              <p className="text-sm sm:text-base text-gray-600">{campaign.clientName}</p>
+            </div>
+            <div className="flex items-center gap-3">
               <Tag
                 color={getStatusColor(campaign.status)}
-                className="text-lg px-4 py-2"
+                className="text-sm sm:text-base px-3 py-1"
               >
                 {campaign.status.toUpperCase()}
               </Tag>
@@ -397,114 +399,107 @@ export default function CampaignReportPage() {
           </div>
         </div>
 
-        {/* Main Stats Grid - 5 Cards  */}
-        <Row gutter={[16, 16]} className="mb-8">
+        {/* Main Stats Grid */}
+        <Row gutter={[12, 12]} className="mb-6 sm:mb-8">
           <Col xs={24} sm={12} lg={8}>
-            <Card className="shadow-lg hover:shadow-xl transition-shadow">
+            <Card className="shadow-sm border border-gray-200 h-full">
               <Statistic
                 title={
-                  <span className="text-base font-semibold">
+                  <span className="text-sm sm:text-base font-medium text-gray-600">
                     Total Emails Sent
                   </span>
                 }
                 value={campaign.stats.sent}
-                prefix={<SendOutlined className="text-blue-500" />}
+                prefix={<SendOutlined className="text-gray-700" />}
                 valueStyle={{
-                  color: "#1890ff",
-                  fontSize: "2.5rem",
-                  fontWeight: "bold",
+                  color: "#1f2937",
+                  fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
+                  fontWeight: "600",
                 }}
               />
-              <div className="mt-2 text-sm text-gray-500">
-                out of {campaign.totalRecipients} recipients
+              <div className="mt-2 text-xs sm:text-sm text-gray-500">
+                of {campaign.totalRecipients} recipients
               </div>
             </Card>
           </Col>
 
           <Col xs={24} sm={12} lg={8}>
-            <Card className="shadow-lg hover:shadow-xl transition-shadow">
+            <Card className="shadow-sm border border-gray-200 h-full">
               <Statistic
                 title={
-                  <span className="text-base font-semibold">
+                  <span className="text-sm sm:text-base font-medium text-gray-600">
                     Emails Remaining
                   </span>
                 }
                 value={remaining}
-                prefix={<ClockCircleOutlined className="text-orange-500" />}
+                prefix={<ClockCircleOutlined className="text-gray-700" />}
                 valueStyle={{
-                  color: "#fa8c16",
-                  fontSize: "2.5rem",
-                  fontWeight: "bold",
+                  color: "#1f2937",
+                  fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
+                  fontWeight: "600",
                 }}
               />
-              <div className="mt-2 text-sm text-gray-500">
-                {Math.round((remaining / campaign.totalRecipients) * 100)}%
-                pending
+              <div className="mt-2 text-xs sm:text-sm text-gray-500">
+                {Math.round((remaining / campaign.totalRecipients) * 100)}% pending
               </div>
             </Card>
           </Col>
 
           <Col xs={24} sm={12} lg={8}>
-            <Card className="shadow-lg hover:shadow-xl transition-shadow">
+            <Card className="shadow-sm border border-gray-200 h-full">
               <Statistic
                 title={
-                  <span className="text-base font-semibold">
+                  <span className="text-sm sm:text-base font-medium text-gray-600">
                     Follow-ups Sent
                   </span>
                 }
                 value={campaign.stats.totalFollowUpsSent || 0}
-                prefix={<ReloadOutlined className="text-purple-500" />}
+                prefix={<ReloadOutlined className="text-gray-700" />}
                 valueStyle={{
-                  color: "#722ed1",
-                  fontSize: "2.5rem",
-                  fontWeight: "bold",
+                  color: "#1f2937",
+                  fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
+                  fontWeight: "600",
                 }}
               />
-              <div className="mt-2 text-sm text-purple-600 font-semibold">
+              <div className="mt-2 text-xs sm:text-sm text-gray-500">
                 Reminders sent
               </div>
             </Card>
           </Col>
 
           <Col xs={24} sm={12} lg={12}>
-            <Card className="shadow-lg hover:shadow-xl transition-shadow">
+            <Card className="shadow-sm border border-gray-200 h-full">
               <Statistic
-                title={<span className="text-base font-semibold">Openers</span>}
+                title={<span className="text-sm sm:text-base font-medium text-gray-600">Unique Openers</span>}
                 value={campaign.stats.uniqueOpened || campaign.stats.opened}
-                prefix={<EyeOutlined className="text-green-500" />}
+                prefix={<EyeOutlined className="text-gray-700" />}
                 valueStyle={{
-                  color: "#52c41a",
-                  fontSize: "2.5rem",
-                  fontWeight: "bold",
+                  color: "#1f2937",
+                  fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
+                  fontWeight: "600",
                 }}
-                suffix={
-                  <span className="text-xl">/ {campaign.stats.delivered}</span>
-                }
               />
-              <div className="mt-2 text-sm font-semibold text-green-600">
-                {campaign.stats.openRate}% open rate
+              <div className="mt-2 text-xs sm:text-sm font-medium text-gray-700">
+                {campaign.stats.openRate}% open rate 
               </div>
             </Card>
           </Col>
 
           <Col xs={24} sm={12} lg={12}>
-            <Card className="shadow-lg hover:shadow-xl transition-shadow">
+            <Card className="shadow-sm border border-gray-200 h-full">
               <Statistic
                 title={
-                  <span className="text-base font-semibold">Repliers</span>
+                  <span className="text-sm sm:text-base font-medium text-gray-600">Unique Repliers</span>
                 }
                 value={campaign.stats.uniqueResponded || campaign.stats.replied}
-                prefix={<MessageOutlined className="text-purple-500" />}
+                prefix={<MessageOutlined className="text-gray-700" />}
                 valueStyle={{
-                  color: "#722ed1",
-                  fontSize: "2.5rem",
-                  fontWeight: "bold",
+                  color: "#1f2937",
+                  fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
+                  fontWeight: "600",
                 }}
-                suffix={
-                  <span className="text-xl">/ {campaign.stats.delivered}</span>
-                }
               />
-              <div className="mt-2 text-sm font-semibold text-purple-600">
+              <div className="mt-2 text-xs sm:text-sm font-medium text-gray-700">
                 {campaign.stats.replyRate}% reply rate
               </div>
             </Card>
@@ -512,151 +507,150 @@ export default function CampaignReportPage() {
         </Row>
 
         {/* Progress Bar */}
-        <Card className="mb-8 shadow-lg">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-lg font-semibold text-gray-700">
+        <Card className="mb-6 sm:mb-8 shadow-sm border border-gray-200">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+            <span className="text-base sm:text-lg font-semibold text-gray-800">
               Campaign Progress
             </span>
-            <span className="text-lg font-bold text-gray-900">
-              {campaign.stats.sent} / {campaign.totalRecipients} emails sent
+            <span className="text-base sm:text-lg font-semibold text-gray-900">
+              {campaign.stats.sent} of {campaign.totalRecipients} sent
             </span>
           </div>
           <Progress
             percent={progress}
             status={campaign.status === "completed" ? "success" : "active"}
-            strokeColor={{
-              "0%": "#108ee9",
-              "100%": "#87d068",
-            }}
-            strokeWidth={12}
+            strokeColor="#1f2937"
+            strokeWidth={10}
           />
         </Card>
 
-        {/* Target Breakdown - Show only if both types exist OR show single type */}
+        {/* Target Breakdown */}
         {(() => {
-          const hasInvestors =
-            (campaign.aggregates.typeCounts.investor || 0) > 0;
-          const hasIncubators =
-            (campaign.aggregates.typeCounts.incubator || 0) > 0;
+          const investorCount = campaign.aggregates.typeCounts.investor || 0;
+          const incubatorCount = campaign.aggregates.typeCounts.incubator || 0;
+          const hasInvestors = investorCount > 0;
+          const hasIncubators = incubatorCount > 0;
           const hasBoth = hasInvestors && hasIncubators;
 
           if (!hasInvestors && !hasIncubators) return null;
 
-          if (hasBoth) {
-            // Show both cards
-            return (
-              <Card title="Target Audience" className="mb-8 shadow-lg">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="flex justify-between items-center p-6 bg-gradient-to-r from-blue-100 to-blue-50 rounded-xl">
-                    <span className="flex items-center gap-3">
-                      <UserOutlined className="text-blue-600 text-3xl" />
-                      <span className="font-bold text-2xl text-gray-800">
-                        Investors
+          return (
+            <Card className="mb-6 sm:mb-8 shadow-sm border border-gray-200">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Target Audience</h3>
+              
+              {hasBoth ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-600 mb-4">
+                    You selected both Investors and Incubators for this campaign
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex justify-between items-center p-4 bg-white border-2 border-gray-300 rounded-lg">
+                      <span className="flex items-center gap-2 sm:gap-3">
+                        <UserOutlined className="text-gray-700 text-xl" />
+                        <span className="font-semibold text-base sm:text-lg text-gray-900">
+                          Investors
+                        </span>
                       </span>
-                    </span>
-                    <div className="text-right">
-                      <div className="text-3xl font-bold text-blue-600">
-                        {campaign.aggregates.typeCounts.investor}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {Math.round(
-                          (campaign.aggregates.typeCounts.investor /
-                            campaign.totalRecipients) *
-                            100
-                        )}
-                        % of total
+                      <div className="text-right">
+                        <div className="text-2xl sm:text-3xl font-bold text-gray-900">
+                          {investorCount}
+                        </div>
+                        <div className="text-xs sm:text-sm text-gray-600">
+                          {Math.round((investorCount / campaign.totalRecipients) * 100)}% of total
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex justify-between items-center p-6 bg-gradient-to-r from-green-100 to-green-50 rounded-xl">
-                    <span className="flex items-center gap-3">
-                      <TeamOutlined className="text-green-600 text-3xl" />
-                      <span className="font-bold text-2xl text-gray-800">
-                        Incubators
+                    <div className="flex justify-between items-center p-4 bg-white border-2 border-gray-300 rounded-lg">
+                      <span className="flex items-center gap-2 sm:gap-3">
+                        <TeamOutlined className="text-gray-700 text-xl" />
+                        <span className="font-semibold text-base sm:text-lg text-gray-900">
+                          Incubators
+                        </span>
                       </span>
-                    </span>
-                    <div className="text-right">
-                      <div className="text-3xl font-bold text-green-600">
-                        {campaign.aggregates.typeCounts.incubator}
-                      </div>
-                      <div className="text-sm text-gray-600">
-                        {Math.round(
-                          (campaign.aggregates.typeCounts.incubator /
-                            campaign.totalRecipients) *
-                            100
-                        )}
-                        % of total
+                      <div className="text-right">
+                        <div className="text-2xl sm:text-3xl font-bold text-gray-900">
+                          {incubatorCount}
+                        </div>
+                        <div className="text-xs sm:text-sm text-gray-600">
+                          {Math.round((incubatorCount / campaign.totalRecipients) * 100)}% of total
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </Card>
-            );
-          } else {
-            // Show only one card (centered)
-            return (
-              <Card title="Target Audience" className="mb-8 shadow-lg">
-                <div className="flex justify-center">
-                  <div className="w-full max-w-md">
-                    {hasInvestors ? (
-                      <div className="flex justify-between items-center p-6 bg-gradient-to-r from-blue-100 to-blue-50 rounded-xl">
-                        <span className="flex items-center gap-3">
-                          <UserOutlined className="text-blue-600 text-3xl" />
-                          <span className="font-bold text-2xl text-gray-800">
+              ) : hasInvestors ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-600 mb-4">
+                    You selected Investors only for this campaign
+                  </p>
+                  <div className="flex justify-center">
+                    <div className="w-full max-w-md">
+                      <div className="flex justify-between items-center p-4 sm:p-6 bg-white border-2 border-gray-300 rounded-lg">
+                        <span className="flex items-center gap-2 sm:gap-3">
+                          <UserOutlined className="text-gray-700 text-xl sm:text-2xl" />
+                          <span className="font-semibold text-lg sm:text-xl text-gray-900">
                             Investors
                           </span>
                         </span>
                         <div className="text-right">
-                          <div className="text-3xl font-bold text-blue-600">
-                            {campaign.aggregates.typeCounts.investor}
+                          <div className="text-2xl sm:text-3xl font-bold text-gray-900">
+                            {investorCount}
                           </div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-xs sm:text-sm text-gray-600">
                             100% of campaign
                           </div>
                         </div>
                       </div>
-                    ) : (
-                      <div className="flex justify-between items-center p-6 bg-gradient-to-r from-green-100 to-green-50 rounded-xl">
-                        <span className="flex items-center gap-3">
-                          <TeamOutlined className="text-green-600 text-3xl" />
-                          <span className="font-bold text-2xl text-gray-800">
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-sm text-gray-600 mb-4">
+                    You selected Incubators only for this campaign
+                  </p>
+                  <div className="flex justify-center">
+                    <div className="w-full max-w-md">
+                      <div className="flex justify-between items-center p-4 sm:p-6 bg-white border-2 border-gray-300 rounded-lg">
+                        <span className="flex items-center gap-2 sm:gap-3">
+                          <TeamOutlined className="text-gray-700 text-xl sm:text-2xl" />
+                          <span className="font-semibold text-lg sm:text-xl text-gray-900">
                             Incubators
                           </span>
                         </span>
                         <div className="text-right">
-                          <div className="text-3xl font-bold text-green-600">
-                            {campaign.aggregates.typeCounts.incubator}
+                          <div className="text-2xl sm:text-3xl font-bold text-gray-900">
+                            {incubatorCount}
                           </div>
-                          <div className="text-sm text-gray-600">
+                          <div className="text-xs sm:text-sm text-gray-600">
                             100% of campaign
                           </div>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
-              </Card>
-            );
-          }
+              )}
+            </Card>
+          );
         })()}
 
         {/* Action Buttons */}
-        <div className="flex justify-center gap-4 mb-8">
+        <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 mb-6 sm:mb-8">
           <Button
             type="primary"
             size="large"
             icon={<FileTextOutlined />}
             onClick={fetchRecipients}
             loading={recipientsLoading}
+            className="w-full sm:w-auto"
             style={{
-              backgroundColor: "#1890ff",
-              borderColor: "#1890ff",
-              height: "56px",
-              fontSize: "18px",
-              paddingLeft: "40px",
-              paddingRight: "40px",
-              fontWeight: "600",
+              backgroundColor: "#1f2937",
+              borderColor: "#1f2937",
+              height: "48px",
+              fontSize: "16px",
+              fontWeight: "500",
             }}
           >
             View Full Report
@@ -666,12 +660,12 @@ export default function CampaignReportPage() {
             size="large"
             icon={<DownloadOutlined />}
             onClick={handleExport}
+            className="w-full sm:w-auto"
             style={{
-              height: "56px",
-              fontSize: "18px",
-              paddingLeft: "40px",
-              paddingRight: "40px",
-              fontWeight: "600",
+              height: "48px",
+              fontSize: "16px",
+              fontWeight: "500",
+              borderColor: "#d1d5db",
             }}
           >
             Export to CSV
@@ -679,13 +673,12 @@ export default function CampaignReportPage() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-12 text-gray-600">
-          <p className="text-lg mb-2">
-            Campaign started on{" "}
-            <strong>{formatDate(campaign.createdAt)}</strong>
+        <div className="text-center mt-8 sm:mt-12 text-gray-600 px-4">
+          <p className="text-sm sm:text-base mb-2">
+            Campaign started on <strong>{formatDate(campaign.createdAt)}</strong>
           </p>
-          <p className="text-sm">
-            This is a public report generated by the Email Campaign System
+          <p className="text-xs sm:text-sm text-gray-500">
+            Email Campaign System Report
           </p>
         </div>
       </div>
@@ -693,14 +686,15 @@ export default function CampaignReportPage() {
       {/* Full Report Modal */}
       <Modal
         title={
-          <div className="text-2xl font-bold">
+          <div className="text-lg sm:text-xl font-semibold">
             <FileTextOutlined className="mr-2" />
-            Full Campaign Report - Detailed View
+            Full Campaign Report
           </div>
         }
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
-        width={1400}
+        width="95vw"
+        style={{ maxWidth: "1400px", top: 20 }}
         footer={[
           <Button
             key="export"
@@ -708,12 +702,12 @@ export default function CampaignReportPage() {
             onClick={handleExport}
             size="large"
             style={{
-              backgroundColor: "#52c41a",
-              borderColor: "#52c41a",
+              backgroundColor: "#1f2937",
+              borderColor: "#1f2937",
               color: "white",
             }}
           >
-            Export to CSV
+            Export CSV
           </Button>,
           <Button
             key="close"
@@ -724,11 +718,9 @@ export default function CampaignReportPage() {
           </Button>,
         ]}
       >
-        <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-gray-700">
-            <strong>Total Recipients:</strong> {recipients.length} |{" "}
-            <strong>Showing:</strong> All recipients with detailed engagement
-            data
+        <div className="mb-4 p-3 sm:p-4 bg-gray-50 border border-gray-200 rounded">
+          <p className="text-xs sm:text-sm text-gray-700">
+            <strong>Total Recipients:</strong> {recipients.length} | <strong>Showing:</strong> All recipients with detailed engagement data
           </p>
         </div>
 

@@ -7,8 +7,10 @@ const scheduledTasks: cron.ScheduledTask[] = [];
 // Global lock to prevent race conditions
 let initializationLock = false;
 
+// Track active cron calls to prevent concurrent execution
+const activeCronCalls = new Map<string, boolean>();
+
 export function startAutoCronScheduler() {
-  // Check if already locked
   if (initializationLock) {
     console.log(
       "[Cron Scheduler] Initialization in progress, skipping duplicate call"
@@ -16,7 +18,6 @@ export function startAutoCronScheduler() {
     return;
   }
 
-  // Set lock
   initializationLock = true;
 
   const isVercel = process.env.VERCEL === "1";
@@ -59,12 +60,24 @@ export function startAutoCronScheduler() {
     }
 
     async function callCronEndpoint(endpoint: string, jobName: string) {
+      // CRITICAL: Prevent concurrent calls to the same endpoint
+      if (activeCronCalls.get(jobName)) {
+        console.log("[Cron Scheduler] Job already running, skipping:", jobName);
+        return { skipped: true, message: "Job already in progress" };
+      }
+
+      // Set active flag
+      activeCronCalls.set(jobName, true);
+
       const startTime = Date.now();
 
       try {
         console.log("[Cron Scheduler] Triggering job:", jobName);
         console.log("[Cron Scheduler] Endpoint:", endpoint);
         console.log("[Cron Scheduler] Time:", new Date().toISOString());
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
         const response = await fetch(`${baseUrl}${endpoint}`, {
           method: "GET",
@@ -74,7 +87,10 @@ export function startAutoCronScheduler() {
             "x-cron-source": "node-cron-local",
           },
           cache: "no-store",
+          signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         const data = await response.json();
         const duration = Date.now() - startTime;
@@ -101,6 +117,9 @@ export function startAutoCronScheduler() {
         console.error("[Cron Scheduler] Duration:", duration + "ms");
         console.error("[Cron Scheduler] Message:", error.message);
         return { error: error.message };
+      } finally {
+        // Always release the lock
+        activeCronCalls.delete(jobName);
       }
     }
 
@@ -161,6 +180,7 @@ export function startAutoCronScheduler() {
       scheduledTasks.length
     );
 
+    // FIXED: Run initial email send job after 10 seconds (not immediately)
     setTimeout(() => {
       console.log("[Cron Scheduler] Running initial email send job");
       callCronEndpoint("/api/cron/send-emails", "Send Emails (Initial)");
@@ -172,7 +192,6 @@ export function startAutoCronScheduler() {
     console.error("[Cron Scheduler] Initialization error:", error.message);
     isSchedulerStarted = false;
   } finally {
-    // Release lock after initialization
     initializationLock = false;
   }
 }
@@ -189,6 +208,7 @@ export function stopAllCronJobs() {
   });
 
   scheduledTasks.length = 0;
+  activeCronCalls.clear();
   isSchedulerStarted = false;
   initializationLock = false;
 
@@ -199,6 +219,7 @@ export function getCronSchedulerStatus() {
   return {
     isRunning: isSchedulerStarted,
     totalJobs: scheduledTasks.length,
+    activeJobs: Array.from(activeCronCalls.keys()),
     environment: process.env.NODE_ENV,
     platform: process.env.VERCEL === "1" ? "vercel" : "local",
     timezone: "Asia/Kolkata (IST)",

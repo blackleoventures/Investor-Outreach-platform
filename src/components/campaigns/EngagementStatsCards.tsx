@@ -112,15 +112,8 @@ export default function EngagementStatsCards({
               value={summary.totalOpeners}
               prefix={<EyeOutlined />}
               valueStyle={{ color: "#1890ff" }}
-              suffix={`/ ${summary.totalRecipients}`}
             />
             <div className="mt-3">
-              <p className="text-sm text-gray-500">
-                Total Opens: <strong>{summary.totalOpens}</strong>
-              </p>
-              <p className="text-sm text-gray-500">
-                Avg per person: <strong>{summary.averageOpensPerPerson}</strong>
-              </p>
               <Button
                 type="link"
                 size="small"
@@ -139,13 +132,8 @@ export default function EngagementStatsCards({
               value={summary.totalRepliers}
               prefix={<MessageOutlined />}
               valueStyle={{ color: "#52c41a" }}
-              suffix={`/ ${summary.totalRecipients}`}
             />
             <div className="mt-3">
-              <p className="text-sm text-gray-500">
-                Total Replies: <strong>{summary.totalReplies}</strong>
-              </p>
-              <p className="text-sm text-gray-500 mb-2">&nbsp;</p>
               <Button
                 type="link"
                 size="small"

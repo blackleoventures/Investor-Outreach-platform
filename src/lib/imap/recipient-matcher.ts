@@ -1,14 +1,15 @@
-// Match email replies to campaign recipients
-
+// lib/imap/recipient-matcher.ts
 import { adminDb } from "@/lib/firebase-admin";
 import { isSameDomain, normalizeEmail } from "@/lib/utils/email-helper";
+import { SafeArray } from "@/lib/utils/data-normalizer";
 import type { CampaignRecipient } from "@/types";
 import type { ParsedReply } from "./reply-parser";
 
 export interface MatchResult {
   recipient: CampaignRecipient & { id: string };
-  matchType: "exact" | "domain" | "organization" | "none";
+  matchType: "exact" | "domain" | "organization" | "forwarded" | "thread";
   confidence: "high" | "medium" | "low";
+  isNewPerson: boolean;
 }
 
 export async function matchReplyToRecipient(
@@ -19,7 +20,6 @@ export async function matchReplyToRecipient(
     `[Recipient Matcher] Matching reply from ${reply.from.email} to campaign ${campaignId}`
   );
 
-  // Fetch all recipients for this campaign
   const recipientsSnapshot = await adminDb
     .collection("campaignRecipients")
     .where("campaignId", "==", campaignId)
@@ -35,7 +35,7 @@ export async function matchReplyToRecipient(
     ...doc.data(),
   })) as (CampaignRecipient & { id: string })[];
 
-  // Strategy 1: Exact email match (highest confidence)
+  // Strategy 1: Exact email match (original recipient replied)
   const exactMatch = recipients.find(
     (r) => normalizeEmail(r.originalContact.email) === reply.from.email
   );
@@ -48,30 +48,73 @@ export async function matchReplyToRecipient(
       recipient: exactMatch,
       matchType: "exact",
       confidence: "high",
+      isNewPerson: false,
     };
   }
 
-  // Strategy 2: Same domain match (medium confidence)
-  // This handles cases where someone else from the same org replied
+  // Strategy 2: Check "To" field - who was this email sent to?
+  // This catches forwarded emails
+  const toEmail = normalizeEmail(reply.to);
+  const toMatch = recipients.find(
+    (r) => normalizeEmail(r.originalContact.email) === toEmail
+  );
+
+  if (toMatch) {
+    console.log(
+      `[Recipient Matcher] Forwarded email detected: ${reply.from.email} replied to email sent to ${toMatch.originalContact.email}`
+    );
+    return {
+      recipient: toMatch,
+      matchType: "forwarded",
+      confidence: "high",
+      isNewPerson: true,
+    };
+  }
+
+  // Strategy 3: Check In-Reply-To header and match against sent emails
+  // SAFE: Uses SafeArray to handle both array and object formats
+  if (reply.inReplyTo) {
+    console.log(`[Recipient Matcher] Checking In-Reply-To: ${reply.inReplyTo}`);
+    
+    for (const recipient of recipients) {
+      // SAFE OPERATION: Handle both array and object format
+      const matchingEmail = SafeArray.find(
+        recipient.emailHistory,
+        (email: any) => email.emailId === reply.inReplyTo
+      );
+
+      if (matchingEmail) {
+        console.log(
+          `[Recipient Matcher] Thread match found via In-Reply-To for ${recipient.originalContact.email}`
+        );
+        return {
+          recipient,
+          matchType: "thread",
+          confidence: "high",
+          isNewPerson: reply.from.email !== normalizeEmail(recipient.originalContact.email),
+        };
+      }
+    }
+  }
+
+  // Strategy 4: Same domain match (someone from same organization)
   const domainMatches = recipients.filter((r) =>
     isSameDomain(r.originalContact.email, reply.from.email)
   );
 
   if (domainMatches.length === 1) {
-    // Only one recipient from this domain, high confidence it's related
     console.log(
-      `[Recipient Matcher] Domain match found: ${domainMatches[0].originalContact.organization}`
+      `[Recipient Matcher] Domain match found: ${reply.from.email} from same org as ${domainMatches[0].originalContact.email}`
     );
     return {
       recipient: domainMatches[0],
       matchType: "domain",
       confidence: "high",
+      isNewPerson: true,
     };
   }
 
   if (domainMatches.length > 1) {
-    // Multiple recipients from same domain
-    // Find the one most likely to be the source
     const bestMatch = findBestDomainMatch(domainMatches, reply);
 
     if (bestMatch) {
@@ -82,16 +125,17 @@ export async function matchReplyToRecipient(
         recipient: bestMatch,
         matchType: "domain",
         confidence: "medium",
+        isNewPerson: true,
       };
     }
   }
 
-  // Strategy 3: Organization name match (lower confidence)
-  const orgMatches = recipients.filter(
-    (r) =>
-      r.originalContact.organization.toLowerCase() ===
-      reply.from.organization.toLowerCase()
-  );
+  // Strategy 5: Organization name match (lower confidence)
+  const orgMatches = recipients.filter((r) => {
+    const orgName = r.originalContact.organization.toLowerCase().trim();
+    const replyOrg = reply.from.organization.toLowerCase().trim();
+    return orgName && replyOrg && orgName === replyOrg;
+  });
 
   if (orgMatches.length > 0) {
     console.log(
@@ -100,7 +144,8 @@ export async function matchReplyToRecipient(
     return {
       recipient: orgMatches[0],
       matchType: "organization",
-      confidence: "low",
+      confidence: "medium",
+      isNewPerson: true,
     };
   }
 
@@ -112,16 +157,14 @@ function findBestDomainMatch(
   candidates: (CampaignRecipient & { id: string })[],
   reply: ParsedReply
 ): (CampaignRecipient & { id: string }) | null {
-  // Prefer recipients who have already been delivered
   const deliveredCandidates = candidates.filter(
-    (c) => c.status === "delivered" || c.status === "opened"
+    (c) => c.status === "delivered" || c.status === "opened" || c.status === "replied"
   );
 
   if (deliveredCandidates.length === 1) {
     return deliveredCandidates[0];
   }
 
-  // If multiple delivered, prefer the one with highest priority
   const sortedByPriority = [
     ...(deliveredCandidates.length > 0 ? deliveredCandidates : candidates),
   ].sort((a, b) => {
@@ -136,11 +179,9 @@ export async function isReplyAlreadyProcessed(
   recipientId: string,
   messageId: string
 ): Promise<boolean> {
-  // Check if this reply was already stored
   const existingReply = await adminDb
     .collection("campaignReplies")
-    .where("recipientId", "==", recipientId)
-    .where("replyFrom.email", "==", messageId)
+    .where("messageId", "==", messageId)
     .limit(1)
     .get();
 
@@ -151,7 +192,6 @@ export function shouldProcessReply(
   recipient: CampaignRecipient,
   reply: ParsedReply
 ): { should: boolean; reason: string } {
-  // Don't process if recipient hasn't been sent an email yet
   if (!recipient.sentAt) {
     return {
       should: false,
@@ -159,7 +199,6 @@ export function shouldProcessReply(
     };
   }
 
-  // Don't process if reply is before email was sent
   const sentTime = new Date(recipient.sentAt).getTime();
   const replyTime = new Date(reply.receivedAt).getTime();
 
@@ -170,13 +209,12 @@ export function shouldProcessReply(
     };
   }
 
-  // Check if reply is within reasonable timeframe (e.g., 30 days)
   const daysSinceSent = (replyTime - sentTime) / (1000 * 60 * 60 * 24);
 
-  if (daysSinceSent > 30) {
+  if (daysSinceSent > 90) {
     return {
       should: false,
-      reason: "Reply is too old (>30 days after email sent)",
+      reason: "Reply is too old (>90 days after email sent)",
     };
   }
 

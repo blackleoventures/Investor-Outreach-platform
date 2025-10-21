@@ -122,10 +122,11 @@ interface Aggregates {
 
 interface Recipient {
   id: string;
-  contactInfo: {
+  originalContact: {
     name: string;
     email: string;
     organization: string;
+    title?: string;
   };
   recipientType: string;
   priority: string;
@@ -238,6 +239,7 @@ export default function CampaignDetailPage() {
 
       const data = await response.json();
       setRecipients(data.recipients || []);
+      console.log(recipients);
     } catch (error: any) {
       console.error("Fetch recipients error:", error);
       message.error(error.message || "Failed to load recipients");
@@ -406,10 +408,10 @@ export default function CampaignDetailPage() {
       render: (_, record) => (
         <div>
           <p className="font-semibold text-gray-900">
-            {record.contactInfo.name}
+            {record?.originalContact?.name || "N/A"}
           </p>
           <p className="text-xs text-gray-500">
-            {record.contactInfo.organization}
+            {record?.originalContact?.organization || "N/A"}
           </p>
         </div>
       ),
@@ -419,7 +421,9 @@ export default function CampaignDetailPage() {
       title: "Email",
       width: 200,
       render: (_, record) => (
-        <span className="text-sm">{record.contactInfo.email}</span>
+        <span className="text-sm">
+          {record?.originalContact?.email || "N/A"}
+        </span>
       ),
     },
     {
@@ -428,8 +432,8 @@ export default function CampaignDetailPage() {
       width: 100,
       align: "center",
       render: (_, record) => (
-        <Tag color={getTypeColor(record.recipientType)}>
-          {record.recipientType === "investor" ? "Investor" : "Incubator"}
+        <Tag color={getTypeColor(record?.recipientType || "")}>
+          {record?.recipientType === "investor" ? "Investor" : "Incubator"}
         </Tag>
       ),
     },
@@ -439,8 +443,8 @@ export default function CampaignDetailPage() {
       width: 100,
       align: "center",
       render: (_, record) => (
-        <Tag color={getPriorityColor(record.priority)}>
-          {record.priority.toUpperCase()}
+        <Tag color={getPriorityColor(record?.priority || "")}>
+          {(record?.priority || "").toUpperCase()}
         </Tag>
       ),
     },
@@ -451,12 +455,12 @@ export default function CampaignDetailPage() {
       align: "center",
       render: (_, record) => (
         <Badge
-          count={record.matchScore}
+          count={record?.matchScore || 0}
           showZero
           color={
-            record.matchScore >= 80
+            (record?.matchScore || 0) >= 80
               ? "green"
-              : record.matchScore >= 60
+              : (record?.matchScore || 0) >= 60
               ? "orange"
               : "red"
           }
@@ -469,8 +473,8 @@ export default function CampaignDetailPage() {
       width: 100,
       align: "center",
       render: (_, record) => (
-        <Tag color={getStatusColor(record.status)}>
-          {record.status.toUpperCase()}
+        <Tag color={getStatusColor(record?.status || "")}>
+          {(record?.status || "N/A").toUpperCase()}
         </Tag>
       ),
     },
@@ -482,12 +486,12 @@ export default function CampaignDetailPage() {
       render: (_, record) => (
         <span
           className={
-            record.trackingData.openCount > 0
+            (record?.trackingData?.openCount || 0) > 0
               ? "text-blue-600 font-semibold"
               : ""
           }
         >
-          {record.trackingData.openCount}
+          {record?.trackingData?.openCount || 0}
         </span>
       ),
     },
@@ -497,7 +501,7 @@ export default function CampaignDetailPage() {
       width: 80,
       align: "center",
       render: (_, record) =>
-        record.trackingData.replied ? (
+        record?.trackingData?.replied ? (
           <CheckCircleOutlined className="text-green-600 text-lg" />
         ) : (
           <CloseCircleOutlined className="text-gray-300 text-lg" />
@@ -509,7 +513,7 @@ export default function CampaignDetailPage() {
       width: 150,
       render: (_, record) => (
         <span className="text-xs text-gray-600">
-          {formatDateTime(record.sentAt)}
+          {formatDateTime(record?.sentAt || "")}
         </span>
       ),
     },
@@ -550,104 +554,127 @@ export default function CampaignDetailPage() {
     {
       key: "overview",
       label: (
-        <span>
+        <span className="flex items-center gap-2">
           <FileTextOutlined /> Overview
         </span>
       ),
       children: (
         <div className="space-y-6">
+          {/* Engagement Stats */}
           <EngagementStatsCards
             campaignId={campaignId}
             campaignName={campaign.campaignName}
           />
+
+          {/* Client Information */}
           {client && (
-            <Card title="Client Information">
-              <Descriptions bordered column={2}>
-                <Descriptions.Item label="Company Name">
-                  {client.companyName}
-                </Descriptions.Item>
-                <Descriptions.Item label="Founder Name">
-                  {client.founderName}
-                </Descriptions.Item>
-                <Descriptions.Item label="Email">
-                  {client.email}
-                </Descriptions.Item>
-                <Descriptions.Item label="Industry">
-                  {client.industry}
-                </Descriptions.Item>
-                <Descriptions.Item label="Funding Stage">
-                  {client.fundingStage}
-                </Descriptions.Item>
-                <Descriptions.Item label="Founded">
-                  {client.founded}
-                </Descriptions.Item>
-                <Descriptions.Item label="Website" span={2}>
+            <div className="border border-gray-200 rounded-xl p-4 sm:p-6 bg-white shadow-sm">
+              <h3 className="text-lg font-semibold flex items-center gap-2 mb-4 text-gray-800">
+                <UserOutlined /> Client Information
+              </h3>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-gray-500 text-sm">Company Name</p>
+                  <p className="font-medium text-gray-800">
+                    {client.companyName}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-sm">Founder Name</p>
+                  <p className="font-medium text-gray-800">
+                    {client.founderName}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-sm">Email</p>
+                  <p className="font-medium text-gray-800">{client.email}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-sm">Industry</p>
+                  <p className="font-medium text-gray-800">{client.industry}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-sm">Funding Stage</p>
+                  <p className="font-medium text-gray-800">
+                    {client.fundingStage}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-sm">Founded</p>
+                  <p className="font-medium text-gray-800">{client.founded}</p>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="text-gray-500 text-sm">Website</p>
                   <a
                     href={client.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600"
+                    className="text-blue-600 hover:underline break-all font-medium"
                   >
                     {client.website}
                   </a>
-                </Descriptions.Item>
-              </Descriptions>
-              <div className="mt-4">
-                <Button
-                  type="link"
-                  onClick={() => router.push(`/dashboard/clients/${client.id}`)}
-                >
-                  View Full Client Profile →
-                </Button>
+                </div>
               </div>
-            </Card>
+            </div>
           )}
 
-          <Card
-            title={
-              <>
-                <CalendarOutlined /> Schedule & Timing
-              </>
-            }
-          >
-            <Descriptions bordered column={2}>
-              <Descriptions.Item label="Start Date">
-                {formatDate(campaign.schedule.startDate)}
-              </Descriptions.Item>
-              <Descriptions.Item label="End Date">
-                {formatDate(campaign.schedule.endDate)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Duration">
-                {campaign.schedule.duration} days
-              </Descriptions.Item>
-              <Descriptions.Item label="Daily Limit">
-                {campaign.schedule.dailyLimit} emails/day
-              </Descriptions.Item>
-              <Descriptions.Item label="Sending Window">
-                {campaign.schedule.sendingWindow.start} -{" "}
-                {campaign.schedule.sendingWindow.end}{" "}
-                {campaign.schedule.sendingWindow.timezone}
-              </Descriptions.Item>
-              <Descriptions.Item label="Weekends">
-                {campaign.schedule.pauseOnWeekends ? "Paused" : "Active"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Last Email Sent">
-                {formatDateTime(campaign.lastSentAt)}
-              </Descriptions.Item>
-              <Descriptions.Item label="Last Updated">
-                {formatDateTime(campaign.lastUpdated)}
-              </Descriptions.Item>
-            </Descriptions>
-          </Card>
+          {/* Schedule & Timing */}
+          <div className="border border-gray-200 rounded-xl p-4 sm:p-6 bg-white shadow-sm">
+            <h3 className="text-lg font-semibold flex items-center gap-2 mb-4 text-gray-800">
+              <CalendarOutlined /> Schedule & Timing
+            </h3>
 
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <InfoItem
+                label="Start Date"
+                value={formatDate(campaign.schedule.startDate)}
+              />
+              <InfoItem
+                label="End Date"
+                value={formatDate(campaign.schedule.endDate)}
+              />
+              <InfoItem
+                label="Duration"
+                value={`${campaign.schedule.duration} days`}
+              />
+              <InfoItem
+                label="Daily Limit"
+                value={`${campaign.schedule.dailyLimit} emails/day`}
+              />
+              <InfoItem
+                label="Sending Window"
+                value={`${campaign.schedule.sendingWindow.start} - ${campaign.schedule.sendingWindow.end} ${campaign.schedule.sendingWindow.timezone}`}
+              />
+              <InfoItem
+                label="Weekends"
+                value={campaign.schedule.pauseOnWeekends ? "Paused" : "Active"}
+              />
+              <InfoItem
+                label="Last Email Sent"
+                value={formatDateTime(campaign.lastSentAt)}
+              />
+              <InfoItem
+                label="Last Updated"
+                value={formatDateTime(campaign.lastUpdated)}
+              />
+            </div>
+          </div>
+
+          {/* Target Audience Breakdown */}
           {aggregates && (
-            <Card title="Target Audience Breakdown">
+            <div className="border border-gray-200 rounded-xl p-4 sm:p-6 bg-white shadow-sm">
+              <h3 className="text-lg font-semibold mb-4 text-gray-800">
+                Target Audience Breakdown
+              </h3>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* By Type */}
                 <div>
-                  <h4 className="font-semibold mb-3">By Type</h4>
+                  <h4 className="font-semibold mb-3 text-gray-700">By Type</h4>
                   <div className="space-y-2">
                     <div className="flex justify-between items-center">
-                      <span>
+                      <span className="flex items-center">
                         <UserOutlined className="mr-2 text-blue-600" />
                         Investors
                       </span>
@@ -661,8 +688,9 @@ export default function CampaignDetailPage() {
                         %)
                       </Tag>
                     </div>
+
                     <div className="flex justify-between items-center">
-                      <span>
+                      <span className="flex items-center">
                         <UserOutlined className="mr-2 text-green-600" />
                         Incubators
                       </span>
@@ -679,125 +707,57 @@ export default function CampaignDetailPage() {
                   </div>
                 </div>
 
+                {/* By Priority */}
                 <div>
-                  <h4 className="font-semibold mb-3">By Priority</h4>
+                  <h4 className="font-semibold mb-3 text-gray-700">
+                    By Priority
+                  </h4>
                   <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                      <span>
-                        <ThunderboltOutlined className="mr-2 text-red-600" />
-                        High Priority
-                      </span>
-                      <Tag color="red">
-                        {aggregates.priorityCounts.high || 0} (
-                        {Math.round(
-                          ((aggregates.priorityCounts.high || 0) /
-                            aggregates.totalRecipients) *
-                            100
-                        )}
-                        %)
-                      </Tag>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>
-                        <ThunderboltOutlined className="mr-2 text-orange-600" />
-                        Medium Priority
-                      </span>
-                      <Tag color="orange">
-                        {aggregates.priorityCounts.medium || 0} (
-                        {Math.round(
-                          ((aggregates.priorityCounts.medium || 0) /
-                            aggregates.totalRecipients) *
-                            100
-                        )}
-                        %)
-                      </Tag>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span>
-                        <ThunderboltOutlined className="mr-2 text-green-600" />
-                        Low Priority
-                      </span>
-                      <Tag color="green">
-                        {aggregates.priorityCounts.low || 0} (
-                        {Math.round(
-                          ((aggregates.priorityCounts.low || 0) /
-                            aggregates.totalRecipients) *
-                            100
-                        )}
-                        %)
-                      </Tag>
-                    </div>
+                    {[
+                      {
+                        label: "High Priority",
+                        color: "red",
+                        icon: "text-red-600",
+                        count: aggregates.priorityCounts.high,
+                      },
+                      {
+                        label: "Medium Priority",
+                        color: "orange",
+                        icon: "text-orange-600",
+                        count: aggregates.priorityCounts.medium,
+                      },
+                      {
+                        label: "Low Priority",
+                        color: "green",
+                        icon: "text-green-600",
+                        count: aggregates.priorityCounts.low,
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="flex justify-between items-center"
+                      >
+                        <span className="flex items-center">
+                          <ThunderboltOutlined
+                            className={`mr-2 ${item.icon}`}
+                          />
+                          {item.label}
+                        </span>
+                        <Tag color={item.color}>
+                          {item.count || 0} (
+                          {Math.round(
+                            ((item.count || 0) / aggregates.totalRecipients) *
+                              100
+                          )}
+                          %)
+                        </Tag>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
-            </Card>
+            </div>
           )}
-
-          <Card title="Campaign Timeline">
-            <Timeline
-              items={[
-                {
-                  color: "green",
-                  children: (
-                    <>
-                      <p className="font-semibold">Campaign Created</p>
-                      <p className="text-sm text-gray-500">
-                        {formatDateTime(campaign.createdAt)}
-                      </p>
-                    </>
-                  ),
-                },
-                campaign.lastSentAt && {
-                  color: "blue",
-                  children: (
-                    <>
-                      <p className="font-semibold">First Email Sent</p>
-                      <p className="text-sm text-gray-500">
-                        {formatDateTime(campaign.lastSentAt)}
-                      </p>
-                    </>
-                  ),
-                },
-                campaign.stats.opened > 0 && {
-                  color: "purple",
-                  children: (
-                    <>
-                      <p className="font-semibold">First Open Detected</p>
-                      <p className="text-sm text-gray-500">
-                        {campaign.stats.opened} total opens
-                      </p>
-                    </>
-                  ),
-                },
-                campaign.stats.replied > 0 && {
-                  color: "green",
-                  children: (
-                    <>
-                      <p className="font-semibold">First Reply Received</p>
-                      <p className="text-sm text-gray-500">
-                        {campaign.stats.replied} total replies
-                      </p>
-                    </>
-                  ),
-                },
-                {
-                  color: campaign.status === "completed" ? "green" : "gray",
-                  children: (
-                    <>
-                      <p className="font-semibold">Campaign Completion</p>
-                      <p className="text-sm text-gray-500">
-                        {campaign.status === "completed"
-                          ? formatDateTime(campaign.completedAt!)
-                          : `Expected: ${formatDate(
-                              campaign.schedule.endDate
-                            )}`}
-                      </p>
-                    </>
-                  ),
-                },
-              ].filter(Boolean)}
-            />
-          </Card>
         </div>
       ),
     },
@@ -835,29 +795,6 @@ export default function CampaignDetailPage() {
                 <Tag color="green">AI-Improved</Tag>
               </div>
             )}
-
-            <div className="mt-4 p-3 bg-blue-50 rounded">
-              <p className="font-semibold text-sm mb-2">
-                Personalization Variables:
-              </p>
-              <ul className="text-sm space-y-1">
-                <li>
-                  • <code>{"{{investorName}}"}</code> → Recipient&apos;s name
-                </li>
-                <li>
-                  • <code>{"{{organizationName}}"}</code> → Recipient&apos;s
-                  organization
-                </li>
-                <li>
-                  • <code>{"{{companyName}}"}</code> → Client&apos;s company
-                  name
-                </li>
-                <li>
-                  • <code>{"{{founderName}}"}</code> → Client&apos;s founder
-                  name
-                </li>
-              </ul>
-            </div>
           </Card>
         </div>
       ),
@@ -877,9 +814,9 @@ export default function CampaignDetailPage() {
           onRefresh={fetchRecipients}
           searchPlaceholder="Search by name or email..."
           searchKeys={[
-            "contactInfo.name",
-            "contactInfo.email",
-            "contactInfo.organization",
+            "originalContact.name",
+            "originalContact.email",
+            "originalContact.organization",
           ]}
           rowKey={(record) => record.id}
           filterColumns={recipientFilters}
@@ -929,77 +866,68 @@ export default function CampaignDetailPage() {
 
   return (
     <div className="max-w-[1800px] mx-auto">
-      <div className="mb-6">
+      <div className="mb-6 space-y-4">
+        {/* Back Button */}
         <Button
           icon={<ArrowLeftOutlined />}
           onClick={() => router.push("/dashboard/campaigns")}
-          className="mb-4"
+          className="mb-2"
         >
           Back to Campaigns
         </Button>
 
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              {campaign.campaignName}
-            </h1>
-            <div className="flex items-center gap-3 mt-2">
-              <span className="text-gray-600">{campaign.clientName}</span>
-              <Tag color={getStatusColor(campaign.status)}>
-                {campaign.status.toUpperCase()}
-              </Tag>
-              <span className="text-sm text-gray-500">
-                Created: {formatDate(campaign.createdAt)}
-              </span>
-            </div>
+        {/* Campaign Details */}
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 break-words">
+            {campaign.campaignName}
+          </h1>
+          <div className="flex flex-wrap items-center gap-3 mt-2 text-sm sm:text-base">
+            <span className="text-gray-600">{campaign.clientName}</span>
+            <Tag color={getStatusColor(campaign.status)}>
+              {campaign.status.toUpperCase()}
+            </Tag>
+            <span className="text-gray-500">
+              Created: {formatDate(campaign.createdAt)}
+            </span>
           </div>
+        </div>
 
-          <div className="flex gap-2">
-            {/* Campaign Actions Component */}
-            <CampaignActions
-              campaignId={campaignId}
-              campaignName={campaign.campaignName}
-              campaignStatus={campaign.status}
-              stats={campaign.stats}
-              totalRecipients={campaign.totalRecipients}
-              userRole={userRole}
-              onStatusChange={fetchCampaignDetails}
-            />
+        {/* Buttons Section */}
+        <div className="flex flex-wrap gap-2">
+          {/* Campaign Actions */}
+          <CampaignActions
+            campaignId={campaignId}
+            campaignName={campaign.campaignName}
+            campaignStatus={campaign.status}
+            stats={campaign.stats}
+            totalRecipients={campaign.totalRecipients}
+            userRole={userRole}
+            onStatusChange={fetchCampaignDetails}
+          />
 
-            <Button
-              icon={<EyeOutlined />}
-              onClick={openPublicReport}
-              style={{
-                backgroundColor: "#1890ff",
-                borderColor: "#1890ff",
-                color: "white",
-              }}
-            >
-              Public Report
-            </Button>
-            <Button
-              icon={<LinkOutlined />}
-              onClick={copyPublicLink}
-              style={{
-                backgroundColor: "#52c41a",
-                borderColor: "#52c41a",
-                color: "white",
-              }}
-            >
-              Copy Link
-            </Button>
-            <Button
-              icon={<DownloadOutlined />}
-              onClick={downloadCSV}
-              style={{
-                backgroundColor: "#722ed1",
-                borderColor: "#722ed1",
-                color: "white",
-              }}
-            >
-              Export CSV
-            </Button>
-          </div>
+          <Button
+            icon={<EyeOutlined />}
+            onClick={openPublicReport}
+            className="bg-blue-500 border-blue-500 text-white hover:bg-blue-600"
+          >
+            Public Report
+          </Button>
+
+          <Button
+            icon={<LinkOutlined />}
+            onClick={copyPublicLink}
+            className="bg-green-500 border-green-500 text-white hover:bg-green-600"
+          >
+            Copy Link
+          </Button>
+
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={downloadCSV}
+            className="bg-purple-600 border-purple-600 text-white hover:bg-purple-700"
+          >
+            Export CSV
+          </Button>
         </div>
       </div>
 
@@ -1108,3 +1036,10 @@ export default function CampaignDetailPage() {
     </div>
   );
 }
+
+const InfoItem = ({ label, value }: { label: string; value: string }) => (
+  <div>
+    <p className="text-gray-500 text-sm">{label}</p>
+    <p className="font-medium text-gray-800 break-words">{value}</p>
+  </div>
+);
