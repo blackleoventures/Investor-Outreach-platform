@@ -1,0 +1,50 @@
+name: Scheduled Cron Jobs
+
+on:
+  schedule:
+    # Send emails every 1 minute
+    - cron: '*/1 * * * *'
+    # Check replies every 2 minutes
+    - cron: '*/2 * * * *'
+    # Update stats every 3 minutes
+    - cron: '*/3 * * * *'
+  
+  # Allow manual trigger for testing
+  workflow_dispatch:
+
+jobs:
+  send-emails:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Send Emails Cron
+        run: |
+          curl -X GET "https://investor-outreach-platform-roan.vercel.app/api/cron/send-emails" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --fail-with-body \
+            --silent \
+            --show-error
+
+  check-replies:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Check Replies Cron
+        run: |
+          curl -X GET "https://investor-outreach-platform-roan.vercel.app/api/cron/check-replies" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --fail-with-body \
+            --silent \
+            --show-error
+
+  update-stats:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Update Stats Cron
+        run: |
+          curl -X GET "https://investor-outreach-platform-roan.vercel.app/api/cron/update-stats" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json" \
+            --fail-with-body \
+            --silent \
+            --show-error
