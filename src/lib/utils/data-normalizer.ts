@@ -67,10 +67,10 @@ export class SafeArray {
     arr.forEach(callback);
   }
   
-  /**
+ /**
    * Get length of array-like structure
    */
-  static length(arrayLike: any): number {
+  static getLength(arrayLike: any): number {
     const arr = normalizeToArray(arrayLike);
     return arr.length;
   }
