@@ -5,6 +5,7 @@ import {
 } from "@/lib/auth-middleware";
 import { adminDb } from "@/lib/firebase-admin";
 import { normalizeToArray } from "@/lib/utils/data-normalizer";
+import type { OpenerInfo, ReplierInfo } from "@/types/tracking"; // adjust import path accordingly
 
 export async function GET(
   request: NextRequest,
@@ -16,9 +17,7 @@ export async function GET(
 
     const { id } = params;
 
-    console.log(
-      `[Campaign Recipients] Fetching recipients for campaign ${id}...`
-    );
+    console.log(`[Campaign Recipients] Fetching recipients for campaign ${id}...`);
 
     // Get query parameters for filtering
     const { searchParams } = new URL(request.url);
@@ -29,11 +28,9 @@ export async function GET(
     const limit = parseInt(searchParams.get("limit") || "50");
 
     // Build query
-    let query = adminDb
-      .collection("campaignRecipients")
-      .where("campaignId", "==", id);
+    let query = adminDb.collection("campaignRecipients").where("campaignId", "==", id);
 
-    // Apply filters if provided
+    // Apply filters
     if (status) {
       query = query.where("status", "==", status);
     }
@@ -47,7 +44,6 @@ export async function GET(
     // Order by scheduled time
     query = query.orderBy("scheduledFor", "asc");
 
-    // Get all recipients
     const recipientsSnapshot = await query.get();
 
     if (recipientsSnapshot.empty) {
@@ -60,22 +56,19 @@ export async function GET(
       });
     }
 
-    // Map recipients data with correct field names
+    // Map recipients data with correct field names and types
     const allRecipients = recipientsSnapshot.docs.map((doc) => {
       const data = doc.data();
 
-      // Normalize aggregatedTracking data
       const aggregatedTracking = data.aggregatedTracking || {};
-      const uniqueOpeners = normalizeToArray(
-        aggregatedTracking.uniqueOpeners || []
-      );
-      const uniqueRepliers = normalizeToArray(
-        aggregatedTracking.uniqueRepliers || []
-      );
+      const uniqueOpeners = normalizeToArray<OpenerInfo>(aggregatedTracking.uniqueOpeners || []);
+      const uniqueRepliers = normalizeToArray<ReplierInfo>(aggregatedTracking.uniqueRepliers || []);
+
+      const opener = uniqueOpeners[0];
+      const replier = uniqueRepliers[0];
 
       return {
         id: doc.id,
-        // FIXED: Use originalContact instead of contactInfo
         originalContact: {
           name: data.originalContact?.name || "",
           email: data.originalContact?.email || "",
@@ -92,13 +85,12 @@ export async function GET(
         deliveredAt: data.deliveredAt || "",
         openedAt: data.openedAt || "",
         repliedAt: data.repliedAt || "",
-        // FIXED: Use aggregatedTracking data for accurate counts
         trackingData: {
           opened: aggregatedTracking.everOpened || false,
           openCount: aggregatedTracking.totalOpensAcrossAllEmails || 0,
-          lastOpenedAt: uniqueOpeners[0]?.lastOpenedAt || null,
+          lastOpenedAt: opener?.lastOpenedAt ?? null,
           replied: aggregatedTracking.everReplied || false,
-          replyReceivedAt: uniqueRepliers[0]?.lastRepliedAt || null,
+          replyReceivedAt: replier?.lastRepliedAt ?? null,
         },
         errorMessage: data.errorMessage || null,
         failureReason: data.failureReason || null,
@@ -107,9 +99,7 @@ export async function GET(
       };
     });
 
-    console.log(
-      `[Campaign Recipients] Found ${allRecipients.length} recipients`
-    );
+    console.log(`[Campaign Recipients] Found ${allRecipients.length} recipients`);
     console.log(`[Campaign Recipients] Sample recipient:`, allRecipients[0]);
 
     return NextResponse.json({

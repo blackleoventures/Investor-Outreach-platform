@@ -203,3 +203,31 @@ function extractTicketMax(ticketSize: string): string {
 
   return "";
 }
+// Normalize Investor column keys for updates
+export function normalizeInvestorColumnName(
+  key: string,
+  headers: string[]
+): string {
+  // Try direct match first
+  if (headers.includes(key)) return key;
+  // Find best case-insensitive match
+  const found = headers.find(
+    (header) => header.trim().toLowerCase() === key.trim().toLowerCase()
+  );
+  if (found) return found;
+  // Return as is if nothing matches
+  return key;
+}
+
+// Normalize Incubator column keys for updates
+export function normalizeIncubatorColumnName(
+  key: string,
+  headers: string[]
+): string {
+  if (headers.includes(key)) return key;
+  const found = headers.find(
+    (header) => header.trim().toLowerCase() === key.trim().toLowerCase()
+  );
+  if (found) return found;
+  return key;
+}
