@@ -56,7 +56,7 @@ export default function AccountManagementPage() {
     setLoading(true);
     try {
       const token = await getAuthToken();
-      const response = await fetch(`${API_URL}/admin/users`, {
+      const response = await fetch(`${API_URL}/admin-users`, {
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
@@ -110,7 +110,7 @@ export default function AccountManagementPage() {
     setActionLoading(true);
     try {
       const token = await getAuthToken();
-      const response = await fetch(`${API_URL}/admin/users`, {
+      const response = await fetch(`${API_URL}/admin-users`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -202,7 +202,7 @@ export default function AccountManagementPage() {
         updateData.password = editForm.password;
       }
 
-      const response = await fetch(`${API_URL}/admin/users/${current.uid}`, {
+      const response = await fetch(`${API_URL}/admin-users/${current.uid}`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -245,7 +245,7 @@ export default function AccountManagementPage() {
     setActionLoading(true);
     try {
       const token = await getAuthToken();
-      const response = await fetch(`${API_URL}/admin/users/${toDelete.uid}`, {
+      const response = await fetch(`${API_URL}/admin-users/${toDelete.uid}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
