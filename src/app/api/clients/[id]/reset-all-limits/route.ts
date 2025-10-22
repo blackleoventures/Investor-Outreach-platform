@@ -7,7 +7,7 @@ import {
 import { dbHelpers } from "@/lib/db-helpers";
 import {
   ClientDocument,
-  TransformedClient,
+ // TransformedClient,
   UsageLimits,
   ApiResponse,
   ErrorCode,
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     const refreshedClient = (await dbHelpers.getById("clients", id)) as ClientDocument;
 
-    const transformedClient: TransformedClient = {
+    const transformedClient = {
       id: id,
       userId: refreshedClient.userId,
       founderName: refreshedClient.clientInformation?.founderName || "",
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       revenue: refreshedClient.clientInformation?.revenue || "",
       investment: refreshedClient.clientInformation?.investment || "",
       city: refreshedClient.clientInformation?.city || "",
-      gmailAppPassword: refreshedClient.clientInformation?.gmailAppPassword || "",
+     // gmailAppPassword: refreshedClient.clientInformation?.gmailAppPassword || "",
       pitchAnalyses: refreshedClient.pitchAnalyses || [],
       pitchAnalysisCount: refreshedClient.pitchAnalyses?.length || 0,
       usageLimits: refreshedClient.usageLimits,
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
     console.log("[Reset All Usage Limits] Reset successfully");
 
-    const response: ApiResponse<TransformedClient> = {
+    const response= {
       success: true,
       data: transformedClient,
       message: "All usage limits reset successfully",

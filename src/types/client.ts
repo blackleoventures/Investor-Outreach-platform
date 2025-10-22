@@ -188,6 +188,7 @@ export interface TransformedClient {
   smtpPort: number;
   smtpSecurity: "TLS" | "SSL" | "None";
   smtpTestStatus: "pending" | "passed" | "failed";
+//  gmailAppPassword?: string;
   dailyEmailLimit: number;
 
   // Nested data
