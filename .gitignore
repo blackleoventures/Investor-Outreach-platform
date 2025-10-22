@@ -1,8 +1,8 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
+# ==========================================
+# DEPENDENCIES
+# ==========================================
+node_modules/
+.pnp/
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -10,35 +10,67 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
+# ==========================================
+# TESTING
+# ==========================================
+coverage/
 
-# next.js
-/.next/
-/out/
+# ==========================================
+# NEXT.JS BUILD FILES
+# ==========================================
+.next/
+out/
 
-# production
-/build
+# ==========================================
+# 🏗️ PRODUCTION BUILDS
+# ==========================================
+build/
+dist/
 
-# misc
-.DS_Store
+# ==========================================
+# BACKEND / SERVER FILES
+# ==========================================
+# Ignore backend build artifacts and secrets
+backend/node_modules/
+backend/dist/
+backend/.env
+backend/real.txt
+backend/*.log
+
+# ==========================================
+# ENVIRONMENT FILES
+# ==========================================
+.env
+.env.*
+!.env.example  # keep example if you share config
+firebase-key.json
+serviceAccountKey.json
+
+# ==========================================
+# DEPLOYMENT FILES
+# ==========================================
+.vercel/
+.netlify/
 *.pem
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-.env.production
-
-# vercel
-.vercel
-
-# typescript
+# ==========================================
+# TYPESCRIPT
+# ==========================================
 *.tsbuildinfo
 next-env.d.ts
 
-.vercel
+# ==========================================
+#  MISC / SYSTEM FILES
+# ==========================================
+.DS_Store
+Thumbs.db
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ==========================================
+#  IDE FILES
+# ==========================================
+.vscode/
+.idea/
