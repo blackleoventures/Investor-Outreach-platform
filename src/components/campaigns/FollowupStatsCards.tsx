@@ -25,7 +25,7 @@ export default function FollowupStatsCards({
           suffix="recipients"
         />
         <p className="text-sm text-gray-500 mt-2">
-          Haven't opened email yet (>48 hours)
+          Haven't opened email yet ({'>'}48 hours)
         </p>
       </Card>
 
@@ -38,7 +38,7 @@ export default function FollowupStatsCards({
           suffix="recipients"
         />
         <p className="text-sm text-gray-500 mt-2">
-          Opened but no response (>72 hours)
+          Opened but no response ({'>'}72 hours)
         </p>
       </Card>
 
