@@ -172,7 +172,7 @@ export default function DashboardLayout({
         icon: <ThunderboltOutlined />,
         ...navItem("/dashboard/admin/cron-control", "Cron Control"),
         // Only show in development
-        hidden: process.env.NODE_ENV === "production",
+        hidden: process.env.NODE_ENV === "development",
       },
       {
         key: "/dashboard/account-management",
