@@ -92,8 +92,8 @@ export default function DashboardLayout({
   );
 
   // Admin menu items (full access)
-  const adminMenuItems = useMemo(
-    () => [
+  const adminMenuItems = useMemo(() => {
+    const items = [
       {
         key: "/dashboard",
         icon: <DashboardOutlined />,
@@ -166,26 +166,29 @@ export default function DashboardLayout({
             ...navItem("/dashboard/add-incubator", "Add Incubator"),
           },
         ],
-      },
-      {
-        key: "/dashboard/admin/cron-control",
-        icon: <ThunderboltOutlined />,
-        ...navItem("/dashboard/admin/cron-control", "Cron Control"),
-        // Only show in development
-        hidden: process.env.NODE_ENV === "development",
       },
       {
         key: "/dashboard/account-management",
         icon: <UserOutlined />,
         ...navItem("/dashboard/account-management", "Account Management"),
       },
-    ],
-    [navItem]
-  );
+    ];
+
+    // Only add Cron Control in development
+    if (process.env.NODE_ENV === "development") {
+      items.splice(items.length - 1, 0, {
+        key: "/dashboard/admin/cron-control",
+        icon: <ThunderboltOutlined />,
+        ...navItem("/dashboard/admin/cron-control", "Cron Control"),
+      });
+    }
+
+    return items;
+  }, [navItem]);
 
   // Subadmin menu items (exclude account management)
-  const subadminMenuItems = useMemo(
-    () => [
+  const subadminMenuItems = useMemo(() => {
+    const items = [
       {
         key: "/dashboard",
         icon: <DashboardOutlined />,
@@ -259,16 +262,19 @@ export default function DashboardLayout({
           },
         ],
       },
-      {
+    ];
+
+    // Only add Cron Control in development
+    if (process.env.NODE_ENV === "development") {
+      items.push({
         key: "/dashboard/admin/cron-control",
         icon: <ThunderboltOutlined />,
-        label: "Cron Control",
-        // Only show in development
-        hidden: process.env.NODE_ENV === "production",
-      },
-    ],
-    [navItem]
-  );
+        ...navItem("/dashboard/admin/cron-control", "Cron Control"),
+      });
+    }
+
+    return items;
+  }, [navItem]);
 
   // Client menu items (only submit information)
   const clientMenuItems = useMemo(
