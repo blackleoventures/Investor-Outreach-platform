@@ -48,20 +48,14 @@ export async function GET(
     // Build CSV
     const csvRows: string[] = [];
 
-    // Headers
+    // Headers (removed: Email column)
     const headers = [
-      "Name",
-      "Email",
+      "Founder Name",
       "Organization",
-      "Type",
-      "Status",
-      "Total Opens",
       "WHO Opened (Names)",
       "WHO Opened (Emails)",
-      "Total Replies",
       "WHO Replied (Names)",
       "WHO Replied (Emails)",
-      "WHO Replied (Organizations)",
     ];
 
     csvRows.push(headers.join(","));
@@ -78,7 +72,7 @@ export async function GET(
       const uniqueOpeners = normalizeToArray(aggregatedTracking.uniqueOpeners || []);
       const uniqueRepliers = normalizeToArray(aggregatedTracking.uniqueRepliers || []);
 
-      // Extract WHO opened
+      // Extract WHO opened (names and emails only)
       const openerNames = uniqueOpeners
         .map((o: any) => o.name || "Unknown")
         .join("; ");
@@ -86,36 +80,21 @@ export async function GET(
         .map((o: any) => o.email || "")
         .join("; ");
 
-      // Extract WHO replied
+      // Extract WHO replied (names and emails only)
       const replierNames = uniqueRepliers
         .map((r: any) => r.name || "Unknown")
         .join("; ");
       const replierEmails = uniqueRepliers
         .map((r: any) => r.email || "")
         .join("; ");
-      const replierOrgs = uniqueRepliers
-        .map((r: any) => r.organization || "Unknown")
-        .join("; ");
-
-      // Calculate total replies across all repliers
-      const totalReplies = uniqueRepliers.reduce(
-        (sum: number, r: any) => sum + (r.totalReplies || 0),
-        0
-      );
 
       const row = [
         escapeCSV(originalContact.name || "Unknown"),
-        escapeCSV(originalContact.email || ""),
         escapeCSV(originalContact.organization || "Unknown"),
-        data.recipientType || "investor",
-        data.status || "pending",
-        aggregatedTracking.totalOpensAcrossAllEmails || 0,
-        escapeCSV(openerNames),
-        escapeCSV(openerEmails),
-        totalReplies,
-        escapeCSV(replierNames),
-        escapeCSV(replierEmails),
-        escapeCSV(replierOrgs),
+        escapeCSV(openerNames || "-"),
+        escapeCSV(openerEmails || "-"),
+        escapeCSV(replierNames || "-"),
+        escapeCSV(replierEmails || "-"),
       ];
 
       csvRows.push(row.join(","));

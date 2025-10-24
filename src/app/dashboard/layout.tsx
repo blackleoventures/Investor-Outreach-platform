@@ -28,6 +28,7 @@ import {
   SendOutlined,
   UnorderedListOutlined,
   ThunderboltOutlined,
+  PieChartOutlined,
 } from "@ant-design/icons";
 import Image from "next/image";
 
@@ -168,6 +169,11 @@ export default function DashboardLayout({
         ],
       },
       {
+        key: "/dashboard/pitch-deck-analysis",
+        icon: <PieChartOutlined />,
+        ...navItem("/dashboard/pitch-deck-analysis", "Pitch Deck Analysis"),
+      },
+      {
         key: "/dashboard/account-management",
         icon: <UserOutlined />,
         ...navItem("/dashboard/account-management", "Account Management"),
@@ -261,6 +267,11 @@ export default function DashboardLayout({
             ...navItem("/dashboard/add-incubator", "Add Incubator"),
           },
         ],
+      },
+      {
+        key: "/dashboard/pitch-deck-analysis",
+        icon: <PieChartOutlined />,
+        ...navItem("/dashboard/pitch-deck-analysis", "Pitch Deck Analysis"),
       },
     ];
 

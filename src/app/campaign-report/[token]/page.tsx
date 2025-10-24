@@ -10,14 +10,12 @@ import {
   Tag,
   Button,
   Table,
-  Badge,
   Modal,
   message,
   Row,
   Col,
 } from "antd";
 import {
-  EyeOutlined,
   MessageOutlined,
   UserOutlined,
   TeamOutlined,
@@ -68,26 +66,16 @@ interface PublicRecipient {
   name: string;
   email: string;
   organization: string;
-  type: string;
-  status: string;
   matchScore: number;
   opened: boolean;
   replied: boolean;
-  openCount: number;
-  sentAt: string;
-  deliveredAt: string;
-  openedAt: string;
-  repliedAt: string;
   uniqueOpeners?: Array<{
     name: string;
     email: string;
-    totalOpens: number;
   }>;
   uniqueRepliers?: Array<{
     name: string;
     email: string;
-    organization: string;
-    totalReplies: number;
   }>;
 }
 
@@ -168,10 +156,6 @@ export default function CampaignReportPage() {
     return colors[status] || "default";
   };
 
-  const getTypeColor = (type: string) => {
-    return type === "investor" ? "blue" : "green";
-  };
-
   const formatDate = (dateString: string) => {
     if (!dateString) return "N/A";
     return new Date(dateString).toLocaleDateString("en-IN", {
@@ -181,27 +165,15 @@ export default function CampaignReportPage() {
     });
   };
 
-  const formatDateTime = (dateString: string) => {
-    if (!dateString) return "N/A";
-    return new Date(dateString).toLocaleString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
   const detailedColumns = [
     {
-      title: "Recipient Name",
+      title: "Founder Name",
       key: "name",
       width: 180,
       fixed: "left" as const,
       render: (_: any, record: PublicRecipient) => (
         <div>
           <p className="font-semibold text-gray-900">{record.name}</p>
-          <p className="text-xs text-gray-500">{record.email}</p>
         </div>
       ),
     },
@@ -210,42 +182,6 @@ export default function CampaignReportPage() {
       dataIndex: "organization",
       key: "organization",
       width: 180,
-    },
-    {
-      title: "Type",
-      dataIndex: "type",
-      key: "type",
-      width: 110,
-      align: "center" as const,
-      render: (type: string) => (
-        <Tag color={getTypeColor(type)}>
-          {type === "investor" ? "Investor" : "Incubator"}
-        </Tag>
-      ),
-    },
-    {
-      title: "Status",
-      dataIndex: "status",
-      key: "status",
-      width: 110,
-      align: "center" as const,
-      render: (status: string) => (
-        <Tag color={getStatusColor(status)}>{status.toUpperCase()}</Tag>
-      ),
-    },
-    {
-      title: "Total Opens",
-      dataIndex: "openCount",
-      key: "openCount",
-      width: 100,
-      align: "center" as const,
-      render: (count: number) => (
-        <Badge
-          count={count}
-          showZero
-          style={{ backgroundColor: count > 0 ? "#52c41a" : "#d9d9d9" }}
-        />
-      ),
     },
     {
       title: "WHO Opened (Names)",
@@ -278,25 +214,6 @@ export default function CampaignReportPage() {
       },
     },
     {
-      title: "Total Replies",
-      key: "totalReplies",
-      width: 100,
-      align: "center" as const,
-      render: (_: any, record: any) => {
-        const repliers = record.uniqueRepliers || [];
-        const totalReplies = repliers.reduce(
-          (sum: number, r: any) => sum + (r.totalReplies || 0),
-          0
-        );
-
-        return totalReplies > 0 ? (
-          <Badge count={totalReplies} style={{ backgroundColor: "#722ed1" }} />
-        ) : (
-          <span className="text-gray-400">0</span>
-        );
-      },
-    },
-    {
       title: "WHO Replied (Names)",
       key: "whoRepliedNames",
       width: 200,
@@ -323,28 +240,6 @@ export default function CampaignReportPage() {
         const emails = repliers.map((r: any) => r.email).join(", ");
         return <div className="text-xs text-purple-600">{emails}</div>;
       },
-    },
-    {
-      title: "WHO Replied (Organizations)",
-      key: "whoRepliedOrgs",
-      width: 220,
-      render: (_: any, record: any) => {
-        const repliers = record.uniqueRepliers || [];
-        if (repliers.length === 0)
-          return <span className="text-gray-400">-</span>;
-
-        const orgs = repliers.map((r: any) => r.organization).join(", ");
-        return <div className="text-sm text-gray-600">{orgs}</div>;
-      },
-    },
-    {
-      title: "Sent At",
-      dataIndex: "sentAt",
-      key: "sentAt",
-      width: 150,
-      render: (date: string) => (
-        <span className="text-xs text-gray-500">{formatDateTime(date)}</span>
-      ),
     },
   ];
 
@@ -406,7 +301,7 @@ export default function CampaignReportPage() {
               <Statistic
                 title={
                   <span className="text-sm sm:text-base font-medium text-gray-600">
-                    Total Emails Sent
+                    Firms Contacted
                   </span>
                 }
                 value={campaign.stats.sent}
@@ -418,7 +313,7 @@ export default function CampaignReportPage() {
                 }}
               />
               <div className="mt-2 text-xs sm:text-sm text-gray-500">
-                of {campaign.totalRecipients} recipients
+                of {campaign.totalRecipients} total firms
               </div>
             </Card>
           </Col>
@@ -428,7 +323,7 @@ export default function CampaignReportPage() {
               <Statistic
                 title={
                   <span className="text-sm sm:text-base font-medium text-gray-600">
-                    Emails Remaining
+                    Remaining Firms to Contact
                   </span>
                 }
                 value={remaining}
@@ -440,7 +335,7 @@ export default function CampaignReportPage() {
                 }}
               />
               <div className="mt-2 text-xs sm:text-sm text-gray-500">
-                {Math.round((remaining / campaign.totalRecipients) * 100)}% pending
+                {Math.round((remaining / campaign.totalRecipients) * 100)}% pending outreach
               </div>
             </Card>
           </Col>
@@ -450,7 +345,7 @@ export default function CampaignReportPage() {
               <Statistic
                 title={
                   <span className="text-sm sm:text-base font-medium text-gray-600">
-                    Follow-ups Sent
+                    Follow-up Outreaches Sent
                   </span>
                 }
                 value={campaign.stats.totalFollowUpsSent || 0}
@@ -462,34 +357,18 @@ export default function CampaignReportPage() {
                 }}
               />
               <div className="mt-2 text-xs sm:text-sm text-gray-500">
-                Reminders sent
+                Follow-up reminders sent
               </div>
             </Card>
           </Col>
 
-          <Col xs={24} sm={12} lg={12}>
-            <Card className="shadow-sm border border-gray-200 h-full">
-              <Statistic
-                title={<span className="text-sm sm:text-base font-medium text-gray-600">Unique Openers</span>}
-                value={campaign.stats.uniqueOpened || campaign.stats.opened}
-                prefix={<EyeOutlined className="text-gray-700" />}
-                valueStyle={{
-                  color: "#1f2937",
-                  fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
-                  fontWeight: "600",
-                }}
-              />
-              <div className="mt-2 text-xs sm:text-sm font-medium text-gray-700">
-                {campaign.stats.openRate}% open rate 
-              </div>
-            </Card>
-          </Col>
-
-          <Col xs={24} sm={12} lg={12}>
+          <Col xs={24} sm={24} lg={24}>
             <Card className="shadow-sm border border-gray-200 h-full">
               <Statistic
                 title={
-                  <span className="text-sm sm:text-base font-medium text-gray-600">Unique Repliers</span>
+                  <span className="text-sm sm:text-base font-medium text-gray-600">
+                    People Who Have Responded to Outreaches
+                  </span>
                 }
                 value={campaign.stats.uniqueResponded || campaign.stats.replied}
                 prefix={<MessageOutlined className="text-gray-700" />}
@@ -500,7 +379,7 @@ export default function CampaignReportPage() {
                 }}
               />
               <div className="mt-2 text-xs sm:text-sm font-medium text-gray-700">
-                {campaign.stats.replyRate}% reply rate
+                {campaign.stats.replyRate}% response rate
               </div>
             </Card>
           </Col>
@@ -513,7 +392,7 @@ export default function CampaignReportPage() {
               Campaign Progress
             </span>
             <span className="text-base sm:text-lg font-semibold text-gray-900">
-              {campaign.stats.sent} of {campaign.totalRecipients} sent
+              {campaign.stats.sent} of {campaign.totalRecipients} firms contacted
             </span>
           </div>
           <Progress
@@ -694,7 +573,7 @@ export default function CampaignReportPage() {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         width="95vw"
-        style={{ maxWidth: "1400px", top: 20 }}
+        style={{ maxWidth: "1200px", top: 20 }}
         footer={[
           <Button
             key="export"
@@ -720,7 +599,7 @@ export default function CampaignReportPage() {
       >
         <div className="mb-4 p-3 sm:p-4 bg-gray-50 border border-gray-200 rounded">
           <p className="text-xs sm:text-sm text-gray-700">
-            <strong>Total Recipients:</strong> {recipients.length} | <strong>Showing:</strong> All recipients with detailed engagement data
+            <strong>Total Recipients:</strong> {recipients.length} | <strong>Showing:</strong> All recipients with engagement data
           </p>
         </div>
 
@@ -735,7 +614,7 @@ export default function CampaignReportPage() {
             pageSizeOptions: ["10", "20", "50", "100"],
             showTotal: (total) => `Total ${total} recipients`,
           }}
-          scroll={{ x: 2200 }}
+          scroll={{ x: 1000 }}
           bordered
           size="middle"
         />

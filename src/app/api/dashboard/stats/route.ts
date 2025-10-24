@@ -17,21 +17,27 @@ export async function GET(request: NextRequest) {
 
     console.log(`[Dashboard Stats] Aggregating metrics for admin: ${user.email}`);
 
-    // Fetch investors and incubators concurrently from Google Sheets
-    const [investors, incubators, campaignsSnapshot, recipientsSnapshot] =
-      await Promise.all([
-        getInvestorsFromSheet(),
-        getIncubatorsFromSheet(),
-        adminDb.collection("campaigns").get(),
-        adminDb.collection("campaignRecipients").get(),
-      ]);
+    // Fetch data concurrently
+    const [
+      investors,
+      incubators,
+      clientsSnapshot,
+      campaignsSnapshot,
+      recipientsSnapshot,
+    ] = await Promise.all([
+      getInvestorsFromSheet(),
+      getIncubatorsFromSheet(),
+      adminDb.collection("clients").get(), // Fetch from clients collection
+      adminDb.collection("campaigns").get(),
+      adminDb.collection("campaignRecipients").get(),
+    ]);
 
-    // Total investors/incubators (from Sheets)
+    // Total clients from Firestore clients collection
+    const totalClients = clientsSnapshot.size;
+
+    // Total investors/incubators from Google Sheets
     const totalInvestors = investors.length;
     const totalIncubators = incubators.length;
-
-    // Clients = investors + incubators
-    const totalClients = totalInvestors + totalIncubators;
 
     // Aggregate recipient-level email stats
     let sentEmails = 0;
@@ -51,7 +57,7 @@ export async function GET(request: NextRequest) {
     const responseRate =
       sentEmails > 0 ? Number(((repliedEmails / sentEmails) * 100).toFixed(2)) : 0;
 
-    // Build client distribution from Sheets
+    // Build client distribution (investors vs incubators from Sheets)
     const clientDistribution = [
       { name: "Investors", value: totalInvestors },
       { name: "Incubators", value: totalIncubators },
@@ -69,7 +75,7 @@ export async function GET(request: NextRequest) {
     });
 
     const months = [
-      "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec",
+      "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
     ];
     const performanceData = months.map((month) => ({
       name: month,
@@ -78,9 +84,9 @@ export async function GET(request: NextRequest) {
 
     // Final stats response
     const stats = {
-      totalClients,
-      totalInvestors,
-      totalIncubators,
+      totalClients, // From Firestore clients collection
+      totalInvestors, // From Google Sheets
+      totalIncubators, // From Google Sheets
       sentEmails,
       deliveredEmails,
       openedEmails,
@@ -99,8 +105,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        message:
-          error.message || "Failed to compute dashboard statistics",
+        message: error.message || "Failed to compute dashboard statistics",
       },
       { status }
     );
