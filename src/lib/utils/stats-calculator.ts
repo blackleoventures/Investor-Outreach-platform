@@ -40,8 +40,7 @@ export function calculateCampaignStats(
   let deliveredNotOpened = 0;
   let openedNotReplied = 0;
 
-  // Follow-up tracking
-  let followupsSent = 0;
+  // Follow-up candidate tracking
   const now = new Date();
   const HOURS_48 = 48 * 60 * 60 * 1000;
   const HOURS_72 = 72 * 60 * 60 * 1000;
@@ -84,7 +83,7 @@ export function calculateCampaignStats(
         break;
     }
 
-    // Unique opens - SAFE OPERATION
+    // Unique opens
     SafeArray.forEach(
       recipient.aggregatedTracking?.uniqueOpeners,
       (opener: any) => {
@@ -93,12 +92,7 @@ export function calculateCampaignStats(
       }
     );
 
-    // Total opens from tracking (fallback)
-    if (recipient.aggregatedTracking?.totalOpensAcrossAllEmails) {
-      // Already counted above via uniqueOpeners, this is just a fallback check
-    }
-
-    // Unique replies - SAFE OPERATION
+    // Unique replies
     SafeArray.forEach(
       recipient.aggregatedTracking?.uniqueRepliers,
       (replier: any) => {
@@ -107,31 +101,27 @@ export function calculateCampaignStats(
       }
     );
 
-    // Total replies from tracking (fallback)
-    if (recipient.aggregatedTracking?.totalRepliesAcrossAllEmails) {
-      // Already counted above via uniqueRepliers
-    }
-
-    // Follow-up tracking
-    if (recipient.followupSent) {
-      followupsSent++;
-    }
-
-    // Follow-up candidates
-    if (recipient.deliveredAt && !recipient.followupSent) {
+    // Follow-up candidates calculation
+    // Note: We check followUps object but don't count sent follow-ups here
+    // Follow-up sent count should come from followupEmails collection
+    if (recipient.deliveredAt) {
       const deliveredTime = new Date(recipient.deliveredAt).getTime();
       const timeSince = now.getTime() - deliveredTime;
 
-      // Not opened after 48h
-      if (!recipient.aggregatedTracking?.everOpened && timeSince > HOURS_48) {
+      // Check if recipient has pending follow-ups
+      const hasPendingFollowups = recipient.followUps && recipient.followUps.pendingCount > 0;
+
+      // Not opened after 48h and no pending follow-ups
+      if (!recipient.aggregatedTracking?.everOpened && timeSince > HOURS_48 && !hasPendingFollowups) {
         notOpened48h++;
       }
 
-      // Opened but not replied after 72h
+      // Opened but not replied after 72h and no pending follow-ups
       if (
         recipient.aggregatedTracking?.everOpened &&
         !recipient.aggregatedTracking?.everReplied &&
-        timeSince > HOURS_72
+        timeSince > HOURS_72 &&
+        !hasPendingFollowups
       ) {
         openedNotReplied72h++;
       }
@@ -192,8 +182,7 @@ export function calculateCampaignStats(
       deliveredButNoOpen: deliveredNotOpened,
     },
 
-    // Follow-ups
-    totalFollowUpsSent: followupsSent,
+    // Follow-up candidates (eligible recipients, not sent count)
     followupCandidates: {
       notOpened48h,
       openedNotReplied72h,
@@ -219,7 +208,6 @@ export function countUniqueOpeners(recipients: CampaignRecipient[]): number {
   const uniqueEmails = new Set<string>();
 
   recipients.forEach((recipient) => {
-    // SAFE OPERATION
     SafeArray.forEach(
       recipient.aggregatedTracking?.uniqueOpeners,
       (opener: any) => {
@@ -238,7 +226,6 @@ export function countUniqueRepliers(recipients: CampaignRecipient[]): number {
   const uniqueEmails = new Set<string>();
 
   recipients.forEach((recipient) => {
-    // SAFE OPERATION
     SafeArray.forEach(
       recipient.aggregatedTracking?.uniqueRepliers,
       (replier: any) => {
@@ -278,4 +265,51 @@ export function calculateTotalReplies(recipients: CampaignRecipient[]): number {
   });
 
   return total;
+}
+
+/**
+ * Calculate follow-up candidate statistics
+ * This checks recipients for eligibility without counting sent follow-ups
+ */
+export function calculateFollowupCandidates(recipients: CampaignRecipient[]): {
+  notOpened48h: number;
+  openedNotReplied72h: number;
+  total: number;
+} {
+  const now = new Date();
+  const HOURS_48 = 48 * 60 * 60 * 1000;
+  const HOURS_72 = 72 * 60 * 60 * 1000;
+  let notOpened48h = 0;
+  let openedNotReplied72h = 0;
+
+  recipients.forEach((recipient) => {
+    if (recipient.deliveredAt) {
+      const deliveredTime = new Date(recipient.deliveredAt).getTime();
+      const timeSince = now.getTime() - deliveredTime;
+
+      // Check if recipient has pending follow-ups
+      const hasPendingFollowups = recipient.followUps && recipient.followUps.pendingCount > 0;
+
+      // Not opened after 48h and no pending follow-ups
+      if (!recipient.aggregatedTracking?.everOpened && timeSince > HOURS_48 && !hasPendingFollowups) {
+        notOpened48h++;
+      }
+
+      // Opened but not replied after 72h and no pending follow-ups
+      if (
+        recipient.aggregatedTracking?.everOpened &&
+        !recipient.aggregatedTracking?.everReplied &&
+        timeSince > HOURS_72 &&
+        !hasPendingFollowups
+      ) {
+        openedNotReplied72h++;
+      }
+    }
+  });
+
+  return {
+    notOpened48h,
+    openedNotReplied72h,
+    total: notOpened48h + openedNotReplied72h,
+  };
 }
