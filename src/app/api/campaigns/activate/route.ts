@@ -98,12 +98,6 @@ export async function POST(request: NextRequest) {
       averageOpensPerPerson: 0,
       openRate: 0,
 
-      totalFollowUpsSent: 0,
-      followUpsByType: {
-        openedNoReply: 0,
-        notOpened: 0,
-      },
-
       uniqueResponded: 0,
       totalResponses: 0,
       responseRate: 0,
@@ -152,13 +146,12 @@ export async function POST(request: NextRequest) {
       },
     };
 
-    // FIXED: Set campaign to "creating" status initially
     const campaignData: Omit<Campaign, "id"> & { id: string } = {
       id: campaignId,
       campaignName: scheduleConfig.campaignName,
       clientId,
       clientName: clientInfo.companyName,
-      status: "creating", // CHANGED FROM "active" TO "creating"
+      status: "creating",
       targetType,
       totalRecipients: matchResults.totalMatches,
 
@@ -186,23 +179,17 @@ export async function POST(request: NextRequest) {
 
       stats: initialStats,
 
-      followUps: {
-        totalSent: 0,
-        openedNoReplyCandidates: 0,
-        deliveredNotOpenedCandidates: 0,
-      },
-
       publicToken,
       createdBy: user.uid,
       createdAt: currentTimestamp,
       lastUpdated: currentTimestamp,
     };
 
-    // STEP 1: Create campaign document with "creating" status
+    // Step 1: Create campaign document with "creating" status
     await adminDb.collection("campaigns").doc(campaignId).set(campaignData);
     console.log("[Campaign Create] Campaign document created with status: creating");
 
-    // STEP 2: Generate timestamps
+    // Step 2: Generate timestamps
     const { timestamps, errors } = await distributeTimestamps(
       matchResults.matches,
       { ...scheduleConfig, startDate: actualStartDate },
@@ -228,7 +215,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 3: Create all recipients in batches
+    // Step 3: Create all recipients in batches
     const batchSize = 500;
     const totalBatches = Math.ceil(matchResults.matches.length / batchSize);
 
@@ -277,8 +264,11 @@ export async function POST(request: NextRequest) {
           emailHistory: [],
           aggregatedTracking: initialAggregatedTracking,
 
-          followupSent: false,
-          followupCount: 0,
+          followUps: {
+            totalSent: 0,
+            pendingCount: 0,
+            lastFollowUpSent: null,
+          },
 
           status: "pending",
           currentStage: "initial",
@@ -308,7 +298,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // STEP 4: Create audit log
+    // Step 4: Create audit log
     await adminDb.collection("campaignAuditLog").add({
       action: "campaign_created",
       campaignId,
@@ -330,7 +320,7 @@ export async function POST(request: NextRequest) {
 
     console.log("[Campaign Create] Audit log created");
 
-    // STEP 5: CRITICAL - Update campaign status to "active" AFTER all recipients are created
+    // Step 5: Update campaign status to "active" after all recipients are created
     await adminDb.collection("campaigns").doc(campaignId).update({
       status: "active",
       lastUpdated: new Date().toISOString(),
@@ -338,7 +328,7 @@ export async function POST(request: NextRequest) {
 
     console.log("[Campaign Create] Campaign status updated to ACTIVE");
 
-    // STEP 6: Only NOW trigger instant send if requested
+    // Step 6: Trigger instant send if requested
     if (scheduleConfig.startInstantly) {
       console.log(
         "[Campaign Create] Instant start mode - triggering immediate send"
@@ -349,7 +339,7 @@ export async function POST(request: NextRequest) {
         instantTriggerTime: currentTimestamp,
       });
 
-      // FIXED: Add delay to ensure all database writes are committed
+      // Add delay to ensure all database writes are committed
       setTimeout(async () => {
         try {
           const baseUrl = getBaseUrl();
@@ -385,7 +375,7 @@ export async function POST(request: NextRequest) {
             triggerError
           );
         }
-      }, 2000); // Wait 2 seconds to ensure all DB writes are committed
+      }, 2000);
     }
 
     const baseUrl = getBaseUrl();
@@ -432,6 +422,10 @@ export async function POST(request: NextRequest) {
   }
 }
 
+/**
+ * Distributes email send timestamps across the campaign duration
+ * Handles both instant send mode and scheduled send mode
+ */
 async function distributeTimestamps(
   matches: any[],
   scheduleConfig: any,
@@ -446,16 +440,16 @@ async function distributeTimestamps(
     if (scheduleConfig.startInstantly) {
       console.log("[Timestamp Distribution] Instant start mode activated");
 
-      // FIXED: Start from 30 seconds in the future to allow campaign creation to complete
-      const startTime = new Date(now.getTime() + 30000); // 30 seconds from now
+      // Start from 30 seconds in the future to allow campaign creation to complete
+      const startTime = new Date(now.getTime() + 30000);
 
       console.log(
         "[Timestamp Distribution] First email scheduled for:",
         startTime.toISOString()
       );
 
-      // FIXED: Increase interval to prevent overwhelming the system
-      const intervalSeconds = 10; // Changed from 5 to 10 seconds
+      // Use 10 second intervals to prevent system overload
+      const intervalSeconds = 10;
 
       for (let i = 0; i < matches.length; i++) {
         const scheduledTime = new Date(
@@ -491,6 +485,7 @@ async function distributeTimestamps(
       return { timestamps, errors };
     }
 
+    // Scheduled send mode
     const startDate = new Date(scheduleConfig.startDate);
     const [sendingStartHour, sendingStartMinute] =
       scheduleConfig.sendingWindow.start.split(":").map(Number);
@@ -522,6 +517,7 @@ async function distributeTimestamps(
       "minutes"
     );
 
+    // Prioritize recipients
     const highPriority = matches.filter((m: any) => m.priority === "high");
     const mediumPriority = matches.filter((m: any) => m.priority === "medium");
     const lowPriority = matches.filter((m: any) => m.priority === "low");
@@ -546,6 +542,7 @@ async function distributeTimestamps(
         emailsToday = 0;
       }
 
+      // Add small random variance to appear more natural
       const variance = (Math.random() - 0.5) * 2;
       const scheduledTime = new Date(
         currentTime.getTime() + variance * 60 * 1000
