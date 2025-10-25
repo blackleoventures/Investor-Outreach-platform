@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { Table, Button, Tag, Tabs, Badge, Checkbox } from "antd";
+import { useState, useEffect } from "react";
+import { Table, Button, Tag, Tabs, Badge, Checkbox, Tooltip } from "antd";
 import {
   ThunderboltOutlined,
   ReloadOutlined,
   MailOutlined,
   EyeOutlined,
+  ClockCircleOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 
@@ -19,8 +20,8 @@ interface FollowupCandidate {
   status: string;
   daysSinceSent?: number;
   daysSinceOpened?: number;
-  hoursSinceSent?: number;
-  hoursSinceOpened?: number;
+  minutesSinceSent?: number;
+  minutesSinceOpened?: number;
   followupType: string;
   followUpsSent: number;
   totalOpens: number;
@@ -36,6 +37,7 @@ interface FollowupCandidatesTableProps {
   selectedRecipients: string[];
   onSelectionChange: (ids: string[]) => void;
   onGenerateEmail: () => void;
+  isDevelopment?: boolean; // Optional prop to indicate environment
 }
 
 export default function FollowupCandidatesTable({
@@ -45,6 +47,7 @@ export default function FollowupCandidatesTable({
   selectedRecipients,
   onSelectionChange,
   onGenerateEmail,
+  isDevelopment = false,
 }: FollowupCandidatesTableProps) {
   const [activeTab, setActiveTab] = useState("not_opened");
 
@@ -52,27 +55,37 @@ export default function FollowupCandidatesTable({
     return type === "investor" ? "blue" : "green";
   };
 
+  const formatTimeElapsed = (record: FollowupCandidate) => {
+    if (isDevelopment) {
+      // Development mode: show minutes
+      const minutes = record.minutesSinceSent || record.minutesSinceOpened || 0;
+      if (minutes < 60) {
+        return `${minutes}m`;
+      }
+      const hours = Math.floor(minutes / 60);
+      return `${hours}h ${minutes % 60}m`;
+    } else {
+      // Production mode: show days
+      const days = record.daysSinceSent || record.daysSinceOpened || 0;
+      return days === 1 ? "1 day" : `${days} days`;
+    }
+  };
+
+  const getTimeBadgeColor = (record: FollowupCandidate) => {
+    if (isDevelopment) {
+      const minutes = record.minutesSinceSent || record.minutesSinceOpened || 0;
+      if (minutes >= 30) return "red";
+      if (minutes >= 15) return "orange";
+      return "blue";
+    } else {
+      const days = record.daysSinceSent || record.daysSinceOpened || 0;
+      if (days >= 7) return "red";
+      if (days >= 5) return "orange";
+      return "blue";
+    }
+  };
+
   const columns: ColumnsType<FollowupCandidate> = [
-    {
-      title: "Select",
-      key: "select",
-      width: 60,
-      fixed: "left",
-      render: (_, record) => (
-        <Checkbox
-          checked={selectedRecipients.includes(record.id)}
-          onChange={(e) => {
-            if (e.target.checked) {
-              onSelectionChange([...selectedRecipients, record.id]);
-            } else {
-              onSelectionChange(
-                selectedRecipients.filter((id) => id !== record.id)
-              );
-            }
-          }}
-        />
-      ),
-    },
     {
       title: "Name",
       key: "name",
@@ -102,23 +115,26 @@ export default function FollowupCandidatesTable({
       ),
     },
     {
-      title: "Days Since",
-      key: "days",
-      width: 120,
+      title: (
+        <span>
+          <ClockCircleOutlined /> Time Elapsed
+        </span>
+      ),
+      key: "time",
+      width: 130,
       align: "center",
       render: (_, record) => (
-        <Badge
-          count={record.daysSinceSent || record.daysSinceOpened || 0}
-          showZero
-          color={
-            (record.daysSinceSent || record.daysSinceOpened || 0) >= 7
-              ? "red"
-              : (record.daysSinceSent || record.daysSinceOpened || 0) >= 5
-              ? "orange"
-              : "blue"
+        <Tooltip
+          title={
+            isDevelopment
+              ? `${record.minutesSinceSent || record.minutesSinceOpened || 0} minutes`
+              : `${record.daysSinceSent || record.daysSinceOpened || 0} days`
           }
-          style={{ fontSize: 14 }}
-        />
+        >
+          <Tag color={getTimeBadgeColor(record)} style={{ fontSize: 13 }}>
+            {formatTimeElapsed(record)}
+          </Tag>
+        </Tooltip>
       ),
     },
     {
@@ -144,8 +160,8 @@ export default function FollowupCandidatesTable({
       width: 130,
       align: "center",
       render: (sent: number) => (
-        <Tag color={sent === 0 ? "default" : sent === 1 ? "orange" : "red"}>
-          {sent} / 2
+        <Tag color={sent === 0 ? "default" : sent >= 3 ? "red" : "orange"}>
+          {sent}
         </Tag>
       ),
     },
@@ -169,7 +185,13 @@ export default function FollowupCandidatesTable({
       key: "not_opened",
       label: (
         <span>
-          <MailOutlined /> Delivered Not Opened ({notOpenedData.length})
+          <MailOutlined /> Delivered Not Opened (
+          <Badge
+            count={notOpenedData.length}
+            showZero
+            style={{ backgroundColor: "#1890ff" }}
+          />
+          )
         </span>
       ),
     },
@@ -177,7 +199,13 @@ export default function FollowupCandidatesTable({
       key: "opened_not_replied",
       label: (
         <span>
-          <EyeOutlined /> Opened Not Replied ({openedNotRepliedData.length})
+          <EyeOutlined /> Opened Not Replied (
+          <Badge
+            count={openedNotRepliedData.length}
+            showZero
+            style={{ backgroundColor: "#52c41a" }}
+          />
+          )
         </span>
       ),
     },
@@ -185,6 +213,25 @@ export default function FollowupCandidatesTable({
 
   return (
     <div>
+      {/* Environment Indicator */}
+      {isDevelopment && (
+        <div
+          style={{
+            padding: "8px 16px",
+            marginBottom: 16,
+            backgroundColor: "#fff7e6",
+            border: "1px solid #ffd591",
+            borderRadius: 8,
+            textAlign: "center",
+          }}
+        >
+          <Tag color="orange">Development Mode</Tag>
+          <span style={{ marginLeft: 8, color: "#ad6800" }}>
+            Showing minutes for faster testing
+          </span>
+        </div>
+      )}
+
       <div className="flex justify-between items-center mb-4">
         <Tabs
           activeKey={activeTab}

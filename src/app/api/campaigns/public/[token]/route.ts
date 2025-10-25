@@ -61,7 +61,13 @@ export async function GET(
       }
     >();
 
-    let totalFollowUpsSent = 0;
+    // NEW: Get total follow-ups count from followupEmails collection
+    const followupsSnapshot = await adminDb
+      .collection('followupEmails')
+      .where('campaignId', '==', campaignDoc.id)
+      .get();
+
+    const totalFollowUpsSent = followupsSnapshot.size;
 
     recipientsSnapshot.forEach((doc) => {
       const data = doc.data();
@@ -70,9 +76,6 @@ export async function GET(
       if (data.recipientType) {
         typeCounts[data.recipientType] = (typeCounts[data.recipientType] || 0) + 1;
       }
-
-      // Count follow-ups
-      totalFollowUpsSent += data.followUps?.totalSent || 0;
 
       // Collect WHO opened
       const aggregatedTracking = data.aggregatedTracking || {};
@@ -134,7 +137,7 @@ export async function GET(
         // Enhanced stats
         uniqueOpened: uniqueOpeners.length,
         uniqueResponded: uniqueRepliers.length,
-        totalFollowUpsSent: totalFollowUpsSent,
+        totalFollowUpsSent: totalFollowUpsSent,  // ONLY THIS ONE
         deliveredNotOpened: campaignData.stats?.deliveredNotOpened || 0,
         openedNotReplied: campaignData.stats?.openedNotReplied || 0,
       },
@@ -150,7 +153,7 @@ export async function GET(
     };
 
     console.log(
-      `[Public Report] Campaign found: ${campaignData.campaignName} (${uniqueOpeners.length} openers, ${uniqueRepliers.length} repliers)`
+      `[Public Report] Campaign found: ${campaignData.campaignName} (${uniqueOpeners.length} openers, ${uniqueRepliers.length} repliers, ${totalFollowUpsSent} follow-ups)`
     );
 
     return NextResponse.json({

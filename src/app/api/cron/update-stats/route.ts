@@ -30,7 +30,6 @@ export async function GET(request: NextRequest) {
     );
 
     if (runningDuration > 240000) {
-      // 4 minutes timeout
       console.log("[Cron: Update Stats] Job timeout detected, forcing unlock");
       isJobRunning = false;
     } else {
@@ -133,8 +132,63 @@ export async function GET(request: NextRequest) {
           } as CampaignRecipient);
         });
 
-        // Use stats calculator utility to calculate all stats
-        console.log("[Cron: Update Stats] Calculating campaign statistics");
+        // NEW: Get follow-up stats from followupEmails collection
+        console.log("[Cron: Update Stats] Querying follow-up emails");
+        const followupsSnapshot = await adminDb
+          .collection("followupEmails")
+          .where("campaignId", "==", campaignId)
+          .get();
+
+        // Calculate follow-up stats separately
+        const followupStats = {
+          totalFollowUpsSent: 0,
+          pending: 0,
+          scheduled: 0,
+          sent: 0,
+          delivered: 0,
+          opened: 0,
+          replied: 0,
+          failed: 0,
+        };
+
+        followupsSnapshot.forEach((doc) => {
+          const followup = doc.data();
+          followupStats.totalFollowUpsSent++;
+
+          switch (followup.status) {
+            case "queued":
+              followupStats.pending++;
+              break;
+            case "scheduled":
+              followupStats.scheduled++;
+              break;
+            case "sent":
+              followupStats.sent++;
+              break;
+            case "delivered":
+              followupStats.delivered++;
+              break;
+            case "opened":
+              followupStats.opened++;
+              break;
+            case "replied":
+              followupStats.replied++;
+              break;
+            case "failed":
+              followupStats.failed++;
+              break;
+          }
+        });
+
+        console.log(
+          "[Cron: Update Stats] Follow-ups found:",
+          followupStats.totalFollowUpsSent
+        );
+
+        // Use stats calculator utility to calculate MAIN EMAIL stats only
+        console.log(
+          "[Cron: Update Stats] Calculating main campaign statistics"
+        );
         const calculatedStats = calculateCampaignStats(recipients);
 
         console.log("[Cron: Update Stats] Statistics calculated");
@@ -167,12 +221,16 @@ export async function GET(request: NextRequest) {
           "[Cron: Update Stats] Reply rate:",
           calculatedStats.replyRate + "%"
         );
+        console.log(
+          "[Cron: Update Stats] Follow-ups sent:",
+          followupStats.totalFollowUpsSent
+        );
 
         // Update campaign with calculated stats
         const updateData: any = {
           totalRecipients: recipientCount,
 
-          // Basic counts
+          // MAIN EMAIL STATS (from calculateCampaignStats)
           "stats.pending": calculatedStats.pending,
           "stats.sent": calculatedStats.sent,
           "stats.delivered": calculatedStats.delivered,
@@ -222,8 +280,7 @@ export async function GET(request: NextRequest) {
           "stats.conversionFunnel.replied":
             calculatedStats.conversionFunnel?.replied || 0,
 
-          // Follow-up tracking
-          "stats.totalFollowUpsSent": calculatedStats.totalFollowUpsSent || 0,
+          // Follow-up candidates (still calculated from main recipients)
           "stats.followupCandidates.notOpened48h":
             calculatedStats.followupCandidates?.notOpened48h || 0,
           "stats.followupCandidates.openedNotReplied72h":
@@ -235,6 +292,16 @@ export async function GET(request: NextRequest) {
 
           // Error breakdown
           "stats.errorBreakdown": calculatedStats.errorBreakdown,
+
+          // NEW: SEPARATE FOLLOW-UP STATS (from followupEmails collection)
+          "followUpStats.totalFollowUpsSent": followupStats.totalFollowUpsSent,
+          "followUpStats.pending": followupStats.pending,
+          "followUpStats.scheduled": followupStats.scheduled,
+          "followUpStats.sent": followupStats.sent,
+          "followUpStats.delivered": followupStats.delivered,
+          "followUpStats.opened": followupStats.opened,
+          "followUpStats.replied": followupStats.replied,
+          "followUpStats.failed": followupStats.failed,
 
           lastUpdated: getCurrentTimestamp(),
         };
@@ -267,6 +334,11 @@ export async function GET(request: NextRequest) {
             "[Cron: Update Stats] Opened not replied (72h):",
             calculatedStats.followupCandidates.openedNotReplied72h
           );
+        }
+
+        // Log follow-up stats
+        if (followupStats.totalFollowUpsSent > 0) {
+          console.log("[Cron: Update Stats] Follow-up stats:", followupStats);
         }
 
         // Log error breakdown if any failures

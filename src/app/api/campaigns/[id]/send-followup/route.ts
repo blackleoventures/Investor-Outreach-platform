@@ -55,24 +55,18 @@ export async function POST(
       );
     }
 
-    // Validate personalization tags
-    if (!emailBody.includes('{{name}}')) {
-      return NextResponse.json(
-        { success: false, error: 'Email body must include {{name}} personalization tag' },
-        { status: 400 }
-      );
-    }
+    const now = new Date();
+    const isSendNow = scheduledFor === 'now';
+    const scheduleTime = isSendNow ? now : new Date(scheduledFor || now);
 
     console.log(
-      `[Send Followup] User ${user.email} sending follow-up to ${recipientIds.length} recipients`
+      `[Send Followup] User ${user.email} ${isSendNow ? 'sending immediately' : 'scheduling'} follow-up to ${recipientIds.length} recipients`
     );
-
-    const now = new Date();
-    const scheduleTime = scheduledFor === 'now' ? now : new Date(scheduledFor || now);
 
     let successCount = 0;
     let failedCount = 0;
     const errors: any[] = [];
+    const batch = adminDb.batch();
 
     // Process each recipient
     for (const recipientId of recipientIds) {
@@ -98,70 +92,64 @@ export async function POST(
           continue;
         }
 
-        // Check if recipient can receive follow-up
-        const followUpsSent = recipientData.followUps?.totalSent || 0;
-        if (followUpsSent >= 2) {
-          errors.push({ recipientId, error: 'Maximum 2 follow-ups already sent' });
-          failedCount++;
-          continue;
-        }
+        // Generate unique follow-up ID
+        const followupId = generateEmailId();
 
-        // Generate unique email ID for this follow-up
-        const emailId = generateEmailId();
+        // Create a NEW document in followupEmails collection
+        const followupEmailRef = adminDb.collection('followupEmails').doc(followupId);
 
-        // Create follow-up email history entry
-        const followupEmailEntry = {
-          emailId,
-          type: 'followup_manual',
+        const followupEmail = {
+          followupId,
+          campaignId,
+          recipientId,
+          
+          // Recipient contact info (for easy access)
+          recipientName: recipientData.originalContact?.name || 'Unknown',
+          recipientEmail: recipientData.originalContact?.email || '',
+          recipientOrganization: recipientData.originalContact?.organization || 'Unknown',
+          
+          // Email content
           subject,
-          sentAt: null, // Will be set when actually sent by cron
-          deliveredAt: null,
-          status: 'pending',
+          body: emailBody,
+          
+          // Scheduling
           scheduledFor: scheduleTime.toISOString(),
-          openedBy: [],
-          repliedBy: [],
+          status: isSendNow ? 'queued' : 'scheduled', // queued = send ASAP, scheduled = wait for time
+          
+          // Tracking
+          sentAt: null,
+          deliveredAt: null,
+          openedAt: null,
+          repliedAt: null,
+          
           tracking: {
             totalOpens: 0,
-            uniqueOpenersCount: 0,
-            firstOpenAt: null,
-            lastOpenAt: null,
             totalReplies: 0,
-            firstReplyAt: null,
-            lastReplyAt: null,
+            opened: false,
+            replied: false,
+            uniqueOpeners: [],
+            uniqueRepliers: [],
           },
+          
+          // Metadata
+          createdBy: user.uid,
+          createdAt: getCurrentTimestamp(),
+          updatedAt: getCurrentTimestamp(),
         };
 
-        // Update recipient document
-        await adminDb
-          .collection('campaignRecipients')
-          .doc(recipientId)
-          .update({
-            // Add new email to history
-            emailHistory: admin.firestore.FieldValue.arrayUnion(followupEmailEntry),
+        batch.set(followupEmailRef, followupEmail);
 
-            // Update follow-up tracking
-            'followUps.totalSent': admin.firestore.FieldValue.increment(1),
-            'followUps.lastFollowUpSent': getCurrentTimestamp(),
-
-            // Store pending follow-up info temporarily
-            pendingFollowup: {
-              emailId,
-              subject,
-              body: emailBody,
-              scheduledFor: scheduleTime.toISOString(),
-              createdBy: user.uid,
-              createdAt: getCurrentTimestamp(),
-            },
-
-            // Update status if not already replied
-            status: recipientData.status === 'replied' ? 'replied' : 'pending',
-            scheduledFor: scheduleTime.toISOString(),
-
-            updatedAt: getCurrentTimestamp(),
-          });
+        // Update recipient's follow-up counter ONLY (don't touch main email stats)
+        const recipientRef = adminDb.collection('campaignRecipients').doc(recipientId);
+        batch.update(recipientRef, {
+          'followUps.totalSent': admin.firestore.FieldValue.increment(1),
+          'followUps.lastFollowUpSent': getCurrentTimestamp(),
+          'followUps.pendingCount': admin.firestore.FieldValue.increment(1),
+          updatedAt: getCurrentTimestamp(),
+        });
 
         successCount++;
-        console.log(`[Send Followup] Queued for recipient ${recipientId}`);
+        console.log(`[Send Followup] Queued follow-up ${followupId} for recipient ${recipientId}`);
       } catch (error: any) {
         console.error(`[Send Followup] Error processing recipient ${recipientId}:`, error.message);
         errors.push({ recipientId, error: error.message });
@@ -169,28 +157,33 @@ export async function POST(
       }
     }
 
-    // Update campaign stats
-    await adminDb
-      .collection('campaigns')
-      .doc(campaignId)
-      .update({
-        'stats.totalFollowUpsSent': admin.firestore.FieldValue.increment(successCount),
-        'stats.pending': admin.firestore.FieldValue.increment(successCount),
-        lastUpdated: getCurrentTimestamp(),
-      });
+    // Update campaign follow-up stats (separate from main email stats)
+    const campaignRef = adminDb.collection('campaigns').doc(campaignId);
+    batch.update(campaignRef, {
+      'followUpStats.totalFollowUpsSent': admin.firestore.FieldValue.increment(successCount),
+      'followUpStats.pending': admin.firestore.FieldValue.increment(isSendNow ? successCount : 0),
+      'followUpStats.scheduled': admin.firestore.FieldValue.increment(isSendNow ? 0 : successCount),
+      lastUpdated: getCurrentTimestamp(),
+    });
+
+    // Commit batch
+    await batch.commit();
 
     console.log(
-      `[Send Followup] Completed: ${successCount} queued, ${failedCount} failed`
+      `[Send Followup] Completed: ${successCount} ${isSendNow ? 'queued' : 'scheduled'}, ${failedCount} failed`
     );
 
     return NextResponse.json({
       success: true,
-      message: 'Follow-up emails queued successfully',
+      message: isSendNow
+        ? 'Follow-up emails queued for immediate sending'
+        : 'Follow-up emails scheduled successfully',
       summary: {
         total: recipientIds.length,
         queued: successCount,
         failed: failedCount,
         scheduledFor: scheduleTime.toISOString(),
+        sendType: isSendNow ? 'immediate' : 'scheduled',
       },
       errors: errors.length > 0 ? errors : undefined,
     });

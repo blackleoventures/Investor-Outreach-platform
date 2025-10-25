@@ -1,13 +1,12 @@
-//types/campaign.ts
-
-// Campaign-related type definitions
+// Import FollowupStats from followup.ts
+import { FollowupStats } from './followup';
 
 export interface Campaign {
   id: string;
   campaignName: string;
   clientId: string;
   clientName: string;
-  status:"creating" | "active" | "paused" | "completed" | "failed";
+  status: "creating" | "active" | "paused" | "completed" | "failed";
   targetType: "investors" | "incubators" | "both";
   totalRecipients: number;
 
@@ -33,14 +32,11 @@ export interface Campaign {
     pauseOnWeekends: boolean;
   };
 
+  // Main email stats (initial campaign emails only)
   stats: CampaignStats;
 
-  // Follow-up tracking
-  followUps?: {
-    totalSent: number;
-    openedNoReplyCandidates: number;
-    deliveredNotOpenedCandidates: number;
-  };
+  // NEW: Separate follow-up stats (tracked independently)
+  followUpStats?: FollowupStats;
 
   publicToken: string;
   createdBy: string;
@@ -51,34 +47,33 @@ export interface Campaign {
 }
 
 export interface CampaignStats {
+  // ==========================================
+  // MAIN EMAIL METRICS (Initial campaign emails only)
+  // ==========================================
+  
   // Email counts
-  totalEmailsSent: number;
-  totalDelivered: number;
-  totalFailed: number;
-  pending: number;
+  totalEmailsSent: number;     // Total initial emails sent
+  totalDelivered: number;      // Total initial emails delivered
+  totalFailed: number;         // Total initial emails failed
+  pending: number;             // Pending initial emails
 
-  // Engagement metrics
-  uniqueOpened: number; // Unique people who opened
-  totalOpens: number; // Total open count
+  // Engagement metrics (for initial emails)
+  uniqueOpened: number;        // Unique people who opened initial email
+  totalOpens: number;          // Total opens of initial email
   averageOpensPerPerson: number; // totalOpens / uniqueOpened
-  openRate: number; // (uniqueOpened / totalDelivered) × 100
+  openRate: number;            // (uniqueOpened / totalDelivered) × 100
 
-  // Follow-up metrics
-  totalFollowUpsSent: number;
-  followUpsByType?: {
-    openedNoReply: number;
-    notOpened: number;
-  };
-
-  // Response metrics
-  uniqueResponded: number; // Unique people who replied
-  totalResponses: number; // Total replies received
-  responseRate: number; // (uniqueResponded / totalDelivered) × 100
+  // Response metrics (for initial emails)
+  uniqueResponded: number;     // Unique people who replied to initial email
+  totalResponses: number;      // Total replies to initial email
+  responseRate: number;        // (uniqueResponded / totalDelivered) × 100
   averageResponseTime?: number; // Hours from send to first reply
 
-  openedNotReplied: number; // Opened but no reply
-  deliveredNotOpened: number; // Delivered but not opened
-  // Conversion funnel
+  // Engagement states
+  openedNotReplied: number;    // Opened initial email but no reply
+  deliveredNotOpened: number;  // Delivered initial email but not opened
+
+  // Conversion funnel (for initial emails)
   conversionFunnel: {
     sent: number;
     delivered: number;
@@ -86,7 +81,7 @@ export interface CampaignStats {
     replied: number;
   };
 
-  // Engagement quality
+  // Engagement quality (for initial emails)
   engagementQuality?: {
     openedOnce: number;
     openedMultiple: number;
@@ -103,15 +98,15 @@ export interface CampaignStats {
   deliveryRate: number;
   replyRate: number;
 
-  // Follow-up candidates
+  // Follow-up candidates (for UI)
   followupCandidates?: {
-    notOpened48h: number; // Delivered >48h, not opened
+    notOpened48h: number;        // Delivered >48h, not opened
     openedNotReplied72h: number; // Opened >72h, not replied
     total: number;
-    readyForFollowup: number; // Exclude already followed up
+    readyForFollowup: number;    // Exclude already followed up
   };
 
-  // Error tracking
+  // Error tracking (for initial emails)
   errorBreakdown?: {
     AUTH_FAILED: number;
     INVALID_EMAIL: number;
@@ -122,3 +117,4 @@ export interface CampaignStats {
     UNKNOWN_ERROR: number;
   };
 }
+

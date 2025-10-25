@@ -1,6 +1,7 @@
-// Recipient-related type definitions
+// types/recipient.ts
+
 import { EmailError, ErrorCategory } from './error';
-import { EmailHistoryItem, AggregatedTracking, FollowUpTracking } from './tracking';
+import { EmailHistoryItem, AggregatedTracking } from './tracking';
 
 export interface RecipientContact {
   name: string;
@@ -20,14 +21,16 @@ export interface CampaignRecipient {
   matchScore: number;
   matchedCriteria?: string[];
   
+  // Main email tracking 
   emailHistory: EmailHistoryItem[];
   aggregatedTracking: AggregatedTracking;
   
-  // followUps: FollowUpTracking; 
+  followUps: {
+    totalSent: number;           // Total follow-ups sent to this recipient
+    pendingCount: number;        // Number of pending follow-ups
+    lastFollowUpSent: string | null; // Timestamp of last follow-up
+  };
   
-  followupSent: boolean;             
-  followupSentAt?: string;           
-  followupCount: number;             
   
   status: 'pending' | 'delivered' | 'opened' | 'replied' | 'failed';
   currentStage: 'initial' | 'followup_1' | 'followup_2' | 'responded' | 'closed';
@@ -52,4 +55,3 @@ export interface CampaignRecipient {
   updatedAt: string;
   errorMessage?: string;  
 }
-

@@ -105,18 +105,61 @@ export async function GET(
       }
     });
 
+    // NEW: Get follow-up email statistics
+    const followupSnapshot = await adminDb
+      .collection("followupEmails")
+      .where("campaignId", "==", id)
+      .get();
+
+    const followupStatusCounts: Record<string, number> = {
+      queued: 0,
+      scheduled: 0,
+      sent: 0,
+      delivered: 0,
+      opened: 0,
+      replied: 0,
+      failed: 0,
+    };
+
+    followupSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.status) {
+        followupStatusCounts[data.status] = (followupStatusCounts[data.status] || 0) + 1;
+      }
+    });
+
+    // Prepare follow-up stats (use from campaign data if exists, otherwise calculate)
+    const followUpStats = campaignData.followUpStats || {
+      totalFollowUpsSent: followupStatusCounts.sent + followupStatusCounts.delivered + followupStatusCounts.opened + followupStatusCounts.replied,
+      pending: followupStatusCounts.queued,
+      scheduled: followupStatusCounts.scheduled,
+      sent: followupStatusCounts.sent,
+      delivered: followupStatusCounts.delivered,
+      opened: followupStatusCounts.opened,
+      replied: followupStatusCounts.replied,
+      failed: followupStatusCounts.failed,
+    };
+
     const response = {
       success: true,
       campaign: {
         id: campaignDoc.id,
         ...campaignData,
+        
+        // Add follow-up stats if not already present
+        followUpStats: campaignData.followUpStats || followUpStats,
       },
       client: clientDetails,
       aggregates: {
+        // Main email stats
         statusCounts,
         typeCounts,
         priorityCounts,
         totalRecipients: recipientsSnapshot.size,
+        
+        // NEW: Follow-up email stats
+        followupStats: followupStatusCounts,
+        totalFollowups: followupSnapshot.size,
       },
     };
 

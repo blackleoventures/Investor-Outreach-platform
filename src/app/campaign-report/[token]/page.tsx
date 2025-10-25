@@ -281,7 +281,9 @@ export default function CampaignReportPage() {
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">
                 {campaign.campaignName}
               </h1>
-              <p className="text-sm sm:text-base text-gray-600">{campaign.clientName}</p>
+              <p className="text-sm sm:text-base text-gray-600">
+                {campaign.clientName}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <Tag
@@ -335,11 +337,11 @@ export default function CampaignReportPage() {
                 }}
               />
               <div className="mt-2 text-xs sm:text-sm text-gray-500">
-                {Math.round((remaining / campaign.totalRecipients) * 100)}% pending outreach
+                {Math.round((remaining / campaign.totalRecipients) * 100)}%
+                pending outreach
               </div>
             </Card>
           </Col>
-
           <Col xs={24} sm={12} lg={8}>
             <Card className="shadow-sm border border-gray-200 h-full">
               <Statistic
@@ -392,7 +394,8 @@ export default function CampaignReportPage() {
               Campaign Progress
             </span>
             <span className="text-base sm:text-lg font-semibold text-gray-900">
-              {campaign.stats.sent} of {campaign.totalRecipients} firms contacted
+              {campaign.stats.sent} of {campaign.totalRecipients} firms
+              contacted
             </span>
           </div>
           <Progress
@@ -415,8 +418,10 @@ export default function CampaignReportPage() {
 
           return (
             <Card className="mb-6 sm:mb-8 shadow-sm border border-gray-200">
-              <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Target Audience</h3>
-              
+              <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">
+                Target Audience
+              </h3>
+
               {hasBoth ? (
                 <div className="space-y-3">
                   <p className="text-sm text-gray-600 mb-4">
@@ -435,7 +440,10 @@ export default function CampaignReportPage() {
                           {investorCount}
                         </div>
                         <div className="text-xs sm:text-sm text-gray-600">
-                          {Math.round((investorCount / campaign.totalRecipients) * 100)}% of total
+                          {Math.round(
+                            (investorCount / campaign.totalRecipients) * 100
+                          )}
+                          % of total
                         </div>
                       </div>
                     </div>
@@ -452,7 +460,10 @@ export default function CampaignReportPage() {
                           {incubatorCount}
                         </div>
                         <div className="text-xs sm:text-sm text-gray-600">
-                          {Math.round((incubatorCount / campaign.totalRecipients) * 100)}% of total
+                          {Math.round(
+                            (incubatorCount / campaign.totalRecipients) * 100
+                          )}
+                          % of total
                         </div>
                       </div>
                     </div>
@@ -554,7 +565,8 @@ export default function CampaignReportPage() {
         {/* Footer */}
         <div className="text-center mt-8 sm:mt-12 text-gray-600 px-4">
           <p className="text-sm sm:text-base mb-2">
-            Campaign started on <strong>{formatDate(campaign.createdAt)}</strong>
+            Campaign started on{" "}
+            <strong>{formatDate(campaign.createdAt)}</strong>
           </p>
           <p className="text-xs sm:text-sm text-gray-500">
             Email Campaign System Report
@@ -599,7 +611,8 @@ export default function CampaignReportPage() {
       >
         <div className="mb-4 p-3 sm:p-4 bg-gray-50 border border-gray-200 rounded">
           <p className="text-xs sm:text-sm text-gray-700">
-            <strong>Total Recipients:</strong> {recipients.length} | <strong>Showing:</strong> All recipients with engagement data
+            <strong>Total Recipients:</strong> {recipients.length} |{" "}
+            <strong>Showing:</strong> All recipients with engagement data
           </p>
         </div>
 

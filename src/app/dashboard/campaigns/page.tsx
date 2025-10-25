@@ -92,7 +92,7 @@ export default function CampaignsListPage() {
   const copyPublicLink = (publicToken: string) => {
     const baseUrl = getBaseUrl();
     const publicUrl = `${baseUrl}/campaign-report/${publicToken}`;
-    
+
     navigator.clipboard.writeText(publicUrl);
     message.success("Public report link copied to clipboard!");
   };
@@ -208,10 +208,13 @@ export default function CampaignsListPage() {
       title: "Progress",
       width: 200,
       render: (_, record) => {
-        const progress = record.totalRecipients > 0 
-          ? Math.round(((record.sent + record.failed) / record.totalRecipients) * 100)
-          : 0;
-        
+        const progress =
+          record.totalRecipients > 0
+            ? Math.round(
+                ((record.sent + record.failed) / record.totalRecipients) * 100
+              )
+            : 0;
+
         return (
           <div>
             <Progress
@@ -262,8 +265,8 @@ export default function CampaignsListPage() {
             {formatDate(record.startDate)}
           </p>
           <p>
-            <span className="text-gray-600">Duration:</span>{" "}
-            {record.duration} days
+            <span className="text-gray-600">Duration:</span> {record.duration}{" "}
+            days
           </p>
           <p>
             <span className="text-gray-600">Daily Limit:</span>{" "}
@@ -328,18 +331,14 @@ export default function CampaignsListPage() {
             Manage and monitor all email campaigns
           </p>
         </div>
-        <Button
-          type="primary"
-          size="large"
-          icon={<PlusOutlined />}
+
+        <button
           onClick={() => router.push("/dashboard/campaigns/create")}
-          style={{
-            backgroundColor: "#722ed1",
-            borderColor: "#722ed1",
-          }}
+          className="flex items-center gap-2 px-4 py-2 bg-[#ac6a1e] text-white rounded-lg hover:bg-[#8d5518] transition-colors"
         >
+          <PlusOutlined className="h-4 w-4" />
           Create Campaign
-        </Button>
+        </button>
       </div>
 
       <DataTable
@@ -353,8 +352,6 @@ export default function CampaignsListPage() {
         filterColumns={filterColumns}
         pageSize={20}
         pageSizeOptions={[10, 20, 50, 100]}
-        dataSource="Firestore Database"
-        lastUpdated={lastUpdated}
       />
     </div>
   );
