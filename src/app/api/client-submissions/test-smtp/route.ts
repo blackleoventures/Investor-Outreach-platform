@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyFirebaseToken, createAuthErrorResponse } from "@/lib/auth-middleware";
+import {
+  verifyFirebaseToken,
+  createAuthErrorResponse,
+} from "@/lib/auth-middleware";
 import { testSmtpConnectionClient } from "@/lib/smtp-test";
 import type { SmtpConfiguration } from "@/types/smtp";
 
@@ -46,13 +49,13 @@ export async function POST(request: NextRequest) {
 
     // Validate SMTP config structure
     const requiredFields = [
-      'platformName',
-      'senderEmail',
-      'smtpHost',
-      'smtpPort',
-      'smtpSecurity',
-      'smtpUsername',
-      'smtpPassword'
+      "platformName",
+      "senderEmail",
+      "smtpHost",
+      "smtpPort",
+      "smtpSecurity",
+      "smtpUsername",
+      "smtpPassword",
     ];
 
     for (const field of requiredFields) {
@@ -89,6 +92,9 @@ export async function POST(request: NextRequest) {
     console.log("[ClientSubmission] Platform:", smtpConfig.platformName);
     console.log("[ClientSubmission] Host:", smtpConfig.smtpHost);
     console.log("[ClientSubmission] Port:", smtpConfig.smtpPort);
+    console.log("[ClientSubmission] Username:", smtpConfig.smtpUsername);
+    console.log("[ClientSubmission] Sender Email:", smtpConfig.senderEmail);
+    console.log("[ClientSubmission] Security:", smtpConfig.smtpSecurity);
 
     // Test SMTP connection
     const testResult = await testSmtpConnectionClient(

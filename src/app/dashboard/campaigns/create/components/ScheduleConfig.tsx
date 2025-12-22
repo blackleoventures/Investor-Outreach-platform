@@ -19,8 +19,6 @@ import {
 import {
   ArrowLeftOutlined,
   ArrowRightOutlined,
-  CalendarOutlined,
-  ClockCircleOutlined,
   WarningOutlined,
   ThunderboltOutlined,
   InfoCircleOutlined,
@@ -54,7 +52,9 @@ export default function ScheduleConfig({
       80
   );
   const [startDate, setStartDate] = useState(
-    scheduleConfig?.startDate || dayjs().add(1, "day")
+    scheduleConfig?.startDate
+      ? dayjs(scheduleConfig.startDate)
+      : dayjs().add(1, "day")
   );
   const [sendingWindow, setSendingWindow] = useState({
     start: scheduleConfig?.sendingWindow?.start || "09:00",
@@ -248,8 +248,8 @@ export default function ScheduleConfig({
                     Start sending emails immediately after campaign creation
                   </strong>
                   <p className="text-xs text-gray-600 ml-6 mt-1">
-                    Emails will start sending 30 seconds after campaign is created. 
-                    All scheduling settings below will be ignored.
+                    Emails will start sending 30 seconds after campaign is
+                    created. All scheduling settings below will be ignored.
                   </p>
                 </Checkbox>
               </div>
@@ -363,7 +363,7 @@ export default function ScheduleConfig({
             <p className="text-2xl font-bold text-orange-600">
               {startInstantly
                 ? dayjs()
-                    .add(30, 'second')
+                    .add(30, "second")
                     .add(
                       Math.ceil(((matchResults?.totalMatches || 0) * 10) / 60),
                       "minute"
@@ -382,8 +382,9 @@ export default function ScheduleConfig({
             <p className="text-sm text-green-800">
               <ThunderboltOutlined className="mr-2" />
               <strong>Instant Mode:</strong> {matchResults?.totalMatches || 0}{" "}
-              emails will be sent with 10-second intervals starting 30 seconds after campaign creation. 
-              This delay ensures the campaign is fully saved before sending begins.
+              emails will be sent with 10-second intervals starting 30 seconds
+              after campaign creation. This delay ensures the campaign is fully
+              saved before sending begins.
             </p>
           </div>
         )}
