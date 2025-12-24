@@ -5,6 +5,7 @@ import {
   createAuthErrorResponse,
 } from "@/lib/auth-middleware";
 import { dbHelpers } from "@/lib/db-helpers";
+import { encryptAES256 } from "@/lib/encryption";
 import {
   ClientDocument,
   TransformedClient,
@@ -88,17 +89,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(errorResponse, { status: 400 });
     }
 
-    // Validate pitch analysis
-    if (!body.pitchAnalysis) {
-      const errorResponse: ApiResponse = {
-        success: false,
-        error: {
-          code: ErrorCode.PITCH_DECK_REQUIRED,
-          message: "Pitch deck analysis is required",
-        },
-      };
-      return NextResponse.json(errorResponse, { status: 400 });
-    }
+    // Pitch analysis is now optional for admin-created clients
 
     // FIXED: Check for duplicate email using getByField
     const existingClient = await dbHelpers.getByField(
@@ -135,7 +126,7 @@ export async function POST(request: NextRequest) {
     // Prepare usage limits
     const usageLimits: UsageLimits = {
       formEditCount: 1,
-      pitchAnalysisCount: 1,
+      pitchAnalysisCount: body.pitchAnalysis ? 1 : 0,
       maxFormEdits: 4,
       maxPitchAnalysis: 2,
       canEditForm: true,
@@ -164,7 +155,7 @@ export async function POST(request: NextRequest) {
           smtpPort: body.smtpPort,
           smtpSecurity: body.smtpSecurity,
           smtpUsername: body.smtpUsername,
-          smtpPassword: body.smtpPassword,
+          smtpPassword: encryptAES256(body.smtpPassword),
           testStatus: "passed",
           testRecipient: user.email || "",
           testDate: new Date().toISOString(),
@@ -177,7 +168,7 @@ export async function POST(request: NextRequest) {
           },
         },
       },
-      pitchAnalyses: [body.pitchAnalysis],
+      pitchAnalyses: body.pitchAnalysis ? [body.pitchAnalysis] : [],
       usageLimits,
       status: "approved",
       reviewedBy: user.uid,
@@ -217,8 +208,8 @@ export async function POST(request: NextRequest) {
       smtpSecurity: emailConfig.smtpSecurity,
       smtpTestStatus: emailConfig.testStatus,
       dailyEmailLimit: emailConfig.dailyEmailLimit,
-      pitchAnalyses: savedClient.pitchAnalyses,
-      pitchAnalysisCount: savedClient.pitchAnalyses.length,
+      pitchAnalyses: savedClient.pitchAnalyses || [],
+      pitchAnalysisCount: savedClient.pitchAnalyses?.length || 0,
       usageLimits: savedClient.usageLimits,
       status: savedClient.status,
       reviewedBy: savedClient.reviewedBy,

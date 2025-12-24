@@ -13,7 +13,15 @@ import {
   Tooltip,
   Tag,
   Select,
+  Upload as AntUpload,
+  Alert,
 } from "antd";
+import {
+  UploadOutlined,
+  LoadingOutlined,
+  FileTextOutlined,
+  CheckCircleOutlined,
+} from "@ant-design/icons";
 import {
   Plus,
   Eye,
@@ -99,7 +107,13 @@ interface Client {
   pitchAnalysisCount: number;
   usageLimits: UsageLimits;
   // Status and review
-  status: "draft" | "pending_review" | "approved" | "active" | "inactive" | "rejected";
+  status:
+    | "draft"
+    | "pending_review"
+    | "approved"
+    | "active"
+    | "inactive"
+    | "rejected";
   reviewedBy: string | null;
   reviewedAt: string | null;
   reviewNotes: string | null;
@@ -125,6 +139,7 @@ interface EditFormData {
   smtpHost: string;
   smtpPort: number;
   smtpSecurity: "TLS" | "SSL" | "None";
+  smtpPassword: string;
   archived: boolean;
 }
 
@@ -170,6 +185,11 @@ const ClientsData = () => {
   const [resetAllLoading, setResetAllLoading] = useState(false);
   const [reviewLoading, setReviewLoading] = useState(false);
 
+  // Pitch analysis upload state
+  const [pitchUploadLoading, setPitchUploadLoading] = useState(false);
+  const [uploadedPitchAnalysis, setUploadedPitchAnalysis] =
+    useState<PitchAnalysis | null>(null);
+
   const [editFormData, setEditFormData] = useState<EditFormData>({
     founderName: "",
     email: "",
@@ -185,15 +205,17 @@ const ClientsData = () => {
     smtpHost: "",
     smtpPort: 587,
     smtpSecurity: "TLS",
+    smtpPassword: "",
     archived: false,
   });
 
-  const [usageLimitsFormData, setUsageLimitsFormData] = useState<UsageLimitsFormData>({
-    formEditCount: 0,
-    pitchAnalysisCount: 0,
-    maxFormEdits: 4,
-    maxPitchAnalysis: 2,
-  });
+  const [usageLimitsFormData, setUsageLimitsFormData] =
+    useState<UsageLimitsFormData>({
+      formEditCount: 0,
+      pitchAnalysisCount: 0,
+      maxFormEdits: 4,
+      maxPitchAnalysis: 2,
+    });
 
   const [reviewFormData, setReviewFormData] = useState<ReviewFormData>({
     status: "approved",
@@ -201,24 +223,26 @@ const ClientsData = () => {
     rejectionReason: "",
   });
 
-  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
-    submissionId: true,
-    companyName: true,
-    founderName: true,
-    email: true,
-    phone: true,
-    fundingStage: true,
-    revenue: true,
-    investment: true,
-    industry: true,
-    city: true,
-    status: true,
-    reviewStatus: true,
-    pitchScore: true,
-    emailVerified: false,
-    archived: false,
-    onboarding: false,
-  });
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(
+    {
+      submissionId: true,
+      companyName: true,
+      founderName: true,
+      email: true,
+      phone: true,
+      fundingStage: true,
+      revenue: true,
+      investment: true,
+      industry: true,
+      city: true,
+      status: true,
+      reviewStatus: true,
+      pitchScore: true,
+      emailVerified: false,
+      archived: false,
+      onboarding: false,
+    }
+  );
 
   useEffect(() => {
     fetchAllClients();
@@ -276,7 +300,7 @@ const ClientsData = () => {
       });
 
       const data = await response.json();
-     // console.log("[Fetch Clients] Response:", data);
+      // console.log("[Fetch Clients] Response:", data);
 
       if (!response.ok) {
         const errorMessage = getUserFriendlyError(data.error?.code);
@@ -286,7 +310,8 @@ const ClientsData = () => {
       setClients(data.data || []);
     } catch (error) {
       console.error("[Fetch Clients Error]:", error);
-      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
       setClients([]);
     } finally {
@@ -316,10 +341,13 @@ const ClientsData = () => {
       }
 
       message.success("Client deleted successfully");
-      setClients((prevClients) => prevClients.filter((client) => client.id !== clientId));
+      setClients((prevClients) =>
+        prevClients.filter((client) => client.id !== clientId)
+      );
     } catch (error) {
       console.error("[Delete Client Error]:", error);
-      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setDeleteLoading(null);
@@ -332,7 +360,7 @@ const ClientsData = () => {
   };
 
   const handleEditClient = (client: Client) => {
-  //  console.log("[Edit Client]", client);
+    //  console.log("[Edit Client]", client);
     setSelectedClient(client);
     setModalVisible(false);
     setEditModalVisible(true);
@@ -351,6 +379,7 @@ const ClientsData = () => {
       smtpHost: client.smtpHost || "",
       smtpPort: client.smtpPort || 587,
       smtpSecurity: client.smtpSecurity || "TLS",
+      smtpPassword: "", // Never pre-fill password
       archived: client.archived || false,
     });
   };
@@ -368,7 +397,10 @@ const ClientsData = () => {
   const handleSubmitReview = async () => {
     if (!selectedClient) return;
 
-    if (reviewFormData.status === "rejected" && !reviewFormData.rejectionReason.trim()) {
+    if (
+      reviewFormData.status === "rejected" &&
+      !reviewFormData.rejectionReason.trim()
+    ) {
       message.error("Please provide a rejection reason");
       return;
     }
@@ -381,17 +413,23 @@ const ClientsData = () => {
       const payload = {
         status: reviewFormData.status,
         reviewNotes: reviewFormData.reviewNotes.trim() || undefined,
-        rejectionReason: reviewFormData.status === "rejected" ? reviewFormData.rejectionReason.trim() : undefined,
+        rejectionReason:
+          reviewFormData.status === "rejected"
+            ? reviewFormData.rejectionReason.trim()
+            : undefined,
       };
 
-      const response = await fetch(`${API_BASE_URL}/clients/${selectedClient.id}/review`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/clients/${selectedClient.id}/review`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const data = await response.json();
 
@@ -405,7 +443,8 @@ const ClientsData = () => {
       await fetchAllClients();
     } catch (error) {
       console.error("[Submit Review Error]:", error);
-      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setReviewLoading(false);
@@ -429,13 +468,16 @@ const ClientsData = () => {
       const token = await getAuthToken();
       if (!token) return;
 
-      const response = await fetch(`${API_BASE_URL}/clients/${clientId}/reset-form-limits`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/clients/${clientId}/reset-form-limits`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       const data = await response.json();
 
@@ -452,7 +494,8 @@ const ClientsData = () => {
       }
     } catch (error) {
       console.error("[Reset Form Edits Error]:", error);
-      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setResetFormLoading(false);
@@ -465,13 +508,16 @@ const ClientsData = () => {
       const token = await getAuthToken();
       if (!token) return;
 
-      const response = await fetch(`${API_BASE_URL}/clients/${clientId}/reset-pitch-limits`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/clients/${clientId}/reset-pitch-limits`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       const data = await response.json();
 
@@ -488,7 +534,8 @@ const ClientsData = () => {
       }
     } catch (error) {
       console.error("[Reset Pitch Analysis Error]:", error);
-      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setResetAnalysisLoading(false);
@@ -501,13 +548,16 @@ const ClientsData = () => {
       const token = await getAuthToken();
       if (!token) return;
 
-      const response = await fetch(`${API_BASE_URL}/clients/${clientId}/reset-all-limits`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/clients/${clientId}/reset-all-limits`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       const data = await response.json();
 
@@ -524,7 +574,8 @@ const ClientsData = () => {
       }
     } catch (error) {
       console.error("[Reset All Limits Error]:", error);
-      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setResetAllLoading(false);
@@ -543,14 +594,17 @@ const ClientsData = () => {
         usageLimits: usageLimitsFormData,
       };
 
-      const response = await fetch(`${API_BASE_URL}/clients/${selectedClient.id}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/clients/${selectedClient.id}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const data = await response.json();
 
@@ -568,7 +622,8 @@ const ClientsData = () => {
       }
     } catch (error) {
       console.error("[Update Usage Limits Error]:", error);
-      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setUpdateLoading(false);
@@ -601,7 +656,8 @@ const ClientsData = () => {
       await fetchAllClients();
     } catch (error) {
       console.error("[Unarchive Client Error]:", error);
-      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setUpdateLoading(false);
@@ -633,17 +689,21 @@ const ClientsData = () => {
         smtpHost: editFormData.smtpHost,
         smtpPort: editFormData.smtpPort,
         smtpSecurity: editFormData.smtpSecurity,
+        smtpPassword: editFormData.smtpPassword || undefined, // Only send if provided
         archived: editFormData.archived,
       };
 
-      const response = await fetch(`${API_BASE_URL}/clients/${selectedClient.id}`, {
-        method: "PUT",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/clients/${selectedClient.id}`,
+        {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const data = await response.json();
 
@@ -658,12 +718,229 @@ const ClientsData = () => {
       await fetchAllClients();
     } catch (error) {
       console.error("[Update Client Error]:", error);
-      const errorMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const errorMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       message.error(errorMessage);
     } finally {
       setUpdateLoading(false);
     }
   };
+
+  // ============ PITCH DECK UPLOAD HANDLERS ============
+  const parseTextFile = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const text = e.target?.result as string;
+        if (!text || text.trim().length === 0) {
+          reject(new Error("The text file appears to be empty."));
+          return;
+        }
+        resolve(text);
+      };
+      reader.onerror = () => reject(new Error("Failed to read the text file."));
+      reader.readAsText(file, "UTF-8");
+    });
+  };
+
+  const parsePDFFile = async (file: File): Promise<string> => {
+    try {
+      const { default: pdfToText } = await import("react-pdftotext");
+      const text = await pdfToText(file);
+      if (!text || text.trim().length === 0) {
+        throw new Error("We couldn't extract any text from this PDF.");
+      }
+      return text.trim();
+    } catch (error: any) {
+      throw new Error("Unable to process the PDF file.");
+    }
+  };
+
+  const parseWordFile = async (file: File): Promise<string> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const { default: mammoth } = await import("mammoth");
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      if (!result.value || result.value.trim().length === 0) {
+        throw new Error("The Word document appears to be empty.");
+      }
+      return result.value.trim();
+    } catch (error: any) {
+      throw new Error("We couldn't read the Word document.");
+    }
+  };
+
+  const extractTextFromFile = async (file: File): Promise<string> => {
+    const maxSizeInBytes = 10 * 1024 * 1024;
+    if (file.size > maxSizeInBytes) {
+      throw new Error(
+        "File size is too large. Please use a file smaller than 10MB."
+      );
+    }
+
+    const fileExtension = file.name.split(".").pop()?.toLowerCase();
+    let extractedText = "";
+
+    if (fileExtension === "txt") {
+      extractedText = await parseTextFile(file);
+    } else if (fileExtension === "pdf") {
+      extractedText = await parsePDFFile(file);
+    } else if (fileExtension === "doc" || fileExtension === "docx") {
+      extractedText = await parseWordFile(file);
+    } else {
+      throw new Error(`Unsupported file type: .${fileExtension}`);
+    }
+
+    if (!extractedText || extractedText.trim().length < 10) {
+      throw new Error("The file doesn't contain enough readable text.");
+    }
+
+    return extractedText;
+  };
+
+  const callAnalysisAPI = async (
+    extractedText: string,
+    fileName: string
+  ): Promise<PitchAnalysis> => {
+    const response = await fetch(`${API_BASE_URL}/ai/analyze-pitch`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileName, textContent: extractedText }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      throw new Error(
+        errorData?.message || "Failed to analyze the pitch deck."
+      );
+    }
+
+    const result = await response.json();
+    if (!result.success || !result.data) {
+      throw new Error("Failed to receive analysis data from the server.");
+    }
+
+    return result.data as PitchAnalysis;
+  };
+
+  const handlePitchFileUpload = async (file: File) => {
+    if (!selectedClient) return false;
+
+    const fileExtension = file.name.split(".").pop()?.toLowerCase();
+    const allowedExtensions = ["pdf", "doc", "docx", "txt"];
+
+    if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
+      message.error(
+        "Unsupported file type. Please upload PDF, Word, or Text files only."
+      );
+      return false;
+    }
+
+    const maxSizeInBytes = 10 * 1024 * 1024;
+    if (file.size > maxSizeInBytes) {
+      message.error("File is too large. Please use a file smaller than 10MB.");
+      return false;
+    }
+
+    setPitchUploadLoading(true);
+    setUploadedPitchAnalysis(null);
+
+    try {
+      message.loading("Processing file...", 0);
+      const extractedText = await extractTextFromFile(file);
+
+      message.destroy();
+      message.success("File processed successfully!");
+
+      message.loading(
+        "Analyzing content with AI... This may take a moment.",
+        0
+      );
+      const analysis = await callAnalysisAPI(extractedText, file.name);
+
+      const analysisWithMetadata = {
+        ...analysis,
+        fileName: file.name,
+        analyzedAt: new Date().toISOString(),
+      };
+
+      message.destroy();
+      message.success(
+        "Analysis complete! Review and click Save to add to client."
+      );
+
+      // Store analysis in state (NOT saving yet)
+      setUploadedPitchAnalysis(analysisWithMetadata);
+    } catch (error: any) {
+      console.error("Pitch upload error:", error);
+      message.destroy();
+      message.error(error.message || "Something went wrong.");
+    } finally {
+      setPitchUploadLoading(false);
+    }
+
+    return false;
+  };
+
+  // Separate function to save the analyzed pitch to client
+  const handleSavePitchAnalysis = async () => {
+    if (!selectedClient || !uploadedPitchAnalysis) return;
+
+    setPitchUploadLoading(true);
+
+    try {
+      const token = await getAuthToken();
+      if (!token) {
+        setPitchUploadLoading(false);
+        return;
+      }
+
+      const saveResponse = await fetch(
+        `${API_BASE_URL}/clients/${selectedClient.id}/add-pitch-analysis`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ pitchAnalysis: uploadedPitchAnalysis }),
+        }
+      );
+
+      const saveData = await saveResponse.json();
+
+      if (!saveResponse.ok) {
+        throw new Error(
+          saveData.error?.message || "Failed to save pitch analysis."
+        );
+      }
+
+      message.success("Pitch analysis saved to client successfully!");
+
+      // Update the selected client with new data
+      if (saveData.data) {
+        setSelectedClient(saveData.data);
+      }
+
+      // Clear the uploaded analysis state
+      setUploadedPitchAnalysis(null);
+
+      // Refresh clients list
+      await fetchAllClients();
+    } catch (error: any) {
+      console.error("Save pitch analysis error:", error);
+      message.error(error.message || "Failed to save pitch analysis.");
+    } finally {
+      setPitchUploadLoading(false);
+    }
+  };
+
+  // Discard the analyzed pitch without saving
+  const handleDiscardPitchAnalysis = () => {
+    setUploadedPitchAnalysis(null);
+    message.info("Analysis discarded.");
+  };
+  // ============ END PITCH DECK UPLOAD HANDLERS ============
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -706,9 +983,15 @@ const ClientsData = () => {
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <FileText size={20} className="text-blue-600" />
-          <span className="font-semibold text-lg">{analysis.fileName || `Analysis ${index + 1}`}</span>
+          <span className="font-semibold text-lg">
+            {analysis.fileName || `Analysis ${index + 1}`}
+          </span>
         </div>
-        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(analysis.summary.status)}`}>
+        <span
+          className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
+            analysis.summary.status
+          )}`}
+        >
           {analysis.summary.status}
         </span>
       </div>
@@ -728,10 +1011,18 @@ const ClientsData = () => {
 
       <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium">Investment Readiness Score</span>
-          <span className="text-xl font-bold">{analysis.summary.total_score}/100</span>
+          <span className="text-sm font-medium">
+            Investment Readiness Score
+          </span>
+          <span className="text-xl font-bold">
+            {analysis.summary.total_score}/100
+          </span>
         </div>
-        <Progress percent={analysis.summary.total_score} strokeColor={getProgressColor(analysis.summary.total_score)} strokeWidth={12} />
+        <Progress
+          percent={analysis.summary.total_score}
+          strokeColor={getProgressColor(analysis.summary.total_score)}
+          strokeWidth={12}
+        />
       </div>
 
       <Collapse ghost>
@@ -739,19 +1030,27 @@ const ClientsData = () => {
           <div className="space-y-3">
             <div>
               <div className="font-semibold text-sm mb-1">Problem</div>
-              <div className="text-sm text-gray-700">{analysis.summary.problem}</div>
+              <div className="text-sm text-gray-700">
+                {analysis.summary.problem}
+              </div>
             </div>
             <div>
               <div className="font-semibold text-sm mb-1">Solution</div>
-              <div className="text-sm text-gray-700">{analysis.summary.solution}</div>
+              <div className="text-sm text-gray-700">
+                {analysis.summary.solution}
+              </div>
             </div>
             <div>
               <div className="font-semibold text-sm mb-1">Market</div>
-              <div className="text-sm text-gray-700">{analysis.summary.market}</div>
+              <div className="text-sm text-gray-700">
+                {analysis.summary.market}
+              </div>
             </div>
             <div>
               <div className="font-semibold text-sm mb-1">Traction</div>
-              <div className="text-sm text-gray-700">{analysis.summary.traction}</div>
+              <div className="text-sm text-gray-700">
+                {analysis.summary.traction}
+              </div>
             </div>
           </div>
         </Panel>
@@ -762,9 +1061,16 @@ const ClientsData = () => {
               <div key={criteria}>
                 <div className="flex justify-between mb-1">
                   <span className="text-sm font-medium">{criteria}</span>
-                  <span className="text-sm font-bold text-blue-600">{score}/10</span>
+                  <span className="text-sm font-bold text-blue-600">
+                    {score}/10
+                  </span>
                 </div>
-                <Progress percent={score * 10} strokeColor="#1890ff" strokeWidth={8} showInfo={false} />
+                <Progress
+                  percent={score * 10}
+                  strokeColor="#1890ff"
+                  strokeWidth={8}
+                  showInfo={false}
+                />
               </div>
             ))}
           </div>
@@ -773,7 +1079,10 @@ const ClientsData = () => {
         <Panel header="Key Highlights" key="highlights">
           <div className="space-y-2">
             {analysis.highlights.map((highlight, idx) => (
-              <div key={idx} className="flex items-start gap-2 p-2 bg-green-50 rounded">
+              <div
+                key={idx}
+                className="flex items-start gap-2 p-2 bg-green-50 rounded"
+              >
                 <span className="text-green-600 mt-1">✓</span>
                 <span className="text-sm">{highlight}</span>
               </div>
@@ -794,18 +1103,37 @@ const ClientsData = () => {
               {analysis.email_subject && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-semibold text-gray-700">Email Subject</label>
-                    <Tooltip title={copiedField === `subject-${index}` ? "Copied!" : "Copy Subject"}>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Email Subject
+                    </label>
+                    <Tooltip
+                      title={
+                        copiedField === `subject-${index}`
+                          ? "Copied!"
+                          : "Copy Subject"
+                      }
+                    >
                       <button
-                        onClick={() => handleCopyToClipboard(analysis.email_subject!, `subject-${index}`)}
+                        onClick={() =>
+                          handleCopyToClipboard(
+                            analysis.email_subject!,
+                            `subject-${index}`
+                          )
+                        }
                         className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                       >
-                        {copiedField === `subject-${index}` ? <Check size={16} /> : <Copy size={16} />}
+                        {copiedField === `subject-${index}` ? (
+                          <Check size={16} />
+                        ) : (
+                          <Copy size={16} />
+                        )}
                       </button>
                     </Tooltip>
                   </div>
                   <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                    <p className="text-sm text-gray-800 font-medium">{analysis.email_subject}</p>
+                    <p className="text-sm text-gray-800 font-medium">
+                      {analysis.email_subject}
+                    </p>
                   </div>
                 </div>
               )}
@@ -813,13 +1141,30 @@ const ClientsData = () => {
               {analysis.email_body && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-sm font-semibold text-gray-700">Email Body</label>
-                    <Tooltip title={copiedField === `body-${index}` ? "Copied!" : "Copy Email Body"}>
+                    <label className="text-sm font-semibold text-gray-700">
+                      Email Body
+                    </label>
+                    <Tooltip
+                      title={
+                        copiedField === `body-${index}`
+                          ? "Copied!"
+                          : "Copy Email Body"
+                      }
+                    >
                       <button
-                        onClick={() => handleCopyToClipboard(analysis.email_body!, `body-${index}`)}
+                        onClick={() =>
+                          handleCopyToClipboard(
+                            analysis.email_body!,
+                            `body-${index}`
+                          )
+                        }
                         className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                       >
-                        {copiedField === `body-${index}` ? <Check size={16} /> : <Copy size={16} />}
+                        {copiedField === `body-${index}` ? (
+                          <Check size={16} />
+                        ) : (
+                          <Copy size={16} />
+                        )}
                       </button>
                     </Tooltip>
                   </div>
@@ -844,7 +1189,9 @@ const ClientsData = () => {
                 <AntButton
                   icon={<Copy size={16} />}
                   onClick={() => {
-                    const fullEmail = `Subject: ${analysis.email_subject || ""}\n\n${analysis.email_body || ""}`;
+                    const fullEmail = `Subject: ${
+                      analysis.email_subject || ""
+                    }\n\n${analysis.email_body || ""}`;
                     handleCopyToClipboard(fullEmail, `full-email-${index}`);
                   }}
                   type="default"
@@ -864,33 +1211,51 @@ const ClientsData = () => {
     {
       key: "submissionId",
       title: "Submission ID",
-      render: (_, record: Client) => <span className="text-sm font-medium">{record.submissionId || "N/A"}</span>,
+      render: (_, record: Client) => (
+        <span className="text-sm font-medium">
+          {record.submissionId || "N/A"}
+        </span>
+      ),
     },
     {
       key: "companyName",
       title: "Company Name",
-      render: (_, record: Client) => <span className="text-sm font-medium">{record.companyName || "N/A"}</span>,
+      render: (_, record: Client) => (
+        <span className="text-sm font-medium">
+          {record.companyName || "N/A"}
+        </span>
+      ),
     },
     {
       key: "founderName",
       title: "Founder Name",
-      render: (_, record: Client) => <span className="text-sm">{record.founderName || "N/A"}</span>,
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.founderName || "N/A"}</span>
+      ),
     },
     {
       key: "email",
       title: "Email",
-      render: (_, record: Client) => <span className="text-sm">{record.email || "N/A"}</span>,
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.email || "N/A"}</span>
+      ),
     },
     {
       key: "phone",
       title: "Phone",
-      render: (_, record: Client) => <span className="text-sm">{record.phone || "N/A"}</span>,
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.phone || "N/A"}</span>
+      ),
     },
     {
       key: "status",
       title: "Status",
       render: (_, record: Client) => (
-        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getClientStatusColor(record.status)}`}>
+        <span
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getClientStatusColor(
+            record.status
+          )}`}
+        >
           {record.status.replace("_", " ").toUpperCase()}
         </span>
       ),
@@ -919,7 +1284,8 @@ const ClientsData = () => {
       key: "pitchScore",
       title: "Pitch Score",
       render: (_, record: Client) => {
-        const latestPitch = record.pitchAnalyses?.[record.pitchAnalyses.length - 1];
+        const latestPitch =
+          record.pitchAnalyses?.[record.pitchAnalyses.length - 1];
         if (latestPitch) {
           const score = latestPitch.summary?.total_score || 0;
           return (
@@ -942,7 +1308,9 @@ const ClientsData = () => {
       render: (_, record: Client) => (
         <span
           className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            record.emailVerified ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+            record.emailVerified
+              ? "bg-green-100 text-green-800"
+              : "bg-red-100 text-red-800"
           }`}
         >
           {record.emailVerified ? "Verified" : "Not Verified"}
@@ -955,7 +1323,9 @@ const ClientsData = () => {
       render: (_, record: Client) => (
         <span
           className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            record.archived ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"
+            record.archived
+              ? "bg-red-100 text-red-800"
+              : "bg-green-100 text-green-800"
           }`}
         >
           {record.archived ? "Yes" : "No"}
@@ -974,12 +1344,16 @@ const ClientsData = () => {
     {
       key: "revenue",
       title: "Revenue",
-      render: (_, record: Client) => <span className="text-sm">{record.revenue || "N/A"}</span>,
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.revenue || "N/A"}</span>
+      ),
     },
     {
       key: "investment",
       title: "Investment Ask",
-      render: (_, record: Client) => <span className="text-sm">{record.investment || "N/A"}</span>,
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.investment || "N/A"}</span>
+      ),
     },
     {
       key: "industry",
@@ -1001,7 +1375,10 @@ const ClientsData = () => {
         return (
           <div className="flex flex-wrap gap-1">
             {industries.slice(0, 2).map((industry, idx) => (
-              <span key={idx} className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800">
+              <span
+                key={idx}
+                className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800"
+              >
                 {industry}
               </span>
             ))}
@@ -1017,7 +1394,9 @@ const ClientsData = () => {
     {
       key: "city",
       title: "City",
-      render: (_, record: Client) => <span className="text-sm">{record.city || "N/A"}</span>,
+      render: (_, record: Client) => (
+        <span className="text-sm">{record.city || "N/A"}</span>
+      ),
     },
     {
       key: "onboarding",
@@ -1087,7 +1466,8 @@ const ClientsData = () => {
             onClick={() => {
               Modal.confirm({
                 title: "Delete this client?",
-                content: "This action cannot be undone. All pitch analyses will be deleted.",
+                content:
+                  "This action cannot be undone. All pitch analyses will be deleted.",
                 okText: "Delete",
                 cancelText: "Cancel",
                 okButtonProps: { danger: true },
@@ -1098,7 +1478,11 @@ const ClientsData = () => {
             title="Delete client"
             disabled={deleteLoading === record.id}
           >
-            {deleteLoading === record.id ? <Spin size="small" /> : <Trash2 size={18} />}
+            {deleteLoading === record.id ? (
+              <Spin size="small" />
+            ) : (
+              <Trash2 size={18} />
+            )}
           </button>
         </div>
       ),
@@ -1108,7 +1492,9 @@ const ClientsData = () => {
   return (
     <div>
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-xl md:text-2xl font-semibold text-gray-900">Client Management</h1>
+        <h1 className="text-xl md:text-2xl font-semibold text-gray-900">
+          Client Management
+        </h1>
         <button
           onClick={() => router.push("/dashboard/add-client")}
           className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors"
@@ -1125,7 +1511,13 @@ const ClientsData = () => {
         loading={loading}
         onRefresh={fetchAllClients}
         searchPlaceholder="Search by email, company or founder name..."
-        searchKeys={["email", "companyName", "founderName", "phone", "submissionId"]}
+        searchKeys={[
+          "email",
+          "companyName",
+          "founderName",
+          "phone",
+          "submissionId",
+        ]}
         rowKey={(record: Client) => record.id}
         visibleColumns={visibleColumns}
         onColumnVisibilityChange={setVisibleColumns}
@@ -1148,73 +1540,117 @@ const ClientsData = () => {
             <TabPane tab="Basic Information" key="1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="col-span-2 border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Submission ID</div>
-                  <div className="text-base font-bold text-gray-900">{selectedClient.submissionId || "N/A"}</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Submission ID
+                  </div>
+                  <div className="text-base font-bold text-gray-900">
+                    {selectedClient.submissionId || "N/A"}
+                  </div>
                 </div>
 
                 <div className="col-span-2 border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Founder Name</div>
-                  <div className="text-base text-gray-900">{selectedClient.founderName || "N/A"}</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Founder Name
+                  </div>
+                  <div className="text-base text-gray-900">
+                    {selectedClient.founderName || "N/A"}
+                  </div>
                 </div>
 
                 <div className="col-span-2 border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Email</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Email
+                  </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-base text-gray-900 break-all">{selectedClient.email || "N/A"}</span>
+                    <span className="text-base text-gray-900 break-all">
+                      {selectedClient.email || "N/A"}
+                    </span>
                     <span
                       className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                        selectedClient.emailVerified ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                        selectedClient.emailVerified
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
                       }`}
                     >
-                      {selectedClient.emailVerified ? "Verified" : "Not Verified"}
+                      {selectedClient.emailVerified
+                        ? "Verified"
+                        : "Not Verified"}
                     </span>
                   </div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Phone</div>
-                  <div className="text-base text-gray-900">{selectedClient.phone || "N/A"}</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Phone
+                  </div>
+                  <div className="text-base text-gray-900">
+                    {selectedClient.phone || "N/A"}
+                  </div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Company Name</div>
-                  <div className="text-base font-semibold text-gray-900">{selectedClient.companyName || "N/A"}</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Company Name
+                  </div>
+                  <div className="text-base font-semibold text-gray-900">
+                    {selectedClient.companyName || "N/A"}
+                  </div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Industry</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Industry
+                  </div>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                     {selectedClient.industry || "N/A"}
                   </span>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Funding Stage</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Funding Stage
+                  </div>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                     {selectedClient.fundingStage || "N/A"}
                   </span>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Revenue</div>
-                  <div className="text-base text-gray-900">{selectedClient.revenue || "N/A"}</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Revenue
+                  </div>
+                  <div className="text-base text-gray-900">
+                    {selectedClient.revenue || "N/A"}
+                  </div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Investment Ask</div>
-                  <div className="text-base text-gray-900">{selectedClient.investment || "N/A"}</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Investment Ask
+                  </div>
+                  <div className="text-base text-gray-900">
+                    {selectedClient.investment || "N/A"}
+                  </div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">City</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    City
+                  </div>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
                     {selectedClient.city || "N/A"}
                   </span>
                 </div>
 
                 <div className="col-span-2 border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Status</div>
-                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getClientStatusColor(selectedClient.status)}`}>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Status
+                  </div>
+                  <span
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getClientStatusColor(
+                      selectedClient.status
+                    )}`}
+                  >
                     {selectedClient.status.replace("_", " ").toUpperCase()}
                   </span>
                 </div>
@@ -1222,22 +1658,31 @@ const ClientsData = () => {
                 {selectedClient.reviewedAt && (
                   <>
                     <div className="col-span-2 border-b pb-3">
-                      <div className="text-sm font-medium text-gray-500 mb-1">Reviewed At</div>
+                      <div className="text-sm font-medium text-gray-500 mb-1">
+                        Reviewed At
+                      </div>
                       <div className="text-base text-gray-900">
-                        {new Date(selectedClient.reviewedAt).toLocaleString("en-US", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {new Date(selectedClient.reviewedAt).toLocaleString(
+                          "en-US",
+                          {
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }
+                        )}
                       </div>
                     </div>
 
                     {selectedClient.reviewNotes && (
                       <div className="col-span-2 border-b pb-3">
-                        <div className="text-sm font-medium text-gray-500 mb-1">Review Notes</div>
-                        <div className="text-base text-gray-900">{selectedClient.reviewNotes}</div>
+                        <div className="text-sm font-medium text-gray-500 mb-1">
+                          Review Notes
+                        </div>
+                        <div className="text-base text-gray-900">
+                          {selectedClient.reviewNotes}
+                        </div>
                       </div>
                     )}
                   </>
@@ -1245,23 +1690,36 @@ const ClientsData = () => {
 
                 {selectedClient.createdAt && (
                   <div className="border-b pb-3">
-                    <div className="text-sm font-medium text-gray-500 mb-1">Onboarded</div>
+                    <div className="text-sm font-medium text-gray-500 mb-1">
+                      Onboarded
+                    </div>
                     <div className="text-base text-gray-900">
                       {(() => {
-                        const onboardedDate = new Date(selectedClient.createdAt);
+                        const onboardedDate = new Date(
+                          selectedClient.createdAt
+                        );
                         const today = new Date();
-                        const diffDays = Math.floor((today.getTime() - onboardedDate.getTime()) / (1000 * 60 * 60 * 24));
-                        return `${diffDays} day${diffDays !== 1 ? "s" : ""} ago`;
+                        const diffDays = Math.floor(
+                          (today.getTime() - onboardedDate.getTime()) /
+                            (1000 * 60 * 60 * 24)
+                        );
+                        return `${diffDays} day${
+                          diffDays !== 1 ? "s" : ""
+                        } ago`;
                       })()}
                     </div>
                   </div>
                 )}
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Is Archived</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Is Archived
+                  </div>
                   <span
                     className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      selectedClient.archived ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800"
+                      selectedClient.archived
+                        ? "bg-red-100 text-red-800"
+                        : "bg-green-100 text-green-800"
                     }`}
                   >
                     {selectedClient.archived ? "Yes" : "No"}
@@ -1273,37 +1731,59 @@ const ClientsData = () => {
             <TabPane tab="Email Configuration" key="email-config">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Platform Name</div>
-                  <div className="text-base text-gray-900">{selectedClient.platformName || "N/A"}</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Platform Name
+                  </div>
+                  <div className="text-base text-gray-900">
+                    {selectedClient.platformName || "N/A"}
+                  </div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Sender Email</div>
-                  <div className="text-base text-gray-900 break-all">{selectedClient.senderEmail || "N/A"}</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Sender Email
+                  </div>
+                  <div className="text-base text-gray-900 break-all">
+                    {selectedClient.senderEmail || "N/A"}
+                  </div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">SMTP Host</div>
-                  <div className="text-base text-gray-900">{selectedClient.smtpHost || "N/A"}</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    SMTP Host
+                  </div>
+                  <div className="text-base text-gray-900">
+                    {selectedClient.smtpHost || "N/A"}
+                  </div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">SMTP Port</div>
-                  <div className="text-base text-gray-900">{selectedClient.smtpPort || "N/A"}</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    SMTP Port
+                  </div>
+                  <div className="text-base text-gray-900">
+                    {selectedClient.smtpPort || "N/A"}
+                  </div>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Security Type</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Security Type
+                  </div>
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                     {selectedClient.smtpSecurity || "N/A"}
                   </span>
                 </div>
 
                 <div className="border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Test Status</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Test Status
+                  </div>
                   <span
                     className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      selectedClient.smtpTestStatus === "passed" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"
+                      selectedClient.smtpTestStatus === "passed"
+                        ? "bg-green-100 text-green-800"
+                        : "bg-orange-100 text-orange-800"
                     }`}
                   >
                     {selectedClient.smtpTestStatus?.toUpperCase() || "PENDING"}
@@ -1311,20 +1791,143 @@ const ClientsData = () => {
                 </div>
 
                 <div className="col-span-2 border-b pb-3">
-                  <div className="text-sm font-medium text-gray-500 mb-1">Daily Email Limit</div>
-                  <div className="text-base text-gray-900">{selectedClient.dailyEmailLimit || 50}</div>
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Daily Email Limit
+                  </div>
+                  <div className="text-base text-gray-900">
+                    {selectedClient.dailyEmailLimit || 50}
+                  </div>
                 </div>
               </div>
             </TabPane>
 
-            <TabPane tab={`Pitch Analyses (${selectedClient.pitchAnalyses?.length || 0})`} key="2">
+            <TabPane
+              tab={`Pitch Analyses (${
+                selectedClient.pitchAnalyses?.length || 0
+              })`}
+              key="2"
+            >
               <div className="max-h-[500px] overflow-y-auto">
-                {selectedClient.pitchAnalyses && selectedClient.pitchAnalyses.length > 0 ? (
-                  selectedClient.pitchAnalyses.map((analysis, index) => renderPitchAnalysis(analysis, index))
+                {selectedClient.pitchAnalyses &&
+                selectedClient.pitchAnalyses.length > 0 ? (
+                  selectedClient.pitchAnalyses.map((analysis, index) =>
+                    renderPitchAnalysis(analysis, index)
+                  )
                 ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <FileText size={48} className="mx-auto mb-3 text-gray-300" />
-                    <p>No pitch analyses yet</p>
+                  <div className="text-center py-8">
+                    {uploadedPitchAnalysis ? (
+                      // Show analysis preview with Save/Discard buttons
+                      <div className="text-left">
+                        <Alert
+                          message={
+                            <span className="flex items-center gap-2">
+                              <CheckCircleOutlined
+                                style={{ color: "#52c41a" }}
+                              />
+                              Analysis Complete - Review Before Saving
+                            </span>
+                          }
+                          description={`File: ${uploadedPitchAnalysis.fileName} | Score: ${uploadedPitchAnalysis.summary.total_score}/100 | Status: ${uploadedPitchAnalysis.summary.status}`}
+                          type="success"
+                          style={{ marginBottom: 16 }}
+                        />
+
+                        <div className="bg-gray-50 p-4 rounded-lg mb-4 max-h-[300px] overflow-y-auto">
+                          <h4 className="font-semibold mb-2">Summary</h4>
+                          <p className="text-sm text-gray-600 mb-2">
+                            <strong>Problem:</strong>{" "}
+                            {uploadedPitchAnalysis.summary.problem}
+                          </p>
+                          <p className="text-sm text-gray-600 mb-2">
+                            <strong>Solution:</strong>{" "}
+                            {uploadedPitchAnalysis.summary.solution}
+                          </p>
+                          <p className="text-sm text-gray-600 mb-2">
+                            <strong>Market:</strong>{" "}
+                            {uploadedPitchAnalysis.summary.market}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            <strong>Traction:</strong>{" "}
+                            {uploadedPitchAnalysis.summary.traction}
+                          </p>
+                        </div>
+
+                        <div className="flex justify-center gap-3">
+                          <AntButton
+                            onClick={handleDiscardPitchAnalysis}
+                            disabled={pitchUploadLoading}
+                          >
+                            Discard
+                          </AntButton>
+                          <AntButton
+                            type="primary"
+                            onClick={handleSavePitchAnalysis}
+                            loading={pitchUploadLoading}
+                            style={{
+                              backgroundColor: "#52c41a",
+                              borderColor: "#52c41a",
+                            }}
+                          >
+                            Save to Client
+                          </AntButton>
+                        </div>
+                      </div>
+                    ) : (
+                      // Show upload UI
+                      <>
+                        <FileText
+                          size={48}
+                          className="mx-auto mb-3 text-gray-300"
+                        />
+                        <p className="text-gray-500 mb-4">
+                          No pitch analyses yet
+                        </p>
+
+                        <Alert
+                          message="Generate Pitch Analysis"
+                          description="Upload the client's pitch deck to analyze their investment readiness. The AI will evaluate key criteria and provide a comprehensive scorecard."
+                          type="info"
+                          showIcon
+                          style={{ marginBottom: 16, textAlign: "left" }}
+                        />
+
+                        {pitchUploadLoading ? (
+                          <div className="py-6">
+                            <Spin
+                              indicator={
+                                <LoadingOutlined style={{ fontSize: 36 }} />
+                              }
+                            />
+                            <p className="mt-3 text-gray-600">
+                              Analyzing pitch deck with AI...
+                            </p>
+                            <p className="text-sm text-gray-400">
+                              This may take 10-30 seconds
+                            </p>
+                          </div>
+                        ) : (
+                          <AntUpload.Dragger
+                            accept=".pdf,.doc,.docx,.txt"
+                            beforeUpload={handlePitchFileUpload}
+                            showUploadList={false}
+                            disabled={pitchUploadLoading}
+                            style={{ maxWidth: 400, margin: "0 auto" }}
+                          >
+                            <p className="ant-upload-drag-icon">
+                              <UploadOutlined
+                                style={{ color: "#1890ff", fontSize: 36 }}
+                              />
+                            </p>
+                            <p className="ant-upload-text">
+                              Click or drag file to upload
+                            </p>
+                            <p className="ant-upload-hint">
+                              PDF, Word (.doc, .docx), or Text (.txt) | Max 10MB
+                            </p>
+                          </AntUpload.Dragger>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1339,15 +1942,22 @@ const ClientsData = () => {
                       <span className="font-semibold">Form Edits</span>
                     </div>
                     <span className="text-lg font-bold">
-                      {selectedClient.usageLimits?.formEditCount || 0} / {selectedClient.usageLimits?.maxFormEdits || 4}
+                      {selectedClient.usageLimits?.formEditCount || 0} /{" "}
+                      {selectedClient.usageLimits?.maxFormEdits || 4}
                     </span>
                   </div>
                   <Progress
-                    percent={((selectedClient.usageLimits?.formEditCount || 0) / (selectedClient.usageLimits?.maxFormEdits || 4)) * 100}
+                    percent={
+                      ((selectedClient.usageLimits?.formEditCount || 0) /
+                        (selectedClient.usageLimits?.maxFormEdits || 4)) *
+                      100
+                    }
                     strokeColor="#1890ff"
                   />
                   <div className="mt-2 text-sm text-gray-600">
-                    {selectedClient.usageLimits?.canEditForm ? "Can still edit" : "Edit limit reached"}
+                    {selectedClient.usageLimits?.canEditForm
+                      ? "Can still edit"
+                      : "Edit limit reached"}
                   </div>
                   <div className="mt-3">
                     <AntButton
@@ -1370,20 +1980,29 @@ const ClientsData = () => {
                       <span className="font-semibold">Pitch Analyses</span>
                     </div>
                     <span className="text-lg font-bold">
-                      {selectedClient.usageLimits?.pitchAnalysisCount || 0} / {selectedClient.usageLimits?.maxPitchAnalysis || 2}
+                      {selectedClient.usageLimits?.pitchAnalysisCount || 0} /{" "}
+                      {selectedClient.usageLimits?.maxPitchAnalysis || 2}
                     </span>
                   </div>
                   <Progress
-                    percent={((selectedClient.usageLimits?.pitchAnalysisCount || 0) / (selectedClient.usageLimits?.maxPitchAnalysis || 2)) * 100}
+                    percent={
+                      ((selectedClient.usageLimits?.pitchAnalysisCount || 0) /
+                        (selectedClient.usageLimits?.maxPitchAnalysis || 2)) *
+                      100
+                    }
                     strokeColor="#52c41a"
                   />
                   <div className="mt-2 text-sm text-gray-600">
-                    {selectedClient.usageLimits?.canAnalyzePitch ? "Can add more analyses" : "Analysis limit reached"}
+                    {selectedClient.usageLimits?.canAnalyzePitch
+                      ? "Can add more analyses"
+                      : "Analysis limit reached"}
                   </div>
                   <div className="mt-3">
                     <AntButton
                       icon={<RefreshCw size={16} />}
-                      onClick={() => handleResetPitchAnalysis(selectedClient.id)}
+                      onClick={() =>
+                        handleResetPitchAnalysis(selectedClient.id)
+                      }
                       loading={resetAnalysisLoading}
                       type="default"
                       size="small"
@@ -1395,7 +2014,13 @@ const ClientsData = () => {
                 </div>
 
                 <div className="flex gap-2 pt-4 border-t">
-                  <AntButton icon={<RefreshCw size={16} />} onClick={() => handleResetAllLimits(selectedClient.id)} loading={resetAllLoading} type="default" danger>
+                  <AntButton
+                    icon={<RefreshCw size={16} />}
+                    onClick={() => handleResetAllLimits(selectedClient.id)}
+                    loading={resetAllLoading}
+                    type="default"
+                    danger
+                  >
                     Reset Both to 0
                   </AntButton>
                   <AntButton
@@ -1449,7 +2074,9 @@ const ClientsData = () => {
           <form onSubmit={handleUpdateClient} className="space-y-4 p-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Founder Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Founder Name
+                </label>
                 <input
                   type="text"
                   value={editFormData.founderName}
@@ -1465,29 +2092,39 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Email
+                </label>
                 <input
                   type="email"
                   value={editFormData.email}
-                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, email: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={updateLoading}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone
+                </label>
                 <input
                   type="text"
                   value={editFormData.phone}
-                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, phone: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={updateLoading}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Company Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Company Name
+                </label>
                 <input
                   type="text"
                   value={editFormData.companyName}
@@ -1503,7 +2140,9 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Industry</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Industry
+                </label>
                 <input
                   type="text"
                   value={editFormData.industry}
@@ -1519,7 +2158,9 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Funding Stage</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Funding Stage
+                </label>
                 <select
                   value={editFormData.fundingStage}
                   onChange={(e) =>
@@ -1542,7 +2183,9 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Revenue</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Revenue
+                </label>
                 <input
                   type="text"
                   value={editFormData.revenue}
@@ -1558,7 +2201,9 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Investment Ask</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Investment Ask
+                </label>
                 <input
                   type="text"
                   value={editFormData.investment}
@@ -1574,22 +2219,30 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  City
+                </label>
                 <input
                   type="text"
                   value={editFormData.city}
-                  onChange={(e) => setEditFormData({ ...editFormData, city: e.target.value })}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, city: e.target.value })
+                  }
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={updateLoading}
                 />
               </div>
 
               <div className="col-span-2">
-                <h3 className="font-semibold text-gray-900 mb-3 pt-2 border-t">Email Configuration</h3>
+                <h3 className="font-semibold text-gray-900 mb-3 pt-2 border-t">
+                  Email Configuration
+                </h3>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Platform Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Platform Name
+                </label>
                 <input
                   type="text"
                   value={editFormData.platformName}
@@ -1605,7 +2258,9 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Sender Email</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Sender Email
+                </label>
                 <input
                   type="email"
                   value={editFormData.senderEmail}
@@ -1621,7 +2276,9 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">SMTP Host</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  SMTP Host
+                </label>
                 <input
                   type="text"
                   value={editFormData.smtpHost}
@@ -1637,7 +2294,9 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">SMTP Port</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  SMTP Port
+                </label>
                 <input
                   type="number"
                   value={editFormData.smtpPort}
@@ -1653,7 +2312,9 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Security Type</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Security Type
+                </label>
                 <select
                   value={editFormData.smtpSecurity}
                   onChange={(e) =>
@@ -1671,6 +2332,28 @@ const ClientsData = () => {
                 </select>
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  SMTP Password
+                </label>
+                <input
+                  type="password"
+                  value={editFormData.smtpPassword}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      smtpPassword: e.target.value,
+                    })
+                  }
+                  placeholder="Leave blank to keep existing password"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={updateLoading}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Only fill if you want to update the password
+                </p>
+              </div>
+
               <div className="flex items-center">
                 <input
                   type="checkbox"
@@ -1685,7 +2368,10 @@ const ClientsData = () => {
                   id="archive-checkbox"
                   disabled={updateLoading}
                 />
-                <label htmlFor="archive-checkbox" className="ml-2 text-sm text-gray-700">
+                <label
+                  htmlFor="archive-checkbox"
+                  className="ml-2 text-sm text-gray-700"
+                >
                   Archive Client
                 </label>
               </div>
@@ -1699,7 +2385,9 @@ const ClientsData = () => {
         title={
           <div className="flex items-center gap-2">
             <CheckCircle size={20} />
-            <span className="text-lg font-semibold">Review Client Submission</span>
+            <span className="text-lg font-semibold">
+              Review Client Submission
+            </span>
           </div>
         }
         open={reviewModalVisible}
@@ -1727,7 +2415,9 @@ const ClientsData = () => {
       >
         <div className="p-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Review Decision</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Review Decision
+            </label>
             <Select
               value={reviewFormData.status}
               onChange={(value) =>
@@ -1775,7 +2465,9 @@ const ClientsData = () => {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Additional Notes (Optional)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Additional Notes (Optional)
+            </label>
             <TextArea
               value={reviewFormData.reviewNotes}
               onChange={(e) =>
@@ -1827,7 +2519,9 @@ const ClientsData = () => {
           <div className="bg-gray-50 rounded-lg p-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Current Form Edits</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Current Form Edits
+                </label>
                 <InputNumber
                   min={0}
                   max={usageLimitsFormData.maxFormEdits}
@@ -1844,7 +2538,9 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Max Form Edits</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Max Form Edits
+                </label>
                 <InputNumber
                   min={usageLimitsFormData.formEditCount}
                   max={100}
@@ -1861,7 +2557,9 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Current Pitch Analyses</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Current Pitch Analyses
+                </label>
                 <InputNumber
                   min={0}
                   max={usageLimitsFormData.maxPitchAnalysis}
@@ -1878,7 +2576,9 @@ const ClientsData = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Max Pitch Analyses</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Max Pitch Analyses
+                </label>
                 <InputNumber
                   min={usageLimitsFormData.pitchAnalysisCount}
                   max={100}
@@ -1901,13 +2601,16 @@ const ClientsData = () => {
               <div className="font-semibold mb-2">💡 Usage Limits Guide:</div>
               <ul className="list-disc pl-5 space-y-1">
                 <li>
-                  <strong>Current:</strong> How many times the client has already used this feature
+                  <strong>Current:</strong> How many times the client has
+                  already used this feature
                 </li>
                 <li>
-                  <strong>Max:</strong> Maximum allowed uses (increase to give more credits)
+                  <strong>Max:</strong> Maximum allowed uses (increase to give
+                  more credits)
                 </li>
                 <li>
-                  <strong>Reset:</strong> Sets "Current" back to 0 while keeping "Max" unchanged
+                  <strong>Reset:</strong> Sets "Current" back to 0 while keeping
+                  "Max" unchanged
                 </li>
               </ul>
             </div>

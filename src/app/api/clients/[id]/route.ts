@@ -6,6 +6,7 @@ import {
   createAuthErrorResponse,
 } from "@/lib/auth-middleware";
 import { dbHelpers } from "@/lib/db-helpers";
+import { encryptAES256 } from "@/lib/encryption";
 import {
   ClientDocument,
   TransformedClient,
@@ -15,8 +16,6 @@ import {
   UsageLimits,
   ClientInformation,
 } from "@/types/client";
-
-
 
 export async function GET(
   request: NextRequest,
@@ -229,7 +228,7 @@ export async function PUT(
             : existingEmailConfig.smtpUsername,
         smtpPassword:
           smtpPassword !== undefined
-            ? smtpPassword.replace(/\s/g, "")
+            ? encryptAES256(smtpPassword.replace(/\s/g, ""))
             : existingEmailConfig.smtpPassword,
       };
     }

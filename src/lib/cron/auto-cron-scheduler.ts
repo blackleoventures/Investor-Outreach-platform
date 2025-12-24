@@ -123,10 +123,20 @@ export function startAutoCronScheduler() {
       }
     }
 
+    // FIREBASE SPARK PLAN LIMITS:
+    // - 50K reads/day, 20K writes/day
+    // - Each cron run uses ~50-100 reads
+    //
+    // OPTIMIZED SCHEDULES (to stay under 50K reads/day):
+    // - Send Emails: Every 5 mins = 288 runs/day × 100 reads = ~28,800 reads
+    // - Check Replies: Every 10 mins = 144 runs/day × 50 reads = ~7,200 reads
+    // - Update Stats: Every 15 mins = 96 runs/day × 50 reads = ~4,800 reads
+    // TOTAL: ~40,800 reads/day (under 50K limit with buffer)
+
     const schedules = {
-      sendEmails: "*/1 * * * *", // Every 1 minute in dev
-      checkReplies: "*/2 * * * *", // Every 2 minutes in dev
-      updateStats: "*/3 * * * *", // Every 3 minutes in dev
+      sendEmails: "*/5 * * * *", // Every 5 minutes (was 1 min - too aggressive)
+      checkReplies: "*/10 * * * *", // Every 10 minutes (was 2 min)
+      updateStats: "*/15 * * * *", // Every 15 minutes (was 3 min)
     };
 
     console.log("[Cron Scheduler] Configuring scheduled jobs");

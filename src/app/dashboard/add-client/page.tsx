@@ -113,19 +113,23 @@ const ERROR_MESSAGES: Record<string, string> = {
 export default function AddClient() {
   const router = useRouter();
   const [form] = Form.useForm<ClientFormValues>();
-  
+
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  
+
   // SMTP Test state
-  const [smtpTestStatus, setSmtpTestStatus] = useState<"idle" | "testing" | "passed" | "failed">("idle");
+  const [smtpTestStatus, setSmtpTestStatus] = useState<
+    "idle" | "testing" | "passed" | "failed"
+  >("idle");
   const [smtpTestError, setSmtpTestError] = useState<string | null>(null);
   const [smtpTestModalVisible, setSmtpTestModalVisible] = useState(false);
   const [testEmailAddress, setTestEmailAddress] = useState("");
   const [testEmailLoading, setTestEmailLoading] = useState(false);
-  
+
   // Pitch analysis state
-  const [pitchAnalysis, setPitchAnalysis] = useState<PitchAnalysis | null>(null);
+  const [pitchAnalysis, setPitchAnalysis] = useState<PitchAnalysis | null>(
+    null
+  );
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
 
@@ -160,7 +164,9 @@ export default function AddClient() {
       }
 
       // Load pitch analysis (Step 3)
-      const savedPitchAnalysis = localStorage.getItem(STORAGE_KEYS.PITCH_ANALYSIS);
+      const savedPitchAnalysis = localStorage.getItem(
+        STORAGE_KEYS.PITCH_ANALYSIS
+      );
       if (savedPitchAnalysis) {
         const analysis = JSON.parse(savedPitchAnalysis);
         setPitchAnalysis(analysis);
@@ -179,7 +185,7 @@ export default function AddClient() {
       localStorage.removeItem(STORAGE_KEYS.EMAIL_CONFIG);
       localStorage.removeItem(STORAGE_KEYS.PITCH_ANALYSIS);
       localStorage.removeItem(STORAGE_KEYS.CURRENT_STEP);
-    //  console.log("[AddClient] LocalStorage cleared");
+      //  console.log("[AddClient] LocalStorage cleared");
     } catch (error) {
       console.error("[AddClient] Error clearing localStorage:", error);
     }
@@ -223,11 +229,11 @@ export default function AddClient() {
         "industry",
         "city",
       ]);
-      
+
       // Save to localStorage
       localStorage.setItem(STORAGE_KEYS.CLIENT_INFO, JSON.stringify(values));
       localStorage.setItem(STORAGE_KEYS.CURRENT_STEP, "1");
-      
+
       setCurrentStep(1);
       message.success("Client information saved!");
     } catch (error) {
@@ -262,7 +268,7 @@ export default function AddClient() {
         "smtpUsername",
         "smtpPassword",
       ]);
-      
+
       setTestEmailAddress("");
       setSmtpTestModalVisible(true);
     } catch (error) {
@@ -319,7 +325,7 @@ export default function AddClient() {
 
       setSmtpTestStatus("passed");
       setSmtpTestModalVisible(false);
-      
+
       // Save email config to localStorage ONLY after successful test
       const emailConfig = {
         platformName: values.platformName,
@@ -331,16 +337,22 @@ export default function AddClient() {
         smtpPassword: values.smtpPassword,
         testPassed: true,
       };
-      localStorage.setItem(STORAGE_KEYS.EMAIL_CONFIG, JSON.stringify(emailConfig));
-      
+      localStorage.setItem(
+        STORAGE_KEYS.EMAIL_CONFIG,
+        JSON.stringify(emailConfig)
+      );
+
       Modal.success({
         title: "Test Email Sent Successfully!",
         content: (
           <div>
             <p>A test email has been sent to:</p>
-            <p style={{ fontWeight: 600, color: "#1890ff" }}>{testEmailAddress}</p>
+            <p style={{ fontWeight: 600, color: "#1890ff" }}>
+              {testEmailAddress}
+            </p>
             <p style={{ marginTop: 12 }}>
-              Email configuration has been saved. Please check the inbox to verify receipt.
+              Email configuration has been saved. Please check the inbox to
+              verify receipt.
             </p>
           </div>
         ),
@@ -357,7 +369,7 @@ export default function AddClient() {
       console.error("[SMTP Test Error]:", error);
       setSmtpTestStatus("failed");
       setSmtpTestError(error.message || "Test failed");
-      
+
       Modal.error({
         title: "Test Failed",
         content: (
@@ -440,7 +452,9 @@ export default function AddClient() {
   const extractTextFromFile = async (file: File): Promise<string> => {
     const maxSizeInBytes = 10 * 1024 * 1024;
     if (file.size > maxSizeInBytes) {
-      throw new Error("File size is too large. Please use a file smaller than 10MB.");
+      throw new Error(
+        "File size is too large. Please use a file smaller than 10MB."
+      );
     }
 
     const fileExtension = file.name.split(".").pop()?.toLowerCase();
@@ -463,7 +477,10 @@ export default function AddClient() {
     return extractedText;
   };
 
-  const callAnalysisAPI = async (extractedText: string, fileName: string): Promise<PitchAnalysis> => {
+  const callAnalysisAPI = async (
+    extractedText: string,
+    fileName: string
+  ): Promise<PitchAnalysis> => {
     try {
       const response = await fetch(`${API_BASE_URL}/ai/analyze-pitch`, {
         method: "POST",
@@ -473,7 +490,9 @@ export default function AddClient() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || "Failed to analyze the pitch deck.");
+        throw new Error(
+          errorData?.message || "Failed to analyze the pitch deck."
+        );
       }
 
       const result = await response.json();
@@ -492,7 +511,9 @@ export default function AddClient() {
     const allowedExtensions = ["pdf", "doc", "docx", "txt"];
 
     if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
-      message.error("Unsupported file type. Please upload PDF, Word, or Text files only.");
+      message.error(
+        "Unsupported file type. Please upload PDF, Word, or Text files only."
+      );
       return false;
     }
 
@@ -513,7 +534,10 @@ export default function AddClient() {
       message.destroy();
       message.success(`File processed successfully!`);
 
-      message.loading("Analyzing content with AI... This may take a moment.", 0);
+      message.loading(
+        "Analyzing content with AI... This may take a moment.",
+        0
+      );
       const analysis = await callAnalysisAPI(extractedText, file.name);
 
       const analysisWithMetadata = {
@@ -523,9 +547,12 @@ export default function AddClient() {
       };
 
       setPitchAnalysis(analysisWithMetadata);
-      
+
       // Save to localStorage ONLY after successful analysis
-      localStorage.setItem(STORAGE_KEYS.PITCH_ANALYSIS, JSON.stringify(analysisWithMetadata));
+      localStorage.setItem(
+        STORAGE_KEYS.PITCH_ANALYSIS,
+        JSON.stringify(analysisWithMetadata)
+      );
 
       message.destroy();
       message.success("Analysis completed and saved successfully!");
@@ -575,10 +602,7 @@ export default function AddClient() {
 
   // Final Submit
   const handleFinalSubmit = async () => {
-    if (!pitchAnalysis) {
-      message.error("Please upload and analyze a pitch deck before submitting");
-      return;
-    }
+    // Pitch analysis is now optional for admin
 
     setLoading(true);
 
@@ -587,13 +611,21 @@ export default function AddClient() {
       if (!token) return;
 
       // Get all data from localStorage for reliability
-      const clientInfo = JSON.parse(localStorage.getItem(STORAGE_KEYS.CLIENT_INFO) || "{}");
-      const emailConfig = JSON.parse(localStorage.getItem(STORAGE_KEYS.EMAIL_CONFIG) || "{}");
-      const pitchData = JSON.parse(localStorage.getItem(STORAGE_KEYS.PITCH_ANALYSIS) || "{}");
+      const clientInfo = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.CLIENT_INFO) || "{}"
+      );
+      const emailConfig = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.EMAIL_CONFIG) || "{}"
+      );
+      const pitchData = JSON.parse(
+        localStorage.getItem(STORAGE_KEYS.PITCH_ANALYSIS) || "{}"
+      );
 
-      // Validate all data is present
-      if (!clientInfo.companyName || !emailConfig.smtpPassword || !pitchData.summary) {
-        message.error("Some data is missing. Please go through all steps again.");
+      // Validate all data is present (pitch analysis is optional)
+      if (!clientInfo.companyName || !emailConfig.smtpPassword) {
+        message.error(
+          "Some data is missing. Please go through all steps again."
+        );
         setLoading(false);
         return;
       }
@@ -615,7 +647,8 @@ export default function AddClient() {
         smtpSecurity: emailConfig.smtpSecurity,
         smtpUsername: emailConfig.smtpUsername,
         smtpPassword: emailConfig.smtpPassword.replace(/\s/g, ""),
-        pitchAnalysis: pitchData,
+        // Only include pitchAnalysis if it exists
+        ...(pitchData.summary ? { pitchAnalysis: pitchData } : {}),
       };
 
       const response = await fetch(`${API_BASE_URL}/clients/create`, {
@@ -645,7 +678,9 @@ export default function AddClient() {
             <p style={{ marginTop: 8 }}>
               <strong>Submission ID:</strong> {data.data?.submissionId}
             </p>
-            <p style={{ marginTop: 8 }}>You can now manage this client from the clients list.</p>
+            <p style={{ marginTop: 8 }}>
+              You can now manage this client from the clients list.
+            </p>
           </div>
         ),
         okText: "Go to Clients",
@@ -665,7 +700,8 @@ export default function AddClient() {
         },
       });
     } catch (error) {
-      const userMessage = error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
+      const userMessage =
+        error instanceof Error ? error.message : ERROR_MESSAGES.DEFAULT;
       console.error("[Client Creation Error]:", error);
       message.error(userMessage);
     } finally {
@@ -705,7 +741,8 @@ export default function AddClient() {
 
         <Title level={2}>Add New Client</Title>
         <Text type="secondary">
-          Create a new client profile with complete information and email configuration
+          Create a new client profile with complete information and email
+          configuration
         </Text>
       </div>
 
@@ -716,12 +753,20 @@ export default function AddClient() {
       <Form form={form} layout="vertical" size="large">
         {/* Step 1: Client Information */}
         {currentStep === 0 && (
-          <Card title={<span><FileTextOutlined /> Client Information</span>}>
+          <Card
+            title={
+              <span>
+                <FileTextOutlined /> Client Information
+              </span>
+            }
+          >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Form.Item
                 name="companyName"
                 label="Company Name"
-                rules={[{ required: true, message: "Company name is required" }]}
+                rules={[
+                  { required: true, message: "Company name is required" },
+                ]}
               >
                 <Input placeholder="e.g., Acme Inc, TechStart Solutions" />
               </Form.Item>
@@ -729,7 +774,9 @@ export default function AddClient() {
               <Form.Item
                 name="founderName"
                 label="Founder Name"
-                rules={[{ required: true, message: "Founder name is required" }]}
+                rules={[
+                  { required: true, message: "Founder name is required" },
+                ]}
               >
                 <Input placeholder="e.g., John Doe, Sarah Smith" />
               </Form.Item>
@@ -756,9 +803,14 @@ export default function AddClient() {
               <Form.Item
                 name="fundingStage"
                 label="Funding Stage"
-                rules={[{ required: true, message: "Funding stage is required" }]}
+                rules={[
+                  { required: true, message: "Funding stage is required" },
+                ]}
               >
-                <Select options={FUNDING_STAGES} placeholder="Select current stage" />
+                <Select
+                  options={FUNDING_STAGES}
+                  placeholder="Select current stage"
+                />
               </Form.Item>
 
               <Form.Item
@@ -772,7 +824,9 @@ export default function AddClient() {
               <Form.Item
                 name="investment"
                 label="Investment Ask"
-                rules={[{ required: true, message: "Investment ask is required" }]}
+                rules={[
+                  { required: true, message: "Investment ask is required" },
+                ]}
               >
                 <Input placeholder="e.g., $2M, 2000000, 2 million" />
               </Form.Item>
@@ -809,22 +863,53 @@ export default function AddClient() {
 
         {/* Step 2: Email Configuration */}
         {currentStep === 1 && (
-          <Card title={<span><MailOutlined /> Email Configuration</span>}>
+          <Card
+            title={
+              <span>
+                <MailOutlined /> Email Configuration
+              </span>
+            }
+          >
             <Alert
               message="Important: SMTP Configuration Guide"
               description={
                 <div>
-                  <p><strong>What is SMTP?</strong></p>
-                  <p>SMTP (Simple Mail Transfer Protocol) allows the client to send emails from their own email account for investor outreach campaigns.</p>
+                  <p>
+                    <strong>What is SMTP?</strong>
+                  </p>
+                  <p>
+                    SMTP (Simple Mail Transfer Protocol) allows the client to
+                    send emails from their own email account for investor
+                    outreach campaigns.
+                  </p>
                   <Divider style={{ margin: "12px 0" }} />
-                  <p><strong>Client needs to provide:</strong></p>
+                  <p>
+                    <strong>Client needs to provide:</strong>
+                  </p>
                   <ul style={{ paddingLeft: 20, marginBottom: 8 }}>
-                    <li><strong>Platform Name:</strong> Their email provider (e.g., Google Workspace, Zoho Mail)</li>
-                    <li><strong>Sender Email:</strong> The email they want to send from</li>
-                    <li><strong>SMTP Host:</strong> Mail server address (e.g., smtp.gmail.com)</li>
-                    <li><strong>SMTP Port:</strong> Usually 587 for TLS or 465 for SSL</li>
-                    <li><strong>Username:</strong> Usually same as sender email</li>
-                    <li><strong>App Password:</strong> Special password from email provider (NOT regular password)</li>
+                    <li>
+                      <strong>Platform Name:</strong> Their email provider
+                      (e.g., Google Workspace, Zoho Mail)
+                    </li>
+                    <li>
+                      <strong>Sender Email:</strong> The email they want to send
+                      from
+                    </li>
+                    <li>
+                      <strong>SMTP Host:</strong> Mail server address (e.g.,
+                      smtp.gmail.com)
+                    </li>
+                    <li>
+                      <strong>SMTP Port:</strong> Usually 587 for TLS or 465 for
+                      SSL
+                    </li>
+                    <li>
+                      <strong>Username:</strong> Usually same as sender email
+                    </li>
+                    <li>
+                      <strong>App Password:</strong> Special password from email
+                      provider (NOT regular password)
+                    </li>
                   </ul>
                 </div>
               }
@@ -889,7 +974,9 @@ export default function AddClient() {
                 initialValue="TLS"
                 tooltip="TLS (587) is recommended for most email providers"
               >
-                <Radio.Group onChange={(e) => handleSecurityChange(e.target.value)}>
+                <Radio.Group
+                  onChange={(e) => handleSecurityChange(e.target.value)}
+                >
                   <Radio value="TLS">TLS (Port 587) - Recommended</Radio>
                   <Radio value="SSL">SSL (Port 465)</Radio>
                   <Radio value="None">None (Not recommended)</Radio>
@@ -919,11 +1006,20 @@ export default function AddClient() {
                       borderColor: "#ffe58f",
                     }}
                   >
-                    <Text strong style={{ color: "#faad14", display: "block", marginBottom: 8 }}>
+                    <Text
+                      strong
+                      style={{
+                        color: "#faad14",
+                        display: "block",
+                        marginBottom: 8,
+                      }}
+                    >
                       ⚠️ IMPORTANT: Use App Password, NOT Regular Password
                     </Text>
                     <div style={{ fontSize: 12, lineHeight: 1.6 }}>
-                      <p style={{ marginBottom: 8 }}><strong>For Gmail/Google Workspace:</strong></p>
+                      <p style={{ marginBottom: 8 }}>
+                        <strong>For Gmail/Google Workspace:</strong>
+                      </p>
                       <ol style={{ paddingLeft: 20, margin: 0 }}>
                         <li>Go to Google Account Security</li>
                         <li>Enable "2-Step Verification" first</li>
@@ -934,7 +1030,8 @@ export default function AddClient() {
                       </ol>
                       <Divider style={{ margin: "8px 0" }} />
                       <p style={{ margin: 0 }}>
-                        <strong>Example format:</strong> abcd efgh ijkl mnop (16 characters)
+                        <strong>Example format:</strong> abcd efgh ijkl mnop (16
+                        characters)
                       </p>
                     </div>
                   </Card>
@@ -970,10 +1067,12 @@ export default function AddClient() {
             )}
 
             <div className="mt-6 flex gap-4">
-              <Button onClick={() => {
-                setCurrentStep(0);
-                localStorage.setItem(STORAGE_KEYS.CURRENT_STEP, "0");
-              }}>
+              <Button
+                onClick={() => {
+                  setCurrentStep(0);
+                  localStorage.setItem(STORAGE_KEYS.CURRENT_STEP, "0");
+                }}
+              >
                 <ArrowLeftOutlined /> Back
               </Button>
               <Button
@@ -981,12 +1080,16 @@ export default function AddClient() {
                 onClick={handleOpenTestModal}
                 icon={<ThunderboltOutlined />}
                 style={{
-                  backgroundColor: smtpTestStatus === "passed" ? "#52c41a" : "#1890ff",
-                  borderColor: smtpTestStatus === "passed" ? "#52c41a" : "#1890ff",
+                  backgroundColor:
+                    smtpTestStatus === "passed" ? "#52c41a" : "#1890ff",
+                  borderColor:
+                    smtpTestStatus === "passed" ? "#52c41a" : "#1890ff",
                   color: "#fff",
                 }}
               >
-                {smtpTestStatus === "passed" ? "✓ Test Passed - Retest?" : "Test Email Configuration"}
+                {smtpTestStatus === "passed"
+                  ? "✓ Test Passed - Retest?"
+                  : "Test Email Configuration"}
               </Button>
               <Button
                 type="primary"
@@ -1003,10 +1106,16 @@ export default function AddClient() {
 
         {/* Step 3: Pitch Analysis */}
         {currentStep === 2 && (
-          <Card title={<span><UploadOutlined /> Pitch Deck Analysis</span>}>
+          <Card
+            title={
+              <span>
+                <UploadOutlined /> Pitch Deck Analysis
+              </span>
+            }
+          >
             <Alert
-              message="Upload Client's Pitch Deck"
-              description="Upload the client's pitch deck to analyze their investment readiness. The AI will evaluate 10 key criteria and provide a comprehensive scorecard."
+              message="Upload Client's Pitch Deck (Optional)"
+              description="Optionally upload the client's pitch deck to analyze their investment readiness. The AI will evaluate 10 key criteria and provide a comprehensive scorecard. You can skip this step if not needed."
               type="info"
               showIcon
               style={{ marginBottom: 16 }}
@@ -1024,17 +1133,24 @@ export default function AddClient() {
               </p>
               <p className="ant-upload-text">Click or drag file to upload</p>
               <p className="ant-upload-hint">
-                Supported formats: PDF, Word (.doc, .docx), Text (.txt) | Maximum size: 10MB
+                Supported formats: PDF, Word (.doc, .docx), Text (.txt) |
+                Maximum size: 10MB
               </p>
             </Dragger>
 
             {analysisLoading && (
-              <div style={{ textAlign: "center", marginTop: 24, marginBottom: 24 }}>
-                <Spin indicator={<LoadingOutlined style={{ fontSize: 48 }} />} />
+              <div
+                style={{ textAlign: "center", marginTop: 24, marginBottom: 24 }}
+              >
+                <Spin
+                  indicator={<LoadingOutlined style={{ fontSize: 48 }} />}
+                />
                 <Paragraph style={{ marginTop: 16, fontSize: 16 }}>
                   Analyzing pitch deck with AI...
                 </Paragraph>
-                <Text type="secondary">This may take 10-30 seconds depending on content length</Text>
+                <Text type="secondary">
+                  This may take 10-30 seconds depending on content length
+                </Text>
               </div>
             )}
 
@@ -1047,18 +1163,23 @@ export default function AddClient() {
                 }}
               >
                 <Title level={4} style={{ marginBottom: 24 }}>
-                  <CheckCircleOutlined style={{ color: "#52c41a" }} /> Analysis Complete & Saved
+                  <CheckCircleOutlined style={{ color: "#52c41a" }} /> Analysis
+                  Complete & Saved
                 </Title>
 
                 <div style={{ textAlign: "center", marginBottom: 32 }}>
                   <Title level={1} style={{ fontSize: 64, marginBottom: 8 }}>
                     {pitchAnalysis.summary.total_score}/100
                   </Title>
-                  <Text style={{ fontSize: 18 }}>Investment Readiness Score</Text>
+                  <Text style={{ fontSize: 18 }}>
+                    Investment Readiness Score
+                  </Text>
                   <div style={{ marginTop: 16 }}>
                     <Progress
                       percent={pitchAnalysis.summary.total_score}
-                      strokeColor={getProgressColor(pitchAnalysis.summary.total_score)}
+                      strokeColor={getProgressColor(
+                        pitchAnalysis.summary.total_score
+                      )}
                       strokeWidth={20}
                     />
                   </div>
@@ -1085,27 +1206,39 @@ export default function AddClient() {
                 <Title level={5}>
                   <FileTextOutlined /> Executive Summary
                 </Title>
-                <Space direction="vertical" size="large" style={{ width: "100%", marginBottom: 24 }}>
+                <Space
+                  direction="vertical"
+                  size="large"
+                  style={{ width: "100%", marginBottom: 24 }}
+                >
                   <div>
-                    <Text strong style={{ fontSize: 15 }}>Problem:</Text>
+                    <Text strong style={{ fontSize: 15 }}>
+                      Problem:
+                    </Text>
                     <Paragraph style={{ marginTop: 8, fontSize: 14 }}>
                       {pitchAnalysis.summary.problem}
                     </Paragraph>
                   </div>
                   <div>
-                    <Text strong style={{ fontSize: 15 }}>Solution:</Text>
+                    <Text strong style={{ fontSize: 15 }}>
+                      Solution:
+                    </Text>
                     <Paragraph style={{ marginTop: 8, fontSize: 14 }}>
                       {pitchAnalysis.summary.solution}
                     </Paragraph>
                   </div>
                   <div>
-                    <Text strong style={{ fontSize: 15 }}>Market:</Text>
+                    <Text strong style={{ fontSize: 15 }}>
+                      Market:
+                    </Text>
                     <Paragraph style={{ marginTop: 8, fontSize: 14 }}>
                       {pitchAnalysis.summary.market}
                     </Paragraph>
                   </div>
                   <div>
-                    <Text strong style={{ fontSize: 15 }}>Traction:</Text>
+                    <Text strong style={{ fontSize: 15 }}>
+                      Traction:
+                    </Text>
                     <Paragraph style={{ marginTop: 8, fontSize: 14 }}>
                       {pitchAnalysis.summary.traction}
                     </Paragraph>
@@ -1117,24 +1250,44 @@ export default function AddClient() {
                 <Title level={5}>
                   <BarChartOutlined /> Detailed Scorecard
                 </Title>
-                <Space direction="vertical" size="middle" style={{ width: "100%", marginBottom: 24 }}>
-                  {Object.entries(pitchAnalysis.scorecard).map(([criteria, score]) => (
-                    <div key={criteria}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                        <Text strong style={{ fontSize: 14 }}>{criteria}</Text>
-                        <Text strong style={{ fontSize: 16, color: getProgressColor(score * 10) }}>
-                          {score}/10
-                        </Text>
+                <Space
+                  direction="vertical"
+                  size="middle"
+                  style={{ width: "100%", marginBottom: 24 }}
+                >
+                  {Object.entries(pitchAnalysis.scorecard).map(
+                    ([criteria, score]) => (
+                      <div key={criteria}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            marginBottom: 8,
+                          }}
+                        >
+                          <Text strong style={{ fontSize: 14 }}>
+                            {criteria}
+                          </Text>
+                          <Text
+                            strong
+                            style={{
+                              fontSize: 16,
+                              color: getProgressColor(score * 10),
+                            }}
+                          >
+                            {score}/10
+                          </Text>
+                        </div>
+                        <Progress
+                          percent={score * 10}
+                          strokeColor={getProgressColor(score * 10)}
+                          trailColor="#f0f0f0"
+                          strokeWidth={12}
+                          showInfo={false}
+                        />
                       </div>
-                      <Progress
-                        percent={score * 10}
-                        strokeColor={getProgressColor(score * 10)}
-                        trailColor="#f0f0f0"
-                        strokeWidth={12}
-                        showInfo={false}
-                      />
-                    </div>
-                  ))}
+                    )
+                  )}
                 </Space>
 
                 <Divider />
@@ -1142,7 +1295,11 @@ export default function AddClient() {
                 <Title level={5}>
                   <BulbOutlined /> Key Highlights
                 </Title>
-                <Space direction="vertical" size="small" style={{ width: "100%", marginBottom: 16 }}>
+                <Space
+                  direction="vertical"
+                  size="small"
+                  style={{ width: "100%", marginBottom: 16 }}
+                >
                   {pitchAnalysis.highlights.map((highlight, idx) => (
                     <div
                       key={idx}
@@ -1154,7 +1311,13 @@ export default function AddClient() {
                       }}
                     >
                       <Space align="start">
-                        <CheckCircleOutlined style={{ color: "#52c41a", fontSize: 16, marginTop: 2 }} />
+                        <CheckCircleOutlined
+                          style={{
+                            color: "#52c41a",
+                            fontSize: 16,
+                            marginTop: 2,
+                          }}
+                        />
                         <Text style={{ fontSize: 14 }}>{highlight}</Text>
                       </Space>
                     </div>
@@ -1164,12 +1327,29 @@ export default function AddClient() {
             )}
 
             <div className="mt-6 flex gap-4">
-              <Button onClick={() => {
-                setCurrentStep(1);
-                localStorage.setItem(STORAGE_KEYS.CURRENT_STEP, "1");
-              }}>
+              <Button
+                onClick={() => {
+                  setCurrentStep(1);
+                  localStorage.setItem(STORAGE_KEYS.CURRENT_STEP, "1");
+                }}
+              >
                 <ArrowLeftOutlined /> Back
               </Button>
+              {!pitchAnalysis && (
+                <Button
+                  type="default"
+                  onClick={handleFinalSubmit}
+                  loading={loading}
+                  icon={<SaveOutlined />}
+                  style={{
+                    height: 48,
+                    fontSize: 16,
+                    fontWeight: 600,
+                  }}
+                >
+                  Skip & Create Client
+                </Button>
+              )}
               <Button
                 type="primary"
                 onClick={handleFinalSubmit}
@@ -1184,7 +1364,9 @@ export default function AddClient() {
                   fontWeight: 600,
                 }}
               >
-                Create Client & Auto-Approve
+                {pitchAnalysis
+                  ? "Create Client & Auto-Approve"
+                  : "Upload Pitch First"}
               </Button>
             </div>
           </Card>
