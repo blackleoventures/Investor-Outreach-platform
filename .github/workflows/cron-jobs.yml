@@ -1,29 +1,16 @@
 # .github/workflows/cron-jobs.yml
-# OPTIMIZED FOR FREE PLAN - GitHub Actions Free Tier has 2000 min/month
+# OPTIMIZED FOR FIREBASE BLAZE PLAN (Pay as you go)
 #
-# FIREBASE SPARK PLAN LIMITS:
-# - 50K reads/day, 20K writes/day
-#
-# SCHEDULE OPTIMIZATION:
-# - Send Emails: Every 5 mins = 288 runs/day
-# - Check Replies: Every 10 mins = 144 runs/day
-# - Update Stats: Every 15 mins = 96 runs/day
-#
-# GITHUB ACTIONS USAGE:
-# - Each job runs ~30 seconds
-# - Total: ~264 minutes/day = ~8000 minutes/month
-# - Free tier: 2000 minutes/month
-#
-# RECOMMENDATION: These schedules use 4x the free tier limit!
-# To stay within free tier, using 15 min intervals for all jobs.
+# With Blaze plan, no Firebase read/write limits to worry about!
+# Schedule: Every 15 minutes for faster email delivery
+# Timeouts: Generous timeouts since we're processing more emails per run
 
 name: Scheduled Cron Jobs
 
 on:
   schedule:
-    # Run all jobs every 35 minutes to stay safely within GitHub Actions free tier
-    # ~41 runs/day × 1.5 min = ~62 min/day = ~1,860 min/month (safely under 2000 limit)
-    - cron: "*/35 * * * *"
+    # Run every 30 minutes
+    - cron: "*/30 * * * *"
 
   workflow_dispatch:
     # Allow manual triggering for testing
@@ -39,19 +26,22 @@ on:
           - check-replies
           - update-stats
 
+env:
+  # Production URL - hardcoded for reliability
+  PRODUCTION_URL: https://investor-outreach-platform-roan.vercel.app
+
 jobs:
   send-emails:
     runs-on: ubuntu-latest
-    # Run on every schedule trigger, or when manually selected
     if: github.event_name == 'schedule' || github.event.inputs.job_type == 'all' || github.event.inputs.job_type == 'send-emails'
     steps:
       - name: Trigger Send Emails Cron
         run: |
           echo "Triggering Send Emails at $(date -u)"
-          response=$(curl -s -w "\n%{http_code}" -X GET "${{ secrets.PRODUCTION_URL }}/api/cron/send-emails" \
+          response=$(curl -s -w "\n%{http_code}" -X GET "${{ env.PRODUCTION_URL }}/api/cron/send-emails" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
-            --max-time 300)
+            --max-time 900)
 
           http_code=$(echo "$response" | tail -1)
           body=$(echo "$response" | sed '$d')
@@ -67,16 +57,15 @@ jobs:
   check-replies:
     runs-on: ubuntu-latest
     needs: send-emails
-    # Run after send-emails completes
     if: always() && (github.event_name == 'schedule' || github.event.inputs.job_type == 'all' || github.event.inputs.job_type == 'check-replies')
     steps:
       - name: Trigger Check Replies Cron
         run: |
           echo "Triggering Check Replies at $(date -u)"
-          response=$(curl -s -w "\n%{http_code}" -X GET "${{ secrets.PRODUCTION_URL }}/api/cron/check-replies" \
+          response=$(curl -s -w "\n%{http_code}" -X GET "${{ env.PRODUCTION_URL }}/api/cron/check-replies" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
-            --max-time 300)
+            --max-time 600)
 
           http_code=$(echo "$response" | tail -1)
           body=$(echo "$response" | sed '$d')
@@ -92,16 +81,15 @@ jobs:
   update-stats:
     runs-on: ubuntu-latest
     needs: check-replies
-    # Run after check-replies completes
     if: always() && (github.event_name == 'schedule' || github.event.inputs.job_type == 'all' || github.event.inputs.job_type == 'update-stats')
     steps:
       - name: Trigger Update Stats Cron
         run: |
           echo "Triggering Update Stats at $(date -u)"
-          response=$(curl -s -w "\n%{http_code}" -X GET "${{ secrets.PRODUCTION_URL }}/api/cron/update-stats" \
+          response=$(curl -s -w "\n%{http_code}" -X GET "${{ env.PRODUCTION_URL }}/api/cron/update-stats" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -H "Content-Type: application/json" \
-            --max-time 300)
+            --max-time 600)
 
           http_code=$(echo "$response" | tail -1)
           body=$(echo "$response" | sed '$d')
