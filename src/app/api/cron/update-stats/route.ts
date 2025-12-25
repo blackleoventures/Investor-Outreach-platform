@@ -57,11 +57,13 @@ export async function GET(request: NextRequest) {
     console.log("[Cron: Update Stats] Authentication verified");
     console.log("[Cron: Update Stats] Source:", authResult.source);
 
+    // FAANG: Only update stats for ACTIVE campaigns (lifecycle awareness)
+    // Paused/completed campaigns don't need frequent stats updates
     console.log("[Cron: Update Stats] Querying active campaigns");
 
     const campaignsSnapshot = await adminDb
       .collection("campaigns")
-      .where("status", "in", ["active", "paused"])
+      .where("status", "==", "active")
       .get();
 
     if (campaignsSnapshot.empty) {

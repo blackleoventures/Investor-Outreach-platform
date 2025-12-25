@@ -65,6 +65,29 @@ export async function GET(request: NextRequest) {
     console.log("[Cron: Check Replies] Authentication verified");
     console.log("[Cron: Check Replies] Source:", authResult.source);
 
+    // ============================================
+    // FAANG OPTIMIZATION: EARLY EXIT CHECK
+    // ============================================
+    // Check if ANY campaigns need reply checking (active, paused, completed)
+    const campaignsCheck = await adminDb
+      .collection("campaigns")
+      .where("status", "in", ["active", "paused", "completed"])
+      .limit(1)
+      .get();
+
+    if (campaignsCheck.empty) {
+      console.log(
+        "[Cron: Check Replies] No campaigns need reply checking, skipping"
+      );
+      isJobRunning = false;
+      return NextResponse.json({
+        success: true,
+        message: "No campaigns to check replies for",
+        reads: 1,
+        duration: Date.now() - startTime + "ms",
+      });
+    }
+
     console.log("[Cron: Check Replies] Starting IMAP reply detection");
     console.log("[Cron: Check Replies] Checking last 7 days of emails");
 

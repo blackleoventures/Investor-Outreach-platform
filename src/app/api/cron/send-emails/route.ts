@@ -19,6 +19,13 @@ import {
   canRetryError,
 } from "@/lib/utils/error-helper";
 import type { ErrorCategory } from "@/types";
+import { withRetry } from "@/lib/utils/retry-helper";
+import {
+  campaignCache,
+  clientCache,
+  activeCheckCache,
+  getOrFetch,
+} from "@/lib/cache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -43,7 +50,10 @@ export async function GET(request: NextRequest) {
   if (isJobRunning) {
     const runningDuration = Date.now() - jobStartTime;
     console.log("[Cron: Send Emails] Job already running");
-    console.log("[Cron: Send Emails] Running duration:", runningDuration + "ms");
+    console.log(
+      "[Cron: Send Emails] Running duration:",
+      runningDuration + "ms"
+    );
 
     // Force unlock if job has been running for more than 4 minutes
     if (runningDuration > 240000) {
@@ -78,6 +88,50 @@ export async function GET(request: NextRequest) {
     const now = new Date();
 
     // ============================================
+    // FAANG OPTIMIZATION: EARLY EXIT CHECKS
+    // ============================================
+
+    // Check 1: Are there ANY active campaigns? (1 read only)
+    const hasActiveCampaigns = await getOrFetch(
+      activeCheckCache,
+      "has_active_campaigns",
+      async () => {
+        const snapshot = await adminDb
+          .collection("campaigns")
+          .where("status", "==", "active")
+          .limit(1)
+          .get();
+        return !snapshot.empty;
+      }
+    );
+
+    if (!hasActiveCampaigns) {
+      console.log("[Cron: Send Emails] No active campaigns, skipping");
+      isJobRunning = false;
+      return NextResponse.json({
+        success: true,
+        message: "No active campaigns",
+        reads: 1,
+        duration: Date.now() - startTime + "ms",
+      });
+    }
+
+    // Check 2: Are there ANY pending recipients? (1 read only)
+    const pendingCheckSnapshot = await adminDb
+      .collection("campaignRecipients")
+      .where("status", "==", "pending")
+      .where("scheduledFor", "<=", now.toISOString())
+      .limit(1)
+      .get();
+
+    if (pendingCheckSnapshot.empty) {
+      console.log(
+        "[Cron: Send Emails] No pending emails ready, skipping main processing"
+      );
+      // Continue to follow-ups check
+    }
+
+    // ============================================
     // STEP 1: PROCESS MAIN CAMPAIGN EMAILS
     // ============================================
 
@@ -108,13 +162,19 @@ export async function GET(request: NextRequest) {
     let campaignGroups: Record<string, any[]> = {};
 
     if (!recipientsSnapshot.empty) {
-      console.log("[Cron: Main Emails] Found recipients:", recipientsSnapshot.size);
+      console.log(
+        "[Cron: Main Emails] Found recipients:",
+        recipientsSnapshot.size
+      );
 
       recipientsSnapshot.forEach((doc) => {
         const data = doc.data();
 
         if (data.status !== "pending") {
-          console.log("[Cron: Main Emails] Skipping non-pending recipient:", doc.id);
+          console.log(
+            "[Cron: Main Emails] Skipping non-pending recipient:",
+            doc.id
+          );
           return;
         }
 
@@ -127,32 +187,49 @@ export async function GET(request: NextRequest) {
         });
       });
 
-      console.log("[Cron: Main Emails] Campaigns to process:", Object.keys(campaignGroups).length);
+      console.log(
+        "[Cron: Main Emails] Campaigns to process:",
+        Object.keys(campaignGroups).length
+      );
 
       // Process each campaign group
       for (const [campaignId, recipients] of Object.entries(campaignGroups)) {
         console.log(`\n[Cron: Main Emails] Processing campaign: ${campaignId}`);
-        console.log(`[Cron: Main Emails] Recipients in campaign: ${recipients.length}`);
+        console.log(
+          `[Cron: Main Emails] Recipients in campaign: ${recipients.length}`
+        );
 
         try {
-          const campaignDoc = await adminDb.collection("campaigns").doc(campaignId).get();
+          const campaignDoc = await adminDb
+            .collection("campaigns")
+            .doc(campaignId)
+            .get();
 
           if (!campaignDoc.exists) {
-            console.error(`[Cron: Main Emails] Campaign not found: ${campaignId}`);
+            console.error(
+              `[Cron: Main Emails] Campaign not found: ${campaignId}`
+            );
             continue;
           }
 
           const campaignData = campaignDoc.data();
 
           if (!campaignData || campaignData.status !== "active") {
-            console.log(`[Cron: Main Emails] Campaign not active: ${campaignId}`);
+            console.log(
+              `[Cron: Main Emails] Campaign not active: ${campaignId}`
+            );
             continue;
           }
 
-          const clientDoc = await adminDb.collection("clients").doc(campaignData.clientId).get();
+          const clientDoc = await adminDb
+            .collection("clients")
+            .doc(campaignData.clientId)
+            .get();
 
           if (!clientDoc.exists) {
-            console.error(`[Cron: Main Emails] Client not found: ${campaignData.clientId}`);
+            console.error(
+              `[Cron: Main Emails] Client not found: ${campaignData.clientId}`
+            );
             continue;
           }
 
@@ -163,16 +240,23 @@ export async function GET(request: NextRequest) {
           const smtpConfig = clientInfo?.emailConfiguration;
 
           if (!smtpConfig || !smtpConfig.smtpHost || !smtpConfig.smtpUsername) {
-            console.error(`[Cron: Main Emails] Invalid SMTP configuration for campaign: ${campaignId}`);
+            console.error(
+              `[Cron: Main Emails] Invalid SMTP configuration for campaign: ${campaignId}`
+            );
             continue;
           }
 
           let decryptedPassword: string;
           try {
             decryptedPassword = decryptAES256(smtpConfig.smtpPassword);
-            console.log(`[Cron: Main Emails] SMTP password decrypted successfully`);
+            console.log(
+              `[Cron: Main Emails] SMTP password decrypted successfully`
+            );
           } catch (error: any) {
-            console.error(`[Cron: Main Emails] Failed to decrypt SMTP password:`, error);
+            console.error(
+              `[Cron: Main Emails] Failed to decrypt SMTP password:`,
+              error
+            );
             continue;
           }
 
@@ -191,7 +275,9 @@ export async function GET(request: NextRequest) {
 
           try {
             await transporter.verify();
-            console.log(`[Cron: Main Emails] SMTP connection verified successfully`);
+            console.log(
+              `[Cron: Main Emails] SMTP connection verified successfully`
+            );
           } catch (error: any) {
             console.error(`[Cron: Main Emails] SMTP verification failed`);
             logError("SMTP Verification", error, { campaignId });
@@ -204,41 +290,52 @@ export async function GET(request: NextRequest) {
 
           for (const recipient of recipients) {
             try {
-              const recipientRef = adminDb.collection("campaignRecipients").doc(recipient.id);
+              const recipientRef = adminDb
+                .collection("campaignRecipients")
+                .doc(recipient.id);
 
               // Use transaction to prevent duplicate sends
-              const transactionResult = await adminDb.runTransaction(async (transaction) => {
-                const freshRecipientDoc = await transaction.get(recipientRef);
+              const transactionResult = await adminDb.runTransaction(
+                async (transaction) => {
+                  const freshRecipientDoc = await transaction.get(recipientRef);
 
-                if (!freshRecipientDoc.exists) {
-                  return { skip: true, reason: "deleted" };
-                }
-
-                const freshData = freshRecipientDoc.data();
-
-                // Verify recipient is still in pending status
-                if (freshData!.status !== "pending") {
-                  return { skip: true, reason: "status_changed" };
-                }
-
-                // Check for duplicate sends within last 5 minutes
-                if (freshData!.emailHistory && freshData!.emailHistory.length > 0) {
-                  const lastEmail = freshData!.emailHistory[freshData!.emailHistory.length - 1];
-                  const timeSinceLastSend = Date.now() - new Date(lastEmail.sentAt).getTime();
-
-                  if (timeSinceLastSend < 300000) {
-                    return { skip: true, reason: "duplicate_prevention" };
+                  if (!freshRecipientDoc.exists) {
+                    return { skip: true, reason: "deleted" };
                   }
+
+                  const freshData = freshRecipientDoc.data();
+
+                  // Verify recipient is still in pending status
+                  if (freshData!.status !== "pending") {
+                    return { skip: true, reason: "status_changed" };
+                  }
+
+                  // Check for duplicate sends within last 5 minutes
+                  if (
+                    freshData!.emailHistory &&
+                    freshData!.emailHistory.length > 0
+                  ) {
+                    const lastEmail =
+                      freshData!.emailHistory[
+                        freshData!.emailHistory.length - 1
+                      ];
+                    const timeSinceLastSend =
+                      Date.now() - new Date(lastEmail.sentAt).getTime();
+
+                    if (timeSinceLastSend < 300000) {
+                      return { skip: true, reason: "duplicate_prevention" };
+                    }
+                  }
+
+                  // Mark as processing to prevent concurrent processing
+                  transaction.update(recipientRef, {
+                    status: "processing",
+                    processingStartedAt: new Date().toISOString(),
+                  });
+
+                  return { skip: false };
                 }
-
-                // Mark as processing to prevent concurrent processing
-                transaction.update(recipientRef, {
-                  status: "processing",
-                  processingStartedAt: new Date().toISOString(),
-                });
-
-                return { skip: false };
-              });
+              );
 
               if (transactionResult.skip) {
                 campaignSkipped++;
@@ -249,7 +346,8 @@ export async function GET(request: NextRequest) {
               const emailId = generateEmailId();
               const recipientEmail = recipient.originalContact?.email || "";
               const recipientName = recipient.originalContact?.name || "";
-              const recipientOrganization = recipient.originalContact?.organization || "";
+              const recipientOrganization =
+                recipient.originalContact?.organization || "";
 
               if (!recipientEmail) {
                 throw new Error("Recipient email is missing");
@@ -277,26 +375,42 @@ export async function GET(request: NextRequest) {
 
               const htmlBody = convertToHtml(personalizedBody) + trackingPixel;
 
-              const info = await transporter.sendMail({
-                from: `${clientInfo.founderName} <${smtpConfig.senderEmail || clientInfo.email}>`,
-                to: recipientEmail,
-                subject: personalizedSubject,
-                html: htmlBody,
-                text: stripHtml(personalizedBody),
-              });
+              // FAANG: Exponential backoff retry for transient failures
+              const info = await withRetry(
+                () =>
+                  transporter.sendMail({
+                    from: `${clientInfo.founderName} <${
+                      smtpConfig.senderEmail || clientInfo.email
+                    }>`,
+                    to: recipientEmail,
+                    subject: personalizedSubject,
+                    html: htmlBody,
+                    text: stripHtml(personalizedBody),
+                  }),
+                { maxRetries: 3, baseDelay: 1000, maxDelay: 5000 }
+              );
 
               if (info.accepted && info.accepted.length > 0) {
-                await markAsDelivered(recipient.id, emailId, personalizedSubject);
+                await markAsDelivered(
+                  recipient.id,
+                  emailId,
+                  personalizedSubject
+                );
                 campaignSent++;
                 totalSent++;
-                console.log(`[Cron: Main Emails] Email sent successfully: ${recipientEmail}`);
+                console.log(
+                  `[Cron: Main Emails] Email sent successfully: ${recipientEmail}`
+                );
               } else {
                 throw new Error("Email rejected by server");
               }
             } catch (error: any) {
-              const recipientEmail = recipient.originalContact?.email || "unknown@email.com";
+              const recipientEmail =
+                recipient.originalContact?.email || "unknown@email.com";
 
-              console.error(`[Cron: Main Emails] Send failed for: ${recipientEmail}`);
+              console.error(
+                `[Cron: Main Emails] Send failed for: ${recipientEmail}`
+              );
               logError("Email Send", error, {
                 recipientId: recipient.id,
                 recipientEmail,
@@ -305,7 +419,13 @@ export async function GET(request: NextRequest) {
 
               const retryAttempt = (recipient.retryCount || 0) + 1;
 
-              await markAsFailed(recipient.id, error, recipientEmail, campaignId, retryAttempt);
+              await markAsFailed(
+                recipient.id,
+                error,
+                recipientEmail,
+                campaignId,
+                retryAttempt
+              );
 
               campaignFailed++;
               totalFailed++;
@@ -317,12 +437,17 @@ export async function GET(request: NextRequest) {
               if (retryAttempt < 3 && canRetryError(errorCategory)) {
                 const nextRetryTime = calculateNextRetryTime(retryAttempt);
 
-                await adminDb.collection("campaignRecipients").doc(recipient.id).update({
-                  status: "pending",
-                  scheduledFor: nextRetryTime.toISOString(),
-                });
+                await adminDb
+                  .collection("campaignRecipients")
+                  .doc(recipient.id)
+                  .update({
+                    status: "pending",
+                    scheduledFor: nextRetryTime.toISOString(),
+                  });
 
-                console.log(`[Cron: Main Emails] Retry scheduled for attempt ${retryAttempt}`);
+                console.log(
+                  `[Cron: Main Emails] Retry scheduled for attempt ${retryAttempt}`
+                );
               }
             }
           }
@@ -330,20 +455,33 @@ export async function GET(request: NextRequest) {
           // Update campaign statistics
           const statsUpdate: any = {
             "stats.sent": admin.firestore.FieldValue.increment(campaignSent),
-            "stats.delivered": admin.firestore.FieldValue.increment(campaignSent),
-            "stats.totalEmailsSent": admin.firestore.FieldValue.increment(campaignSent),
-            "stats.totalDelivered": admin.firestore.FieldValue.increment(campaignSent),
-            "stats.pending": admin.firestore.FieldValue.increment(-(campaignSent + campaignFailed)),
-            "stats.failed": admin.firestore.FieldValue.increment(campaignFailed),
-            "stats.totalFailed": admin.firestore.FieldValue.increment(campaignFailed),
-            "stats.deliveredNotOpened": admin.firestore.FieldValue.increment(campaignSent),
-            "stats.conversionFunnel.sent": admin.firestore.FieldValue.increment(campaignSent),
-            "stats.conversionFunnel.delivered": admin.firestore.FieldValue.increment(campaignSent),
+            "stats.delivered":
+              admin.firestore.FieldValue.increment(campaignSent),
+            "stats.totalEmailsSent":
+              admin.firestore.FieldValue.increment(campaignSent),
+            "stats.totalDelivered":
+              admin.firestore.FieldValue.increment(campaignSent),
+            "stats.pending": admin.firestore.FieldValue.increment(
+              -(campaignSent + campaignFailed)
+            ),
+            "stats.failed":
+              admin.firestore.FieldValue.increment(campaignFailed),
+            "stats.totalFailed":
+              admin.firestore.FieldValue.increment(campaignFailed),
+            "stats.deliveredNotOpened":
+              admin.firestore.FieldValue.increment(campaignSent),
+            "stats.conversionFunnel.sent":
+              admin.firestore.FieldValue.increment(campaignSent),
+            "stats.conversionFunnel.delivered":
+              admin.firestore.FieldValue.increment(campaignSent),
             lastSentAt: getCurrentTimestamp(),
             lastUpdated: getCurrentTimestamp(),
           };
 
-          await adminDb.collection("campaigns").doc(campaignId).update(statsUpdate);
+          await adminDb
+            .collection("campaigns")
+            .doc(campaignId)
+            .update(statsUpdate);
 
           console.log(`[Cron: Main Emails] Campaign stats updated`);
           console.log(`[Cron: Main Emails] Sent: ${campaignSent}`);
@@ -352,7 +490,10 @@ export async function GET(request: NextRequest) {
 
           transporter.close();
         } catch (error: any) {
-          console.error(`[Cron: Main Emails] Campaign processing error:`, campaignId);
+          console.error(
+            `[Cron: Main Emails] Campaign processing error:`,
+            campaignId
+          );
           logError("Campaign Processing", error, { campaignId });
         }
       }
@@ -383,7 +524,9 @@ export async function GET(request: NextRequest) {
         .limit(50)
         .get();
 
-      console.log(`[Cron: Follow-ups] Found ${queuedFollowups.size} queued follow-ups`);
+      console.log(
+        `[Cron: Follow-ups] Found ${queuedFollowups.size} queued follow-ups`
+      );
 
       console.log("[Cron: Follow-ups] Querying scheduled follow-ups");
       const allScheduledFollowups = await adminDb
@@ -400,18 +543,27 @@ export async function GET(request: NextRequest) {
           const isReady = scheduledTime <= now;
 
           if (isReady) {
-            console.log(`[Cron: Follow-ups] Ready: ${followup.followupId} (scheduled for ${followup.scheduledFor})`);
+            console.log(
+              `[Cron: Follow-ups] Ready: ${followup.followupId} (scheduled for ${followup.scheduledFor})`
+            );
           }
 
           return isReady;
         })
         .slice(0, 50);
 
-      console.log(`[Cron: Follow-ups] Found ${scheduledFollowupsReady.length} scheduled follow-ups ready to send`);
+      console.log(
+        `[Cron: Follow-ups] Found ${scheduledFollowupsReady.length} scheduled follow-ups ready to send`
+      );
 
-      const followupsToSend = [...queuedFollowups.docs, ...scheduledFollowupsReady];
+      const followupsToSend = [
+        ...queuedFollowups.docs,
+        ...scheduledFollowupsReady,
+      ];
 
-      console.log(`[Cron: Follow-ups] Total follow-ups to process: ${followupsToSend.length}`);
+      console.log(
+        `[Cron: Follow-ups] Total follow-ups to process: ${followupsToSend.length}`
+      );
 
       if (followupsToSend.length === 0) {
         console.log("[Cron: Follow-ups] No follow-ups to send");
@@ -421,37 +573,54 @@ export async function GET(request: NextRequest) {
         try {
           const followup = followupDoc.data();
 
-          console.log(`\n[Cron: Follow-ups] Processing follow-up: ${followup.followupId}`);
+          console.log(
+            `\n[Cron: Follow-ups] Processing follow-up: ${followup.followupId}`
+          );
 
           // Use transaction to prevent duplicate sends
-          const followupRef = adminDb.collection("followupEmails").doc(followupDoc.id);
+          const followupRef = adminDb
+            .collection("followupEmails")
+            .doc(followupDoc.id);
 
-          const transactionResult = await adminDb.runTransaction(async (transaction) => {
-            const freshFollowupDoc = await transaction.get(followupRef);
+          const transactionResult = await adminDb.runTransaction(
+            async (transaction) => {
+              const freshFollowupDoc = await transaction.get(followupRef);
 
-            if (!freshFollowupDoc.exists) {
-              console.log(`[Cron: Follow-ups] Follow-up deleted during processing`);
-              return { skip: true, reason: "deleted" };
+              if (!freshFollowupDoc.exists) {
+                console.log(
+                  `[Cron: Follow-ups] Follow-up deleted during processing`
+                );
+                return { skip: true, reason: "deleted" };
+              }
+
+              const freshData = freshFollowupDoc.data();
+
+              // Verify follow-up is still in sendable state
+              if (
+                freshData!.status !== "queued" &&
+                freshData!.status !== "scheduled"
+              ) {
+                console.log(
+                  `[Cron: Follow-ups] Follow-up status changed: ${
+                    freshData!.status
+                  } (was ${followup.status})`
+                );
+                return {
+                  skip: true,
+                  reason: "status_changed",
+                  currentStatus: freshData!.status,
+                };
+              }
+
+              // Mark as processing to prevent concurrent processing
+              transaction.update(followupRef, {
+                status: "processing",
+                processingStartedAt: getCurrentTimestamp(),
+              });
+
+              return { skip: false, data: freshData };
             }
-
-            const freshData = freshFollowupDoc.data();
-
-            // Verify follow-up is still in sendable state
-            if (freshData!.status !== "queued" && freshData!.status !== "scheduled") {
-              console.log(
-                `[Cron: Follow-ups] Follow-up status changed: ${freshData!.status} (was ${followup.status})`
-              );
-              return { skip: true, reason: "status_changed", currentStatus: freshData!.status };
-            }
-
-            // Mark as processing to prevent concurrent processing
-            transaction.update(followupRef, {
-              status: "processing",
-              processingStartedAt: getCurrentTimestamp(),
-            });
-
-            return { skip: false, data: freshData };
-          });
+          );
 
           if (transactionResult.skip) {
             if (transactionResult.currentStatus === "sent") {
@@ -463,7 +632,9 @@ export async function GET(request: NextRequest) {
 
           const followupData = transactionResult.data!;
 
-          console.log(`[Cron: Follow-ups] Verifying recipient status for: ${followupData.recipientId}`);
+          console.log(
+            `[Cron: Follow-ups] Verifying recipient status for: ${followupData.recipientId}`
+          );
 
           const recipientDoc = await adminDb
             .collection("campaignRecipients")
@@ -471,7 +642,9 @@ export async function GET(request: NextRequest) {
             .get();
 
           if (!recipientDoc.exists) {
-            console.log(`[Cron: Follow-ups] Recipient not found, marking follow-up as failed`);
+            console.log(
+              `[Cron: Follow-ups] Recipient not found, marking follow-up as failed`
+            );
             await followupRef.update({
               status: "failed",
               errorMessage: "Recipient not found",
@@ -485,9 +658,14 @@ export async function GET(request: NextRequest) {
           const recipientData = recipientDoc.data();
 
           // Only send follow-up if main email was successfully sent
-          if (recipientData!.status === "pending" || recipientData!.status === "processing") {
+          if (
+            recipientData!.status === "pending" ||
+            recipientData!.status === "processing"
+          ) {
             console.log(
-              `[Cron: Follow-ups] Skipping - main email not sent yet (status: ${recipientData!.status})`
+              `[Cron: Follow-ups] Skipping - main email not sent yet (status: ${
+                recipientData!.status
+              })`
             );
 
             // Revert status back to original state
@@ -501,7 +679,10 @@ export async function GET(request: NextRequest) {
           }
 
           // Verify recipient has email history
-          if (!recipientData!.emailHistory || recipientData!.emailHistory.length === 0) {
+          if (
+            !recipientData!.emailHistory ||
+            recipientData!.emailHistory.length === 0
+          ) {
             console.log(`[Cron: Follow-ups] Skipping - no email history found`);
 
             // Revert status back to original state
@@ -514,12 +695,19 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
-          console.log(`[Cron: Follow-ups] Recipient verified - proceeding with follow-up`);
+          console.log(
+            `[Cron: Follow-ups] Recipient verified - proceeding with follow-up`
+          );
 
-          const campaignDoc = await adminDb.collection("campaigns").doc(followupData.campaignId).get();
+          const campaignDoc = await adminDb
+            .collection("campaigns")
+            .doc(followupData.campaignId)
+            .get();
 
           if (!campaignDoc.exists) {
-            console.error(`[Cron: Follow-ups] Campaign not found: ${followupData.campaignId}`);
+            console.error(
+              `[Cron: Follow-ups] Campaign not found: ${followupData.campaignId}`
+            );
             await followupRef.update({
               status: "failed",
               errorMessage: "Campaign not found",
@@ -542,10 +730,15 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
-          const clientDoc = await adminDb.collection("clients").doc(campaignData.clientId).get();
+          const clientDoc = await adminDb
+            .collection("clients")
+            .doc(campaignData.clientId)
+            .get();
 
           if (!clientDoc.exists) {
-            console.error(`[Cron: Follow-ups] Client not found: ${campaignData.clientId}`);
+            console.error(
+              `[Cron: Follow-ups] Client not found: ${campaignData.clientId}`
+            );
             await followupRef.update({
               status: "failed",
               errorMessage: "Client not found",
@@ -587,7 +780,10 @@ export async function GET(request: NextRequest) {
           try {
             decryptedPassword = decryptAES256(smtpConfig.smtpPassword);
           } catch (error: any) {
-            console.error(`[Cron: Follow-ups] Failed to decrypt SMTP password:`, error);
+            console.error(
+              `[Cron: Follow-ups] Failed to decrypt SMTP password:`,
+              error
+            );
             await followupRef.update({
               status: "failed",
               errorMessage: "Failed to decrypt SMTP password",
@@ -615,7 +811,10 @@ export async function GET(request: NextRequest) {
             await transporter.verify();
             console.log(`[Cron: Follow-ups] SMTP connection verified`);
           } catch (error: any) {
-            console.error(`[Cron: Follow-ups] SMTP verification failed:`, error);
+            console.error(
+              `[Cron: Follow-ups] SMTP verification failed:`,
+              error
+            );
             await followupRef.update({
               status: "failed",
               errorMessage: error.message,
@@ -641,7 +840,8 @@ export async function GET(request: NextRequest) {
             clientInfo
           );
 
-          const trackingId = recipientData!.trackingId || followupData.followupId;
+          const trackingId =
+            recipientData!.trackingId || followupData.followupId;
 
           const baseUrl = getBaseUrl();
           const trackingPixelUrl = `${baseUrl}/api/track/open/${trackingId}`;
@@ -649,10 +849,14 @@ export async function GET(request: NextRequest) {
 
           const htmlBody = convertToHtml(personalizedBody) + trackingPixel;
 
-          console.log(`[Cron: Follow-ups] Sending to: ${followupData.recipientEmail}`);
+          console.log(
+            `[Cron: Follow-ups] Sending to: ${followupData.recipientEmail}`
+          );
 
           const info = await transporter.sendMail({
-            from: `${clientInfo.founderName} <${smtpConfig.senderEmail || clientInfo.email}>`,
+            from: `${clientInfo.founderName} <${
+              smtpConfig.senderEmail || clientInfo.email
+            }>`,
             to: followupData.recipientEmail,
             subject: personalizedSubject,
             html: htmlBody,
@@ -676,25 +880,33 @@ export async function GET(request: NextRequest) {
             };
 
             if (followupData.status === "queued") {
-              campaignUpdateData["followUpStats.pending"] = admin.firestore.FieldValue.increment(-1);
+              campaignUpdateData["followUpStats.pending"] =
+                admin.firestore.FieldValue.increment(-1);
             }
 
             if (followupData.status === "scheduled") {
-              campaignUpdateData["followUpStats.scheduled"] = admin.firestore.FieldValue.increment(-1);
+              campaignUpdateData["followUpStats.scheduled"] =
+                admin.firestore.FieldValue.increment(-1);
             }
 
-            await adminDb.collection("campaigns").doc(followupData.campaignId).update(campaignUpdateData);
+            await adminDb
+              .collection("campaigns")
+              .doc(followupData.campaignId)
+              .update(campaignUpdateData);
 
             await adminDb
               .collection("campaignRecipients")
               .doc(followupData.recipientId)
               .update({
-                "followUps.pendingCount": admin.firestore.FieldValue.increment(-1),
+                "followUps.pendingCount":
+                  admin.firestore.FieldValue.increment(-1),
                 updatedAt: getCurrentTimestamp(),
               });
 
             followupsSent++;
-            console.log(`[Cron: Follow-ups] Follow-up sent successfully: ${followupData.recipientEmail}`);
+            console.log(
+              `[Cron: Follow-ups] Follow-up sent successfully: ${followupData.recipientEmail}`
+            );
           } else {
             throw new Error("Follow-up email rejected by server");
           }
@@ -721,14 +933,22 @@ export async function GET(request: NextRequest) {
             };
 
             if (followupData.status === "queued") {
-              campaignUpdateData["followUpStats.pending"] = admin.firestore.FieldValue.increment(-1);
+              campaignUpdateData["followUpStats.pending"] =
+                admin.firestore.FieldValue.increment(-1);
             } else if (followupData.status === "scheduled") {
-              campaignUpdateData["followUpStats.scheduled"] = admin.firestore.FieldValue.increment(-1);
+              campaignUpdateData["followUpStats.scheduled"] =
+                admin.firestore.FieldValue.increment(-1);
             }
 
-            await adminDb.collection("campaigns").doc(followupData.campaignId).update(campaignUpdateData);
+            await adminDb
+              .collection("campaigns")
+              .doc(followupData.campaignId)
+              .update(campaignUpdateData);
           } catch (updateError: any) {
-            console.error(`[Cron: Follow-ups] Failed to update error status:`, updateError);
+            console.error(
+              `[Cron: Follow-ups] Failed to update error status:`,
+              updateError
+            );
           }
 
           followupsFailed++;
@@ -740,7 +960,10 @@ export async function GET(request: NextRequest) {
       console.log(`[Cron: Follow-ups] Failed: ${followupsFailed}`);
       console.log(`[Cron: Follow-ups] Skipped: ${followupsSkipped}`);
     } catch (error: any) {
-      console.error("[Cron: Follow-ups] Critical error processing follow-ups:", error);
+      console.error(
+        "[Cron: Follow-ups] Critical error processing follow-ups:",
+        error
+      );
       logError("Follow-up Processing", error);
     }
 
