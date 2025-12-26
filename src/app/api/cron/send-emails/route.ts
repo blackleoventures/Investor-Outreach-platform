@@ -133,24 +133,28 @@ export async function GET(request: NextRequest) {
 
     // ============================================
     // STEP 1: PROCESS MAIN CAMPAIGN EMAILS
+    // INDUSTRY-STANDARD: Query by campaign first, then recipients per campaign
+    // This ensures each campaign is processed independently
     // ============================================
 
     console.log("\n[Cron: Main Emails] Starting main email processing...");
-    console.log("[Cron: Main Emails] Querying pending recipients");
 
-    // NOTE: Limit increased to 500 to ensure active campaigns get processed
-    // even when paused campaigns have many pending recipients
-    const recipientsSnapshot = await adminDb
-      .collection("campaignRecipients")
-      .where("status", "==", "pending")
-      .where("scheduledFor", "<=", now.toISOString())
-      .orderBy("scheduledFor", "asc")
-      .limit(500)
+    // STEP 1A: Get all ACTIVE campaigns first
+    console.log("[Cron: Main Emails] Querying active campaigns...");
+    const activeCampaignsSnapshot = await adminDb
+      .collection("campaigns")
+      .where("status", "==", "active")
       .get();
+
+    console.log(
+      "[Cron: Main Emails] Active campaigns found:",
+      activeCampaignsSnapshot.size
+    );
 
     let totalSent = 0;
     let totalFailed = 0;
     let totalSkipped = 0;
+    let totalPendingFound = 0;
     const errorBreakdown: Record<ErrorCategory, number> = {
       AUTH_FAILED: 0,
       INVALID_EMAIL: 0,
@@ -163,37 +167,53 @@ export async function GET(request: NextRequest) {
 
     let campaignGroups: Record<string, any[]> = {};
 
-    if (!recipientsSnapshot.empty) {
-      console.log(
-        "[Cron: Main Emails] Found recipients:",
-        recipientsSnapshot.size
-      );
+    // STEP 1B: For EACH active campaign, get its pending recipients (per-campaign limit)
+    // This ensures each campaign gets fair processing regardless of other campaigns
+    for (const activeCampaignDoc of activeCampaignsSnapshot.docs) {
+      const activeCampaignId = activeCampaignDoc.id;
+      const activeCampaignData = activeCampaignDoc.data();
 
-      recipientsSnapshot.forEach((doc) => {
-        const data = doc.data();
+      // Get per-campaign limit from schedule config, default to 50
+      const dailyLimit = activeCampaignData.schedule?.dailyLimit || 50;
+      const perCronLimit = Math.min(dailyLimit, 50); // Cap at 50 per cron run for performance
 
-        if (data.status !== "pending") {
-          console.log(
-            "[Cron: Main Emails] Skipping non-pending recipient:",
-            doc.id
-          );
-          return;
-        }
+      const campaignRecipientsSnapshot = await adminDb
+        .collection("campaignRecipients")
+        .where("campaignId", "==", activeCampaignId)
+        .where("status", "==", "pending")
+        .where("scheduledFor", "<=", now.toISOString())
+        .orderBy("scheduledFor", "asc")
+        .limit(perCronLimit)
+        .get();
 
-        if (!campaignGroups[data.campaignId]) {
-          campaignGroups[data.campaignId] = [];
-        }
-        campaignGroups[data.campaignId].push({
-          id: doc.id,
-          ...data,
-        });
-      });
+      if (!campaignRecipientsSnapshot.empty) {
+        campaignGroups[activeCampaignId] = campaignRecipientsSnapshot.docs.map(
+          (doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })
+        );
+        totalPendingFound += campaignRecipientsSnapshot.size;
+        console.log(
+          `[Cron: Main Emails] Campaign ${activeCampaignId}: ${campaignRecipientsSnapshot.size} pending (limit: ${perCronLimit})`
+        );
+      } else {
+        console.log(
+          `[Cron: Main Emails] Campaign ${activeCampaignId}: 0 pending recipients due now`
+        );
+      }
+    }
 
-      console.log(
-        "[Cron: Main Emails] Campaigns to process:",
-        Object.keys(campaignGroups).length
-      );
+    console.log(
+      "[Cron: Main Emails] Total pending across all campaigns:",
+      totalPendingFound
+    );
+    console.log(
+      "[Cron: Main Emails] Campaigns with pending emails:",
+      Object.keys(campaignGroups).length
+    );
 
+    if (Object.keys(campaignGroups).length > 0) {
       // Process each campaign group
       for (const [campaignId, recipients] of Object.entries(campaignGroups)) {
         console.log(`\n[Cron: Main Emails] Processing campaign: ${campaignId}`);
@@ -992,9 +1012,7 @@ export async function GET(request: NextRequest) {
           sent: totalSent,
           failed: totalFailed,
           skipped: totalSkipped,
-          pending: recipientsSnapshot.empty
-            ? 0
-            : recipientsSnapshot.size - totalSent - totalFailed - totalSkipped,
+          pending: totalPendingFound - totalSent - totalFailed - totalSkipped,
           campaignsProcessed: Object.keys(campaignGroups).length,
           errorBreakdown,
         },

@@ -2,16 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { message, Tag, Button, Progress } from "antd";
+import { message, Tag, Button, Progress, Modal } from "antd";
 import {
   PlusOutlined,
   EyeOutlined,
   LinkOutlined,
   CopyOutlined,
+  DeleteOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import DataTable, { Column, FilterColumn } from "@/components/data-table";
 import { auth } from "@/lib/firebase";
 import { getBaseUrl } from "@/lib/env-helper";
+import { useAuth } from "@/contexts/AuthContext";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -44,9 +47,12 @@ interface Campaign {
 
 export default function CampaignsListPage() {
   const router = useRouter();
+  const { userData } = useAuth();
+  const isAdmin = userData?.role === "admin";
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<string>("");
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCampaigns();
@@ -99,6 +105,62 @@ export default function CampaignsListPage() {
 
   const viewCampaignDetails = (campaignId: string) => {
     router.push(`/dashboard/campaigns/${campaignId}`);
+  };
+
+  const handleDeleteCampaign = (campaign: Campaign) => {
+    Modal.confirm({
+      title: "Delete Campaign",
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <div>
+          <p>
+            Are you sure you want to delete{" "}
+            <strong>{campaign.campaignName}</strong>?
+          </p>
+          <p className="text-red-600 mt-2 text-sm">
+            This will permanently delete the campaign and all its recipients (
+            {campaign.totalRecipients} recipients).
+          </p>
+          <p className="text-gray-500 mt-1 text-sm">
+            This action cannot be undone.
+          </p>
+        </div>
+      ),
+      okText: "Delete",
+      okButtonProps: { danger: true },
+      cancelText: "Cancel",
+      onOk: async () => {
+        try {
+          setDeleting(campaign.id);
+          const token = await getAuthToken();
+          if (!token) return;
+
+          const response = await fetch(
+            `${API_BASE_URL}/campaigns/${campaign.id}`,
+            {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.message || "Failed to delete campaign");
+          }
+
+          message.success(data.message || "Campaign deleted successfully");
+          fetchCampaigns(); // Refresh the list
+        } catch (error: any) {
+          console.error("Delete campaign error:", error);
+          message.error(error.message || "Failed to delete campaign");
+        } finally {
+          setDeleting(null);
+        }
+      },
+    });
   };
 
   const getStatusColor = (status: string) => {
@@ -317,6 +379,18 @@ export default function CampaignsListPage() {
           >
             Link
           </Button>
+          {isAdmin && (
+            <Button
+              danger
+              size="small"
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteCampaign(record)}
+              loading={deleting === record.id}
+              title="Delete Campaign (Admin Only)"
+            >
+              Delete
+            </Button>
+          )}
         </div>
       ),
     },

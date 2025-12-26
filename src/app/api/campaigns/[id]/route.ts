@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyFirebaseToken, verifyAdminOrSubadmin } from "@/lib/auth-middleware";
+import {
+  verifyFirebaseToken,
+  verifyAdminOrSubadmin,
+} from "@/lib/auth-middleware";
 import { adminDb } from "@/lib/firebase-admin";
 
 export async function GET(
@@ -88,7 +91,7 @@ export async function GET(
 
     recipientsSnapshot.forEach((doc) => {
       const data = doc.data();
-      
+
       // Count by status
       if (data.status) {
         statusCounts[data.status] = (statusCounts[data.status] || 0) + 1;
@@ -96,12 +99,14 @@ export async function GET(
 
       // Count by type
       if (data.recipientType) {
-        typeCounts[data.recipientType] = (typeCounts[data.recipientType] || 0) + 1;
+        typeCounts[data.recipientType] =
+          (typeCounts[data.recipientType] || 0) + 1;
       }
 
       // Count by priority
       if (data.priority) {
-        priorityCounts[data.priority] = (priorityCounts[data.priority] || 0) + 1;
+        priorityCounts[data.priority] =
+          (priorityCounts[data.priority] || 0) + 1;
       }
     });
 
@@ -124,13 +129,18 @@ export async function GET(
     followupSnapshot.forEach((doc) => {
       const data = doc.data();
       if (data.status) {
-        followupStatusCounts[data.status] = (followupStatusCounts[data.status] || 0) + 1;
+        followupStatusCounts[data.status] =
+          (followupStatusCounts[data.status] || 0) + 1;
       }
     });
 
     // Prepare follow-up stats (use from campaign data if exists, otherwise calculate)
     const followUpStats = campaignData.followUpStats || {
-      totalFollowUpsSent: followupStatusCounts.sent + followupStatusCounts.delivered + followupStatusCounts.opened + followupStatusCounts.replied,
+      totalFollowUpsSent:
+        followupStatusCounts.sent +
+        followupStatusCounts.delivered +
+        followupStatusCounts.opened +
+        followupStatusCounts.replied,
       pending: followupStatusCounts.queued,
       scheduled: followupStatusCounts.scheduled,
       sent: followupStatusCounts.sent,
@@ -145,7 +155,7 @@ export async function GET(
       campaign: {
         id: campaignDoc.id,
         ...campaignData,
-        
+
         // Add follow-up stats if not already present
         followUpStats: campaignData.followUpStats || followUpStats,
       },
@@ -156,7 +166,7 @@ export async function GET(
         typeCounts,
         priorityCounts,
         totalRecipients: recipientsSnapshot.size,
-        
+
         // NEW: Follow-up email stats
         followupStats: followupStatusCounts,
         totalFollowups: followupSnapshot.size,
@@ -166,10 +176,9 @@ export async function GET(
     console.log(`[Campaign Detail] Campaign ${id} fetched successfully`);
 
     return NextResponse.json(response);
-
   } catch (error: any) {
     console.error("[Campaign Detail] Error:", error);
-    
+
     if (error.name === "AuthenticationError") {
       return NextResponse.json(
         { success: false, message: error.message },
@@ -204,7 +213,9 @@ export async function PATCH(
       );
     }
 
-    console.log(`[Campaign Detail] Updating campaign ${id} status to ${status}...`);
+    console.log(
+      `[Campaign Detail] Updating campaign ${id} status to ${status}...`
+    );
 
     // Update campaign status
     await adminDb.collection("campaigns").doc(id).update({
@@ -225,12 +236,13 @@ export async function PATCH(
 
     return NextResponse.json({
       success: true,
-      message: `Campaign ${status === "paused" ? "paused" : "resumed"} successfully`,
+      message: `Campaign ${
+        status === "paused" ? "paused" : "resumed"
+      } successfully`,
     });
-
   } catch (error: any) {
     console.error("[Campaign Detail] Update error:", error);
-    
+
     if (error.name === "AuthenticationError") {
       return NextResponse.json(
         { success: false, message: error.message },
@@ -240,6 +252,143 @@ export async function PATCH(
 
     return NextResponse.json(
       { success: false, message: "Failed to update campaign" },
+      { status: 500 }
+    );
+  }
+}
+
+// DELETE - Delete campaign (Admin only)
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const user = await verifyFirebaseToken(request);
+
+    // Only admin can delete campaigns
+    if (user.role !== "admin") {
+      return NextResponse.json(
+        { success: false, message: "Only admin can delete campaigns" },
+        { status: 403 }
+      );
+    }
+
+    const { id } = params;
+
+    console.log(
+      `[Campaign Delete] Admin ${user.email} deleting campaign ${id}...`
+    );
+
+    // Check if campaign exists
+    const campaignDoc = await adminDb.collection("campaigns").doc(id).get();
+    if (!campaignDoc.exists) {
+      return NextResponse.json(
+        { success: false, message: "Campaign not found" },
+        { status: 404 }
+      );
+    }
+
+    const campaignData = campaignDoc.data();
+    const campaignName = campaignData?.campaignName || "Unknown";
+    const clientId = campaignData?.clientId;
+
+    // Delete all campaign recipients
+    console.log(`[Campaign Delete] Deleting recipients for campaign ${id}...`);
+    const recipientsSnapshot = await adminDb
+      .collection("campaignRecipients")
+      .where("campaignId", "==", id)
+      .get();
+
+    const recipientBatches = [];
+    let batch = adminDb.batch();
+    let count = 0;
+
+    recipientsSnapshot.forEach((doc) => {
+      batch.delete(doc.ref);
+      count++;
+
+      // Firestore batches are limited to 500 operations
+      if (count >= 500) {
+        recipientBatches.push(batch);
+        batch = adminDb.batch();
+        count = 0;
+      }
+    });
+
+    if (count > 0) {
+      recipientBatches.push(batch);
+    }
+
+    for (const batchToCommit of recipientBatches) {
+      await batchToCommit.commit();
+    }
+
+    console.log(
+      `[Campaign Delete] Deleted ${recipientsSnapshot.size} recipients`
+    );
+
+    // Delete all follow-up emails
+    console.log(`[Campaign Delete] Deleting follow-ups for campaign ${id}...`);
+    const followupsSnapshot = await adminDb
+      .collection("followupEmails")
+      .where("campaignId", "==", id)
+      .get();
+
+    const followupBatch = adminDb.batch();
+    followupsSnapshot.forEach((doc) => {
+      followupBatch.delete(doc.ref);
+    });
+
+    if (!followupsSnapshot.empty) {
+      await followupBatch.commit();
+    }
+
+    console.log(
+      `[Campaign Delete] Deleted ${followupsSnapshot.size} follow-ups`
+    );
+
+    // Delete the campaign document
+    await adminDb.collection("campaigns").doc(id).delete();
+    console.log(`[Campaign Delete] Campaign ${id} deleted`);
+
+    // Create audit log
+    await adminDb.collection("campaignAuditLog").add({
+      action: "campaign_deleted",
+      campaignId: id,
+      campaignName,
+      clientId,
+      performedBy: user.uid,
+      performedByEmail: user.email,
+      performedByRole: "admin",
+      timestamp: new Date().toISOString(),
+      details: {
+        recipientsDeleted: recipientsSnapshot.size,
+        followupsDeleted: followupsSnapshot.size,
+      },
+    });
+
+    console.log(`[Campaign Delete] Audit log created`);
+
+    return NextResponse.json({
+      success: true,
+      message: `Campaign "${campaignName}" and all related data deleted successfully`,
+      deleted: {
+        recipients: recipientsSnapshot.size,
+        followups: followupsSnapshot.size,
+      },
+    });
+  } catch (error: any) {
+    console.error("[Campaign Delete] Error:", error);
+
+    if (error.name === "AuthenticationError") {
+      return NextResponse.json(
+        { success: false, message: error.message },
+        { status: 401 }
+      );
+    }
+
+    return NextResponse.json(
+      { success: false, message: "Failed to delete campaign" },
       { status: 500 }
     );
   }
