@@ -138,12 +138,14 @@ export async function GET(request: NextRequest) {
     console.log("\n[Cron: Main Emails] Starting main email processing...");
     console.log("[Cron: Main Emails] Querying pending recipients");
 
+    // NOTE: Limit increased to 500 to ensure active campaigns get processed
+    // even when paused campaigns have many pending recipients
     const recipientsSnapshot = await adminDb
       .collection("campaignRecipients")
       .where("status", "==", "pending")
       .where("scheduledFor", "<=", now.toISOString())
       .orderBy("scheduledFor", "asc")
-      .limit(50)
+      .limit(500)
       .get();
 
     let totalSent = 0;
