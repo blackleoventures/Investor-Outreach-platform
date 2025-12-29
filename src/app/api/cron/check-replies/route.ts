@@ -145,6 +145,13 @@ export async function GET(request: NextRequest) {
     let totalSkipped = 0;
     let totalErrors = 0;
 
+    // OPTIMIZED: Cache campaigns per client within this request
+    // This prevents re-querying campaigns for every reply
+    const campaignsByClient = new Map<
+      string,
+      FirebaseFirestore.QueryDocumentSnapshot[]
+    >();
+
     for (const [clientId, replies] of clientRepliesMap) {
       console.log("[Cron: Check Replies] Processing client:", clientId);
       console.log("[Cron: Check Replies] Replies for client:", replies.length);
@@ -181,14 +188,26 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
-          // Get active campaigns for this client
-          const campaignsSnapshot = await adminDb
-            .collection("campaigns")
-            .where("clientId", "==", clientId)
-            .where("status", "in", ["active", "paused", "completed"])
-            .get();
+          // OPTIMIZED: Use cached campaigns for this client
+          // Only query once per client, not once per reply
+          if (!campaignsByClient.has(clientId)) {
+            const snapshot = await adminDb
+              .collection("campaigns")
+              .where("clientId", "==", clientId)
+              .where("status", "in", ["active", "paused", "completed"])
+              .get();
+            campaignsByClient.set(clientId, snapshot.docs);
+            console.log(
+              "[Cron: Check Replies] Cached campaigns for client:",
+              clientId,
+              "count:",
+              snapshot.size
+            );
+          }
 
-          if (campaignsSnapshot.empty) {
+          const cachedCampaigns = campaignsByClient.get(clientId)!;
+
+          if (cachedCampaigns.length === 0) {
             console.log(
               "[Cron: Check Replies] No active campaigns for client:",
               clientId
@@ -197,14 +216,49 @@ export async function GET(request: NextRequest) {
           }
 
           console.log(
-            "[Cron: Check Replies] Active campaigns found:",
-            campaignsSnapshot.size
+            "[Cron: Check Replies] Using cached campaigns, count:",
+            cachedCampaigns.length
           );
 
           let matched = false;
+          const now = Date.now();
+          const twoHoursAgo = now - 2 * 60 * 60 * 1000; // 2 hours in ms
+          const fourteenDaysAgo = now - 14 * 24 * 60 * 60 * 1000; // 14 days in ms
 
-          for (const campaignDoc of campaignsSnapshot.docs) {
+          for (const campaignDoc of cachedCampaigns) {
             const campaignId = campaignDoc.id;
+            const campaignData = campaignDoc.data();
+
+            // OPTIMIZATION #1: Skip campaigns where emails were sent less than 2 hours ago
+            // Reason: Nobody replies in 5 minutes, no point checking
+            if (campaignData.lastSentAt) {
+              const lastSentTime = new Date(campaignData.lastSentAt).getTime();
+              if (lastSentTime > twoHoursAgo) {
+                console.log(
+                  "[Cron: Check Replies] Skipping campaign (sent < 2h ago):",
+                  campaignId
+                );
+                continue;
+              }
+            }
+
+            // OPTIMIZATION #5: Skip completed campaigns older than 14 days
+            // Reason: Very rare to get replies after 14 days
+            if (
+              campaignData.status === "completed" &&
+              campaignData.completedAt
+            ) {
+              const completedTime = new Date(
+                campaignData.completedAt
+              ).getTime();
+              if (completedTime < fourteenDaysAgo) {
+                console.log(
+                  "[Cron: Check Replies] Skipping campaign (completed > 14 days):",
+                  campaignId
+                );
+                continue;
+              }
+            }
 
             console.log(
               "[Cron: Check Replies] Matching reply to campaign:",

@@ -20,6 +20,38 @@ export async function matchReplyToRecipient(
     `[Recipient Matcher] Matching reply from ${reply.from.email} to campaign ${campaignId}`
   );
 
+  // OPTIMIZED: Try exact email match FIRST (1 read instead of all)
+  // This handles the most common case where the original recipient replies
+  const exactMatchSnapshot = await adminDb
+    .collection("campaignRecipients")
+    .where("campaignId", "==", campaignId)
+    .where("originalContact.email", "==", reply.from.email)
+    .limit(1)
+    .get();
+
+  if (!exactMatchSnapshot.empty) {
+    const exactMatch = {
+      id: exactMatchSnapshot.docs[0].id,
+      ...exactMatchSnapshot.docs[0].data(),
+    } as CampaignRecipient & { id: string };
+
+    console.log(
+      `[Recipient Matcher] Exact match found: ${exactMatch.originalContact.name}`
+    );
+    return {
+      recipient: exactMatch,
+      matchType: "exact",
+      confidence: "high",
+      isNewPerson: false,
+    };
+  }
+
+  // FALLBACK: Only load all recipients if no exact match
+  // This handles forwarded emails, domain matches, and organization matches
+  console.log(
+    "[Recipient Matcher] No exact match, checking domain/org matches..."
+  );
+
   const recipientsSnapshot = await adminDb
     .collection("campaignRecipients")
     .where("campaignId", "==", campaignId)
@@ -34,23 +66,6 @@ export async function matchReplyToRecipient(
     id: doc.id,
     ...doc.data(),
   })) as (CampaignRecipient & { id: string })[];
-
-  // Strategy 1: Exact email match (original recipient replied)
-  const exactMatch = recipients.find(
-    (r) => normalizeEmail(r.originalContact.email) === reply.from.email
-  );
-
-  if (exactMatch) {
-    console.log(
-      `[Recipient Matcher] Exact match found: ${exactMatch.originalContact.name}`
-    );
-    return {
-      recipient: exactMatch,
-      matchType: "exact",
-      confidence: "high",
-      isNewPerson: false,
-    };
-  }
 
   // Strategy 2: Check "To" field - who was this email sent to?
   // This catches forwarded emails
@@ -75,7 +90,7 @@ export async function matchReplyToRecipient(
   // SAFE: Uses SafeArray to handle both array and object formats
   if (reply.inReplyTo) {
     console.log(`[Recipient Matcher] Checking In-Reply-To: ${reply.inReplyTo}`);
-    
+
     for (const recipient of recipients) {
       // SAFE OPERATION: Handle both array and object format
       const matchingEmail = SafeArray.find(
@@ -91,7 +106,9 @@ export async function matchReplyToRecipient(
           recipient,
           matchType: "thread",
           confidence: "high",
-          isNewPerson: reply.from.email !== normalizeEmail(recipient.originalContact.email),
+          isNewPerson:
+            reply.from.email !==
+            normalizeEmail(recipient.originalContact.email),
         };
       }
     }
@@ -158,7 +175,10 @@ function findBestDomainMatch(
   reply: ParsedReply
 ): (CampaignRecipient & { id: string }) | null {
   const deliveredCandidates = candidates.filter(
-    (c) => c.status === "delivered" || c.status === "opened" || c.status === "replied"
+    (c) =>
+      c.status === "delivered" ||
+      c.status === "opened" ||
+      c.status === "replied"
   );
 
   if (deliveredCandidates.length === 1) {

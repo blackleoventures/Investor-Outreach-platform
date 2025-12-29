@@ -4,7 +4,10 @@ import {
   getInvestorsFromSheet,
   getIncubatorsFromSheet,
 } from "@/lib/google-sheets";
-import { verifyFirebaseToken, verifyAdminOrSubadmin } from "@/lib/auth-middleware";
+import {
+  verifyFirebaseToken,
+  verifyAdminOrSubadmin,
+} from "@/lib/auth-middleware";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,22 +18,20 @@ export async function GET(request: NextRequest) {
     const user = await verifyFirebaseToken(request);
     verifyAdminOrSubadmin(user);
 
-    console.log(`[Dashboard Stats] Aggregating metrics for admin: ${user.email}`);
+    console.log(
+      `[Dashboard Stats] Aggregating metrics for admin: ${user.email}`
+    );
 
     // Fetch data concurrently
-    const [
-      investors,
-      incubators,
-      clientsSnapshot,
-      campaignsSnapshot,
-      recipientsSnapshot,
-    ] = await Promise.all([
-      getInvestorsFromSheet(),
-      getIncubatorsFromSheet(),
-      adminDb.collection("clients").get(), // Fetch from clients collection
-      adminDb.collection("campaigns").get(),
-      adminDb.collection("campaignRecipients").get(),
-    ]);
+    // OPTIMIZED: Don't fetch ALL recipients - use pre-computed stats from campaigns
+    const [investors, incubators, clientsSnapshot, campaignsSnapshot] =
+      await Promise.all([
+        getInvestorsFromSheet(),
+        getIncubatorsFromSheet(),
+        adminDb.collection("clients").get(), // Fetch from clients collection
+        adminDb.collection("campaigns").get(),
+        // REMOVED: adminDb.collection("campaignRecipients").get() - was causing 90K+ reads!
+      ]);
 
     // Total clients from Firestore clients collection
     const totalClients = clientsSnapshot.size;
@@ -39,23 +40,26 @@ export async function GET(request: NextRequest) {
     const totalInvestors = investors.length;
     const totalIncubators = incubators.length;
 
-    // Aggregate recipient-level email stats
+    // OPTIMIZED: Use pre-computed stats from campaigns instead of counting all recipients
+    // These stats are already updated in real-time when emails are sent/opened/replied
     let sentEmails = 0;
     let deliveredEmails = 0;
     let openedEmails = 0;
     let repliedEmails = 0;
 
-    recipientsSnapshot.forEach((doc) => {
+    campaignsSnapshot.forEach((doc) => {
       const data = doc.data();
-      if (data.status && data.status !== "pending") sentEmails++;
-      if (["delivered", "opened", "replied"].includes(data.status))
-        deliveredEmails++;
-      if (["opened", "replied"].includes(data.status)) openedEmails++;
-      if (data.status === "replied") repliedEmails++;
+      const stats = data.stats || {};
+      sentEmails += stats.sent || 0;
+      deliveredEmails += stats.delivered || 0;
+      openedEmails += stats.opened || 0;
+      repliedEmails += stats.replied || 0;
     });
 
     const responseRate =
-      sentEmails > 0 ? Number(((repliedEmails / sentEmails) * 100).toFixed(2)) : 0;
+      sentEmails > 0
+        ? Number(((repliedEmails / sentEmails) * 100).toFixed(2))
+        : 0;
 
     // Build client distribution (investors vs incubators from Sheets)
     const clientDistribution = [
@@ -75,7 +79,18 @@ export async function GET(request: NextRequest) {
     });
 
     const months = [
-      "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
     ];
     const performanceData = months.map((month) => ({
       name: month,

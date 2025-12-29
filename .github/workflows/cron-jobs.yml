@@ -3,8 +3,8 @@
 #
 # Schedule: Every 30 min, but each job has time-based skip logic
 # - send-emails: Every 30 min (48x/day)
-# - check-replies: Every 1 hour (24x/day)
-# - update-stats: Every 2 hours (12x/day)
+# - check-replies: Every 5 hours (~5x/day) - OPTIMIZED to reduce Firebase reads
+# - update-stats: Every 6 hours (4x/day) - OPTIMIZED (reconciliation only)
 
 name: Scheduled Cron Jobs
 
@@ -66,18 +66,19 @@ jobs:
     # NO needs: - runs independently in parallel!
     if: github.event_name == 'schedule' || github.event.inputs.job_type == 'all' || github.event.inputs.job_type == 'check-replies'
     steps:
-      - name: Check if check-replies should run (every 1 hour)
+      - name: Check if check-replies should run (every 5 hours)
         id: should_run
         run: |
+          current_hour=$(date -u +%H)
           current_min=$(date -u +%M)
-          # Only run at the start of each hour (0-30 min mark when cron fires)
-          # Since cron runs at :00 and :30, this will trigger at :00 only
-          if [[ "$current_min" -lt "15" ]] || [[ "${{ github.event.inputs.job_type }}" == "check-replies" ]] || [[ "${{ github.event.inputs.job_type }}" == "all" ]]; then
+          # Only run every 5 hours (at 00:00, 05:00, 10:00, 15:00, 20:00 UTC)
+          # This reduces Firebase reads significantly
+          if [[ $((10#$current_hour % 5)) -eq 0 ]] && [[ "$current_min" -lt "15" ]] || [[ "${{ github.event.inputs.job_type }}" == "check-replies" ]] || [[ "${{ github.event.inputs.job_type }}" == "all" ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
-            echo "Check Replies will run (minute: $current_min)"
+            echo "Check Replies will run (hour: $current_hour, min: $current_min)"
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
-            echo "Skipping Check Replies (minute: $current_min, only runs at :00)"
+            echo "Skipping Check Replies (hour: $current_hour, only runs every 5 hours)"
           fi
 
       - name: Trigger Check Replies Cron
@@ -101,25 +102,27 @@ jobs:
           fi
 
   # ============================================
-  # UPDATE STATS - Every 2 hours (runs in PARALLEL)
+  # UPDATE STATS - Every 6 hours (runs in PARALLEL)
+  # OPTIMIZED: Stats are updated in real-time, this is just reconciliation
   # ============================================
   update-stats:
     runs-on: ubuntu-latest
     # NO needs: - runs independently in parallel!
     if: github.event_name == 'schedule' || github.event.inputs.job_type == 'all' || github.event.inputs.job_type == 'update-stats'
     steps:
-      - name: Check if update-stats should run (every 2 hours)
+      - name: Check if update-stats should run (every 6 hours)
         id: should_run
         run: |
           current_hour=$(date -u +%H)
           current_min=$(date -u +%M)
-          # Only run at even hours, at the :00 mark
-          if [[ $((10#$current_hour % 2)) -eq 0 ]] && [[ "$current_min" -lt "15" ]] || [[ "${{ github.event.inputs.job_type }}" == "update-stats" ]] || [[ "${{ github.event.inputs.job_type }}" == "all" ]]; then
+          # Only run every 6 hours (at 00:00, 06:00, 12:00, 18:00 UTC)
+          # Stats are updated in real-time, this is just for reconciliation
+          if [[ $((10#$current_hour % 6)) -eq 0 ]] && [[ "$current_min" -lt "15" ]] || [[ "${{ github.event.inputs.job_type }}" == "update-stats" ]] || [[ "${{ github.event.inputs.job_type }}" == "all" ]]; then
             echo "should_run=true" >> $GITHUB_OUTPUT
             echo "Update Stats will run (hour: $current_hour, min: $current_min)"
           else
             echo "should_run=false" >> $GITHUB_OUTPUT
-            echo "Skipping Update Stats (hour: $current_hour, only runs every 2 hours)"
+            echo "Skipping Update Stats (hour: $current_hour, only runs every 6 hours)"
           fi
 
       - name: Trigger Update Stats Cron
