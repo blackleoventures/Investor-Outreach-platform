@@ -19,6 +19,9 @@ export async function GET(
 
     const campaignId = params.id;
 
+    // Check for conditional request (ETag/If-None-Match)
+    const ifNoneMatch = request.headers.get("if-none-match");
+
     // Verify campaign exists
     const campaignDoc = await adminDb
       .collection("campaigns")
@@ -32,6 +35,30 @@ export async function GET(
     }
 
     const campaignData = campaignDoc.data();
+
+    // Generate ETag based on opened and replied counts
+    const stats = campaignData?.stats || {};
+    const openedCount = stats.opened || 0;
+    const repliedCount = stats.replied || 0;
+    const lastUpdated =
+      campaignData?.lastUpdated || campaignData?.createdAt || "";
+    const etag = `"engagement-${campaignId}-${openedCount}-${repliedCount}-${new Date(
+      lastUpdated
+    ).getTime()}"`;
+
+    // If ETag matches, return 304 Not Modified (saves ALL recipient reads!)
+    if (ifNoneMatch && ifNoneMatch === etag) {
+      console.log(
+        `[Engagement Details] Returning 304 Not Modified for campaign ${campaignId}`
+      );
+      return new NextResponse(null, {
+        status: 304,
+        headers: {
+          ETag: etag,
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
+        },
+      });
+    }
 
     console.log(
       `[Engagement Details] User ${user.email} fetching for campaign ${campaignId}`
@@ -183,7 +210,14 @@ export async function GET(
       `[Engagement Details] Found ${uniqueOpeners.length} openers, ${uniqueRepliers.length} repliers`
     );
 
-    return NextResponse.json(response);
+    // Return with caching headers
+    return NextResponse.json(response, {
+      headers: {
+        ETag: etag,
+        "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
+        "Last-Modified": new Date(lastUpdated).toUTCString(),
+      },
+    });
   } catch (error: any) {
     console.error("[Engagement Details] Error:", error.message);
     return createAuthErrorResponse(error);

@@ -61,63 +61,41 @@ export async function GET(
       console.error("[Campaign Detail] Error fetching client:", error);
     }
 
-    // Get recipient statistics
-    const recipientsSnapshot = await adminDb
-      .collection("campaignRecipients")
-      .where("campaignId", "==", id)
-      .get();
+    // OPTIMIZED: Use pre-computed stats from campaign document
+    // These stats are updated in real-time when emails are sent/opened/replied
+    // No need to fetch all recipients just to count them!
+    const stats = campaignData.stats || {};
 
-    // Count by status
+    // Status counts from pre-computed stats
     const statusCounts: Record<string, number> = {
-      pending: 0,
-      delivered: 0,
-      opened: 0,
-      replied: 0,
-      failed: 0,
+      pending: stats.pending || 0,
+      delivered: stats.delivered || 0,
+      opened: stats.opened || 0,
+      replied: stats.replied || 0,
+      failed: stats.failed || 0,
     };
 
-    // Count by type
-    const typeCounts: Record<string, number> = {
+    // Type and priority counts are stored during campaign creation
+    // Use them directly from campaign data
+    const typeCounts: Record<string, number> = campaignData.recipientBreakdown
+      ?.byType || {
       investor: 0,
       incubator: 0,
     };
 
-    // Count by priority
-    const priorityCounts: Record<string, number> = {
+    const priorityCounts: Record<string, number> = campaignData
+      .recipientBreakdown?.byPriority || {
       high: 0,
       medium: 0,
       low: 0,
     };
 
-    recipientsSnapshot.forEach((doc) => {
-      const data = doc.data();
+    const totalRecipients = campaignData.totalRecipients || 0;
 
-      // Count by status
-      if (data.status) {
-        statusCounts[data.status] = (statusCounts[data.status] || 0) + 1;
-      }
-
-      // Count by type
-      if (data.recipientType) {
-        typeCounts[data.recipientType] =
-          (typeCounts[data.recipientType] || 0) + 1;
-      }
-
-      // Count by priority
-      if (data.priority) {
-        priorityCounts[data.priority] =
-          (priorityCounts[data.priority] || 0) + 1;
-      }
-    });
-
-    // NEW: Get follow-up email statistics
-    const followupSnapshot = await adminDb
-      .collection("followupEmails")
-      .where("campaignId", "==", id)
-      .get();
-
-    const followupStatusCounts: Record<string, number> = {
-      queued: 0,
+    // Get follow-up stats from campaign data (already pre-computed)
+    const followUpStats = campaignData.followUpStats || {
+      totalFollowUpsSent: 0,
+      pending: 0,
       scheduled: 0,
       sent: 0,
       delivered: 0,
@@ -126,28 +104,14 @@ export async function GET(
       failed: 0,
     };
 
-    followupSnapshot.forEach((doc) => {
-      const data = doc.data();
-      if (data.status) {
-        followupStatusCounts[data.status] =
-          (followupStatusCounts[data.status] || 0) + 1;
-      }
-    });
-
-    // Prepare follow-up stats (use from campaign data if exists, otherwise calculate)
-    const followUpStats = campaignData.followUpStats || {
-      totalFollowUpsSent:
-        followupStatusCounts.sent +
-        followupStatusCounts.delivered +
-        followupStatusCounts.opened +
-        followupStatusCounts.replied,
-      pending: followupStatusCounts.queued,
-      scheduled: followupStatusCounts.scheduled,
-      sent: followupStatusCounts.sent,
-      delivered: followupStatusCounts.delivered,
-      opened: followupStatusCounts.opened,
-      replied: followupStatusCounts.replied,
-      failed: followupStatusCounts.failed,
+    const followupStatusCounts: Record<string, number> = {
+      queued: followUpStats.pending || 0,
+      scheduled: followUpStats.scheduled || 0,
+      sent: followUpStats.sent || 0,
+      delivered: followUpStats.delivered || 0,
+      opened: followUpStats.opened || 0,
+      replied: followUpStats.replied || 0,
+      failed: followUpStats.failed || 0,
     };
 
     const response = {
@@ -156,20 +120,20 @@ export async function GET(
         id: campaignDoc.id,
         ...campaignData,
 
-        // Add follow-up stats if not already present
-        followUpStats: campaignData.followUpStats || followUpStats,
+        // Follow-up stats from pre-computed data
+        followUpStats,
       },
       client: clientDetails,
       aggregates: {
-        // Main email stats
+        // Main email stats (from pre-computed stats)
         statusCounts,
         typeCounts,
         priorityCounts,
-        totalRecipients: recipientsSnapshot.size,
+        totalRecipients,
 
-        // NEW: Follow-up email stats
+        // Follow-up email stats (from pre-computed data)
         followupStats: followupStatusCounts,
-        totalFollowups: followupSnapshot.size,
+        totalFollowups: followUpStats.totalFollowUpsSent || 0,
       },
     };
 

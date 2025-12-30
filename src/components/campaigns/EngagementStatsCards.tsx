@@ -2,7 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { Card, Statistic, Button, Badge, message } from "antd";
-import { EyeOutlined, MessageOutlined, UserOutlined, TeamOutlined } from "@ant-design/icons";
+import {
+  EyeOutlined,
+  MessageOutlined,
+  UserOutlined,
+  TeamOutlined,
+} from "@ant-design/icons";
 import { auth } from "@/lib/firebase";
 import EngagementDetailsModal from "./EngagementDetailsModal";
 
@@ -49,30 +54,100 @@ export default function EngagementStatsCards({
     return await user.getIdToken();
   };
 
+  // Store ETags for caching
+  const [repliesEtag, setRepliesEtag] = useState<string | null>(null);
+  const [cachedReplies, setCachedReplies] = useState<any[]>([]);
+  const [engagementEtag, setEngagementEtag] = useState<string | null>(null);
+  const [cachedEngagement, setCachedEngagement] =
+    useState<EngagementData | null>(null);
+
   const fetchEngagementData = async () => {
     try {
       setLoading(true);
       const token = await getAuthToken();
       if (!token) return;
 
-      const response = await fetch(
+      // Build headers with ETag for conditional request
+      const engagementHeaders: HeadersInit = {
+        Authorization: `Bearer ${token}`,
+      };
+      if (engagementEtag) {
+        engagementHeaders["If-None-Match"] = engagementEtag;
+      }
+
+      // Fetch engagement details (openers) with caching
+      const engagementResponse = await fetch(
         `${API_BASE_URL}/campaigns/${campaignId}/engagement-details`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        { headers: engagementHeaders }
       );
 
-      if (!response.ok) {
+      let engagementResult = cachedEngagement;
+
+      // Only parse if not 304 Not Modified
+      if (engagementResponse.status === 304) {
+        console.log(
+          "[Engagement] Using cached engagement data (304 Not Modified)"
+        );
+      } else if (engagementResponse.ok) {
+        engagementResult = await engagementResponse.json();
+        setCachedEngagement(engagementResult);
+
+        // Store new ETag
+        const newEtag = engagementResponse.headers.get("ETag");
+        if (newEtag) {
+          setEngagementEtag(newEtag);
+        }
+      } else {
         throw new Error("Failed to fetch engagement details");
       }
 
-      const result = await response.json();
+      if (!engagementResult) {
+        throw new Error("No engagement data available");
+      }
+
+      // Fetch replies from new API with caching
+      const repliesHeaders: HeadersInit = {
+        Authorization: `Bearer ${token}`,
+      };
+
+      // Use ETag for conditional request (saves Firebase reads!)
+      if (repliesEtag) {
+        repliesHeaders["If-None-Match"] = repliesEtag;
+      }
+
+      const repliesResponse = await fetch(
+        `${API_BASE_URL}/campaigns/${campaignId}/replies`,
+        { headers: repliesHeaders }
+      );
+
+      let repliesData = cachedReplies;
+
+      // Only parse if not 304 Not Modified
+      if (repliesResponse.status !== 304) {
+        if (repliesResponse.ok) {
+          const result = await repliesResponse.json();
+          repliesData = result.replies || [];
+          setCachedReplies(repliesData);
+
+          // Store new ETag for next request
+          const newEtag = repliesResponse.headers.get("ETag");
+          if (newEtag) {
+            setRepliesEtag(newEtag);
+          }
+        }
+      } else {
+        console.log(
+          "[Engagement] Using cached replies data (304 Not Modified)"
+        );
+      }
+
       setData({
-        uniqueOpeners: result.uniqueOpeners,
-        uniqueRepliers: result.uniqueRepliers,
-        summary: result.summary,
+        uniqueOpeners: engagementResult.uniqueOpeners,
+        uniqueRepliers:
+          repliesData.length > 0
+            ? repliesData
+            : engagementResult.uniqueRepliers,
+        summary: engagementResult.summary,
       });
     } catch (error: any) {
       console.error("Fetch engagement error:", error);
@@ -151,7 +226,9 @@ export default function EngagementStatsCards({
               title="Open Rate"
               value={
                 summary.totalRecipients > 0
-                  ? Math.round((summary.totalOpeners / summary.totalRecipients) * 100)
+                  ? Math.round(
+                      (summary.totalOpeners / summary.totalRecipients) * 100
+                    )
                   : 0
               }
               suffix="%"
@@ -183,7 +260,9 @@ export default function EngagementStatsCards({
               title="Reply Rate"
               value={
                 summary.totalRecipients > 0
-                  ? Math.round((summary.totalRepliers / summary.totalRecipients) * 100)
+                  ? Math.round(
+                      (summary.totalRepliers / summary.totalRecipients) * 100
+                    )
                   : 0
               }
               suffix="%"
