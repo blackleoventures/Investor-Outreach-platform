@@ -177,6 +177,71 @@ export async function GET(request: NextRequest) {
       const dailyLimit = activeCampaignData.schedule?.dailyLimit || 50;
       const perCronLimit = Math.min(dailyLimit, 50); // Cap at 50 per cron run for performance
 
+      // STRICT WINDOW CHECK: Ensure we are currently within the allowed sending window
+      // This prevents sending at 9 PM even if scheduledFor was earlier (due to backlog/retries)
+      try {
+        const schedule = activeCampaignData.schedule;
+        if (schedule?.timezone && schedule?.startTime && schedule?.endTime) {
+          const timeZone = schedule.timezone;
+
+          // Get current time in campaign's timezone
+          const options: Intl.DateTimeFormatOptions = {
+            timeZone,
+            hour: "numeric",
+            minute: "numeric",
+            weekday: "short",
+            hour12: false,
+          };
+
+          const formatter = new Intl.DateTimeFormat("en-US", options);
+          const parts = formatter.formatToParts(new Date());
+
+          const currentHour = parseInt(
+            parts.find((p) => p.type === "hour")?.value || "0"
+          );
+          const currentMinute = parseInt(
+            parts.find((p) => p.type === "minute")?.value || "0"
+          );
+          const currentDay =
+            parts.find((p) => p.type === "weekday")?.value || "";
+
+          // Parse start/end times (HH:mm)
+          const [startH, startM] = schedule.startTime.split(":").map(Number);
+          const [endH, endM] = schedule.endTime.split(":").map(Number);
+
+          const currentTimeVal = currentHour * 60 + currentMinute;
+          const startTimeVal = startH * 60 + startM;
+          const endTimeVal = endH * 60 + endM;
+
+          // Check 1: Is it a valid day?
+          if (schedule.days && !schedule.days.includes(currentDay)) {
+            console.log(
+              `[Cron: Main Emails] Skipping ${activeCampaignId} - Today (${currentDay}) is not in allowed days`
+            );
+            continue;
+          }
+
+          // Check 2: Is it within allowed hours?
+          if (currentTimeVal < startTimeVal || currentTimeVal > endTimeVal) {
+            console.log(
+              `[Cron: Main Emails] Skipping ${activeCampaignId} - Outside window (${currentHour}:${currentMinute} vs ${schedule.startTime}-${schedule.endTime})`
+            );
+            continue;
+          }
+        }
+      } catch (err) {
+        console.error(
+          `[Cron: Main Emails] Error checking schedule for ${activeCampaignId}`,
+          err
+        );
+        // Continue but log error - safe fail allows sending if schedule logic is broken?
+        // Or should we skip? Let's skip to be safe against unwanted sends.
+        console.log(
+          `[Cron: Main Emails] Skipping ${activeCampaignId} due to schedule check error`
+        );
+        continue;
+      }
+
       const campaignRecipientsSnapshot = await adminDb
         .collection("campaignRecipients")
         .where("campaignId", "==", activeCampaignId)

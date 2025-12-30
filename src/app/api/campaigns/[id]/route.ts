@@ -77,20 +77,60 @@ export async function GET(
 
     // Type and priority counts are stored during campaign creation
     // Use them directly from campaign data
-    const typeCounts: Record<string, number> = campaignData.recipientBreakdown
-      ?.byType || {
-      investor: 0,
-      incubator: 0,
-    };
 
-    const priorityCounts: Record<string, number> = campaignData
-      .recipientBreakdown?.byPriority || {
-      high: 0,
-      medium: 0,
-      low: 0,
-    };
+    // SELF-HEALING: If breakdown is missing (legacy campaign), calculate it once and save it
+    let typeCounts = campaignData.recipientBreakdown?.byType;
+    let priorityCounts = campaignData.recipientBreakdown?.byPriority;
+    let totalRecipients = campaignData.totalRecipients || 0;
 
-    const totalRecipients = campaignData.totalRecipients || 0;
+    if (!typeCounts || !priorityCounts) {
+      console.log(
+        `[Campaign Detail] Missing breakdown for ${id}, calculating...`
+      );
+
+      const recipientsSnapshot = await adminDb
+        .collection("campaignRecipients")
+        .where("campaignId", "==", id)
+        .get();
+
+      totalRecipients = recipientsSnapshot.size;
+
+      typeCounts = { investor: 0, incubator: 0 };
+      priorityCounts = { high: 0, medium: 0, low: 0 };
+
+      recipientsSnapshot.forEach((doc) => {
+        const data = doc.data();
+        // Count by type
+        if (data.recipientType) {
+          typeCounts[data.recipientType] =
+            (typeCounts[data.recipientType] || 0) + 1;
+        }
+        // Count by priority
+        if (data.priority) {
+          priorityCounts[data.priority] =
+            (priorityCounts[data.priority] || 0) + 1;
+        }
+      });
+
+      // Update campaign with calculated stats so next read is fast
+      // fail-safe: don't await this to keep response fast
+      adminDb
+        .collection("campaigns")
+        .doc(id)
+        .update({
+          totalRecipients,
+          recipientBreakdown: {
+            byType: typeCounts,
+            byPriority: priorityCounts,
+          },
+        })
+        .catch((err) => console.error("Failed to update campaign stats", err));
+
+      console.log(`[Campaign Detail] Self-healed stats for ${id}`);
+    }
+
+    // totalRecipients is already defined above
+    // const totalRecipients = campaignData.totalRecipients || 0;
 
     // Get follow-up stats from campaign data (already pre-computed)
     const followUpStats = campaignData.followUpStats || {
