@@ -1,7 +1,18 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Modal, Table, Tag, Badge, Tooltip, Empty, Input } from "antd";
+import {
+  Modal,
+  Table,
+  Tag,
+  Badge,
+  Tooltip,
+  Empty,
+  Input,
+  Button,
+  Divider,
+  Typography,
+} from "antd";
 import {
   EyeOutlined,
   MessageOutlined,
@@ -10,8 +21,11 @@ import {
   CheckCircleOutlined,
   ShareAltOutlined,
   SearchOutlined,
+  MailOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
+
+const { Title, Text, Paragraph } = Typography;
 
 interface EngagementDetailsModalProps {
   visible: boolean;
@@ -41,6 +55,11 @@ interface EnhancedReplier {
   totalReplies?: number;
   firstRepliedAt?: string;
   recipientType?: string;
+  // NEW: Email content fields
+  subject?: string | null;
+  bodyPreview?: string | null;
+  body?: string | null;
+  hasContent?: boolean;
   // Legacy support
   name?: string;
   email?: string;
@@ -60,6 +79,22 @@ export default function EngagementDetailsModal({
 
   // Search state
   const [searchText, setSearchText] = useState("");
+
+  // Reply detail modal state
+  const [selectedReply, setSelectedReply] = useState<EnhancedReplier | null>(
+    null
+  );
+  const [replyModalVisible, setReplyModalVisible] = useState(false);
+
+  const openReplyModal = (record: EnhancedReplier) => {
+    setSelectedReply(record);
+    setReplyModalVisible(true);
+  };
+
+  const closeReplyModal = () => {
+    setSelectedReply(null);
+    setReplyModalVisible(false);
+  };
 
   // Filter data based on search
   const data = useMemo(() => {
@@ -333,6 +368,30 @@ export default function EngagementDetailsModal({
         </span>
       ),
     },
+    {
+      title: "Actions",
+      key: "actions",
+      width: 120,
+      align: "center",
+      render: (_, record) => (
+        <Tooltip
+          title={
+            record.hasContent ? "View reply content" : "No content available"
+          }
+        >
+          <Button
+            type="primary"
+            ghost
+            size="small"
+            icon={<MailOutlined />}
+            disabled={!record.hasContent}
+            onClick={() => openReplyModal(record)}
+          >
+            View Reply
+          </Button>
+        </Tooltip>
+      ),
+    },
   ];
 
   // Calculate summary for repliers
@@ -341,98 +400,236 @@ export default function EngagementDetailsModal({
   ).length;
 
   return (
-    <Modal
-      title={
-        <div className="flex items-center gap-2">
-          {isOpeners ? (
-            <>
-              <EyeOutlined className="text-blue-500" />
-              <span>Who Opened - {campaignName}</span>
-            </>
-          ) : (
-            <>
-              <MessageOutlined className="text-green-500" />
-              <span>Who Replied - {campaignName}</span>
-            </>
-          )}
-        </div>
-      }
-      open={visible}
-      onCancel={onClose}
-      width={isOpeners ? 1000 : 1100}
-      footer={null}
-      destroyOnClose
-    >
-      {/* Search Input */}
-      <div className="mb-4">
-        <Input
-          placeholder={
-            isOpeners
-              ? "Search by name, email, or organization..."
-              : "Search replies by name, email, or organization..."
-          }
-          prefix={<SearchOutlined className="text-gray-400" />}
-          value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          allowClear
-          className="max-w-md"
-        />
-      </div>
-
-      <div className="mb-4">
-        {isOpeners ? (
-          <p className="text-sm text-gray-600">
-            {data.length} unique people opened your campaign emails
-            {searchText && ` (filtered from ${rawData.length})`}
-          </p>
-        ) : (
-          <div className="flex flex-wrap gap-4 text-sm">
-            <span className="text-gray-600">
-              <strong>{data.length}</strong> total replies
-            </span>
-            <span className="text-green-600">
-              <CheckCircleOutlined className="mr-1" />
-              <strong>{data.length - forwardedCount}</strong> direct replies
-            </span>
-            {forwardedCount > 0 && (
-              <span className="text-orange-600">
-                <ShareAltOutlined className="mr-1" />
-                <strong>{forwardedCount}</strong> forwarded replies
-              </span>
+    <>
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            {isOpeners ? (
+              <>
+                <EyeOutlined className="text-blue-500" />
+                <span>Who Opened - {campaignName}</span>
+              </>
+            ) : (
+              <>
+                <MessageOutlined className="text-green-500" />
+                <span>Who Replied - {campaignName}</span>
+              </>
             )}
           </div>
-        )}
-      </div>
-
-      {!isOpeners && forwardedCount > 0 && (
-        <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-          <p className="text-sm text-orange-700">
-            <ShareAltOutlined className="mr-2" />
-            <strong>Forwarded replies detected!</strong> Some recipients
-            forwarded your email to colleagues who then replied. These are
-            highlighted with an orange background.
-          </p>
+        }
+        open={visible}
+        onCancel={onClose}
+        width={isOpeners ? 1000 : 1100}
+        footer={null}
+        destroyOnClose
+      >
+        {/* Search Input */}
+        <div className="mb-4">
+          <Input
+            placeholder={
+              isOpeners
+                ? "Search by name, email, or organization..."
+                : "Search replies by name, email, or organization..."
+            }
+            prefix={<SearchOutlined className="text-gray-400" />}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            allowClear
+            className="max-w-md"
+          />
         </div>
-      )}
 
-      {data.length === 0 ? (
-        <Empty description={isOpeners ? "No opens yet" : "No replies yet"} />
-      ) : (
-        <Table
-          columns={isOpeners ? openersColumns : repliersColumns}
-          dataSource={data}
-          rowKey={(record) => record.id || record.email}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            pageSizeOptions: ["10", "20", "50"],
-            showTotal: (total) =>
-              `Total ${total} ${isOpeners ? "openers" : "replies"}`,
-          }}
-          scroll={{ x: isOpeners ? 900 : 1050 }}
-          size="small"
-        />
-      )}
-    </Modal>
+        <div className="mb-4">
+          {isOpeners ? (
+            <p className="text-sm text-gray-600">
+              {data.length} unique people opened your campaign emails
+              {searchText && ` (filtered from ${rawData.length})`}
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-4 text-sm">
+              <span className="text-gray-600">
+                <strong>{data.length}</strong> total replies
+              </span>
+              <span className="text-green-600">
+                <CheckCircleOutlined className="mr-1" />
+                <strong>{data.length - forwardedCount}</strong> direct replies
+              </span>
+              {forwardedCount > 0 && (
+                <span className="text-orange-600">
+                  <ShareAltOutlined className="mr-1" />
+                  <strong>{forwardedCount}</strong> forwarded replies
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {!isOpeners && forwardedCount > 0 && (
+          <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+            <p className="text-sm text-orange-700">
+              <ShareAltOutlined className="mr-2" />
+              <strong>Forwarded replies detected!</strong> Some recipients
+              forwarded your email to colleagues who then replied. These are
+              highlighted with an orange background.
+            </p>
+          </div>
+        )}
+
+        {data.length === 0 ? (
+          <Empty description={isOpeners ? "No opens yet" : "No replies yet"} />
+        ) : (
+          <Table
+            columns={isOpeners ? openersColumns : repliersColumns}
+            dataSource={data}
+            rowKey={(record) => record.id || record.email}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: true,
+              pageSizeOptions: ["10", "20", "50"],
+              showTotal: (total) =>
+                `Total ${total} ${isOpeners ? "openers" : "replies"}`,
+            }}
+            scroll={{ x: isOpeners ? 900 : 1200 }}
+            size="small"
+          />
+        )}
+      </Modal>
+
+      {/* Reply Detail Modal */}
+      <Modal
+        title={
+          <div className="flex items-center gap-2">
+            <MailOutlined className="text-blue-500" />
+            <span>Reply Details</span>
+          </div>
+        }
+        open={replyModalVisible}
+        onCancel={closeReplyModal}
+        width={700}
+        footer={[
+          <Button key="close" onClick={closeReplyModal}>
+            Close
+          </Button>,
+        ]}
+      >
+        {selectedReply && (
+          <div className="space-y-4">
+            {/* Subject */}
+            <div>
+              <Text
+                type="secondary"
+                className="text-xs uppercase tracking-wide"
+              >
+                Subject
+              </Text>
+              <Title level={5} className="mt-1 mb-0">
+                {selectedReply.subject || "(No subject)"}
+              </Title>
+            </div>
+
+            <Divider className="my-3" />
+
+            {/* From/To Info */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Text
+                  type="secondary"
+                  className="text-xs uppercase tracking-wide"
+                >
+                  From
+                </Text>
+                <div className="mt-1">
+                  <Text strong>{selectedReply.replier?.name || "Unknown"}</Text>
+                  <br />
+                  <Text className="text-gray-600">
+                    {selectedReply.replier?.email || "Unknown"}
+                  </Text>
+                  <br />
+                  <Text type="secondary" className="text-sm">
+                    {selectedReply.replier?.organization || ""}
+                  </Text>
+                </div>
+              </div>
+              <div>
+                <Text
+                  type="secondary"
+                  className="text-xs uppercase tracking-wide"
+                >
+                  Original Recipient
+                </Text>
+                <div className="mt-1">
+                  <Text strong>
+                    {selectedReply.originalRecipient?.name || "Unknown"}
+                  </Text>
+                  <br />
+                  <Text className="text-gray-600">
+                    {selectedReply.originalRecipient?.email || "Unknown"}
+                  </Text>
+                  <br />
+                  <Text type="secondary" className="text-sm">
+                    {selectedReply.originalRecipient?.organization || ""}
+                  </Text>
+                </div>
+              </div>
+            </div>
+
+            {/* Reply Time */}
+            <div>
+              <Text
+                type="secondary"
+                className="text-xs uppercase tracking-wide"
+              >
+                Received At
+              </Text>
+              <div className="mt-1">
+                <CalendarOutlined className="mr-2 text-gray-400" />
+                <Text>
+                  {formatDate(
+                    selectedReply.replyReceivedAt ||
+                      selectedReply.firstRepliedAt ||
+                      ""
+                  )}
+                </Text>
+              </div>
+            </div>
+
+            {/* Match Info */}
+            <div className="flex gap-2">
+              {selectedReply.isSamePerson ? (
+                <Tag color="green">
+                  <CheckCircleOutlined /> Direct Reply
+                </Tag>
+              ) : (
+                <Tag color="orange">
+                  <SwapOutlined /> Forwarded Reply
+                </Tag>
+              )}
+              <Tag
+                color={getMatchTypeColor(selectedReply.matchType || "exact")}
+              >
+                {getMatchTypeLabel(selectedReply.matchType || "exact")}
+              </Tag>
+            </div>
+
+            <Divider className="my-3" />
+
+            {/* Email Body */}
+            <div>
+              <Text
+                type="secondary"
+                className="text-xs uppercase tracking-wide"
+              >
+                Message
+              </Text>
+              <div className="mt-2 p-4 bg-gray-50 rounded-lg border border-gray-200 max-h-96 overflow-y-auto">
+                <Paragraph className="whitespace-pre-wrap mb-0 text-gray-800">
+                  {selectedReply.body || "(No message content available)"}
+                </Paragraph>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+    </>
   );
 }

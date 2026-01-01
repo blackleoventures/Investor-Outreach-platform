@@ -5,7 +5,12 @@ import { verifyCronRequest, createCronErrorResponse } from "@/lib/cron/auth";
 import { adminDb } from "@/lib/firebase-admin";
 import * as admin from "firebase-admin";
 import { checkAllClientsReplies } from "@/lib/imap/reply-checker";
-import { parseReplyIdentity } from "@/lib/imap/reply-parser";
+import {
+  parseReplyIdentity,
+  isBounceEmail,
+  extractBounceReason,
+  extractBounceRecipient,
+} from "@/lib/imap/reply-parser";
 import {
   matchReplyToRecipient,
   shouldProcessReply,
@@ -94,9 +99,7 @@ export async function GET(request: NextRequest) {
     let clientRepliesMap: Map<string, any[]>;
 
     try {
-      console.log("[Cron: Check Replies] Calling checkAllClientsReplies...");
       clientRepliesMap = await checkAllClientsReplies(7);
-      console.log("[Cron: Check Replies] checkAllClientsReplies completed");
       console.log("[Cron: Check Replies] IMAP check completed successfully");
       console.log(
         "[Cron: Check Replies] Clients checked:",
@@ -144,6 +147,12 @@ export async function GET(request: NextRequest) {
     let totalForwardedReplies = 0;
     let totalSkipped = 0;
     let totalErrors = 0;
+    let totalBouncesFixed = 0;
+
+    // =============================================
+    // SELF-HEALING LOGIC REMOVED
+    // Main loop now handles bounce detection correctly
+    // =============================================
 
     // OPTIMIZED: Cache campaigns per client within this request
     // This prevents re-querying campaigns for every reply
@@ -160,14 +169,79 @@ export async function GET(request: NextRequest) {
         try {
           const parsedReply = parseReplyIdentity(reply);
 
-          console.log(
+          /* console.log(
             "[Cron: Check Replies] Processing reply from:",
             parsedReply.from.email
-          );
-          console.log(
-            "[Cron: Check Replies] Message ID:",
-            parsedReply.messageId
-          );
+          ); */
+
+          // =============================================
+          // BOUNCE DETECTION: Check if this is a bounce/NDR
+          // =============================================
+          if (isBounceEmail(reply)) {
+            const bounceReason = extractBounceReason(reply);
+            const bouncedEmail = extractBounceRecipient(reply);
+
+            // console.log("[Cron: Check Replies] BOUNCE DETECTED!");
+            // console.log("[Cron: Check Replies] Reason:", bounceReason);
+            // console.log("[Cron: Check Replies] Bounced email:", bouncedEmail);
+
+            // Try to find and mark the original recipient as failed
+            if (bouncedEmail) {
+              try {
+                // Find recipient by email
+                const recipientSnapshot = await adminDb
+                  .collection("campaignRecipients")
+                  .where("originalContact.email", "==", bouncedEmail)
+                  .where("status", "in", ["pending", "delivered"])
+                  .limit(1)
+                  .get();
+
+                if (!recipientSnapshot.empty) {
+                  const recipientDoc = recipientSnapshot.docs[0];
+                  const recipientData = recipientDoc.data();
+
+                  // Mark recipient as failed with bounce reason
+                  await recipientDoc.ref.update({
+                    status: "failed",
+                    failedAt: getCurrentTimestamp(),
+                    failureReason: bounceReason,
+                    failureCategory: "BOUNCE",
+                    bounceType: "hard",
+                    lastUpdated: getCurrentTimestamp(),
+                  });
+
+                  // Update campaign stats: decrement delivered, increment failed
+                  if (recipientData.campaignId) {
+                    await adminDb
+                      .collection("campaigns")
+                      .doc(recipientData.campaignId)
+                      .update({
+                        "stats.failed": admin.firestore.FieldValue.increment(1),
+                        "stats.delivered":
+                          admin.firestore.FieldValue.increment(-1),
+                        lastUpdated: getCurrentTimestamp(),
+                      });
+                  }
+
+                  console.log(
+                    `[Cron: Check Replies] Marked ${bouncedEmail} as FAILED: ${bounceReason}`
+                  );
+                } else {
+                  console.log(
+                    `[Cron: Check Replies] Could not find recipient for bounced email: ${bouncedEmail}`
+                  );
+                }
+              } catch (bounceErr) {
+                console.error(
+                  "[Cron: Check Replies] Error processing bounce:",
+                  bounceErr
+                );
+              }
+            }
+
+            totalSkipped++;
+            continue; // Skip - this is not a real reply
+          }
 
           // CRITICAL: Check if this exact reply was already processed
           const existingReplyCheck = await adminDb
@@ -177,9 +251,33 @@ export async function GET(request: NextRequest) {
             .get();
 
           if (!existingReplyCheck.empty) {
-            console.log(
-              "[Cron: Check Replies] Reply already processed (duplicate), skipping"
-            );
+            const existingDoc = existingReplyCheck.docs[0];
+            const existingData = existingDoc.data();
+
+            // BACKFILL: If we NOW have body content but the stored reply doesn't, update it
+            if (parsedReply.body && !existingData.body) {
+              try {
+                await existingDoc.ref.update({
+                  subject: parsedReply.subject || "",
+                  body: parsedReply.body || "",
+                  backfilledAt: getCurrentTimestamp(),
+                });
+                console.log(
+                  `[Cron: Check Replies] BACKFILLED reply ${parsedReply.messageId} with content`
+                );
+              } catch (backfillErr) {
+                console.error(
+                  "[Cron: Check Replies] Backfill failed:",
+                  backfillErr
+                );
+                // Non-critical - don't throw, just log
+              }
+            } else {
+              console.log(
+                "[Cron: Check Replies] Reply already processed (duplicate), skipping"
+              );
+            }
+
             console.log(
               "[Cron: Check Replies] Message ID:",
               parsedReply.messageId
@@ -399,6 +497,11 @@ export async function GET(request: NextRequest) {
               threadPosition: 1,
               isNewReplier,
               processed: true, // Mark as processed to prevent reprocessing
+
+              // NEW: Store email content for admin viewing
+              subject: parsedReply.subject || "",
+              body: parsedReply.body || "",
+
               createdAt: getCurrentTimestamp(),
             });
 

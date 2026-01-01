@@ -4,11 +4,11 @@
 
 import { useState, useEffect } from "react";
 import { Card, Button, Table, Tag, Badge, message, Modal, Tooltip } from "antd";
-import { 
-  ReloadOutlined, 
+import {
+  ReloadOutlined,
   WarningOutlined,
   CloseCircleOutlined,
-  ExclamationCircleOutlined 
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { auth } from "@/lib/firebase";
@@ -27,7 +27,9 @@ export default function FailedRecipientsTab({
 }: FailedRecipientsTabProps) {
   const [loading, setLoading] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const [failedRecipients, setFailedRecipients] = useState<FailedRecipient[]>([]);
+  const [failedRecipients, setFailedRecipients] = useState<FailedRecipient[]>(
+    []
+  );
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
 
   useEffect(() => {
@@ -123,13 +125,12 @@ export default function FailedRecipientsTab({
       }
 
       const data = await response.json();
-      
+
       message.success(data.message || "Retry scheduled successfully");
-      
+
       // Clear selection and refresh
       setSelectedRowKeys([]);
       fetchFailedRecipients();
-
     } catch (error: any) {
       console.error("Retry error:", error);
       message.error(error.message || "Failed to retry emails");
@@ -180,26 +181,47 @@ export default function FailedRecipientsTab({
     },
     {
       title: "Error Type",
-      dataIndex: "failureReason",
-      key: "failureReason",
-      width: 150,
-      render: (errorType: ErrorCategory) => (
-        <Tag color={getErrorColor(errorType)}>
-          {errorType.replace(/_/g, " ")}
-        </Tag>
-      ),
+      key: "errorType",
+      width: 140,
+      render: (_, record) => {
+        // Get the error category/type
+        const lastError = record.lastError as any;
+        const errorType =
+          lastError?.category || (record as any).failureCategory || "BOUNCE";
+        return (
+          <Tag
+            color={getErrorColor(errorType as ErrorCategory)}
+            style={{ margin: 0 }}
+          >
+            {String(errorType).replace(/_/g, " ")}
+          </Tag>
+        );
+      },
     },
     {
-      title: "Error Message",
+      title: "Error Details",
       key: "errorMessage",
-      width: 300,
-      render: (_, record) => (
-        <Tooltip title={record.lastError.errorMessage}>
-          <p className="text-sm text-gray-700 truncate">
-            {record.lastError.friendlyMessage}
-          </p>
-        </Tooltip>
-      ),
+      width: 280,
+      ellipsis: false,
+      render: (_, record) => {
+        // Get the detailed error message
+        const errorMsg =
+          record.lastError?.errorMessage ||
+          record.failureReason ||
+          "Delivery failed";
+
+        return (
+          <Tooltip
+            title={errorMsg}
+            placement="topLeft"
+            overlayStyle={{ maxWidth: 400 }}
+          >
+            <span className="text-sm text-gray-700 cursor-help line-clamp-2">
+              {errorMsg}
+            </span>
+          </Tooltip>
+        );
+      },
     },
     {
       title: "Retries",
@@ -210,8 +232,8 @@ export default function FailedRecipientsTab({
       render: (retries: number) => (
         <Badge
           count={`${retries}/3`}
-          style={{ 
-            backgroundColor: retries >= 3 ? "#ff4d4f" : "#1890ff" 
+          style={{
+            backgroundColor: retries >= 3 ? "#ff4d4f" : "#1890ff",
           }}
         />
       ),

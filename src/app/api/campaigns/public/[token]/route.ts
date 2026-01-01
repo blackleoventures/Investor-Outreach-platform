@@ -63,8 +63,8 @@ export async function GET(
 
     // NEW: Get total follow-ups count from followupEmails collection
     const followupsSnapshot = await adminDb
-      .collection('followupEmails')
-      .where('campaignId', '==', campaignDoc.id)
+      .collection("followupEmails")
+      .where("campaignId", "==", campaignDoc.id)
       .get();
 
     const totalFollowUpsSent = followupsSnapshot.size;
@@ -74,8 +74,12 @@ export async function GET(
 
       // Count by type
       if (data.recipientType) {
-        typeCounts[data.recipientType] = (typeCounts[data.recipientType] || 0) + 1;
+        typeCounts[data.recipientType] =
+          (typeCounts[data.recipientType] || 0) + 1;
       }
+
+      // Skip failed recipients (bounces) - they shouldn't count as openers/repliers
+      if (data.status === "failed") return;
 
       // Collect WHO opened
       const aggregatedTracking = data.aggregatedTracking || {};
@@ -133,22 +137,22 @@ export async function GET(
         deliveryRate: campaignData.stats?.deliveryRate || 0,
         openRate: campaignData.stats?.openRate || 0,
         replyRate: campaignData.stats?.replyRate || 0,
-        
+
         // Enhanced stats
         uniqueOpened: uniqueOpeners.length,
         uniqueResponded: uniqueRepliers.length,
-        totalFollowUpsSent: totalFollowUpsSent,  // ONLY THIS ONE
+        totalFollowUpsSent: totalFollowUpsSent, // ONLY THIS ONE
         deliveredNotOpened: campaignData.stats?.deliveredNotOpened || 0,
         openedNotReplied: campaignData.stats?.openedNotReplied || 0,
       },
       aggregates: {
         typeCounts,
       },
-      
+
       // WHO data (top 15 each for performance)
       uniqueOpeners: uniqueOpeners.slice(0, 15),
       uniqueRepliers: uniqueRepliers.slice(0, 15),
-      
+
       createdAt: campaignData.createdAt,
     };
 

@@ -354,6 +354,9 @@ function parseEmailToReply(parsed: ParsedMail): EmailReplyDetected | null {
       date: parsed.date || new Date(),
       messageId: parsed.messageId || "",
       inReplyTo: parsed.inReplyTo || undefined,
+      // NEW: Capture subject and body for admin viewing
+      subject: parsed.subject || "",
+      body: parsed.text || "", // Plain text only, no HTML
     };
 
     return reply;

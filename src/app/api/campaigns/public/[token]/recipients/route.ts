@@ -10,7 +10,9 @@ export async function GET(
   try {
     const { token } = params;
 
-    console.log(`[Public Recipients] Fetching recipients for token ${token}...`);
+    console.log(
+      `[Public Recipients] Fetching recipients for token ${token}...`
+    );
 
     // Find campaign by token
     const campaignsSnapshot = await adminDb
@@ -36,48 +38,57 @@ export async function GET(
       .get();
 
     // Return recipients WITHOUT type, status, counts, organizations, and timestamps
-    const recipients = recipientsSnapshot.docs.map((doc) => {
-      const data = doc.data();
-      const aggregatedTracking = data.aggregatedTracking || {};
+    // Filter out failed recipients (bounces)
+    const recipients = recipientsSnapshot.docs
+      .filter((doc) => doc.data().status !== "failed")
+      .map((doc) => {
+        const data = doc.data();
+        const aggregatedTracking = data.aggregatedTracking || {};
 
-      // Extract WHO opened (names and emails only)
-      const uniqueOpeners = (aggregatedTracking.uniqueOpeners || []).map((opener: any) => ({
-        name: opener.name || "Unknown",
-        email: opener.email || "",
-      }));
-      
-      // Extract WHO replied (names and emails only)
-      const uniqueRepliers = (aggregatedTracking.uniqueRepliers || []).map((replier: any) => ({
-        name: replier.name || "Unknown",
-        email: replier.email || "",
-      }));
+        // Extract WHO opened (names and emails only)
+        const uniqueOpeners = (aggregatedTracking.uniqueOpeners || []).map(
+          (opener: any) => ({
+            name: opener.name || "Unknown",
+            email: opener.email || "",
+          })
+        );
 
-      return {
-        // Basic info only
-        name: data.originalContact?.name || data.contactInfo?.name || "Unknown",
-        email: data.originalContact?.email || data.contactInfo?.email || "unknown@email.com",
-        organization:
-          data.originalContact?.organization ||
-          data.contactInfo?.organization ||
-          "Unknown",
-        matchScore: data.matchScore || 0,
+        // Extract WHO replied (names and emails only)
+        const uniqueRepliers = (aggregatedTracking.uniqueRepliers || []).map(
+          (replier: any) => ({
+            name: replier.name || "Unknown",
+            email: replier.email || "",
+          })
+        );
 
-        // Engagement flags only (no counts)
-        opened: aggregatedTracking.everOpened || false,
-        replied: aggregatedTracking.everReplied || false,
+        return {
+          // Basic info only
+          name:
+            data.originalContact?.name || data.contactInfo?.name || "Unknown",
+          email:
+            data.originalContact?.email ||
+            data.contactInfo?.email ||
+            "unknown@email.com",
+          organization:
+            data.originalContact?.organization ||
+            data.contactInfo?.organization ||
+            "Unknown",
+          matchScore: data.matchScore || 0,
 
-        // WHO opened/replied (names and emails only)
-        uniqueOpeners,
-        uniqueRepliers,
-      };
-    });
+          // Engagement flags only (no counts)
+          opened: aggregatedTracking.everOpened || false,
+          replied: aggregatedTracking.everReplied || false,
+
+          // WHO opened/replied (names and emails only)
+          uniqueOpeners,
+          uniqueRepliers,
+        };
+      });
 
     // Sort by match score descending
     recipients.sort((a, b) => b.matchScore - a.matchScore);
 
-    console.log(
-      `[Public Recipients] Found ${recipients.length} recipients`
-    );
+    console.log(`[Public Recipients] Found ${recipients.length} recipients`);
 
     return NextResponse.json({
       success: true,

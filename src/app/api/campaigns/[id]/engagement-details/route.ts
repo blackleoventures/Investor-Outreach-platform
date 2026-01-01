@@ -36,13 +36,14 @@ export async function GET(
 
     const campaignData = campaignDoc.data();
 
-    // Generate ETag based on opened and replied counts
+    // Generate ETag based on opened, replied, AND failed counts
     const stats = campaignData?.stats || {};
     const openedCount = stats.opened || 0;
     const repliedCount = stats.replied || 0;
+    const failedCount = stats.failed || 0; // Include failed to bust cache when bounces are processed
     const lastUpdated =
       campaignData?.lastUpdated || campaignData?.createdAt || "";
-    const etag = `"engagement-${campaignId}-${openedCount}-${repliedCount}-${new Date(
+    const etag = `"engagement-${campaignId}-${openedCount}-${repliedCount}-${failedCount}-${new Date(
       lastUpdated
     ).getTime()}"`;
 
@@ -122,6 +123,9 @@ export async function GET(
     recipientsSnapshot.forEach((doc) => {
       const data = doc.data();
       const aggregatedTracking = data.aggregatedTracking;
+
+      // Skip failed recipients (bounces) - they're not real repliers
+      if (data.status === "failed") return;
 
       if (!aggregatedTracking) return;
 

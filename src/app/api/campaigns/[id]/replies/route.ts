@@ -30,6 +30,11 @@ interface ReplyRecord {
   matchType: string;
   replyReceivedAt: string;
   createdAt: string;
+  // NEW: Email content for admin viewing
+  subject: string | null;
+  bodyPreview: string | null; // First 500 chars for list view
+  body: string | null; // Full body for detail view
+  hasContent: boolean; // Quick check if content is available
 }
 
 export async function GET(
@@ -117,6 +122,11 @@ export async function GET(
         matchType: data.matchType || "exact",
         replyReceivedAt: data.replyReceivedAt || data.createdAt || "",
         createdAt: data.createdAt || "",
+        // Email content fields
+        subject: data.subject || null,
+        bodyPreview: data.body ? data.body.substring(0, 500) : null,
+        body: data.body || null,
+        hasContent: !!(data.subject || data.body),
       });
     });
 
@@ -144,6 +154,7 @@ export async function GET(
         forwardedReplies,
       },
     };
+    console.log("--------------------", response);
 
     console.log(
       `[Campaign Replies] Found ${totalReplies} replies (${forwardedReplies} forwarded)`

@@ -1,4 +1,4 @@
-// Reply-related type 
+// Reply-related type
 
 export interface ReplyFrom {
   name: string;
@@ -16,14 +16,14 @@ export interface CampaignReply {
   campaignId: string;
   recipientId: string;
   emailId: string;
-  
+
   // Reply metadata
   replyFrom: ReplyFrom;
   replyTo: ReplyTo;
-  
+
   replyReceivedAt: string;
-  threadPosition: number;    // 1st reply, 2nd reply, etc.
-  
+  threadPosition: number; // 1st reply, 2nd reply, etc.
+
   createdAt: string;
 }
 
@@ -36,4 +36,6 @@ export interface EmailReplyDetected {
   date: Date;
   messageId: string;
   inReplyTo?: string;
+  subject?: string; // NEW: Email subject line
+  body?: string; // NEW: Plain text body content
 }

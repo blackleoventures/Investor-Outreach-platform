@@ -933,10 +933,10 @@ export default function CampaignDetailPage() {
 
       <Card className="mb-6">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-gray-600">Campaign Progress</span>
+          <span className="text-gray-600">Emails Processed</span>
           <span className="text-gray-900 font-semibold">
             {campaign.stats.sent + campaign.stats.failed} /{" "}
-            {campaign.totalRecipients} emails
+            {campaign.totalRecipients} processed
           </span>
         </div>
         <Progress
@@ -953,57 +953,9 @@ export default function CampaignDetailPage() {
         <Card>
           <Statistic
             title="Total Sent"
-            value={campaign.stats.sent}
+            value={campaign.stats.sent + campaign.stats.failed}
             prefix={<MailOutlined />}
             valueStyle={{ color: "#1890ff" }}
-          />
-        </Card>
-        <Card>
-          <Statistic
-            title="Opened"
-            value={campaign.stats.opened}
-            suffix={`(${campaign.stats.openRate}%)`}
-            prefix={<EyeOutlined />}
-            valueStyle={{ color: "#52c41a" }}
-          />
-        </Card>
-        <Card>
-          <Statistic
-            title="Replied"
-            value={campaign.stats.replied}
-            suffix={`(${campaign.stats.replyRate}%)`}
-            prefix={<MessageOutlined />}
-            valueStyle={{ color: "#722ed1" }}
-          />
-        </Card>
-        {/* Failed Card - ONLY visible to admin/subadmin */}
-        {isAdminOrSubadmin ? (
-          <Card>
-            <Statistic
-              title="Failed"
-              value={campaign.stats.failed}
-              prefix={<CloseCircleOutlined />}
-              valueStyle={{ color: "#ff4d4f" }}
-            />
-          </Card>
-        ) : (
-          <Card>
-            <Statistic
-              title="Delivered"
-              value={campaign.stats.delivered}
-              prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: "#52c41a" }}
-            />
-          </Card>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <Card>
-          <Statistic
-            title="Pending"
-            value={campaign.stats.pending}
-            prefix={<ClockCircleOutlined />}
           />
         </Card>
         <Card>
@@ -1016,16 +968,18 @@ export default function CampaignDetailPage() {
         </Card>
         <Card>
           <Statistic
-            title="Delivery Rate"
-            value={campaign.stats.deliveryRate}
-            suffix="%"
+            title="Failed"
+            value={campaign.stats.failed}
+            prefix={<CloseCircleOutlined />}
+            valueStyle={{ color: "#ff4d4f" }}
           />
         </Card>
         <Card>
           <Statistic
-            title="Reply Rate"
-            value={campaign.stats.replyRate}
-            suffix="%"
+            title="Pending"
+            value={campaign.stats.pending}
+            prefix={<ClockCircleOutlined />}
+            valueStyle={{ color: "#faad14" }}
           />
         </Card>
       </div>
