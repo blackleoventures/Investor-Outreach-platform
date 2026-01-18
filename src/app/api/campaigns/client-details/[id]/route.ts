@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
-import { verifyFirebaseToken, verifyAdminOrSubadmin } from "@/lib/auth-middleware";
+import {
+  verifyFirebaseToken,
+  verifyAdminOrSubadmin,
+} from "@/lib/auth-middleware";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     const user = await verifyFirebaseToken(request);
@@ -18,7 +21,7 @@ export async function GET(
     if (!clientDoc.exists) {
       return NextResponse.json(
         { success: false, message: "Client not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -32,21 +35,26 @@ export async function GET(
     if (data?.status !== "approved" || data?.archived) {
       return NextResponse.json(
         { success: false, message: "Client is not eligible for campaigns" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     if (!smtpConfig || smtpConfig.testStatus !== "passed") {
       return NextResponse.json(
-        { success: false, message: "Client's SMTP configuration is not verified" },
-        { status: 400 }
+        {
+          success: false,
+          message: "Client's SMTP configuration is not verified",
+        },
+        { status: 400 },
       );
     }
 
-    if (!latestPitchAnalysis) {
+    // Check if pitch analysis exists (skip for admin-created clients)
+    const isAdminCreated = data?.createdBy?.method === "admin_creation";
+    if (!isAdminCreated && !latestPitchAnalysis) {
       return NextResponse.json(
         { success: false, message: "Client has no pitch analysis" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -80,20 +88,19 @@ export async function GET(
       success: true,
       client: clientDetails,
     });
-
   } catch (error: any) {
     console.error("[Client Details Error]:", error);
-    
+
     if (error.name === "AuthenticationError") {
       return NextResponse.json(
         { success: false, message: error.message },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
       { success: false, message: "Failed to fetch client details" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
