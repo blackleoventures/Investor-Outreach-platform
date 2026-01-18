@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebase-admin";
-import { verifyFirebaseToken, verifyAdminOrSubadmin } from "@/lib/auth-middleware";
+import {
+  verifyFirebaseToken,
+  verifyAdminOrSubadmin,
+} from "@/lib/auth-middleware";
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,7 +22,7 @@ export async function GET(request: NextRequest) {
 
     clientsSnapshot.forEach((doc) => {
       const data = doc.data();
-      
+
       // Check if client has been reviewed
       if (!data.reviewedBy) return;
 
@@ -27,8 +30,13 @@ export async function GET(request: NextRequest) {
       const smtpConfig = data.clientInformation?.emailConfiguration;
       if (!smtpConfig || smtpConfig.testStatus !== "passed") return;
 
-      // Check if pitch analysis exists
-      if (!data.pitchAnalyses || data.pitchAnalyses.length === 0) return;
+      // Check if pitch analysis exists (skip for admin-created clients)
+      const isAdminCreated = data.createdBy?.method === "admin_creation";
+      if (
+        !isAdminCreated &&
+        (!data.pitchAnalyses || data.pitchAnalyses.length === 0)
+      )
+        return;
 
       // Add to eligible list
       eligibleClients.push({
@@ -54,20 +62,19 @@ export async function GET(request: NextRequest) {
       clients: eligibleClients,
       total: eligibleClients.length,
     });
-
   } catch (error: any) {
     console.error("[Eligible Clients Error]:", error);
-    
+
     if (error.name === "AuthenticationError") {
       return NextResponse.json(
         { success: false, message: error.message },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
       { success: false, message: "Failed to fetch eligible clients" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

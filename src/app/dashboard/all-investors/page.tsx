@@ -31,7 +31,7 @@ export default function AllInvestorsPage() {
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState<Investor | null>(
-    null
+    null,
   );
   const [form] = Form.useForm();
 
@@ -127,7 +127,7 @@ export default function AllInvestorsPage() {
       message.error(
         error instanceof Error
           ? error.message
-          : "Failed to load investors. Please try again."
+          : "Failed to load investors. Please try again.",
       );
       setInvestors([]);
     } finally {
@@ -161,7 +161,7 @@ export default function AllInvestorsPage() {
                 "Content-Type": "application/json",
               },
               credentials: "include",
-            }
+            },
           );
 
           if (!response.ok) {
@@ -169,7 +169,7 @@ export default function AllInvestorsPage() {
               .json()
               .catch(() => ({ error: "Failed to delete investor" }));
             throw new Error(
-              errorData.error || `HTTP error: ${response.status}`
+              errorData.error || `HTTP error: ${response.status}`,
             );
           }
 
@@ -180,7 +180,7 @@ export default function AllInvestorsPage() {
           message.error(
             error instanceof Error
               ? error.message
-              : "Failed to delete investor. Please try again."
+              : "Failed to delete investor. Please try again.",
           );
         }
       },
@@ -218,7 +218,7 @@ export default function AllInvestorsPage() {
           },
           credentials: "include",
           body: JSON.stringify(updates),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -238,7 +238,7 @@ export default function AllInvestorsPage() {
       message.error(
         error instanceof Error
           ? error.message
-          : "Failed to update investor. Please try again."
+          : "Failed to update investor. Please try again.",
       );
     } finally {
       setEditLoading(false);
@@ -423,7 +423,6 @@ export default function AllInvestorsPage() {
     },
   ];
 
-
   return (
     <div className="max-w-[1600px] mx-auto">
       <div className="mb-3">
@@ -455,6 +454,7 @@ export default function AllInvestorsPage() {
             "Investor Name",
             "Partner Name",
             "Partner Email",
+            "Fund Stage",
             "Fund Focus (Sectors)",
             "Location",
           ]}
