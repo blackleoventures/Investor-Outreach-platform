@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyFirebaseToken, verifyAdminOrSubadmin } from "@/lib/auth-middleware";
+import {
+  verifyFirebaseToken,
+  verifyAdminOrSubadmin,
+} from "@/lib/auth-middleware";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
@@ -10,17 +13,17 @@ export async function POST(request: NextRequest) {
     verifyAdminOrSubadmin(user);
 
     const body = await request.json();
-    const { 
-      currentBody, 
-      companyContext, 
-      useOptimizedPrompt, 
-      customInstructions 
+    const {
+      currentBody,
+      companyContext,
+      useOptimizedPrompt,
+      customInstructions,
     } = body;
 
     if (!currentBody) {
       return NextResponse.json(
         { success: false, message: "Current email body is required" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -63,8 +66,9 @@ Structure:
 - Call-to-action (specific meeting request)
 - Professional signature
 
-Return ONLY the improved email body, nothing else. Keep all {{variables}} intact.`;
+Return ONLY the improved email body, nothing else. Keep all {{variables}} intact.
 
+CRITICAL: Do NOT include any subject line. Start directly with the greeting (e.g., "Dear {{investorName}}" or "Hi {{investorName}}"). The subject is handled separately.`;
     } else {
       // Custom prompt from admin
       prompt = `You are an expert email marketing copywriter.
@@ -81,7 +85,9 @@ Instructions: ${customInstructions}
 
 Important: Preserve all personalization variables like {{investorName}}, {{organizationName}}, etc.
 
-Return ONLY the improved email body, nothing else.`;
+Return ONLY the improved email body, nothing else.
+
+CRITICAL: Do NOT include any subject line. Start directly with the greeting. The subject is handled separately.`;
     }
 
     console.log("[AI] Generating improved email body...");
@@ -90,32 +96,47 @@ Return ONLY the improved email body, nothing else.`;
     const response = await result.response;
     const improvedBody = response.text().trim();
 
+    // Safety: Strip any subject line the AI might have added
+    let cleanedBody = improvedBody;
+
+    // Remove "Subject:" line if present (case insensitive, including variations)
+    cleanedBody = cleanedBody
+      .replace(/^(Subject|Subject Line|Email Subject|RE|Re):\s*[^\n]*\n*/im, "")
+      .trim();
+
+    // Also remove if it's on a second line after empty first line
+    cleanedBody = cleanedBody
+      .replace(
+        /^\n*(Subject|Subject Line|Email Subject|RE|Re):\s*[^\n]*\n*/im,
+        "",
+      )
+      .trim();
+
     console.log("[AI] Email body improved successfully");
 
     return NextResponse.json({
       success: true,
-      improvedBody,
+      improvedBody: cleanedBody,
       originalBody: currentBody,
       wordCount: improvedBody.split(" ").length,
     });
-
   } catch (error: any) {
     console.error("[AI Body Error]:", error);
-    
+
     if (error.name === "AuthenticationError") {
       return NextResponse.json(
         { success: false, message: error.message },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         message: "Failed to improve email body",
         error: error.message,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

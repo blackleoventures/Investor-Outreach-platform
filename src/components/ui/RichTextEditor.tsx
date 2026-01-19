@@ -6,6 +6,7 @@ import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
 import Placeholder from "@tiptap/extension-placeholder";
 import { TextStyle } from "@tiptap/extension-text-style";
+import Link from "@tiptap/extension-link";
 import { Extension } from "@tiptap/core";
 import RichTextToolbar from "./RichTextToolbar";
 import { useEffect } from "react";
@@ -249,6 +250,17 @@ export default function RichTextEditor({
       FontSize,
       LineHeight,
       LetterSpacing,
+      // Link extension for hyperlinks
+      Link.configure({
+        openOnClick: false, // Don't open links when clicking in editor
+        autolink: true, // Auto-detect URLs as you type
+        linkOnPaste: true, // Auto-link pasted URLs
+        HTMLAttributes: {
+          class: "text-blue-600 underline cursor-pointer",
+          target: "_blank",
+          rel: "noopener noreferrer",
+        },
+      }),
     ],
     content,
     editorProps: {

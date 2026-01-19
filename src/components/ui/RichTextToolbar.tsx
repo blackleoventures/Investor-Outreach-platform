@@ -20,8 +20,9 @@ import {
   Plus,
   ArrowUpDown,
   MoveHorizontal,
+  Link2,
 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 // Email-safe fonts
 const EMAIL_SAFE_FONTS = [
@@ -190,7 +191,10 @@ export default function RichTextToolbar({
   const [currentLineHeight, setCurrentLineHeight] = useState("1.5");
   const [currentLetterSpacing, setCurrentLetterSpacing] = useState("Normal");
   const [showFontDropdown, setShowFontDropdown] = useState(false);
+  const [showLinkPopover, setShowLinkPopover] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
   const fontDropdownRef = useRef<HTMLDivElement>(null);
+  const linkPopoverRef = useRef<HTMLDivElement>(null);
 
   const getCurrentFont = () => {
     if (!editor) return "Arial";
@@ -206,6 +210,20 @@ export default function RichTextToolbar({
         !fontDropdownRef.current.contains(event.target as Node)
       ) {
         setShowFontDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Close link popover on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        linkPopoverRef.current &&
+        !linkPopoverRef.current.contains(event.target as Node)
+      ) {
+        setShowLinkPopover(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -256,6 +274,50 @@ export default function RichTextToolbar({
         : Math.max(currentIndex - 1, 0);
     handleFontSizeChange(FONT_SIZES[newIndex].value);
   };
+
+  // Open link popover and prefill with current link
+  const openLinkPopover = useCallback(() => {
+    if (editor) {
+      const previousUrl = editor.getAttributes("link").href || "";
+      setLinkUrl(previousUrl);
+      setShowLinkPopover(true);
+    }
+  }, [editor]);
+
+  // Apply link to selected text
+  const handleSetLink = useCallback(() => {
+    if (!editor) return;
+
+    // If empty URL, remove link
+    if (!linkUrl.trim()) {
+      (editor.chain().focus() as any).unsetLink().run();
+      setShowLinkPopover(false);
+      return;
+    }
+
+    // Add https:// if no protocol specified
+    let url = linkUrl.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      url = "https://" + url;
+    }
+
+    // Apply link
+    (editor.chain().focus() as any)
+      .extendMarkRange("link")
+      .setLink({ href: url })
+      .run();
+    setShowLinkPopover(false);
+    setLinkUrl("");
+  }, [editor, linkUrl]);
+
+  // Remove link from selection
+  const handleRemoveLink = useCallback(() => {
+    if (editor) {
+      (editor.chain().focus() as any).unsetLink().run();
+      setShowLinkPopover(false);
+      setLinkUrl("");
+    }
+  }, [editor]);
 
   if (!editor) {
     return (
@@ -367,6 +429,67 @@ export default function RichTextToolbar({
       >
         <Underline size={18} />
       </ToolbarButton>
+
+      {/* Link Button */}
+      <div className="relative" ref={linkPopoverRef}>
+        <ToolbarButton
+          onClick={openLinkPopover}
+          isActive={editor.isActive("link")}
+          title="Insert Link (Ctrl+K)"
+        >
+          <Link2 size={18} />
+        </ToolbarButton>
+
+        {showLinkPopover && (
+          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 p-3 min-w-[280px]">
+            <div className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-gray-700">URL</label>
+              <input
+                type="text"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="https://example.com"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleSetLink();
+                  }
+                  if (e.key === "Escape") {
+                    setShowLinkPopover(false);
+                  }
+                }}
+                autoFocus
+              />
+              <div className="flex gap-2 justify-end">
+                {editor.isActive("link") && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveLink}
+                    className="px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                  >
+                    Remove
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowLinkPopover(false)}
+                  className="px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSetLink}
+                  className="px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors"
+                >
+                  Apply
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
 
       <ToolbarDivider />
 

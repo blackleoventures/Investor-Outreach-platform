@@ -284,14 +284,50 @@ export default function FinalReview({
               </p>
             </div>
             <div>
-              <p className="font-medium mb-2">Email Body:</p>
-              <div className="bg-gray-50 p-3 rounded max-h-40 overflow-y-auto">
-                <pre className="whitespace-pre-wrap text-sm">
-                  {emailTemplate.currentBody.substring(0, 300)}
-                  {emailTemplate.currentBody.length > 300 && "..."}
-                </pre>
-              </div>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="font-medium mb-2">Email Body Preview:</p>
+              <style>{`
+                .email-preview-container ul {
+                  list-style-type: disc;
+                  padding-left: 24px;
+                  margin: 12px 0;
+                }
+                .email-preview-container ol {
+                  list-style-type: decimal;
+                  padding-left: 24px;
+                  margin: 12px 0;
+                }
+                .email-preview-container li {
+                  margin: 6px 0;
+                }
+                .email-preview-container p {
+                  margin: 12px 0;
+                }
+                .email-preview-container strong {
+                  font-weight: 700;
+                }
+                .email-preview-container em {
+                  font-style: italic;
+                }
+                .email-preview-container a {
+                  color: #2563eb;
+                  text-decoration: underline;
+                  cursor: pointer;
+                }
+                .email-preview-container a:hover {
+                  color: #1d4ed8;
+                }
+              `}</style>
+              <div
+                className="email-preview-container bg-white p-4 rounded border border-gray-200 max-h-[400px] overflow-y-auto"
+                style={{
+                  fontFamily: "Arial, sans-serif",
+                  fontSize: "14px",
+                  lineHeight: "1.6",
+                  color: "#333333",
+                }}
+                dangerouslySetInnerHTML={{ __html: emailTemplate.currentBody }}
+              />
+              <p className="text-sm text-gray-500 mt-2">
                 Words: {emailTemplate.currentBody.split(" ").length}
                 {emailTemplate.bodyImproved && (
                   <Tag color="green" className="ml-2">
