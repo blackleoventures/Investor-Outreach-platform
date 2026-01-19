@@ -497,6 +497,18 @@ export async function GET(request: NextRequest) {
                     subject: personalizedSubject,
                     html: finalHtmlBody,
                     text: plainTextBody,
+                    // Include attachments if campaign has them (backward compatible)
+                    ...(campaignData.emailTemplate?.attachments?.length > 0
+                      ? {
+                          attachments:
+                            campaignData.emailTemplate.attachments.map(
+                              (att: any) => ({
+                                filename: att.originalName || att.name,
+                                path: att.url, // nodemailer fetches from URL
+                              }),
+                            ),
+                        }
+                      : {}),
                   }),
                 { maxRetries: 3, baseDelay: 1000, maxDelay: 5000 },
               );

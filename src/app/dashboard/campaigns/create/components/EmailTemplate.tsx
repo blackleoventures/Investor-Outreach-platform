@@ -18,12 +18,26 @@ import {
   ArrowRightOutlined,
   ThunderboltOutlined,
   EditOutlined,
+  PaperClipOutlined,
+  DeleteOutlined,
+  LoadingOutlined,
 } from "@ant-design/icons";
 import RichTextEditor, {
   getWordCount,
   markdownToHtml,
   htmlToPlainText,
 } from "@/components/ui/RichTextEditor";
+import {
+  Attachment,
+  uploadAttachment,
+  deleteAttachment,
+  validateAttachments,
+  formatFileSize,
+  getFileIcon,
+  MAX_FILES,
+  MAX_FILE_SIZE,
+  MAX_TOTAL_SIZE,
+} from "@/lib/firebase-storage";
 
 const { TextArea } = Input;
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -63,6 +77,14 @@ export default function EmailTemplate({
   >("optimized");
   const [customInstructions, setCustomInstructions] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Attachments state
+  const [attachments, setAttachments] = useState<Attachment[]>(
+    emailTemplate?.attachments || [],
+  );
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const improveSubject = async () => {
     try {
@@ -152,6 +174,79 @@ export default function EmailTemplate({
     }
   };
 
+  // ============================================================
+  // ATTACHMENT HANDLERS
+  // ============================================================
+
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    const fileArray = Array.from(files);
+    setUploadError(null);
+
+    // Validate before upload
+    const validation = validateAttachments(attachments, fileArray);
+    if (!validation.valid) {
+      setUploadError(validation.error || "Validation failed");
+      message.error(validation.error);
+      return;
+    }
+
+    setUploadingFiles(true);
+
+    try {
+      // Generate a temporary campaign ID for storage path
+      const tempCampaignId = `temp_${Date.now()}`;
+
+      const uploadPromises = fileArray.map((file) =>
+        uploadAttachment(file, tempCampaignId),
+      );
+
+      const uploadedFiles = await Promise.all(uploadPromises);
+      setAttachments((prev) => [...prev, ...uploadedFiles]);
+      message.success(`${uploadedFiles.length} file(s) uploaded successfully`);
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      setUploadError(error.message || "Upload failed");
+      message.error(error.message || "Failed to upload files");
+    } finally {
+      setUploadingFiles(false);
+    }
+  };
+
+  const handleRemoveAttachment = async (attachmentId: string) => {
+    const attachment = attachments.find((a) => a.id === attachmentId);
+    if (!attachment) return;
+
+    try {
+      // Delete from storage
+      await deleteAttachment(attachment.url);
+      // Remove from state
+      setAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
+      message.success("Attachment removed");
+    } catch (error: any) {
+      console.error("Delete error:", error);
+      message.error("Failed to remove attachment");
+    }
+  };
+
+  // Drag and drop handlers
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFileUpload(e.dataTransfer.files);
+  };
+
   const handleNext = () => {
     if (!currentSubject || !currentBody) {
       message.error("Please ensure both subject and body are filled");
@@ -179,6 +274,8 @@ export default function EmailTemplate({
       currentBody,
       currentBodyText: htmlToPlainText(currentBody),
       bodyImproved: hasPitchBody && currentBody !== pitchBody,
+      // Include attachments (optional field for backward compatibility)
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
 
     onNext();
@@ -255,6 +352,129 @@ export default function EmailTemplate({
         <p className="text-sm text-gray-500 mt-2">
           Word count: {getWordCount(currentBody)} (recommended: 150-300)
         </p>
+      </Card>
+
+      {/* Attachments Section */}
+      <Card
+        title={
+          <span>
+            <PaperClipOutlined className="mr-2" />
+            Attachments ({attachments.length}/{MAX_FILES})
+          </span>
+        }
+        className="mb-6"
+      >
+        <Alert
+          message="Optional: Attach files that will be sent with every email in this campaign"
+          description={`Max ${MAX_FILES} files, ${formatFileSize(MAX_FILE_SIZE)} per file, ${formatFileSize(MAX_TOTAL_SIZE)} total`}
+          type="info"
+          showIcon
+          className="mb-4"
+        />
+
+        {/* Drag and Drop Zone */}
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+            isDragging
+              ? "border-blue-500 bg-blue-50"
+              : "border-gray-300 hover:border-blue-400"
+          } ${
+            attachments.length >= MAX_FILES
+              ? "opacity-50 cursor-not-allowed"
+              : ""
+          }`}
+          onClick={() => {
+            if (attachments.length < MAX_FILES) {
+              document.getElementById("file-upload-input")?.click();
+            }
+          }}
+        >
+          <input
+            id="file-upload-input"
+            type="file"
+            multiple
+            accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt,.csv"
+            onChange={(e) => handleFileUpload(e.target.files)}
+            className="hidden"
+            disabled={attachments.length >= MAX_FILES}
+          />
+
+          {uploadingFiles ? (
+            <div>
+              <LoadingOutlined className="text-2xl text-blue-500 mb-2" />
+              <p className="text-gray-600">Uploading files...</p>
+            </div>
+          ) : (
+            <div>
+              <PaperClipOutlined className="text-3xl text-gray-400 mb-2" />
+              <p className="text-gray-600">
+                {attachments.length >= MAX_FILES
+                  ? `Maximum ${MAX_FILES} attachments reached`
+                  : "Drag & drop files here, or click to browse"}
+              </p>
+              <p className="text-gray-400 text-sm mt-1">
+                PDF, Word, Excel, Images
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Error Display */}
+        {uploadError && (
+          <Alert
+            message={uploadError}
+            type="error"
+            showIcon
+            className="mt-4"
+            closable
+            onClose={() => setUploadError(null)}
+          />
+        )}
+
+        {/* Attached Files List */}
+        {attachments.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <p className="font-medium text-gray-700">Attached Files:</p>
+            {attachments.map((att) => (
+              <div
+                key={att.id}
+                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-xl">{getFileIcon(att.type)}</span>
+                  <div>
+                    <p className="font-medium text-gray-800">
+                      {att.originalName}
+                    </p>
+                    <p className="text-sm text-gray-500">
+                      {formatFileSize(att.size)}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="text"
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={() => handleRemoveAttachment(att.id)}
+                >
+                  Remove
+                </Button>
+              </div>
+            ))}
+
+            {/* Total size indicator */}
+            <p className="text-sm text-gray-500 mt-2">
+              Total size:{" "}
+              {formatFileSize(
+                attachments.reduce((sum, att) => sum + att.size, 0),
+              )}{" "}
+              / {formatFileSize(MAX_TOTAL_SIZE)}
+            </p>
+          </div>
+        )}
       </Card>
 
       {/* Subject Improvement Modal */}

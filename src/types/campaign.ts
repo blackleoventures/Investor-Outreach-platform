@@ -18,6 +18,16 @@ export interface Campaign {
     currentBody: string;
     currentBodyText: string;
     bodyImproved: boolean;
+    // OPTIONAL: For backward compatibility with existing campaigns
+    attachments?: Array<{
+      id: string; // Unique ID for reference
+      name: string; // Sanitized filename
+      originalName: string; // Original filename
+      url: string; // Firebase Storage URL
+      size: number; // Bytes
+      type: string; // MIME type
+      uploadedAt: string; // ISO timestamp
+    }>;
   };
 
   schedule: {

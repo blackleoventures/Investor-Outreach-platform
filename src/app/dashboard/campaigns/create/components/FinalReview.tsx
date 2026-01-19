@@ -19,6 +19,7 @@ import {
   CalendarOutlined,
   MailOutlined,
   TeamOutlined,
+  PaperClipOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
 
@@ -336,6 +337,29 @@ export default function FinalReview({
                 )}
               </p>
             </div>
+
+            {/* Attachments Preview */}
+            {emailTemplate.attachments &&
+              emailTemplate.attachments.length > 0 && (
+                <div className="mt-4">
+                  <p className="font-medium mb-2">
+                    <PaperClipOutlined className="mr-2" />
+                    Attachments ({emailTemplate.attachments.length}):
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {emailTemplate.attachments.map((att: any) => (
+                      <Tag
+                        key={att.id}
+                        icon={<PaperClipOutlined />}
+                        color="blue"
+                      >
+                        {att.originalName || att.name} (
+                        {(att.size / 1024).toFixed(1)} KB)
+                      </Tag>
+                    ))}
+                  </div>
+                </div>
+              )}
           </Panel>
 
           {/* Schedule */}

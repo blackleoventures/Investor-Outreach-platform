@@ -171,6 +171,10 @@ export async function POST(request: NextRequest) {
         currentBody: emailTemplate.currentBody || "",
         currentBodyText: emailTemplate.currentBodyText || "",
         bodyImproved: emailTemplate.bodyImproved || false,
+        // Optional: Store attachments if provided (backward compatible)
+        ...(emailTemplate.attachments?.length > 0
+          ? { attachments: emailTemplate.attachments }
+          : {}),
       },
 
       schedule: {

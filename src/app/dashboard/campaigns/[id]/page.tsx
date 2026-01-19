@@ -33,6 +33,7 @@ import {
   ThunderboltOutlined,
   FileTextOutlined,
   WarningOutlined,
+  PaperClipOutlined,
 } from "@ant-design/icons";
 import DataTable, { Column, FilterColumn } from "@/components/data-table";
 import FollowupTab from "@/components/campaigns/FollowupTab";
@@ -59,6 +60,16 @@ interface Campaign {
     originalBody: string;
     currentBody: string;
     bodyImproved: boolean;
+    // Optional: For backward compatibility with existing campaigns
+    attachments?: Array<{
+      id: string;
+      name: string;
+      originalName: string;
+      url: string;
+      size: number;
+      type: string;
+      uploadedAt: string;
+    }>;
   };
   schedule: {
     startDate: string;
@@ -230,7 +241,7 @@ export default function CampaignDetailPage() {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -275,7 +286,7 @@ export default function CampaignDetailPage() {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -394,7 +405,7 @@ export default function CampaignDetailPage() {
       ? Math.round(
           ((campaign.stats.sent + campaign.stats.failed) /
             campaign.totalRecipients) *
-            100
+            100,
         )
       : 0;
 
@@ -461,8 +472,8 @@ export default function CampaignDetailPage() {
             (record?.matchScore || 0) >= 80
               ? "green"
               : (record?.matchScore || 0) >= 60
-              ? "orange"
-              : "red"
+                ? "orange"
+                : "red"
           }
         />
       ),
@@ -683,7 +694,7 @@ export default function CampaignDetailPage() {
                         {Math.round(
                           ((aggregates.typeCounts.investor || 0) /
                             aggregates.totalRecipients) *
-                            100
+                            100,
                         )}
                         %)
                       </Tag>
@@ -699,7 +710,7 @@ export default function CampaignDetailPage() {
                         {Math.round(
                           ((aggregates.typeCounts.incubator || 0) /
                             aggregates.totalRecipients) *
-                            100
+                            100,
                         )}
                         %)
                       </Tag>
@@ -747,7 +758,7 @@ export default function CampaignDetailPage() {
                           {item.count || 0} (
                           {Math.round(
                             ((item.count || 0) / aggregates.totalRecipients) *
-                              100
+                              100,
                           )}
                           %)
                         </Tag>
@@ -787,15 +798,94 @@ export default function CampaignDetailPage() {
           </Card>
 
           <Card title="Email Body">
-            <div className="bg-gray-50 p-4 rounded whitespace-pre-wrap">
-              {campaign.emailTemplate.currentBody}
-            </div>
+            <style>{`
+              .campaign-email-body ul {
+                list-style-type: disc;
+                padding-left: 24px;
+                margin: 12px 0;
+              }
+              .campaign-email-body ol {
+                list-style-type: decimal;
+                padding-left: 24px;
+                margin: 12px 0;
+              }
+              .campaign-email-body li {
+                margin: 6px 0;
+              }
+              .campaign-email-body p {
+                margin: 12px 0;
+              }
+              .campaign-email-body strong {
+                font-weight: 700;
+              }
+              .campaign-email-body em {
+                font-style: italic;
+              }
+              .campaign-email-body a {
+                color: #2563eb;
+                text-decoration: underline;
+              }
+            `}</style>
+            <div
+              className="campaign-email-body bg-white p-4 rounded border border-gray-200"
+              style={{
+                fontFamily: "Arial, sans-serif",
+                fontSize: "14px",
+                lineHeight: "1.6",
+                color: "#333333",
+              }}
+              dangerouslySetInnerHTML={{
+                __html: campaign.emailTemplate.currentBody,
+              }}
+            />
             {campaign.emailTemplate.bodyImproved && (
               <div className="mt-3">
                 <Tag color="green">AI-Improved</Tag>
               </div>
             )}
           </Card>
+
+          {/* Attachments Card */}
+          {campaign.emailTemplate.attachments &&
+            campaign.emailTemplate.attachments.length > 0 && (
+              <Card
+                title={
+                  <span>
+                    <PaperClipOutlined className="mr-2" />
+                    Attachments ({campaign.emailTemplate.attachments.length})
+                  </span>
+                }
+              >
+                <div className="space-y-2">
+                  {campaign.emailTemplate.attachments.map((att: any) => (
+                    <div
+                      key={att.id}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
+                    >
+                      <div className="flex items-center gap-3">
+                        <PaperClipOutlined className="text-blue-500" />
+                        <div>
+                          <p className="font-medium text-gray-800">
+                            {att.originalName || att.name}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            {(att.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        type="link"
+                        href={att.url}
+                        target="_blank"
+                        icon={<DownloadOutlined />}
+                      >
+                        Download
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
         </div>
       ),
     },
