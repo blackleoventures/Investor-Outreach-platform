@@ -13,7 +13,7 @@ const activeCronCalls = new Map<string, boolean>();
 export function startAutoCronScheduler() {
   if (initializationLock) {
     console.log(
-      "[Cron Scheduler] Initialization in progress, skipping duplicate call"
+      "[Cron Scheduler] Initialization in progress, skipping duplicate call",
     );
     return;
   }
@@ -29,9 +29,24 @@ export function startAutoCronScheduler() {
     return;
   }
 
+  // Check if cron jobs are enabled via environment variable
+  const cronEnabled = process.env.CRON_ENABLED?.toLowerCase();
+  if (
+    cronEnabled === "false" ||
+    cronEnabled === "stop" ||
+    cronEnabled === "0"
+  ) {
+    console.log(
+      "[Cron Scheduler] ⏸️  Cron jobs DISABLED via CRON_ENABLED env variable",
+    );
+    console.log("[Cron Scheduler] Set CRON_ENABLED=true to enable cron jobs");
+    initializationLock = false;
+    return;
+  }
+
   if (isSchedulerStarted) {
     console.log(
-      "[Cron Scheduler] Scheduler already running, skipping initialization"
+      "[Cron Scheduler] Scheduler already running, skipping initialization",
     );
     initializationLock = false;
     return;
@@ -101,7 +116,7 @@ export function startAutoCronScheduler() {
           if (data.summary) {
             console.log(
               "[Cron Scheduler] Summary:",
-              JSON.stringify(data.summary)
+              JSON.stringify(data.summary),
             );
           }
         } else {
@@ -148,7 +163,7 @@ export function startAutoCronScheduler() {
       },
       {
         timezone: "Asia/Kolkata",
-      }
+      },
     );
 
     const checkRepliesTask = cron.schedule(
@@ -158,7 +173,7 @@ export function startAutoCronScheduler() {
       },
       {
         timezone: "Asia/Kolkata",
-      }
+      },
     );
 
     const updateStatsTask = cron.schedule(
@@ -168,26 +183,26 @@ export function startAutoCronScheduler() {
       },
       {
         timezone: "Asia/Kolkata",
-      }
+      },
     );
 
     scheduledTasks.push(sendEmailsTask, checkRepliesTask, updateStatsTask);
 
     console.log(
       "[Cron Scheduler] Job: Send Emails - Schedule:",
-      schedules.sendEmails
+      schedules.sendEmails,
     );
     console.log(
       "[Cron Scheduler] Job: Check Replies - Schedule:",
-      schedules.checkReplies
+      schedules.checkReplies,
     );
     console.log(
       "[Cron Scheduler] Job: Update Stats - Schedule:",
-      schedules.updateStats
+      schedules.updateStats,
     );
     console.log(
       "[Cron Scheduler] Total jobs scheduled:",
-      scheduledTasks.length
+      scheduledTasks.length,
     );
 
     // FIXED: Run initial email send job after 10 seconds (not immediately)

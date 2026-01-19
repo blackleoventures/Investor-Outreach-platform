@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     console.log("[Cron: Send Emails] Job already running");
     console.log(
       "[Cron: Send Emails] Running duration:",
-      runningDuration + "ms"
+      runningDuration + "ms",
     );
 
     // Force unlock if job has been running for more than 4 minutes
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
           .limit(1)
           .get();
         return !snapshot.empty;
-      }
+      },
     );
 
     if (!hasActiveCampaigns) {
@@ -126,7 +126,7 @@ export async function GET(request: NextRequest) {
 
     if (pendingCheckSnapshot.empty) {
       console.log(
-        "[Cron: Send Emails] No pending emails ready, skipping main processing"
+        "[Cron: Send Emails] No pending emails ready, skipping main processing",
       );
       // Continue to follow-ups check
     }
@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
 
     console.log(
       "[Cron: Main Emails] Active campaigns found:",
-      activeCampaignsSnapshot.size
+      activeCampaignsSnapshot.size,
     );
 
     let totalSent = 0;
@@ -197,10 +197,10 @@ export async function GET(request: NextRequest) {
           const parts = formatter.formatToParts(new Date());
 
           const currentHour = parseInt(
-            parts.find((p) => p.type === "hour")?.value || "0"
+            parts.find((p) => p.type === "hour")?.value || "0",
           );
           const currentMinute = parseInt(
-            parts.find((p) => p.type === "minute")?.value || "0"
+            parts.find((p) => p.type === "minute")?.value || "0",
           );
           const currentDay =
             parts.find((p) => p.type === "weekday")?.value || "";
@@ -216,7 +216,7 @@ export async function GET(request: NextRequest) {
           // Check 1: Is it a valid day?
           if (schedule.days && !schedule.days.includes(currentDay)) {
             console.log(
-              `[Cron: Main Emails] Skipping ${activeCampaignId} - Today (${currentDay}) is not in allowed days`
+              `[Cron: Main Emails] Skipping ${activeCampaignId} - Today (${currentDay}) is not in allowed days`,
             );
             continue;
           }
@@ -224,7 +224,7 @@ export async function GET(request: NextRequest) {
           // Check 2: Is it within allowed hours?
           if (currentTimeVal < startTimeVal || currentTimeVal > endTimeVal) {
             console.log(
-              `[Cron: Main Emails] Skipping ${activeCampaignId} - Outside window (${currentHour}:${currentMinute} vs ${schedule.startTime}-${schedule.endTime})`
+              `[Cron: Main Emails] Skipping ${activeCampaignId} - Outside window (${currentHour}:${currentMinute} vs ${schedule.startTime}-${schedule.endTime})`,
             );
             continue;
           }
@@ -232,12 +232,12 @@ export async function GET(request: NextRequest) {
       } catch (err) {
         console.error(
           `[Cron: Main Emails] Error checking schedule for ${activeCampaignId}`,
-          err
+          err,
         );
         // Continue but log error - safe fail allows sending if schedule logic is broken?
         // Or should we skip? Let's skip to be safe against unwanted sends.
         console.log(
-          `[Cron: Main Emails] Skipping ${activeCampaignId} due to schedule check error`
+          `[Cron: Main Emails] Skipping ${activeCampaignId} due to schedule check error`,
         );
         continue;
       }
@@ -256,26 +256,26 @@ export async function GET(request: NextRequest) {
           (doc) => ({
             id: doc.id,
             ...doc.data(),
-          })
+          }),
         );
         totalPendingFound += campaignRecipientsSnapshot.size;
         console.log(
-          `[Cron: Main Emails] Campaign ${activeCampaignId}: ${campaignRecipientsSnapshot.size} pending (limit: ${perCronLimit})`
+          `[Cron: Main Emails] Campaign ${activeCampaignId}: ${campaignRecipientsSnapshot.size} pending (limit: ${perCronLimit})`,
         );
       } else {
         console.log(
-          `[Cron: Main Emails] Campaign ${activeCampaignId}: 0 pending recipients due now`
+          `[Cron: Main Emails] Campaign ${activeCampaignId}: 0 pending recipients due now`,
         );
       }
     }
 
     console.log(
       "[Cron: Main Emails] Total pending across all campaigns:",
-      totalPendingFound
+      totalPendingFound,
     );
     console.log(
       "[Cron: Main Emails] Campaigns with pending emails:",
-      Object.keys(campaignGroups).length
+      Object.keys(campaignGroups).length,
     );
 
     if (Object.keys(campaignGroups).length > 0) {
@@ -283,7 +283,7 @@ export async function GET(request: NextRequest) {
       for (const [campaignId, recipients] of Object.entries(campaignGroups)) {
         console.log(`\n[Cron: Main Emails] Processing campaign: ${campaignId}`);
         console.log(
-          `[Cron: Main Emails] Recipients in campaign: ${recipients.length}`
+          `[Cron: Main Emails] Recipients in campaign: ${recipients.length}`,
         );
 
         try {
@@ -294,7 +294,7 @@ export async function GET(request: NextRequest) {
 
           if (!campaignDoc.exists) {
             console.error(
-              `[Cron: Main Emails] Campaign not found: ${campaignId}`
+              `[Cron: Main Emails] Campaign not found: ${campaignId}`,
             );
             continue;
           }
@@ -303,7 +303,7 @@ export async function GET(request: NextRequest) {
 
           if (!campaignData || campaignData.status !== "active") {
             console.log(
-              `[Cron: Main Emails] Campaign not active: ${campaignId}`
+              `[Cron: Main Emails] Campaign not active: ${campaignId}`,
             );
             continue;
           }
@@ -315,7 +315,7 @@ export async function GET(request: NextRequest) {
 
           if (!clientDoc.exists) {
             console.error(
-              `[Cron: Main Emails] Client not found: ${campaignData.clientId}`
+              `[Cron: Main Emails] Client not found: ${campaignData.clientId}`,
             );
             continue;
           }
@@ -328,7 +328,7 @@ export async function GET(request: NextRequest) {
 
           if (!smtpConfig || !smtpConfig.smtpHost || !smtpConfig.smtpUsername) {
             console.error(
-              `[Cron: Main Emails] Invalid SMTP configuration for campaign: ${campaignId}`
+              `[Cron: Main Emails] Invalid SMTP configuration for campaign: ${campaignId}`,
             );
             continue;
           }
@@ -337,12 +337,12 @@ export async function GET(request: NextRequest) {
           try {
             decryptedPassword = decryptAES256(smtpConfig.smtpPassword);
             console.log(
-              `[Cron: Main Emails] SMTP password decrypted successfully`
+              `[Cron: Main Emails] SMTP password decrypted successfully`,
             );
           } catch (error: any) {
             console.error(
               `[Cron: Main Emails] Failed to decrypt SMTP password:`,
-              error
+              error,
             );
             continue;
           }
@@ -363,7 +363,7 @@ export async function GET(request: NextRequest) {
           try {
             await transporter.verify();
             console.log(
-              `[Cron: Main Emails] SMTP connection verified successfully`
+              `[Cron: Main Emails] SMTP connection verified successfully`,
             );
           } catch (error: any) {
             console.error(`[Cron: Main Emails] SMTP verification failed`);
@@ -421,7 +421,7 @@ export async function GET(request: NextRequest) {
                   });
 
                   return { skip: false };
-                }
+                },
               );
 
               if (transactionResult.skip) {
@@ -446,14 +446,14 @@ export async function GET(request: NextRequest) {
                 campaignData.emailTemplate?.currentSubject || "",
                 recipientName,
                 recipientOrganization,
-                clientInfo
+                clientInfo,
               );
 
               const personalizedBody = personalizeText(
                 campaignData.emailTemplate?.currentBody || "",
                 recipientName,
                 recipientOrganization,
-                clientInfo
+                clientInfo,
               );
 
               const baseUrl = getBaseUrl();
@@ -461,6 +461,30 @@ export async function GET(request: NextRequest) {
               const trackingPixel = `<img src="${trackingPixelUrl}" width="1" height="1" style="display:none;opacity:0" alt="" />`;
 
               const htmlBody = convertToHtml(personalizedBody) + trackingPixel;
+
+              // FAANG: Priority to stored high-fidelity plain text
+              let plainTextBody = stripHtml(personalizedBody);
+              if (campaignData.emailTemplate?.currentBodyText) {
+                plainTextBody = personalizeText(
+                  campaignData.emailTemplate.currentBodyText,
+                  recipientName,
+                  recipientOrganization,
+                  clientInfo,
+                );
+              }
+
+              // Ensure plain text is never empty (Safety Fallback)
+              if (!plainTextBody || plainTextBody.trim().length === 0) {
+                plainTextBody =
+                  "Please view this email in an HTML-compatible email client.";
+              }
+
+              // Wrap HTML in default styles for consistency
+              const finalHtmlBody = `
+                <div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #333333;">
+                  ${htmlBody}
+                </div>
+              `;
 
               // FAANG: Exponential backoff retry for transient failures
               const info = await withRetry(
@@ -471,22 +495,22 @@ export async function GET(request: NextRequest) {
                     }>`,
                     to: recipientEmail,
                     subject: personalizedSubject,
-                    html: htmlBody,
-                    text: stripHtml(personalizedBody),
+                    html: finalHtmlBody,
+                    text: plainTextBody,
                   }),
-                { maxRetries: 3, baseDelay: 1000, maxDelay: 5000 }
+                { maxRetries: 3, baseDelay: 1000, maxDelay: 5000 },
               );
 
               if (info.accepted && info.accepted.length > 0) {
                 await markAsDelivered(
                   recipient.id,
                   emailId,
-                  personalizedSubject
+                  personalizedSubject,
                 );
                 campaignSent++;
                 totalSent++;
                 console.log(
-                  `[Cron: Main Emails] Email sent successfully: ${recipientEmail}`
+                  `[Cron: Main Emails] Email sent successfully: ${recipientEmail}`,
                 );
               } else {
                 throw new Error("Email rejected by server");
@@ -496,7 +520,7 @@ export async function GET(request: NextRequest) {
                 recipient.originalContact?.email || "unknown@email.com";
 
               console.error(
-                `[Cron: Main Emails] Send failed for: ${recipientEmail}`
+                `[Cron: Main Emails] Send failed for: ${recipientEmail}`,
               );
               logError("Email Send", error, {
                 recipientId: recipient.id,
@@ -511,7 +535,7 @@ export async function GET(request: NextRequest) {
                 error,
                 recipientEmail,
                 campaignId,
-                retryAttempt
+                retryAttempt,
               );
 
               campaignFailed++;
@@ -533,7 +557,7 @@ export async function GET(request: NextRequest) {
                   });
 
                 console.log(
-                  `[Cron: Main Emails] Retry scheduled for attempt ${retryAttempt}`
+                  `[Cron: Main Emails] Retry scheduled for attempt ${retryAttempt}`,
                 );
               }
             }
@@ -549,7 +573,7 @@ export async function GET(request: NextRequest) {
             "stats.totalDelivered":
               admin.firestore.FieldValue.increment(campaignSent),
             "stats.pending": admin.firestore.FieldValue.increment(
-              -(campaignSent + campaignFailed)
+              -(campaignSent + campaignFailed),
             ),
             "stats.failed":
               admin.firestore.FieldValue.increment(campaignFailed),
@@ -579,7 +603,7 @@ export async function GET(request: NextRequest) {
         } catch (error: any) {
           console.error(
             `[Cron: Main Emails] Campaign processing error:`,
-            campaignId
+            campaignId,
           );
           logError("Campaign Processing", error, { campaignId });
         }
@@ -612,7 +636,7 @@ export async function GET(request: NextRequest) {
         .get();
 
       console.log(
-        `[Cron: Follow-ups] Found ${queuedFollowups.size} queued follow-ups`
+        `[Cron: Follow-ups] Found ${queuedFollowups.size} queued follow-ups`,
       );
 
       console.log("[Cron: Follow-ups] Querying scheduled follow-ups");
@@ -631,7 +655,7 @@ export async function GET(request: NextRequest) {
 
           if (isReady) {
             console.log(
-              `[Cron: Follow-ups] Ready: ${followup.followupId} (scheduled for ${followup.scheduledFor})`
+              `[Cron: Follow-ups] Ready: ${followup.followupId} (scheduled for ${followup.scheduledFor})`,
             );
           }
 
@@ -640,7 +664,7 @@ export async function GET(request: NextRequest) {
         .slice(0, 50);
 
       console.log(
-        `[Cron: Follow-ups] Found ${scheduledFollowupsReady.length} scheduled follow-ups ready to send`
+        `[Cron: Follow-ups] Found ${scheduledFollowupsReady.length} scheduled follow-ups ready to send`,
       );
 
       const followupsToSend = [
@@ -649,7 +673,7 @@ export async function GET(request: NextRequest) {
       ];
 
       console.log(
-        `[Cron: Follow-ups] Total follow-ups to process: ${followupsToSend.length}`
+        `[Cron: Follow-ups] Total follow-ups to process: ${followupsToSend.length}`,
       );
 
       if (followupsToSend.length === 0) {
@@ -661,7 +685,7 @@ export async function GET(request: NextRequest) {
           const followup = followupDoc.data();
 
           console.log(
-            `\n[Cron: Follow-ups] Processing follow-up: ${followup.followupId}`
+            `\n[Cron: Follow-ups] Processing follow-up: ${followup.followupId}`,
           );
 
           // Use transaction to prevent duplicate sends
@@ -675,7 +699,7 @@ export async function GET(request: NextRequest) {
 
               if (!freshFollowupDoc.exists) {
                 console.log(
-                  `[Cron: Follow-ups] Follow-up deleted during processing`
+                  `[Cron: Follow-ups] Follow-up deleted during processing`,
                 );
                 return { skip: true, reason: "deleted" };
               }
@@ -690,7 +714,7 @@ export async function GET(request: NextRequest) {
                 console.log(
                   `[Cron: Follow-ups] Follow-up status changed: ${
                     freshData!.status
-                  } (was ${followup.status})`
+                  } (was ${followup.status})`,
                 );
                 return {
                   skip: true,
@@ -706,7 +730,7 @@ export async function GET(request: NextRequest) {
               });
 
               return { skip: false, data: freshData };
-            }
+            },
           );
 
           if (transactionResult.skip) {
@@ -720,7 +744,7 @@ export async function GET(request: NextRequest) {
           const followupData = transactionResult.data!;
 
           console.log(
-            `[Cron: Follow-ups] Verifying recipient status for: ${followupData.recipientId}`
+            `[Cron: Follow-ups] Verifying recipient status for: ${followupData.recipientId}`,
           );
 
           const recipientDoc = await adminDb
@@ -730,7 +754,7 @@ export async function GET(request: NextRequest) {
 
           if (!recipientDoc.exists) {
             console.log(
-              `[Cron: Follow-ups] Recipient not found, marking follow-up as failed`
+              `[Cron: Follow-ups] Recipient not found, marking follow-up as failed`,
             );
             await followupRef.update({
               status: "failed",
@@ -752,7 +776,7 @@ export async function GET(request: NextRequest) {
             console.log(
               `[Cron: Follow-ups] Skipping - main email not sent yet (status: ${
                 recipientData!.status
-              })`
+              })`,
             );
 
             // Revert status back to original state
@@ -783,7 +807,7 @@ export async function GET(request: NextRequest) {
           }
 
           console.log(
-            `[Cron: Follow-ups] Recipient verified - proceeding with follow-up`
+            `[Cron: Follow-ups] Recipient verified - proceeding with follow-up`,
           );
 
           const campaignDoc = await adminDb
@@ -793,7 +817,7 @@ export async function GET(request: NextRequest) {
 
           if (!campaignDoc.exists) {
             console.error(
-              `[Cron: Follow-ups] Campaign not found: ${followupData.campaignId}`
+              `[Cron: Follow-ups] Campaign not found: ${followupData.campaignId}`,
             );
             await followupRef.update({
               status: "failed",
@@ -824,7 +848,7 @@ export async function GET(request: NextRequest) {
 
           if (!clientDoc.exists) {
             console.error(
-              `[Cron: Follow-ups] Client not found: ${campaignData.clientId}`
+              `[Cron: Follow-ups] Client not found: ${campaignData.clientId}`,
             );
             await followupRef.update({
               status: "failed",
@@ -869,7 +893,7 @@ export async function GET(request: NextRequest) {
           } catch (error: any) {
             console.error(
               `[Cron: Follow-ups] Failed to decrypt SMTP password:`,
-              error
+              error,
             );
             await followupRef.update({
               status: "failed",
@@ -900,7 +924,7 @@ export async function GET(request: NextRequest) {
           } catch (error: any) {
             console.error(
               `[Cron: Follow-ups] SMTP verification failed:`,
-              error
+              error,
             );
             await followupRef.update({
               status: "failed",
@@ -917,14 +941,14 @@ export async function GET(request: NextRequest) {
             followupData.subject,
             followupData.recipientName,
             followupData.recipientOrganization,
-            clientInfo
+            clientInfo,
           );
 
           const personalizedBody = personalizeText(
             followupData.body,
             followupData.recipientName,
             followupData.recipientOrganization,
-            clientInfo
+            clientInfo,
           );
 
           const trackingId =
@@ -937,7 +961,7 @@ export async function GET(request: NextRequest) {
           const htmlBody = convertToHtml(personalizedBody) + trackingPixel;
 
           console.log(
-            `[Cron: Follow-ups] Sending to: ${followupData.recipientEmail}`
+            `[Cron: Follow-ups] Sending to: ${followupData.recipientEmail}`,
           );
 
           const info = await transporter.sendMail({
@@ -992,7 +1016,7 @@ export async function GET(request: NextRequest) {
 
             followupsSent++;
             console.log(
-              `[Cron: Follow-ups] Follow-up sent successfully: ${followupData.recipientEmail}`
+              `[Cron: Follow-ups] Follow-up sent successfully: ${followupData.recipientEmail}`,
             );
           } else {
             throw new Error("Follow-up email rejected by server");
@@ -1034,7 +1058,7 @@ export async function GET(request: NextRequest) {
           } catch (updateError: any) {
             console.error(
               `[Cron: Follow-ups] Failed to update error status:`,
-              updateError
+              updateError,
             );
           }
 
@@ -1049,7 +1073,7 @@ export async function GET(request: NextRequest) {
     } catch (error: any) {
       console.error(
         "[Cron: Follow-ups] Critical error processing follow-ups:",
-        error
+        error,
       );
       logError("Follow-up Processing", error);
     }
@@ -1104,7 +1128,7 @@ export async function GET(request: NextRequest) {
         error: error.message,
         duration: duration + "ms",
       },
-      { status: 500 }
+      { status: 500 },
     );
   } finally {
     // Always release lock
@@ -1125,7 +1149,7 @@ function personalizeText(
   text: string,
   recipientName: string,
   recipientOrganization: string,
-  clientInfo: any
+  clientInfo: any,
 ): string {
   return text
     .replace(/\{\{investorName\}\}/g, recipientName)

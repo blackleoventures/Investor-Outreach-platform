@@ -7,7 +7,7 @@ import { adminDb } from "@/lib/firebase-admin";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     const user = await verifyFirebaseToken(request);
@@ -23,7 +23,7 @@ export async function GET(
     if (!campaignDoc.exists) {
       return NextResponse.json(
         { success: false, message: "Campaign not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -32,7 +32,7 @@ export async function GET(
     if (!campaignData) {
       return NextResponse.json(
         { success: false, message: "Campaign data is empty" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -85,7 +85,7 @@ export async function GET(
 
     if (!typeCounts || !priorityCounts) {
       console.log(
-        `[Campaign Detail] Missing breakdown for ${id}, calculating...`
+        `[Campaign Detail] Missing breakdown for ${id}, calculating...`,
       );
 
       const recipientsSnapshot = await adminDb
@@ -186,13 +186,13 @@ export async function GET(
     if (error.name === "AuthenticationError") {
       return NextResponse.json(
         { success: false, message: error.message },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
       { success: false, message: "Failed to fetch campaign details" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -200,7 +200,7 @@ export async function GET(
 // PATCH - Update campaign status (pause/resume)
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     const user = await verifyFirebaseToken(request);
@@ -213,12 +213,12 @@ export async function PATCH(
     if (!status || !["active", "paused"].includes(status)) {
       return NextResponse.json(
         { success: false, message: "Invalid status" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     console.log(
-      `[Campaign Detail] Updating campaign ${id} status to ${status}...`
+      `[Campaign Detail] Updating campaign ${id} status to ${status}...`,
     );
 
     // Update campaign status
@@ -250,13 +250,13 @@ export async function PATCH(
     if (error.name === "AuthenticationError") {
       return NextResponse.json(
         { success: false, message: error.message },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
       { success: false, message: "Failed to update campaign" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -264,7 +264,7 @@ export async function PATCH(
 // DELETE - Delete campaign (Admin only)
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     const user = await verifyFirebaseToken(request);
@@ -273,14 +273,14 @@ export async function DELETE(
     if (user.role !== "admin") {
       return NextResponse.json(
         { success: false, message: "Only admin can delete campaigns" },
-        { status: 403 }
+        { status: 403 },
       );
     }
 
     const { id } = params;
 
     console.log(
-      `[Campaign Delete] Admin ${user.email} deleting campaign ${id}...`
+      `[Campaign Delete] Admin ${user.email} deleting campaign ${id}...`,
     );
 
     // Check if campaign exists
@@ -288,7 +288,7 @@ export async function DELETE(
     if (!campaignDoc.exists) {
       return NextResponse.json(
         { success: false, message: "Campaign not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -328,7 +328,7 @@ export async function DELETE(
     }
 
     console.log(
-      `[Campaign Delete] Deleted ${recipientsSnapshot.size} recipients`
+      `[Campaign Delete] Deleted ${recipientsSnapshot.size} recipients`,
     );
 
     // Delete all follow-up emails
@@ -348,8 +348,42 @@ export async function DELETE(
     }
 
     console.log(
-      `[Campaign Delete] Deleted ${followupsSnapshot.size} follow-ups`
+      `[Campaign Delete] Deleted ${followupsSnapshot.size} follow-ups`,
     );
+
+    // Delete all campaign replies
+    console.log(`[Campaign Delete] Deleting replies for campaign ${id}...`);
+    const repliesSnapshot = await adminDb
+      .collection("campaignReplies")
+      .where("campaignId", "==", id)
+      .get();
+
+    if (!repliesSnapshot.empty) {
+      const replyBatches = [];
+      let replyBatch = adminDb.batch();
+      let replyCount = 0;
+
+      repliesSnapshot.forEach((doc) => {
+        replyBatch.delete(doc.ref);
+        replyCount++;
+
+        if (replyCount >= 500) {
+          replyBatches.push(replyBatch);
+          replyBatch = adminDb.batch();
+          replyCount = 0;
+        }
+      });
+
+      if (replyCount > 0) {
+        replyBatches.push(replyBatch);
+      }
+
+      for (const batchToCommit of replyBatches) {
+        await batchToCommit.commit();
+      }
+    }
+
+    console.log(`[Campaign Delete] Deleted ${repliesSnapshot.size} replies`);
 
     // Delete the campaign document
     await adminDb.collection("campaigns").doc(id).delete();
@@ -368,6 +402,7 @@ export async function DELETE(
       details: {
         recipientsDeleted: recipientsSnapshot.size,
         followupsDeleted: followupsSnapshot.size,
+        repliesDeleted: repliesSnapshot.size,
       },
     });
 
@@ -379,6 +414,7 @@ export async function DELETE(
       deleted: {
         recipients: recipientsSnapshot.size,
         followups: followupsSnapshot.size,
+        replies: repliesSnapshot.size,
       },
     });
   } catch (error: any) {
@@ -387,13 +423,13 @@ export async function DELETE(
     if (error.name === "AuthenticationError") {
       return NextResponse.json(
         { success: false, message: error.message },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
     return NextResponse.json(
       { success: false, message: "Failed to delete campaign" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

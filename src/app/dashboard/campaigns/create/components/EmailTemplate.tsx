@@ -19,6 +19,11 @@ import {
   ThunderboltOutlined,
   EditOutlined,
 } from "@ant-design/icons";
+import RichTextEditor, {
+  getWordCount,
+  markdownToHtml,
+  htmlToPlainText,
+} from "@/components/ui/RichTextEditor";
 
 const { TextArea } = Input;
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -43,12 +48,12 @@ export default function EmailTemplate({
   const [currentSubject, setCurrentSubject] = useState(
     emailTemplate?.currentSubject ||
       selectedClient?.pitchAnalysis?.email_subject ||
-      ""
+      "",
   );
   const [currentBody, setCurrentBody] = useState(
     emailTemplate?.currentBody ||
       selectedClient?.pitchAnalysis?.email_body ||
-      ""
+      "",
   );
 
   const [subjectModalVisible, setSubjectModalVisible] = useState(false);
@@ -133,7 +138,9 @@ export default function EmailTemplate({
       }
 
       const data = await response.json();
-      setCurrentBody(data.improvedBody);
+      // Convert markdown to HTML for the rich text editor
+      const cleanedBody = markdownToHtml(data.improvedBody);
+      setCurrentBody(cleanedBody);
       setBodyModalVisible(false);
       setCustomInstructions(""); // Reset custom instructions
       message.success("Email body improved successfully!");
@@ -151,14 +158,27 @@ export default function EmailTemplate({
       return;
     }
 
+    // Get pitch values (may be undefined for admin-created clients)
+    const pitchSubject = selectedClient?.pitchAnalysis?.email_subject || "";
+    const pitchBody = selectedClient?.pitchAnalysis?.email_body || "";
+
+    // Check if pitch content actually exists
+    const hasPitchSubject = Boolean(
+      selectedClient?.pitchAnalysis?.email_subject,
+    );
+    const hasPitchBody = Boolean(selectedClient?.pitchAnalysis?.email_body);
+
     onTemplateUpdate({
-      originalSubject: selectedClient?.pitchAnalysis?.email_subject,
+      // Original: Use pitch if exists, otherwise use current (what user typed from scratch)
+      originalSubject: hasPitchSubject ? pitchSubject : currentSubject,
       currentSubject,
-      subjectImproved:
-        currentSubject !== selectedClient?.pitchAnalysis?.email_subject,
-      originalBody: selectedClient?.pitchAnalysis?.email_body,
+      // Improved: Only true if there WAS a pitch to compare against AND it's different
+      subjectImproved: hasPitchSubject && currentSubject !== pitchSubject,
+
+      originalBody: hasPitchBody ? pitchBody : currentBody,
       currentBody,
-      bodyImproved: currentBody !== selectedClient?.pitchAnalysis?.email_body,
+      currentBodyText: htmlToPlainText(currentBody),
+      bodyImproved: hasPitchBody && currentBody !== pitchBody,
     });
 
     onNext();
@@ -226,15 +246,14 @@ export default function EmailTemplate({
           showIcon
           className="mb-4"
         />
-        <TextArea
-          value={currentBody}
-          onChange={(e) => setCurrentBody(e.target.value)}
-          rows={15}
+        <RichTextEditor
+          content={currentBody}
+          onChange={setCurrentBody}
           placeholder="Email body content..."
-          style={{ backgroundColor: "#ffffff", fontFamily: "monospace" }}
+          minHeight="400px"
         />
         <p className="text-sm text-gray-500 mt-2">
-          Word count: {currentBody.split(" ").length} (recommended: 150-300)
+          Word count: {getWordCount(currentBody)} (recommended: 150-300)
         </p>
       </Card>
 

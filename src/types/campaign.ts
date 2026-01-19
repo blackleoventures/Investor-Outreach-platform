@@ -1,5 +1,5 @@
 // Import FollowupStats from followup.ts
-import { FollowupStats } from './followup';
+import { FollowupStats } from "./followup";
 
 export interface Campaign {
   id: string;
@@ -16,6 +16,7 @@ export interface Campaign {
     subjectImproved: boolean;
     originalBody: string;
     currentBody: string;
+    currentBodyText: string;
     bodyImproved: boolean;
   };
 
@@ -50,28 +51,28 @@ export interface CampaignStats {
   // ==========================================
   // MAIN EMAIL METRICS (Initial campaign emails only)
   // ==========================================
-  
+
   // Email counts
-  totalEmailsSent: number;     // Total initial emails sent
-  totalDelivered: number;      // Total initial emails delivered
-  totalFailed: number;         // Total initial emails failed
-  pending: number;             // Pending initial emails
+  totalEmailsSent: number; // Total initial emails sent
+  totalDelivered: number; // Total initial emails delivered
+  totalFailed: number; // Total initial emails failed
+  pending: number; // Pending initial emails
 
   // Engagement metrics (for initial emails)
-  uniqueOpened: number;        // Unique people who opened initial email
-  totalOpens: number;          // Total opens of initial email
+  uniqueOpened: number; // Unique people who opened initial email
+  totalOpens: number; // Total opens of initial email
   averageOpensPerPerson: number; // totalOpens / uniqueOpened
-  openRate: number;            // (uniqueOpened / totalDelivered) × 100
+  openRate: number; // (uniqueOpened / totalDelivered) × 100
 
   // Response metrics (for initial emails)
-  uniqueResponded: number;     // Unique people who replied to initial email
-  totalResponses: number;      // Total replies to initial email
-  responseRate: number;        // (uniqueResponded / totalDelivered) × 100
+  uniqueResponded: number; // Unique people who replied to initial email
+  totalResponses: number; // Total replies to initial email
+  responseRate: number; // (uniqueResponded / totalDelivered) × 100
   averageResponseTime?: number; // Hours from send to first reply
 
   // Engagement states
-  openedNotReplied: number;    // Opened initial email but no reply
-  deliveredNotOpened: number;  // Delivered initial email but not opened
+  openedNotReplied: number; // Opened initial email but no reply
+  deliveredNotOpened: number; // Delivered initial email but not opened
 
   // Conversion funnel (for initial emails)
   conversionFunnel: {
@@ -100,10 +101,10 @@ export interface CampaignStats {
 
   // Follow-up candidates (for UI)
   followupCandidates?: {
-    notOpened48h: number;        // Delivered >48h, not opened
+    notOpened48h: number; // Delivered >48h, not opened
     openedNotReplied72h: number; // Opened >72h, not replied
     total: number;
-    readyForFollowup: number;    // Exclude already followed up
+    readyForFollowup: number; // Exclude already followed up
   };
 
   // Error tracking (for initial emails)
@@ -117,4 +118,3 @@ export interface CampaignStats {
     UNKNOWN_ERROR: number;
   };
 }
-

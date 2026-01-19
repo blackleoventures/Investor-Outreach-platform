@@ -38,13 +38,21 @@ export async function POST(request: NextRequest) {
     ) {
       return NextResponse.json(
         { success: false, message: "Missing required fields" },
-        { status: 400 }
+        { status: 400 },
+      );
+    }
+
+    // Validate email template content
+    if (!emailTemplate.currentSubject || !emailTemplate.currentBody) {
+      return NextResponse.json(
+        { success: false, message: "Email subject and body are required" },
+        { status: 400 },
       );
     }
 
     console.log(
       "[Campaign Create] Starting campaign creation for client:",
-      clientId
+      clientId,
     );
 
     const clientDoc = await adminDb.collection("clients").doc(clientId).get();
@@ -52,7 +60,7 @@ export async function POST(request: NextRequest) {
     if (!clientDoc.exists) {
       return NextResponse.json(
         { success: false, message: "Client not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -62,7 +70,7 @@ export async function POST(request: NextRequest) {
     if (!clientInfo) {
       return NextResponse.json(
         { success: false, message: "Client information incomplete" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -74,7 +82,7 @@ export async function POST(request: NextRequest) {
     console.log("[Campaign Create] Generated public token:", publicToken);
     console.log(
       "[Campaign Create] Instant start mode:",
-      scheduleConfig.startInstantly
+      scheduleConfig.startInstantly,
     );
 
     let actualStartDate = scheduleConfig.startDate;
@@ -83,7 +91,7 @@ export async function POST(request: NextRequest) {
       actualStartDate = now.toISOString().split("T")[0];
       console.log(
         "[Campaign Create] Instant start - overriding start date to:",
-        actualStartDate
+        actualStartDate,
       );
     }
 
@@ -156,11 +164,12 @@ export async function POST(request: NextRequest) {
       totalRecipients: matchResults.totalMatches,
 
       emailTemplate: {
-        originalSubject: emailTemplate.originalSubject,
-        currentSubject: emailTemplate.currentSubject,
+        originalSubject: emailTemplate.originalSubject || "",
+        currentSubject: emailTemplate.currentSubject || "",
         subjectImproved: emailTemplate.subjectImproved || false,
-        originalBody: emailTemplate.originalBody,
-        currentBody: emailTemplate.currentBody,
+        originalBody: emailTemplate.originalBody || "",
+        currentBody: emailTemplate.currentBody || "",
+        currentBodyText: emailTemplate.currentBodyText || "",
         bodyImproved: emailTemplate.bodyImproved || false,
       },
 
@@ -187,13 +196,15 @@ export async function POST(request: NextRequest) {
 
     // Step 1: Create campaign document with "creating" status
     await adminDb.collection("campaigns").doc(campaignId).set(campaignData);
-    console.log("[Campaign Create] Campaign document created with status: creating");
+    console.log(
+      "[Campaign Create] Campaign document created with status: creating",
+    );
 
     // Step 2: Generate timestamps
     const { timestamps, errors } = await distributeTimestamps(
       matchResults.matches,
       { ...scheduleConfig, startDate: actualStartDate },
-      matchResults
+      matchResults,
     );
 
     if (errors.length > 0) {
@@ -211,7 +222,7 @@ export async function POST(request: NextRequest) {
       console.log(
         "[Campaign Create] Time until first send:",
         diffSeconds,
-        "seconds"
+        "seconds",
       );
     }
 
@@ -220,7 +231,7 @@ export async function POST(request: NextRequest) {
     const totalBatches = Math.ceil(matchResults.matches.length / batchSize);
 
     console.log(
-      `[Campaign Create] Creating ${matchResults.matches.length} recipients in ${totalBatches} batches`
+      `[Campaign Create] Creating ${matchResults.matches.length} recipients in ${totalBatches} batches`,
     );
 
     for (let i = 0; i < totalBatches; i++) {
@@ -294,7 +305,7 @@ export async function POST(request: NextRequest) {
       console.log(
         `[Campaign Create] Batch ${
           i + 1
-        }/${totalBatches} committed successfully`
+        }/${totalBatches} committed successfully`,
       );
     }
 
@@ -331,7 +342,7 @@ export async function POST(request: NextRequest) {
     // Step 6: Trigger instant send if requested
     if (scheduleConfig.startInstantly) {
       console.log(
-        "[Campaign Create] Instant start mode - triggering immediate send"
+        "[Campaign Create] Instant start mode - triggering immediate send",
       );
 
       await adminDb.collection("campaigns").doc(campaignId).update({
@@ -346,7 +357,10 @@ export async function POST(request: NextRequest) {
           const cronEndpoint = `${baseUrl}/api/cron/send-emails`;
           const cronSecret = process.env.CRON_SECRET;
 
-          console.log("[Campaign Create] Triggering cron job at:", cronEndpoint);
+          console.log(
+            "[Campaign Create] Triggering cron job at:",
+            cronEndpoint,
+          );
 
           const cronResponse = await fetch(cronEndpoint, {
             method: "GET",
@@ -361,18 +375,18 @@ export async function POST(request: NextRequest) {
             const cronResult = await cronResponse.json();
             console.log(
               "[Campaign Create] Immediate send triggered successfully:",
-              cronResult
+              cronResult,
             );
           } else {
             console.error(
               "[Campaign Create] Failed to trigger immediate send:",
-              await cronResponse.text()
+              await cronResponse.text(),
             );
           }
         } catch (triggerError: any) {
           console.error(
             "[Campaign Create] Error triggering immediate send:",
-            triggerError
+            triggerError,
           );
         }
       }, 2000);
@@ -407,7 +421,7 @@ export async function POST(request: NextRequest) {
     if (error.name === "AuthenticationError") {
       return NextResponse.json(
         { success: false, message: error.message },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -417,7 +431,7 @@ export async function POST(request: NextRequest) {
         message: "Campaign activation failed",
         error: error.message,
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -429,7 +443,7 @@ export async function POST(request: NextRequest) {
 async function distributeTimestamps(
   matches: any[],
   scheduleConfig: any,
-  matchResults: any
+  matchResults: any,
 ): Promise<{ timestamps: string[]; errors: string[] }> {
   const timestamps: string[] = [];
   const errors: string[] = [];
@@ -445,7 +459,7 @@ async function distributeTimestamps(
 
       console.log(
         "[Timestamp Distribution] First email scheduled for:",
-        startTime.toISOString()
+        startTime.toISOString(),
       );
 
       // Use 10 second intervals to prevent system overload
@@ -453,7 +467,7 @@ async function distributeTimestamps(
 
       for (let i = 0; i < matches.length; i++) {
         const scheduledTime = new Date(
-          startTime.getTime() + i * intervalSeconds * 1000
+          startTime.getTime() + i * intervalSeconds * 1000,
         );
         timestamps.push(scheduledTime.toISOString());
       }
@@ -461,17 +475,17 @@ async function distributeTimestamps(
       console.log(
         "[Timestamp Distribution] Generated",
         timestamps.length,
-        "instant timestamps"
+        "instant timestamps",
       );
       console.log(
         "[Timestamp Distribution] Interval:",
         intervalSeconds,
-        "seconds"
+        "seconds",
       );
       console.log("[Timestamp Distribution] First timestamp:", timestamps[0]);
       console.log(
         "[Timestamp Distribution] Last timestamp:",
-        timestamps[timestamps.length - 1]
+        timestamps[timestamps.length - 1],
       );
 
       const totalSeconds = matches.length * intervalSeconds;
@@ -479,7 +493,7 @@ async function distributeTimestamps(
       console.log(
         "[Timestamp Distribution] Estimated completion time:",
         totalMinutes,
-        "minutes"
+        "minutes",
       );
 
       return { timestamps, errors };
@@ -502,19 +516,19 @@ async function distributeTimestamps(
       (sendingEndMinute - sendingStartMinute);
     const minutesBetweenEmails = Math.max(
       1,
-      Math.floor(windowMinutes / dailyLimit)
+      Math.floor(windowMinutes / dailyLimit),
     );
 
     console.log(
       "[Timestamp Distribution] Scheduled mode, starting at:",
-      currentTime.toISOString()
+      currentTime.toISOString(),
     );
     console.log(
       "[Timestamp Distribution] Daily limit:",
       dailyLimit,
       "Interval:",
       minutesBetweenEmails,
-      "minutes"
+      "minutes",
     );
 
     // Prioritize recipients
@@ -545,13 +559,13 @@ async function distributeTimestamps(
       // Add small random variance to appear more natural
       const variance = (Math.random() - 0.5) * 2;
       const scheduledTime = new Date(
-        currentTime.getTime() + variance * 60 * 1000
+        currentTime.getTime() + variance * 60 * 1000,
       );
 
       timestamps.push(scheduledTime.toISOString());
 
       currentTime = new Date(
-        currentTime.getTime() + minutesBetweenEmails * 60 * 1000
+        currentTime.getTime() + minutesBetweenEmails * 60 * 1000,
       );
       emailsToday++;
     }
@@ -559,12 +573,12 @@ async function distributeTimestamps(
     console.log(
       "[Timestamp Distribution] Generated",
       timestamps.length,
-      "scheduled timestamps"
+      "scheduled timestamps",
     );
     console.log("[Timestamp Distribution] First timestamp:", timestamps[0]);
     console.log(
       "[Timestamp Distribution] Last timestamp:",
-      timestamps[timestamps.length - 1]
+      timestamps[timestamps.length - 1],
     );
   } catch (error: any) {
     const errorMessage = `Timestamp distribution error: ${error.message}`;
