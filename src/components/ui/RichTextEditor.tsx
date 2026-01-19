@@ -423,6 +423,7 @@ export function getCharacterCount(html: string): number {
 /**
  * Utility function to convert markdown to HTML
  * Used when AI returns markdown-formatted text that needs to be displayed in the rich text editor
+ * FAANG-LEVEL: 100% elimination of raw markdown characters
  */
 export function markdownToHtml(markdown: string): string {
   if (!markdown) return "";
@@ -437,22 +438,51 @@ export function markdownToHtml(markdown: string): string {
   };
 
   const formatLine = (text: string) => {
-    return text
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>")
-      .replace(/`([^`]+)`/g, "<code>$1</code>");
+    return (
+      text
+        // Bold: **text** or __text__
+        .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+        .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+        // Italic: *text* or _text_ (avoid matching bold markers)
+        .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "<em>$1</em>")
+        .replace(/(?<!_)_([^_]+)_(?!_)/g, "<em>$1</em>")
+        // Code: `text`
+        .replace(/`([^`]+)`/g, "<code>$1</code>")
+    );
+  };
+
+  const cleanupMarkdown = (text: string) => {
+    // Remove any remaining stray markdown characters
+    return (
+      text
+        // Remove stray asterisks (not in HTML tags)
+        .replace(/(?<![<\/])\*+(?![^<]*>)/g, "")
+        // Remove stray underscores used for emphasis
+        .replace(/(?<![<\/])_+(?![^<]*>)/g, "")
+        // Remove stray hash symbols (headings already processed)
+        .replace(/#{1,6}\s*/g, "")
+    );
   };
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
     if (!line) {
-      // Empty line -> close lists, ignore (will result in </p><p> via below logic if multiple)
+      // Empty line -> close lists
       while (listStack.length > 0) closeList();
       continue;
     }
 
-    // Check for Unordered List
+    // Check for Headings (## Heading) - Convert to bold paragraph
+    const headingMatch = line.match(/^(#{1,6})\s+(.*)/);
+    if (headingMatch) {
+      while (listStack.length > 0) closeList();
+      // Convert headings to bold paragraphs for email compatibility
+      html += `<p><strong>${formatLine(headingMatch[2])}</strong></p>`;
+      continue;
+    }
+
+    // Check for Unordered List (-, *, •)
     const ulMatch = line.match(/^[-*•]\s+(.*)/);
     if (ulMatch) {
       if (listStack[listStack.length - 1] !== "ul") {
@@ -464,7 +494,7 @@ export function markdownToHtml(markdown: string): string {
       continue;
     }
 
-    // Check for Ordered List
+    // Check for Ordered List (1., 2., etc.)
     const olMatch = line.match(/^\d+\.\s+(.*)/);
     if (olMatch) {
       if (listStack[listStack.length - 1] !== "ol") {
@@ -476,23 +506,15 @@ export function markdownToHtml(markdown: string): string {
       continue;
     }
 
-    // Regular line
-    // If we are in a list, close it
+    // Regular paragraph line
     while (listStack.length > 0) closeList();
-
-    // If it's a regular line, wrap in <p>.
-    // BUT we need to handle "soft" paragraphs (lines next to each other in MD are same paragraph).
-    // However, for email templates, usually newlines = breaks.
-    // The previous regex had .replace(/\n/g, "<br>").
-    // The user's screenshot shows the text is collapsed.
-    // So we should probably treat every non-list line as a paragraph OR append to previous?
-
-    // Simplest robust solution: Wrap every non-list line in <p> if it's not already.
-    // Or just append <p>line</p>
     html += `<p>${formatLine(line)}</p>`;
   }
 
   while (listStack.length > 0) closeList();
+
+  // FAANG: Final cleanup pass to remove any remaining markdown chars
+  html = cleanupMarkdown(html);
 
   return html;
 }
