@@ -214,14 +214,14 @@ export default function RichTextToolbar({
 
   const handleFontChange = (fontValue: string) => {
     if (editor) {
-      editor.chain().focus().setFontFamily(fontValue).run();
+      (editor.chain().focus() as any).setFontFamily(fontValue).run();
     }
     setShowFontDropdown(false);
   };
 
   const handleFontSizeChange = (size: string) => {
     if (editor) {
-      editor.chain().focus().setFontSize(size).run();
+      (editor.chain().focus() as any).setFontSize(size).run();
       const sizeName = FONT_SIZES.find((s) => s.value === size)?.name || "14";
       setCurrentFontSize(sizeName);
     }
@@ -229,7 +229,7 @@ export default function RichTextToolbar({
 
   const handleLineHeightChange = (lineHeight: string) => {
     if (editor) {
-      editor.chain().focus().setLineHeight(lineHeight).run();
+      (editor.chain().focus() as any).setLineHeight(lineHeight).run();
       const lhName =
         LINE_HEIGHTS.find((l) => l.value === lineHeight)?.name || "1.5";
       setCurrentLineHeight(lhName);
@@ -238,7 +238,7 @@ export default function RichTextToolbar({
 
   const handleLetterSpacingChange = (spacing: string) => {
     if (editor) {
-      editor.chain().focus().setLetterSpacing(spacing).run();
+      (editor.chain().focus() as any).setLetterSpacing(spacing).run();
       const spacingName =
         LETTER_SPACINGS.find((l) => l.value === spacing)?.name || "Normal";
       setCurrentLetterSpacing(spacingName);
