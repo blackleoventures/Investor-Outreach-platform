@@ -9,6 +9,7 @@ import {
   PauseCircleOutlined,
   PlayCircleOutlined,
   ExclamationCircleOutlined,
+  ReloadOutlined,
 } from "@ant-design/icons";
 import { auth } from "@/lib/firebase";
 
@@ -42,7 +43,8 @@ export default function CampaignActions({
 }: CampaignActionsProps) {
   const [loading, setLoading] = useState(false);
 
-  const isAdminOrSubadmin = userRole === "admin" || userRole === "subadmin";
+  const isAdminOrSubadmin =
+    userRole === "admin" || userRole === "subadmin" || userRole === "owner";
   const canMarkComplete = isAdminOrSubadmin && campaignStatus !== "completed";
 
   const getAuthToken = async () => {
@@ -96,7 +98,7 @@ export default function CampaignActions({
           borderColor: "#1890ff",
           color: "white",
         },
-        className: "hover:!bg-blue-600", 
+        className: "hover:!bg-blue-600",
       },
       cancelButtonProps: {
         style: {
@@ -120,12 +122,14 @@ export default function CampaignActions({
               headers: {
                 Authorization: `Bearer ${token}`,
               },
-            }
+            },
           );
 
           if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || "Failed to mark campaign as complete");
+            throw new Error(
+              errorData.error || "Failed to mark campaign as complete",
+            );
           }
 
           message.success("Campaign marked as completed successfully!");
@@ -158,9 +162,7 @@ export default function CampaignActions({
           color: "white",
         },
         className:
-          action === "pause"
-            ? "hover:!bg-orange-600"
-            : "hover:!bg-green-600",
+          action === "pause" ? "hover:!bg-orange-600" : "hover:!bg-green-600",
       },
       cancelButtonProps: {
         style: {
@@ -186,7 +188,7 @@ export default function CampaignActions({
                 Authorization: `Bearer ${token}`,
               },
               body: JSON.stringify({ status: newStatus }),
-            }
+            },
           );
 
           if (!response.ok) {
@@ -198,6 +200,92 @@ export default function CampaignActions({
         } catch (error: any) {
           console.error(`${action} error:`, error);
           message.error(error.message || `Failed to ${action} campaign`);
+        } finally {
+          setLoading(false);
+        }
+      },
+    });
+  };
+
+  // Handle Reschedule Campaign
+  const handleReschedule = () => {
+    Modal.confirm({
+      title: "Reschedule Pending Emails",
+      icon: <ReloadOutlined />,
+      content: (
+        <div>
+          <p className="mb-4">
+            This will reschedule all <strong>pending</strong> emails to use the
+            correct sending window.
+          </p>
+          <div className="bg-blue-50 p-4 rounded mb-4">
+            <p className="font-semibold mb-2">What happens:</p>
+            <ul className="text-sm list-disc pl-4">
+              <li>Only pending recipients are affected</li>
+              <li>
+                Only emails scheduled for <strong>tomorrow onwards</strong> are
+                rescheduled
+              </li>
+              <li>Today's emails are NOT touched</li>
+              <li>Already sent/delivered/replied emails are NOT touched</li>
+              <li>
+                Emails will be spread within your campaign's sending window
+              </li>
+            </ul>
+          </div>
+          <p className="text-sm text-gray-600">
+            Pending emails: {stats.pending}
+          </p>
+        </div>
+      ),
+      okText: "Yes, Reschedule",
+      cancelText: "Cancel",
+      width: 500,
+
+      okButtonProps: {
+        style: {
+          backgroundColor: "#722ed1",
+          borderColor: "#722ed1",
+          color: "white",
+        },
+      },
+      cancelButtonProps: {
+        style: {
+          backgroundColor: "#f5f5f5",
+          color: "#000",
+          borderColor: "#d9d9d9",
+        },
+      },
+
+      onOk: async () => {
+        try {
+          setLoading(true);
+          const token = await getAuthToken();
+          if (!token) return;
+
+          const response = await fetch(
+            `${API_BASE_URL}/campaigns/${campaignId}/reschedule`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            },
+          );
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.message || "Failed to reschedule campaign");
+          }
+
+          message.success(
+            `${data.stats?.rescheduled || 0} emails rescheduled successfully!`,
+          );
+          onStatusChange();
+        } catch (error: any) {
+          console.error("Reschedule error:", error);
+          message.error(error.message || "Failed to reschedule campaign");
         } finally {
           setLoading(false);
         }
@@ -231,19 +319,36 @@ export default function CampaignActions({
       )}
 
       {/* Mark Complete Button - Admin/Subadmin Only */}
-     
+
+      <Button
+        icon={<CheckCircleOutlined />}
+        onClick={handleMarkComplete}
+        loading={loading}
+        style={{
+          backgroundColor: "#1890ff",
+          borderColor: "#1890ff",
+          color: "white",
+        }}
+      >
+        Mark as Complete
+      </Button>
+
+      {/* Reschedule Button - Admin/Subadmin Only, Active/Paused Campaigns */}
+      {/* 
+      {process.env.NODE_ENV === "development" && (
         <Button
-          icon={<CheckCircleOutlined />}
-          onClick={handleMarkComplete}
+          icon={<ReloadOutlined />}
+          onClick={handleReschedule}
           loading={loading}
           style={{
-            backgroundColor: "#1890ff",
-            borderColor: "#1890ff",
+            backgroundColor: "#722ed1",
+            borderColor: "#722ed1",
             color: "white",
           }}
         >
-          Mark as Complete
+          Reschedule
         </Button>
+      )} */}
     </div>
   );
 }

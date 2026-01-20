@@ -1,5 +1,3 @@
-// app/api/campaigns/activate/route.ts
-
 import { NextRequest, NextResponse } from "next/server";
 import {
   verifyFirebaseToken,
@@ -28,7 +26,7 @@ export async function POST(request: NextRequest) {
       emailTemplate,
       scheduleConfig,
     } = body;
-
+ 
     if (
       !clientId ||
       !targetType ||
@@ -511,63 +509,91 @@ async function distributeTimestamps(
       .split(":")
       .map(Number);
 
-    let currentTime = new Date(startDate);
-    currentTime.setHours(sendingStartHour, sendingStartMinute, 0, 0);
-
-    const dailyLimit = scheduleConfig.dailyLimit;
+    // Calculate window duration in minutes
     const windowMinutes =
       (sendingEndHour - sendingStartHour) * 60 +
       (sendingEndMinute - sendingStartMinute);
+
+    const dailyLimit = scheduleConfig.dailyLimit;
+
+    // Calculate interval: ensure all emails fit within window
+    // If dailyLimit is too high for window, we'll hit window end and carry over
     const minutesBetweenEmails = Math.max(
       1,
       Math.floor(windowMinutes / dailyLimit),
     );
 
+    console.log("[Timestamp Distribution] Scheduled mode configuration:");
     console.log(
-      "[Timestamp Distribution] Scheduled mode, starting at:",
-      currentTime.toISOString(),
+      `  - Window: ${scheduleConfig.sendingWindow.start} to ${scheduleConfig.sendingWindow.end}`,
     );
-    console.log(
-      "[Timestamp Distribution] Daily limit:",
-      dailyLimit,
-      "Interval:",
-      minutesBetweenEmails,
-      "minutes",
-    );
+    console.log(`  - Window duration: ${windowMinutes} minutes`);
+    console.log(`  - Daily limit: ${dailyLimit}`);
+    console.log(`  - Interval: ${minutesBetweenEmails} minutes`);
 
     // Prioritize recipients
     const highPriority = matches.filter((m: any) => m.priority === "high");
     const mediumPriority = matches.filter((m: any) => m.priority === "medium");
     const lowPriority = matches.filter((m: any) => m.priority === "low");
-
     const orderedMatches = [...highPriority, ...mediumPriority, ...lowPriority];
 
+    // Initialize: Start at window start time on start date
+    let currentDate = new Date(startDate);
+    let currentTime = new Date(currentDate);
+    currentTime.setHours(sendingStartHour, sendingStartMinute, 0, 0);
+
+    // Create window end time for current day
+    let windowEndTime = new Date(currentDate);
+    windowEndTime.setHours(sendingEndHour, sendingEndMinute, 0, 0);
+
     let emailsToday = 0;
+    let currentDay = 1;
+
+    console.log(
+      `[Timestamp Distribution] Day ${currentDay}: Starting at ${currentTime.toISOString()}`,
+    );
+    console.log(
+      `[Timestamp Distribution] Day ${currentDay}: Window ends at ${windowEndTime.toISOString()}`,
+    );
 
     for (let i = 0; i < orderedMatches.length; i++) {
-      if (emailsToday >= dailyLimit) {
-        const nextDay = new Date(currentTime);
-        nextDay.setDate(nextDay.getDate() + 1);
+      // CHECK 1: Has window end time passed?
+      // CHECK 2: Has daily limit been reached?
+      // If either is true, move to next day
+      if (currentTime >= windowEndTime || emailsToday >= dailyLimit) {
+        // Move to next day
+        currentDate.setDate(currentDate.getDate() + 1);
 
+        // Skip weekends if configured
         if (scheduleConfig.pauseOnWeekends) {
-          while (nextDay.getDay() === 0 || nextDay.getDay() === 6) {
-            nextDay.setDate(nextDay.getDate() + 1);
+          while (currentDate.getDay() === 0 || currentDate.getDay() === 6) {
+            currentDate.setDate(currentDate.getDate() + 1);
           }
         }
 
-        currentTime = new Date(nextDay);
+        // Reset to window start on new day
+        currentTime = new Date(currentDate);
         currentTime.setHours(sendingStartHour, sendingStartMinute, 0, 0);
+
+        // Update window end for new day
+        windowEndTime = new Date(currentDate);
+        windowEndTime.setHours(sendingEndHour, sendingEndMinute, 0, 0);
+
         emailsToday = 0;
+        currentDay++;
+
+        console.log(
+          `[Timestamp Distribution] Day ${currentDay}: Starting at ${currentTime.toISOString()}`,
+        );
       }
 
-      // Add small random variance to appear more natural
-      const variance = (Math.random() - 0.5) * 2;
-      const scheduledTime = new Date(
-        currentTime.getTime() + variance * 60 * 1000,
-      );
+      // Add small random variance (±30 seconds) to appear more natural
+      const variance = (Math.random() - 0.5) * 60 * 1000; // ±30 seconds
+      const scheduledTime = new Date(currentTime.getTime() + variance);
 
       timestamps.push(scheduledTime.toISOString());
 
+      // Move to next slot
       currentTime = new Date(
         currentTime.getTime() + minutesBetweenEmails * 60 * 1000,
       );
@@ -575,9 +601,7 @@ async function distributeTimestamps(
     }
 
     console.log(
-      "[Timestamp Distribution] Generated",
-      timestamps.length,
-      "scheduled timestamps",
+      `[Timestamp Distribution] Generated ${timestamps.length} timestamps across ${currentDay} days`,
     );
     console.log("[Timestamp Distribution] First timestamp:", timestamps[0]);
     console.log(

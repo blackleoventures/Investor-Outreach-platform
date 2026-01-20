@@ -519,6 +519,45 @@ export default function CampaignDetailPage() {
         ),
     },
     {
+      key: "scheduledFor",
+      title: "Scheduled For",
+      width: 150,
+      render: (_, record) => {
+        const scheduledDate = record?.scheduledFor;
+        if (!scheduledDate)
+          return <span className="text-gray-400">Not Set</span>;
+
+        const scheduled = new Date(scheduledDate);
+        const now = new Date();
+        const today = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate(),
+        );
+        const scheduledDay = new Date(
+          scheduled.getFullYear(),
+          scheduled.getMonth(),
+          scheduled.getDate(),
+        );
+
+        const isToday = scheduledDay.getTime() === today.getTime();
+        const isPast = scheduled < now;
+
+        return (
+          <span
+            className={`text-xs ${isPast ? "text-green-600 font-semibold" : isToday ? "text-orange-600 font-semibold" : "text-gray-600"}`}
+          >
+            {formatDateTime(scheduledDate)}
+            {isPast && record?.status === "pending" && (
+              <Tag color="red" className="ml-1">
+                Overdue
+              </Tag>
+            )}
+          </span>
+        );
+      },
+    },
+    {
       key: "sentAt",
       title: "Sent At",
       width: 150,
