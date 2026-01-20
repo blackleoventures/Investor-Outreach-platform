@@ -22,7 +22,7 @@ interface FollowupContext {
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     // Verify authentication and authorization
@@ -39,7 +39,7 @@ export async function POST(
     if (!campaignDoc.exists) {
       return NextResponse.json(
         { success: false, error: "Campaign not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -59,7 +59,7 @@ export async function POST(
           success: false,
           error: "recipientIds array is required and must not be empty",
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -73,12 +73,12 @@ export async function POST(
           error:
             'followupType must be either "not_opened" or "opened_not_replied"',
         },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
     console.log(
-      `[Generate Followup] User ${user.email} generating for ${recipientIds.length} recipients`
+      `[Generate Followup] User ${user.email} generating for ${recipientIds.length} recipients`,
     );
 
     // Get first recipient for context
@@ -90,7 +90,7 @@ export async function POST(
     if (!firstRecipientDoc.exists) {
       return NextResponse.json(
         { success: false, error: "Recipient not found" },
-        { status: 404 }
+        { status: 404 },
       );
     }
 
@@ -100,7 +100,7 @@ export async function POST(
     if (recipientData?.campaignId !== campaignId) {
       return NextResponse.json(
         { success: false, error: "Recipient does not belong to this campaign" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -126,7 +126,7 @@ export async function POST(
           error: "Failed to generate email with AI",
           details: generated.error,
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -149,9 +149,7 @@ export async function POST(
 // AI GENERATION LOGIC
 // ============================================
 
-async function generateFollowupEmailWithAI(
-  context: FollowupContext
-): Promise<{
+async function generateFollowupEmailWithAI(context: FollowupContext): Promise<{
   success: boolean;
   subject: string;
   body: string;
@@ -291,7 +289,90 @@ function parseGeneratedEmail(text: string): { subject: string; body: string } {
     body = "Hi {{name}},\n\n" + body;
   }
 
-  return { subject, body };
+  // Convert plain text to HTML for RichTextEditor
+  const htmlBody = convertPlainTextToHtml(body);
+
+  return { subject, body: htmlBody };
+}
+
+/**
+ * Converts plain text (with \n line breaks) to proper HTML
+ * Handles: paragraphs, bullet lists (-/*), numbered lists (1. 2. 3.)
+ */
+function convertPlainTextToHtml(text: string): string {
+  // Check if already HTML
+  if (text.includes("<p>") || text.includes("<ul>") || text.includes("<ol>")) {
+    return text;
+  }
+
+  const lines = text.split("\n");
+  let html = "";
+  let inBulletList = false;
+  let inNumberedList = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Skip empty lines but close any open lists
+    if (!trimmed) {
+      if (inBulletList) {
+        html += "</ul>";
+        inBulletList = false;
+      }
+      if (inNumberedList) {
+        html += "</ol>";
+        inNumberedList = false;
+      }
+      continue;
+    }
+
+    // Check for bullet point (- or *)
+    const bulletMatch = trimmed.match(/^[-*]\s+(.+)$/);
+    if (bulletMatch) {
+      if (!inBulletList) {
+        if (inNumberedList) {
+          html += "</ol>";
+          inNumberedList = false;
+        }
+        html += "<ul>";
+        inBulletList = true;
+      }
+      html += `<li>${bulletMatch[1]}</li>`;
+      continue;
+    }
+
+    // Check for numbered list (1. 2. 3. etc)
+    const numberedMatch = trimmed.match(/^\d+[.)]\s+(.+)$/);
+    if (numberedMatch) {
+      if (!inNumberedList) {
+        if (inBulletList) {
+          html += "</ul>";
+          inBulletList = false;
+        }
+        html += "<ol>";
+        inNumberedList = true;
+      }
+      html += `<li>${numberedMatch[1]}</li>`;
+      continue;
+    }
+
+    // Regular paragraph - close any open lists first
+    if (inBulletList) {
+      html += "</ul>";
+      inBulletList = false;
+    }
+    if (inNumberedList) {
+      html += "</ol>";
+      inNumberedList = false;
+    }
+    html += `<p>${trimmed}</p>`;
+  }
+
+  // Close any remaining open lists
+  if (inBulletList) html += "</ul>";
+  if (inNumberedList) html += "</ol>";
+
+  return html;
 }
 
 function calculateDaysSince(recipientData: any, followupType: string): number {

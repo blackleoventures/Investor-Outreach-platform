@@ -1,15 +1,29 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Modal, Button, Input, message, Spin, Tag, DatePicker, TimePicker } from "antd";
+import {
+  Modal,
+  Button,
+  Input,
+  message,
+  Spin,
+  Tag,
+  DatePicker,
+  TimePicker,
+  Radio,
+  Space,
+  Divider,
+} from "antd";
 import {
   ThunderboltOutlined,
   SendOutlined,
   CloseOutlined,
   ClockCircleOutlined,
+  BulbOutlined,
 } from "@ant-design/icons";
 import { auth } from "@/lib/firebase";
 import dayjs, { Dayjs } from "dayjs";
+import RichTextEditor, { markdownToHtml } from "@/components/ui/RichTextEditor";
 
 const { TextArea } = Input;
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -46,6 +60,15 @@ export default function FollowupEmailModal({
   const [scheduledTime, setScheduledTime] = useState<Dayjs | null>(null);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
 
+  // AI Improvement state
+  const [subjectModalVisible, setSubjectModalVisible] = useState(false);
+  const [bodyModalVisible, setBodyModalVisible] = useState(false);
+  const [improvementMethod, setImprovementMethod] = useState<
+    "optimized" | "custom"
+  >("optimized");
+  const [customInstructions, setCustomInstructions] = useState("");
+  const [improving, setImproving] = useState(false);
+
   useEffect(() => {
     if (visible && recipientIds.length > 0) {
       generateEmail();
@@ -80,7 +103,7 @@ export default function FollowupEmailModal({
             recipientIds,
             followupType,
           }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -96,6 +119,108 @@ export default function FollowupEmailModal({
       message.error(error.message || "Failed to generate email with AI");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  // Improve Subject with AI
+  const improveSubject = async () => {
+    if (!subject.trim()) {
+      message.warning("Please enter a subject first");
+      return;
+    }
+
+    try {
+      setImproving(true);
+      const token = await getAuthToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE_URL}/ai/improve-subject`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          currentSubject: subject,
+          companyContext: {
+            name: campaignName,
+            industry: "Technology",
+            stage: "Follow-up",
+            metrics: {},
+          },
+          useOptimizedPrompt: improvementMethod === "optimized",
+          customInstructions:
+            improvementMethod === "custom" ? customInstructions : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to improve subject");
+      }
+
+      const data = await response.json();
+      setSubject(data.improvedSubject);
+      setSubjectModalVisible(false);
+      setCustomInstructions("");
+      setImprovementMethod("optimized");
+      message.success("Subject improved successfully!");
+    } catch (error: any) {
+      console.error("Subject improvement error:", error);
+      message.error(error.message || "Failed to improve subject");
+    } finally {
+      setImproving(false);
+    }
+  };
+
+  // Improve Body with AI
+  const improveBody = async () => {
+    if (!body.trim()) {
+      message.warning("Please enter email body first");
+      return;
+    }
+
+    try {
+      setImproving(true);
+      const token = await getAuthToken();
+      if (!token) return;
+
+      const response = await fetch(`${API_BASE_URL}/ai/improve-body`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          currentBody: body,
+          companyContext: {
+            name: campaignName,
+            industry: "Technology",
+            metrics: {},
+            traction: "Follow-up email for existing campaign recipients",
+          },
+          useOptimizedPrompt: improvementMethod === "optimized",
+          customInstructions:
+            improvementMethod === "custom" ? customInstructions : undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to improve body");
+      }
+
+      const data = await response.json();
+      // Convert markdown to HTML for proper rendering
+      const htmlBody = markdownToHtml(data.improvedBody);
+      setBody(htmlBody);
+      setBodyModalVisible(false);
+      setCustomInstructions("");
+      setImprovementMethod("optimized");
+      message.success("Email body improved successfully!");
+    } catch (error: any) {
+      console.error("Body improvement error:", error);
+      message.error(error.message || "Failed to improve email body");
+    } finally {
+      setImproving(false);
     }
   };
 
@@ -135,7 +260,10 @@ export default function FollowupEmailModal({
     }
 
     Modal.confirm({
-      title: scheduleType === "now" ? "Send Follow-up Emails?" : "Schedule Follow-up Emails?",
+      title:
+        scheduleType === "now"
+          ? "Send Follow-up Emails?"
+          : "Schedule Follow-up Emails?",
       content:
         scheduleType === "now"
           ? `Are you sure you want to send follow-up emails to ${recipientIds.length} recipients immediately?`
@@ -168,7 +296,7 @@ export default function FollowupEmailModal({
                 body,
                 scheduledFor,
               }),
-            }
+            },
           );
 
           if (!response.ok) {
@@ -178,11 +306,11 @@ export default function FollowupEmailModal({
           const data = await response.json();
           if (scheduleType === "now") {
             message.success(
-              `Follow-up emails queued! ${data.summary.queued} emails will be sent shortly.`
+              `Follow-up emails queued! ${data.summary.queued} emails will be sent shortly.`,
             );
           } else {
             message.success(
-              `Follow-up emails scheduled! ${data.summary.queued} emails will be sent on ${dayjs(scheduledFor).format("MMM DD, YYYY at hh:mm A")}.`
+              `Follow-up emails scheduled! ${data.summary.queued} emails will be sent on ${dayjs(scheduledFor).format("MMM DD, YYYY at hh:mm A")}.`,
             );
           }
           setShowScheduleModal(false);
@@ -241,9 +369,21 @@ export default function FollowupEmailModal({
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">
-                Subject Line
-              </label>
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-semibold">Subject Line</label>
+                <Button
+                  size="small"
+                  icon={<BulbOutlined />}
+                  onClick={() => setSubjectModalVisible(true)}
+                  style={{
+                    backgroundColor: "#52c41a",
+                    borderColor: "#52c41a",
+                    color: "white",
+                  }}
+                >
+                  Improve
+                </Button>
+              </div>
               <Input
                 value={subject}
                 onChange={(e) => setSubject(e.target.value)}
@@ -253,15 +393,26 @@ export default function FollowupEmailModal({
             </div>
 
             <div>
-              <label className="block text-sm font-semibold mb-2">
-                Email Body
-              </label>
-              <TextArea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
+              <div className="flex justify-between items-center mb-2">
+                <label className="text-sm font-semibold">Email Body</label>
+                <Button
+                  size="small"
+                  icon={<BulbOutlined />}
+                  onClick={() => setBodyModalVisible(true)}
+                  style={{
+                    backgroundColor: "#52c41a",
+                    borderColor: "#52c41a",
+                    color: "white",
+                  }}
+                >
+                  Improve
+                </Button>
+              </div>
+              <RichTextEditor
+                content={body}
+                onChange={setBody}
                 placeholder="Enter email body"
-                rows={12}
-                style={{ fontFamily: "monospace", fontSize: 13 }}
+                minHeight="300px"
               />
             </div>
 
@@ -398,6 +549,153 @@ export default function FollowupEmailModal({
               Confirm Schedule
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Subject Improvement Modal */}
+      <Modal
+        title="Improve Subject Line"
+        open={subjectModalVisible}
+        onCancel={() => {
+          setSubjectModalVisible(false);
+          setCustomInstructions("");
+          setImprovementMethod("optimized");
+        }}
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => {
+              setSubjectModalVisible(false);
+              setCustomInstructions("");
+              setImprovementMethod("optimized");
+            }}
+            style={{
+              backgroundColor: "#6c757d",
+              borderColor: "#6c757d",
+              color: "white",
+            }}
+          >
+            Cancel
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={improving}
+            onClick={improveSubject}
+            style={{ backgroundColor: "#52c41a", borderColor: "#52c41a" }}
+          >
+            Generate Improved Subject
+          </Button>,
+        ]}
+        width={600}
+      >
+        <div className="py-4">
+          <p className="mb-4">
+            <strong>Current Subject:</strong>
+          </p>
+          <div className="bg-gray-50 p-3 rounded mb-4">{subject}</div>
+
+          <Divider />
+
+          <p className="mb-4">
+            <strong>Improvement Method:</strong>
+          </p>
+          <Radio.Group
+            value={improvementMethod}
+            onChange={(e) => setImprovementMethod(e.target.value)}
+            className="mb-4"
+          >
+            <Space direction="vertical">
+              <Radio value="optimized">
+                Use our optimized AI prompt (recommended)
+              </Radio>
+              <Radio value="custom">Custom instructions (advanced)</Radio>
+            </Space>
+          </Radio.Group>
+
+          {improvementMethod === "custom" && (
+            <Input.TextArea
+              placeholder="Enter custom instructions (e.g., 'Make it shorter and more urgent', 'Add the company name')"
+              value={customInstructions}
+              onChange={(e) => setCustomInstructions(e.target.value)}
+              rows={4}
+            />
+          )}
+        </div>
+      </Modal>
+
+      {/* Body Improvement Modal */}
+      <Modal
+        title="Improve Email Body"
+        open={bodyModalVisible}
+        onCancel={() => {
+          setBodyModalVisible(false);
+          setCustomInstructions("");
+          setImprovementMethod("optimized");
+        }}
+        footer={[
+          <Button
+            key="cancel"
+            onClick={() => {
+              setBodyModalVisible(false);
+              setCustomInstructions("");
+              setImprovementMethod("optimized");
+            }}
+            style={{
+              backgroundColor: "#6c757d",
+              borderColor: "#6c757d",
+              color: "white",
+            }}
+          >
+            Cancel
+          </Button>,
+          <Button
+            key="submit"
+            type="primary"
+            loading={improving}
+            onClick={improveBody}
+            style={{ backgroundColor: "#52c41a", borderColor: "#52c41a" }}
+          >
+            Generate Improved Body
+          </Button>,
+        ]}
+        width={700}
+      >
+        <div className="py-4">
+          <p className="mb-4">
+            <strong>Current Body Preview:</strong>
+          </p>
+          <div
+            className="bg-gray-50 p-3 rounded mb-4 max-h-40 overflow-y-auto text-sm"
+            dangerouslySetInnerHTML={{ __html: body }}
+          />
+
+          <Divider />
+
+          <p className="mb-4">
+            <strong>Improvement Method:</strong>
+          </p>
+          <Radio.Group
+            value={improvementMethod}
+            onChange={(e) => setImprovementMethod(e.target.value)}
+            className="mb-4"
+          >
+            <Space direction="vertical">
+              <Radio value="optimized">
+                Use our optimized AI prompt (recommended)
+              </Radio>
+              <Radio value="custom">Custom instructions (advanced)</Radio>
+            </Space>
+          </Radio.Group>
+
+          {improvementMethod === "custom" && (
+            <Input.TextArea
+              placeholder="Enter custom instructions (e.g., 'Make it 50% shorter', 'Add more urgency', 'Stronger call-to-action')"
+              value={customInstructions}
+              onChange={(e) => setCustomInstructions(e.target.value)}
+              rows={4}
+            />
+          )}
         </div>
       </Modal>
     </>
