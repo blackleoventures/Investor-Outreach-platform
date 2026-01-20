@@ -142,7 +142,7 @@ export default function CampaignsListPage() {
               headers: {
                 Authorization: `Bearer ${token}`,
               },
-            }
+            },
           );
 
           const data = await response.json();
@@ -260,8 +260,8 @@ export default function CampaignsListPage() {
           {record.targetType === "both"
             ? "Both"
             : record.targetType === "investors"
-            ? "Investors"
-            : "Incubators"}
+              ? "Investors"
+              : "Incubators"}
         </Tag>
       ),
     },
@@ -273,7 +273,7 @@ export default function CampaignsListPage() {
         const progress =
           record.totalRecipients > 0
             ? Math.round(
-                ((record.sent + record.failed) / record.totalRecipients) * 100
+                ((record.sent + record.failed) / record.totalRecipients) * 100,
               )
             : 0;
 
@@ -294,23 +294,17 @@ export default function CampaignsListPage() {
     {
       key: "stats",
       title: "Stats",
-      width: 150,
+      width: 120,
       render: (_, record) => (
         <div className="text-xs space-y-1">
           <p>
-            <span className="text-gray-600">Sent:</span>{" "}
-            <span className="font-semibold">{record.sent}</span>
-          </p>
-          <p>
             <span className="text-gray-600">Opened:</span>{" "}
-            <span className="font-semibold text-blue-600">
-              {record.opened} ({record.openRate}%)
-            </span>
+            <span className="font-semibold text-blue-600">{record.opened}</span>
           </p>
           <p>
             <span className="text-gray-600">Replied:</span>{" "}
             <span className="font-semibold text-green-600">
-              {record.replied} ({record.replyRate}%)
+              {record.replied}
             </span>
           </p>
         </div>
