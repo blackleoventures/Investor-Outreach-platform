@@ -14,10 +14,10 @@ export interface MatchResult {
 
 export async function matchReplyToRecipient(
   campaignId: string,
-  reply: ParsedReply
+  reply: ParsedReply,
 ): Promise<MatchResult | null> {
   console.log(
-    `[Recipient Matcher] Matching reply from ${reply.from.email} to campaign ${campaignId}`
+    `[Recipient Matcher] Matching reply from ${reply.from.email} to campaign ${campaignId}`,
   );
 
   // OPTIMIZED: Try exact email match FIRST (1 read instead of all)
@@ -36,7 +36,7 @@ export async function matchReplyToRecipient(
     } as CampaignRecipient & { id: string };
 
     console.log(
-      `[Recipient Matcher] Exact match found: ${exactMatch.originalContact.name}`
+      `[Recipient Matcher] Exact match found: ${exactMatch.originalContact.name}`,
     );
     return {
       recipient: exactMatch,
@@ -49,7 +49,7 @@ export async function matchReplyToRecipient(
   // FALLBACK: Only load all recipients if no exact match
   // This handles forwarded emails, domain matches, and organization matches
   console.log(
-    "[Recipient Matcher] No exact match, checking domain/org matches..."
+    "[Recipient Matcher] No exact match, checking domain/org matches...",
   );
 
   const recipientsSnapshot = await adminDb
@@ -71,12 +71,12 @@ export async function matchReplyToRecipient(
   // This catches forwarded emails
   const toEmail = normalizeEmail(reply.to);
   const toMatch = recipients.find(
-    (r) => normalizeEmail(r.originalContact.email) === toEmail
+    (r) => normalizeEmail(r.originalContact.email) === toEmail,
   );
 
   if (toMatch) {
     console.log(
-      `[Recipient Matcher] Forwarded email detected: ${reply.from.email} replied to email sent to ${toMatch.originalContact.email}`
+      `[Recipient Matcher] Forwarded email detected: ${reply.from.email} replied to email sent to ${toMatch.originalContact.email}`,
     );
     return {
       recipient: toMatch,
@@ -95,12 +95,12 @@ export async function matchReplyToRecipient(
       // SAFE OPERATION: Handle both array and object format
       const matchingEmail = SafeArray.find(
         recipient.emailHistory,
-        (email: any) => email.emailId === reply.inReplyTo
+        (email: any) => email.emailId === reply.inReplyTo,
       );
 
       if (matchingEmail) {
         console.log(
-          `[Recipient Matcher] Thread match found via In-Reply-To for ${recipient.originalContact.email}`
+          `[Recipient Matcher] Thread match found via In-Reply-To for ${recipient.originalContact.email}`,
         );
         return {
           recipient,
@@ -115,13 +115,21 @@ export async function matchReplyToRecipient(
   }
 
   // Strategy 4: Same domain match (someone from same organization)
-  const domainMatches = recipients.filter((r) =>
-    isSameDomain(r.originalContact.email, reply.from.email)
+  // Only match delivered/opened recipients (not pending)
+  const deliveredRecipients = recipients.filter(
+    (r) =>
+      r.status === "delivered" ||
+      r.status === "opened" ||
+      r.status === "replied",
+  );
+
+  const domainMatches = deliveredRecipients.filter((r) =>
+    isSameDomain(r.originalContact.email, reply.from.email),
   );
 
   if (domainMatches.length === 1) {
     console.log(
-      `[Recipient Matcher] Domain match found: ${reply.from.email} from same org as ${domainMatches[0].originalContact.email}`
+      `[Recipient Matcher] Domain match found: ${reply.from.email} from same org as ${domainMatches[0].originalContact.email}`,
     );
     return {
       recipient: domainMatches[0],
@@ -136,7 +144,7 @@ export async function matchReplyToRecipient(
 
     if (bestMatch) {
       console.log(
-        `[Recipient Matcher] Best domain match: ${bestMatch.originalContact.name}`
+        `[Recipient Matcher] Best domain match: ${bestMatch.originalContact.name}`,
       );
       return {
         recipient: bestMatch,
@@ -148,7 +156,8 @@ export async function matchReplyToRecipient(
   }
 
   // Strategy 5: Organization name match (lower confidence)
-  const orgMatches = recipients.filter((r) => {
+  // Only match delivered/opened recipients
+  const orgMatches = deliveredRecipients.filter((r) => {
     const orgName = r.originalContact.organization.toLowerCase().trim();
     const replyOrg = reply.from.organization.toLowerCase().trim();
     return orgName && replyOrg && orgName === replyOrg;
@@ -156,7 +165,7 @@ export async function matchReplyToRecipient(
 
   if (orgMatches.length > 0) {
     console.log(
-      `[Recipient Matcher] Organization match found: ${orgMatches[0].originalContact.organization}`
+      `[Recipient Matcher] Organization match found: ${orgMatches[0].originalContact.organization}`,
     );
     return {
       recipient: orgMatches[0],
@@ -166,19 +175,106 @@ export async function matchReplyToRecipient(
     };
   }
 
+  // Strategy 6: Subject-based matching for forwarded emails
+  // Check if the reply subject contains our original campaign subject
+  // This is reliable because "Re: [Original Subject]" pattern is standard
+  if (reply.subject) {
+    const replySubjectClean = reply.subject
+      .toLowerCase()
+      .replace(/^(re:|fwd:|fw:)\s*/gi, "")
+      .trim();
+
+    // Only proceed if we have a meaningful subject to match
+    if (replySubjectClean.length > 10) {
+      // Find recipients who received an email with a similar subject
+      const subjectMatches = deliveredRecipients.filter((r) => {
+        // Check if any email in history has a subject that matches
+        const emailHistory = SafeArray.map(r.emailHistory || [], (e: any) => e);
+
+        for (const historyEmail of emailHistory) {
+          if (historyEmail.subject) {
+            const originalSubjectClean = historyEmail.subject
+              .toLowerCase()
+              .replace(/^(re:|fwd:|fw:)\s*/gi, "")
+              .trim();
+
+            // Check if subjects are similar (one contains the other)
+            if (
+              replySubjectClean.includes(originalSubjectClean) ||
+              originalSubjectClean.includes(replySubjectClean) ||
+              // Or check for significant overlap (at least 50% of words match)
+              calculateSubjectSimilarity(
+                replySubjectClean,
+                originalSubjectClean,
+              ) > 0.5
+            ) {
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+
+      if (subjectMatches.length > 0) {
+        // Prefer opened recipients
+        const prioritized = subjectMatches.sort((a, b) => {
+          const statusPriority: { [key: string]: number } = {
+            opened: 3,
+            delivered: 2,
+            replied: 1,
+          };
+          return (
+            (statusPriority[b.status] || 0) - (statusPriority[a.status] || 0)
+          );
+        });
+
+        console.log(
+          `[Recipient Matcher] Subject match found: ${reply.from.email} matches ${prioritized[0].originalContact.email} via subject similarity`,
+        );
+        return {
+          recipient: prioritized[0],
+          matchType: "forwarded",
+          confidence: "medium",
+          isNewPerson: true,
+        };
+      }
+    }
+  }
+
   console.log(`[Recipient Matcher] No match found for ${reply.from.email}`);
   return null;
 }
 
+/**
+ * Calculate similarity between two subject lines based on word overlap
+ * Returns a value between 0 and 1 (1 = identical)
+ */
+function calculateSubjectSimilarity(
+  subject1: string,
+  subject2: string,
+): number {
+  const words1 = subject1.split(/\s+/).filter((w) => w.length > 2);
+  const words2 = subject2.split(/\s+/).filter((w) => w.length > 2);
+
+  if (words1.length === 0 || words2.length === 0) {
+    return 0;
+  }
+
+  const matchingWords = words1.filter((w) => words2.includes(w));
+  const totalUniqueWords = new Set([...words1, ...words2]).size;
+
+  return matchingWords.length / totalUniqueWords;
+}
+
 function findBestDomainMatch(
   candidates: (CampaignRecipient & { id: string })[],
-  reply: ParsedReply
+  reply: ParsedReply,
 ): (CampaignRecipient & { id: string }) | null {
   const deliveredCandidates = candidates.filter(
     (c) =>
       c.status === "delivered" ||
       c.status === "opened" ||
-      c.status === "replied"
+      c.status === "replied",
   );
 
   if (deliveredCandidates.length === 1) {
@@ -197,7 +293,7 @@ function findBestDomainMatch(
 
 export async function isReplyAlreadyProcessed(
   recipientId: string,
-  messageId: string
+  messageId: string,
 ): Promise<boolean> {
   const existingReply = await adminDb
     .collection("campaignReplies")
@@ -210,7 +306,7 @@ export async function isReplyAlreadyProcessed(
 
 export function shouldProcessReply(
   recipient: CampaignRecipient,
-  reply: ParsedReply
+  reply: ParsedReply,
 ): { should: boolean; reason: string } {
   if (!recipient.sentAt) {
     return {
