@@ -11,20 +11,20 @@ import type { EmailReplyDetected } from "@/types";
 
 export async function checkClientReplies(
   clientId: string,
-  searchDays: number = 7
+  searchDays: number = 7,
 ): Promise<EmailReplyDetected[]> {
   const config = await getClientImapConfig(clientId);
   return checkRepliesWithConfig(config, searchDays, clientId);
 }
 
 export async function checkAllClientsReplies(
-  searchDays: number = 7
+  searchDays: number = 7,
 ): Promise<Map<string, EmailReplyDetected[]>> {
   const results = new Map<string, EmailReplyDetected[]>();
   const clientConfigs = await getAllActiveClientsImapConfigs();
 
   console.log(
-    `[IMAP] Checking replies for ${clientConfigs.size} active clients`
+    `[IMAP] Checking replies for ${clientConfigs.size} active clients`,
   );
 
   for (const [clientId, config] of clientConfigs) {
@@ -32,19 +32,19 @@ export async function checkAllClientsReplies(
       const replies = await checkRepliesWithConfig(
         config,
         searchDays,
-        clientId
+        clientId,
       );
       results.set(clientId, replies);
 
       if (replies.length > 0) {
         console.log(
-          `[IMAP] Client ${clientId}: Found ${replies.length} new replies`
+          `[IMAP] Client ${clientId}: Found ${replies.length} new replies`,
         );
       }
     } catch (error) {
       console.error(
         `[IMAP] Client ${clientId}: Error checking replies -`,
-        error
+        error,
       );
       results.set(clientId, []);
     }
@@ -56,7 +56,7 @@ export async function checkAllClientsReplies(
 function checkRepliesWithConfig(
   config: ImapConfig,
   searchDays: number,
-  clientId: string
+  clientId: string,
 ): Promise<EmailReplyDetected[]> {
   return new Promise((resolve, reject) => {
     const imap = new Imap(config);
@@ -71,7 +71,7 @@ function checkRepliesWithConfig(
       if (!promiseResolved) {
         promiseResolved = true;
         console.log(
-          `[IMAP] Client ${clientId}: Promise resolved with ${replies.length} replies`
+          `[IMAP] Client ${clientId}: Promise resolved with ${replies.length} replies`,
         );
         resolve(replies);
       }
@@ -81,7 +81,7 @@ function checkRepliesWithConfig(
     const connectionTimeout = setTimeout(() => {
       if (!isConnectionClosed) {
         console.error(
-          `[IMAP] Client ${clientId}: Connection timeout after 30s`
+          `[IMAP] Client ${clientId}: Connection timeout after 30s`,
         );
         try {
           imap.end();
@@ -101,14 +101,14 @@ function checkRepliesWithConfig(
         if (err) {
           console.error(
             `[IMAP] Client ${clientId}: Failed to open inbox -`,
-            err.message
+            err.message,
           );
           imap.end();
           return reject(err);
         }
 
         console.log(
-          `[IMAP] Client ${clientId}: Inbox opened - Total messages: ${box.messages.total}`
+          `[IMAP] Client ${clientId}: Inbox opened - Total messages: ${box.messages.total}`,
         );
 
         const searchDate = new Date();
@@ -117,14 +117,14 @@ function checkRepliesWithConfig(
         const searchCriteria = [["SINCE", searchDate]];
 
         console.log(
-          `[IMAP] Client ${clientId}: Searching emails since ${searchDate.toISOString()}`
+          `[IMAP] Client ${clientId}: Searching emails since ${searchDate.toISOString()}`,
         );
 
         imap.search(searchCriteria, (err, results) => {
           if (err) {
             console.error(
               `[IMAP] Client ${clientId}: Search failed -`,
-              err.message
+              err.message,
             );
             imap.end();
             return reject(err);
@@ -132,7 +132,7 @@ function checkRepliesWithConfig(
 
           if (!results || results.length === 0) {
             console.log(
-              `[IMAP] Client ${clientId}: No emails found in the last ${searchDays} days`
+              `[IMAP] Client ${clientId}: No emails found in the last ${searchDays} days`,
             );
             imap.end();
             setTimeout(() => resolvePromise(), 1000);
@@ -140,7 +140,7 @@ function checkRepliesWithConfig(
           }
 
           console.log(
-            `[IMAP] Client ${clientId}: Found ${results.length} emails to check`
+            `[IMAP] Client ${clientId}: Found ${results.length} emails to check`,
           );
 
           const fetch = imap.fetch(results, {
@@ -157,10 +157,10 @@ function checkRepliesWithConfig(
             if (fetchEnded && parseCompleted === totalEmails) {
               console.log(`[IMAP] Client ${clientId}: All parsing complete`);
               console.log(
-                `[IMAP] Client ${clientId}: Parsed ${parseCompleted} of ${totalEmails} messages`
+                `[IMAP] Client ${clientId}: Parsed ${parseCompleted} of ${totalEmails} messages`,
               );
               console.log(
-                `[IMAP] Client ${clientId}: Found ${replies.length} total replies`
+                `[IMAP] Client ${clientId}: Found ${replies.length} total replies`,
               );
 
               if (!isConnectionClosed) {
@@ -193,13 +193,13 @@ function checkRepliesWithConfig(
                     if (reply) {
                       replies.push(reply);
                       console.log(
-                        `[IMAP] Client ${clientId}: Parsed reply from ${reply.from.email}`
+                        `[IMAP] Client ${clientId}: Parsed reply from ${reply.from.email}`,
                       );
                     }
 
                     parseCompleted++;
                     console.log(
-                      `[IMAP] Client ${clientId}: Parse progress: ${parseCompleted}/${totalEmails}`
+                      `[IMAP] Client ${clientId}: Parse progress: ${parseCompleted}/${totalEmails}`,
                     );
 
                     checkIfComplete();
@@ -207,7 +207,7 @@ function checkRepliesWithConfig(
                   .catch((err) => {
                     console.error(
                       `[IMAP] Client ${clientId}: Email parse error -`,
-                      err.message
+                      err.message,
                     );
                     parseCompleted++;
                     checkIfComplete();
@@ -219,7 +219,7 @@ function checkRepliesWithConfig(
           fetch.once("error", (err) => {
             console.error(
               `[IMAP] Client ${clientId}: Fetch error -`,
-              err.message
+              err.message,
             );
             if (!isConnectionClosed) {
               imap.end();
@@ -236,18 +236,18 @@ function checkRepliesWithConfig(
             // Safety timeout: always resolve after 5 seconds
             setTimeout(() => {
               console.log(
-                `[IMAP] Client ${clientId}: Safety timeout triggered`
+                `[IMAP] Client ${clientId}: Safety timeout triggered`,
               );
               console.log(
-                `[IMAP] Client ${clientId}: Parsed ${parseCompleted} of ${totalEmails} messages`
+                `[IMAP] Client ${clientId}: Parsed ${parseCompleted} of ${totalEmails} messages`,
               );
               console.log(
-                `[IMAP] Client ${clientId}: Found ${replies.length} total replies`
+                `[IMAP] Client ${clientId}: Found ${replies.length} total replies`,
               );
 
               if (!isConnectionClosed) {
                 console.log(
-                  `[IMAP] Client ${clientId}: Force closing connection`
+                  `[IMAP] Client ${clientId}: Force closing connection`,
                 );
                 isConnectionClosed = true;
                 imap.end();
@@ -265,7 +265,7 @@ function checkRepliesWithConfig(
       clearTimeout(connectionTimeout);
       console.error(
         `[IMAP] Client ${clientId}: Connection error -`,
-        err.message
+        err.message,
       );
       isConnectionClosed = true;
       reject(err);
@@ -284,7 +284,7 @@ function checkRepliesWithConfig(
       clearTimeout(connectionTimeout);
       console.error(
         `[IMAP] Client ${clientId}: Failed to initialize connection -`,
-        err.message
+        err.message,
       );
       reject(err);
     }
@@ -292,7 +292,7 @@ function checkRepliesWithConfig(
 }
 
 function extractEmailAddress(
-  addressObj: AddressObject | AddressObject[] | undefined
+  addressObj: AddressObject | AddressObject[] | undefined,
 ): string | null {
   if (!addressObj) return null;
 
@@ -306,7 +306,7 @@ function extractEmailAddress(
 }
 
 function extractEmailInfo(
-  addressObj: AddressObject | AddressObject[] | undefined
+  addressObj: AddressObject | AddressObject[] | undefined,
 ): { name: string; email: string } | null {
   if (!addressObj) return null;
 
@@ -329,6 +329,41 @@ function extractEmailInfo(
     name: addressValue.name || "",
     email: addressValue.address,
   };
+}
+
+/**
+ * Parse RFC 5322 References header to extract all ancestor Message-IDs
+ * The References header contains a space-separated list of Message-IDs
+ * representing the full thread chain.
+ *
+ * Example: References: <abc@domain.com> <xyz@domain.com> <123@domain.com>
+ */
+function parseReferencesHeader(
+  references: string | string[] | undefined,
+): string[] {
+  if (!references) return [];
+
+  // If already an array (some parsers do this), just filter valid IDs
+  if (Array.isArray(references)) {
+    return references.filter(
+      (ref) => ref && typeof ref === "string" && ref.length > 0,
+    );
+  }
+
+  // Split string by whitespace or commas (some clients use commas)
+  const parts = references.split(/[\s,]+/).filter((part) => part.length > 0);
+
+  // Extract valid Message-IDs (they should be in angle brackets: <...>)
+  return parts
+    .map((part) => {
+      // Already has brackets, return as-is
+      if (part.startsWith("<") && part.endsWith(">")) {
+        return part;
+      }
+      // No brackets, wrap them (some clients strip brackets)
+      return `<${part}>`;
+    })
+    .filter((id) => id.length > 2); // Filter out empty "<>"
 }
 
 function parseEmailToReply(parsed: ParsedMail): EmailReplyDetected | null {
@@ -354,7 +389,8 @@ function parseEmailToReply(parsed: ParsedMail): EmailReplyDetected | null {
       date: parsed.date || new Date(),
       messageId: parsed.messageId || "",
       inReplyTo: parsed.inReplyTo || undefined,
-      // NEW: Capture subject and body for admin viewing
+      // RFC 5322: Parse References header for full thread chain
+      references: parseReferencesHeader(parsed.references),
       subject: parsed.subject || "",
       body: parsed.text || "", // Plain text only, no HTML
     };
@@ -367,7 +403,7 @@ function parseEmailToReply(parsed: ParsedMail): EmailReplyDetected | null {
 }
 
 export async function testClientImapConnection(
-  clientId: string
+  clientId: string,
 ): Promise<boolean> {
   try {
     const config = await getClientImapConfig(clientId);
@@ -377,7 +413,7 @@ export async function testClientImapConnection(
 
       const timeout = setTimeout(() => {
         console.error(
-          `[IMAP Test] Client ${clientId}: Connection timeout after 10s`
+          `[IMAP Test] Client ${clientId}: Connection timeout after 10s`,
         );
         try {
           imap.end();
@@ -390,7 +426,7 @@ export async function testClientImapConnection(
       imap.once("ready", () => {
         clearTimeout(timeout);
         console.log(
-          `[IMAP Test] Client ${clientId}: Connection test successful`
+          `[IMAP Test] Client ${clientId}: Connection test successful`,
         );
         imap.end();
         resolve(true);
@@ -400,7 +436,7 @@ export async function testClientImapConnection(
         clearTimeout(timeout);
         console.error(
           `[IMAP Test] Client ${clientId}: Connection test failed -`,
-          err.message
+          err.message,
         );
         resolve(false);
       });
@@ -410,7 +446,7 @@ export async function testClientImapConnection(
   } catch (error: any) {
     console.error(
       `[IMAP Test] Client ${clientId}: Configuration error -`,
-      error.message
+      error.message,
     );
     return false;
   }

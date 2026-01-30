@@ -26,6 +26,7 @@ export interface EmailTracking {
 
 export interface EmailHistoryItem {
   emailId: string;
+  messageId?: string; // RFC 5322 Message-ID header (e.g., <abc123@domain.com>)
   type: "initial" | "followup_opened_no_reply" | "followup_not_opened";
   subject: string;
   sentAt: string;
@@ -81,15 +82,14 @@ export interface AggregatedTracking {
   uniqueRepliers: ReplierInfo[];
 
   // ADD THESE (all optional for backward compatibility):
-  uniqueOpenerCount?: number;           // uniqueOpeners.length
-  uniqueReplierCount?: number;          // uniqueRepliers.length
-  openerEmailIndex?: string[];          // ['email1', 'email2'] for fast lookup
-  totalRepliesAcrossAllEmails?: number; // Sum of all replies 
+  uniqueOpenerCount?: number; // uniqueOpeners.length
+  uniqueReplierCount?: number; // uniqueRepliers.length
+  openerEmailIndex?: string[]; // ['email1', 'email2'] for fast lookup
+  totalRepliesAcrossAllEmails?: number; // Sum of all replies
 
   // Engagement level
   engagementLevel: "high" | "medium" | "low" | "none";
 }
-
 
 export interface FollowUpTracking {
   totalSent: number;

@@ -36,6 +36,7 @@ export interface EmailReplyDetected {
   date: Date;
   messageId: string;
   inReplyTo?: string;
-  subject?: string; // NEW: Email subject line
-  body?: string; // NEW: Plain text body content
+  references?: string[]; // RFC 5322 References header - full thread chain
+  subject?: string; // Email subject line
+  body?: string; // Plain text body content
 }

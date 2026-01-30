@@ -114,6 +114,54 @@ export async function matchReplyToRecipient(
     }
   }
 
+  // Strategy 3B: RFC 5322 References header - full thread chain matching
+  // This is the most reliable method for matching replies to any email in the thread
+  // Works for: initial emails, follow-ups, forwarded emails with different subjects
+  if (reply.references && reply.references.length > 0) {
+    console.log(
+      `[Recipient Matcher] Checking References header (${reply.references.length} IDs)...`,
+    );
+
+    for (const recipient of recipients) {
+      const emailHistory = SafeArray.map(
+        recipient.emailHistory || [],
+        (e: any) => e,
+      );
+
+      for (const historyEmail of emailHistory) {
+        // Check if ANY of the reply's References match our stored messageId
+        if (historyEmail.messageId) {
+          const matchesAnyReference = reply.references.some((refId) => {
+            // Compare both with and without angle brackets for flexibility
+            const cleanRef = refId.replace(/^<|>$/g, "");
+            const cleanStored = historyEmail.messageId.replace(/^<|>$/g, "");
+            return cleanRef === cleanStored || refId === historyEmail.messageId;
+          });
+
+          if (matchesAnyReference) {
+            console.log(
+              `[Recipient Matcher] THREAD CHAIN match found via References header!`,
+            );
+            console.log(
+              `[Recipient Matcher] Matched messageId: ${historyEmail.messageId}`,
+            );
+            console.log(
+              `[Recipient Matcher] For recipient: ${recipient.originalContact.email}`,
+            );
+            return {
+              recipient,
+              matchType: "thread",
+              confidence: "high",
+              isNewPerson:
+                reply.from.email !==
+                normalizeEmail(recipient.originalContact.email),
+            };
+          }
+        }
+      }
+    }
+  }
+
   // Strategy 4: Same domain match (someone from same organization)
   // Only match delivered/opened recipients (not pending)
   const deliveredRecipients = recipients.filter(
@@ -241,6 +289,85 @@ export async function matchReplyToRecipient(
     }
   }
 
+  // Strategy 7: Client/Company Name Keywords in Subject
+  // If no match yet, check if reply subject contains keywords from the campaign's client name
+  // This helps catch forwarded replies where subject is modified but still mentions the client
+  if (reply.subject) {
+    const replySubjectLower = reply.subject.toLowerCase();
+
+    // Get the campaign to find the client name
+    const campaignDoc = await adminDb
+      .collection("campaigns")
+      .doc(campaignId)
+      .get();
+
+    if (campaignDoc.exists) {
+      const campaignData = campaignDoc.data();
+      const clientName = (campaignData?.clientName || "").toLowerCase();
+
+      // Extract significant words from client name (at least 3 chars)
+      const clientNameWords = clientName
+        .split(/[\s\-\_\.\,]+/)
+        .filter((w: string) => w.length >= 3);
+
+      // Check if any client name word appears in the reply subject
+      // Allow for common typos (e.g., Doxhome vs DocHome)
+      let matchedKeyword = false;
+
+      for (const word of clientNameWords) {
+        // Direct match
+        if (replySubjectLower.includes(word)) {
+          matchedKeyword = true;
+          break;
+        }
+
+        // Fuzzy match: check for similar words (Levenshtein distance <= 2)
+        const subjectWords = replySubjectLower.split(/[\s\-\_\.\,\&\:]+/);
+        for (const subjectWord of subjectWords) {
+          if (
+            subjectWord.length >= 3 &&
+            calculateLevenshteinDistance(word, subjectWord) <= 2
+          ) {
+            console.log(
+              `[Recipient Matcher] Fuzzy match: "${word}" ~ "${subjectWord}"`,
+            );
+            matchedKeyword = true;
+            break;
+          }
+        }
+        if (matchedKeyword) break;
+      }
+
+      if (matchedKeyword && deliveredRecipients.length > 0) {
+        // Prefer opened recipients, then delivered
+        const sortedRecipients = deliveredRecipients.sort((a, b) => {
+          const statusPriority: { [key: string]: number } = {
+            opened: 3,
+            delivered: 2,
+            replied: 1,
+          };
+          return (
+            (statusPriority[b.status] || 0) - (statusPriority[a.status] || 0)
+          );
+        });
+
+        console.log(
+          `[Recipient Matcher] Client name keyword match found! Reply subject contains "${clientName}" keywords`,
+        );
+        console.log(
+          `[Recipient Matcher] Matching to best recipient: ${sortedRecipients[0].originalContact.email}`,
+        );
+
+        return {
+          recipient: sortedRecipients[0],
+          matchType: "forwarded",
+          confidence: "low",
+          isNewPerson: true,
+        };
+      }
+    }
+  }
+
   console.log(`[Recipient Matcher] No match found for ${reply.from.email}`);
   return null;
 }
@@ -264,6 +391,37 @@ function calculateSubjectSimilarity(
   const totalUniqueWords = new Set([...words1, ...words2]).size;
 
   return matchingWords.length / totalUniqueWords;
+}
+
+/**
+ * Calculate Levenshtein distance between two strings
+ * Lower value = more similar (0 = identical)
+ */
+function calculateLevenshteinDistance(str1: string, str2: string): number {
+  const m = str1.length;
+  const n = str2.length;
+
+  // Create a 2D array to store distances
+  const dp: number[][] = Array(m + 1)
+    .fill(null)
+    .map(() => Array(n + 1).fill(0));
+
+  // Initialize base cases
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+  // Fill in the rest of the matrix
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      if (str1[i - 1] === str2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1];
+      } else {
+        dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+      }
+    }
+  }
+
+  return dp[m][n];
 }
 
 function findBestDomainMatch(

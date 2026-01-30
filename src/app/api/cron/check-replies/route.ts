@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     console.log("[Cron: Check Replies] Job already running");
     console.log(
       "[Cron: Check Replies] Running duration:",
-      runningDuration + "ms"
+      runningDuration + "ms",
     );
 
     if (runningDuration > 240000) {
@@ -82,7 +82,7 @@ export async function GET(request: NextRequest) {
 
     if (campaignsCheck.empty) {
       console.log(
-        "[Cron: Check Replies] No campaigns need reply checking, skipping"
+        "[Cron: Check Replies] No campaigns need reply checking, skipping",
       );
       isJobRunning = false;
       return NextResponse.json({
@@ -103,7 +103,7 @@ export async function GET(request: NextRequest) {
       console.log("[Cron: Check Replies] IMAP check completed successfully");
       console.log(
         "[Cron: Check Replies] Clients checked:",
-        clientRepliesMap.size
+        clientRepliesMap.size,
       );
 
       let totalRepliesInMap = 0;
@@ -113,17 +113,17 @@ export async function GET(request: NextRequest) {
           "[Cron: Check Replies] Client",
           clientId,
           "- Replies found:",
-          replies.length
+          replies.length,
         );
       }
       console.log(
         "[Cron: Check Replies] Total replies in map:",
-        totalRepliesInMap
+        totalRepliesInMap,
       );
     } catch (imapError: any) {
       console.error(
         "[Cron: Check Replies] IMAP connection failed:",
-        imapError.message
+        imapError.message,
       );
       console.error("[Cron: Check Replies] Error stack:", imapError.stack);
       return NextResponse.json(
@@ -136,7 +136,7 @@ export async function GET(request: NextRequest) {
             errors: 1,
           },
         },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -224,17 +224,17 @@ export async function GET(request: NextRequest) {
                   }
 
                   console.log(
-                    `[Cron: Check Replies] Marked ${bouncedEmail} as FAILED: ${bounceReason}`
+                    `[Cron: Check Replies] Marked ${bouncedEmail} as FAILED: ${bounceReason}`,
                   );
                 } else {
                   console.log(
-                    `[Cron: Check Replies] Could not find recipient for bounced email: ${bouncedEmail}`
+                    `[Cron: Check Replies] Could not find recipient for bounced email: ${bouncedEmail}`,
                   );
                 }
               } catch (bounceErr) {
                 console.error(
                   "[Cron: Check Replies] Error processing bounce:",
-                  bounceErr
+                  bounceErr,
                 );
               }
             }
@@ -263,28 +263,33 @@ export async function GET(request: NextRequest) {
                   backfilledAt: getCurrentTimestamp(),
                 });
                 console.log(
-                  `[Cron: Check Replies] BACKFILLED reply ${parsedReply.messageId} with content`
+                  `[Cron: Check Replies] BACKFILLED reply ${parsedReply.messageId} with content`,
                 );
               } catch (backfillErr) {
                 console.error(
                   "[Cron: Check Replies] Backfill failed:",
-                  backfillErr
+                  backfillErr,
                 );
                 // Non-critical - don't throw, just log
               }
             } else {
               console.log(
-                "[Cron: Check Replies] Reply already processed (duplicate), skipping"
+                "[Cron: Check Replies] Reply already processed (duplicate), skipping",
               );
             }
 
             console.log(
               "[Cron: Check Replies] Message ID:",
-              parsedReply.messageId
+              parsedReply.messageId,
             );
             totalSkipped++;
             continue;
           }
+
+          // === NEW: Log that this email is NEW and about to attempt matching ===
+          console.log(
+            `[Cron: Check Replies] NEW EMAIL - attempting to match: ${parsedReply.from.email}, subject: ${parsedReply.subject?.substring(0, 40)}`,
+          );
 
           // OPTIMIZED: Use cached campaigns for this client
           // Only query once per client, not once per reply
@@ -299,7 +304,7 @@ export async function GET(request: NextRequest) {
               "[Cron: Check Replies] Cached campaigns for client:",
               clientId,
               "count:",
-              snapshot.size
+              snapshot.size,
             );
           }
 
@@ -308,14 +313,14 @@ export async function GET(request: NextRequest) {
           if (cachedCampaigns.length === 0) {
             console.log(
               "[Cron: Check Replies] No active campaigns for client:",
-              clientId
+              clientId,
             );
             continue;
           }
 
           console.log(
             "[Cron: Check Replies] Using cached campaigns, count:",
-            cachedCampaigns.length
+            cachedCampaigns.length,
           );
 
           let matched = false;
@@ -327,14 +332,15 @@ export async function GET(request: NextRequest) {
             const campaignId = campaignDoc.id;
             const campaignData = campaignDoc.data();
 
-            // OPTIMIZATION #1: Skip campaigns where emails were sent less than 2 hours ago
-            // Reason: Nobody replies in 5 minutes, no point checking
-            if (campaignData.lastSentAt) {
-              const lastSentTime = new Date(campaignData.lastSentAt).getTime();
-              if (lastSentTime > twoHoursAgo) {
+            // OPTIMIZATION #1: Skip campaigns that STARTED less than 2 hours ago
+            // Note: Use startedAt, NOT lastSentAt (which updates constantly for active campaigns)
+            // This ensures we check for replies to older emails even if campaign is still sending
+            if (campaignData.startedAt) {
+              const startedTime = new Date(campaignData.startedAt).getTime();
+              if (startedTime > twoHoursAgo) {
                 console.log(
-                  "[Cron: Check Replies] Skipping campaign (sent < 2h ago):",
-                  campaignId
+                  "[Cron: Check Replies] Skipping campaign (started < 2h ago):",
+                  campaignId,
                 );
                 continue;
               }
@@ -347,12 +353,12 @@ export async function GET(request: NextRequest) {
               campaignData.completedAt
             ) {
               const completedTime = new Date(
-                campaignData.completedAt
+                campaignData.completedAt,
               ).getTime();
               if (completedTime < fourteenDaysAgo) {
                 console.log(
                   "[Cron: Check Replies] Skipping campaign (completed > 14 days):",
-                  campaignId
+                  campaignId,
                 );
                 continue;
               }
@@ -360,18 +366,18 @@ export async function GET(request: NextRequest) {
 
             console.log(
               "[Cron: Check Replies] Matching reply to campaign:",
-              campaignId
+              campaignId,
             );
 
             const matchResult = await matchReplyToRecipient(
               campaignId,
-              parsedReply
+              parsedReply,
             );
 
             if (!matchResult) {
               console.log(
                 "[Cron: Check Replies] No match in campaign:",
-                campaignId
+                campaignId,
               );
               continue;
             }
@@ -382,11 +388,11 @@ export async function GET(request: NextRequest) {
             console.log("[Cron: Check Replies] Match found!");
             console.log(
               "[Cron: Check Replies] Original recipient:",
-              recipient.originalContact.email
+              recipient.originalContact.email,
             );
             console.log(
               "[Cron: Check Replies] Replier:",
-              parsedReply.from.email
+              parsedReply.from.email,
             );
             console.log("[Cron: Check Replies] Match type:", matchType);
             console.log("[Cron: Check Replies] Confidence:", confidence);
@@ -395,7 +401,7 @@ export async function GET(request: NextRequest) {
             if (isNewPerson) {
               totalForwardedReplies++;
               console.log(
-                "[Cron: Check Replies] FORWARDED/TEAM REPLY detected!"
+                "[Cron: Check Replies] FORWARDED/TEAM REPLY detected!",
               );
             }
 
@@ -406,7 +412,7 @@ export async function GET(request: NextRequest) {
               console.log("[Cron: Check Replies] Reply skipped");
               console.log(
                 "[Cron: Check Replies] Reason:",
-                shouldProcess.reason
+                shouldProcess.reason,
               );
               totalSkipped++;
               continue;
@@ -424,7 +430,7 @@ export async function GET(request: NextRequest) {
                 return (
                   r.email.toLowerCase() === parsedReply.from.email.toLowerCase()
                 );
-              }
+              },
             );
 
             const isNewReplier = existingReplierIndex === -1;
@@ -432,19 +438,19 @@ export async function GET(request: NextRequest) {
             if (isNewReplier) {
               console.log(
                 "[Cron: Check Replies] NEW REPLIER detected:",
-                parsedReply.from.email
+                parsedReply.from.email,
               );
               console.log("[Cron: Check Replies] This is their FIRST reply");
               if (isNewPerson) {
                 console.log(
-                  "[Cron: Check Replies] Different person from original recipient"
+                  "[Cron: Check Replies] Different person from original recipient",
                 );
               }
               totalNewRepliers++;
             } else {
               console.log(
                 "[Cron: Check Replies] EXISTING REPLIER detected:",
-                parsedReply.from.email
+                parsedReply.from.email,
               );
               console.log("[Cron: Check Replies] This is a follow-up reply");
               totalExistingRepliers++;
@@ -452,13 +458,13 @@ export async function GET(request: NextRequest) {
 
             // CRITICAL: Store reply metadata FIRST to prevent duplicate processing on next cron run
             const emailHistory = normalizeToArray<EmailHistoryItem>(
-              recipient.emailHistory || []
+              recipient.emailHistory || [],
             );
             const latestEmail = emailHistory[emailHistory.length - 1];
             const emailId = latestEmail?.emailId || "unknown";
 
             console.log(
-              "[Cron: Check Replies] Storing reply metadata FIRST (prevents duplicates)"
+              "[Cron: Check Replies] Storing reply metadata FIRST (prevents duplicates)",
             );
 
             await adminDb.collection("campaignReplies").add({
@@ -506,7 +512,7 @@ export async function GET(request: NextRequest) {
             });
 
             console.log(
-              "[Cron: Check Replies] Reply metadata stored - Safe to update recipient now"
+              "[Cron: Check Replies] Reply metadata stored - Safe to update recipient now",
             );
 
             // NOW update recipient status - this won't be duplicated because reply is already in DB
@@ -516,7 +522,7 @@ export async function GET(request: NextRequest) {
               parsedReply.from.email,
               parsedReply.from.name,
               parsedReply.from.organization,
-              parsedReply.receivedAt
+              parsedReply.receivedAt,
             );
             console.log("[Cron: Check Replies] Recipient status updated");
 
@@ -528,7 +534,7 @@ export async function GET(request: NextRequest) {
             if (isNewReplier) {
               // Only increment unique replied count for new repliers
               console.log(
-                "[Cron: Check Replies] Incrementing unique replied count"
+                "[Cron: Check Replies] Incrementing unique replied count",
               );
               await adminDb
                 .collection("campaigns")
@@ -549,7 +555,7 @@ export async function GET(request: NextRequest) {
             } else {
               // For existing repliers, only increment total response count
               console.log(
-                "[Cron: Check Replies] Incrementing total responses only (existing replier)"
+                "[Cron: Check Replies] Incrementing total responses only (existing replier)",
               );
               await adminDb
                 .collection("campaigns")
@@ -562,7 +568,7 @@ export async function GET(request: NextRequest) {
             }
 
             console.log(
-              "[Cron: Check Replies] Campaign stats updated successfully"
+              "[Cron: Check Replies] Campaign stats updated successfully",
             );
 
             totalRecipientsUpdated++;
@@ -582,13 +588,13 @@ export async function GET(request: NextRequest) {
           } else {
             console.log(
               "[Cron: Check Replies] No matching recipient found for:",
-              parsedReply.from.email
+              parsedReply.from.email,
             );
           }
         } catch (error: any) {
           console.error(
             "[Cron: Check Replies] Error processing reply from:",
-            reply.from.email
+            reply.from.email,
           );
           logError("Process Reply", error, {
             replyFrom: reply.from.email,
@@ -602,28 +608,28 @@ export async function GET(request: NextRequest) {
     const duration = Date.now() - startTime;
 
     console.log(
-      "[Cron: Check Replies] ========================================"
+      "[Cron: Check Replies] ========================================",
     );
     console.log("[Cron: Check Replies] Job completed");
     console.log("[Cron: Check Replies] Replies found:", totalRepliesFound);
     console.log(
       "[Cron: Check Replies] Recipients updated:",
-      totalRecipientsUpdated
+      totalRecipientsUpdated,
     );
     console.log("[Cron: Check Replies] New unique repliers:", totalNewRepliers);
     console.log(
       "[Cron: Check Replies] Existing repliers (follow-ups):",
-      totalExistingRepliers
+      totalExistingRepliers,
     );
     console.log(
       "[Cron: Check Replies] Forwarded/Team replies:",
-      totalForwardedReplies
+      totalForwardedReplies,
     );
     console.log("[Cron: Check Replies] Skipped (duplicates):", totalSkipped);
     console.log("[Cron: Check Replies] Errors:", totalErrors);
     console.log("[Cron: Check Replies] Duration:", duration + "ms");
     console.log(
-      "[Cron: Check Replies] ========================================"
+      "[Cron: Check Replies] ========================================",
     );
 
     return NextResponse.json({
@@ -653,7 +659,7 @@ export async function GET(request: NextRequest) {
         error: error.message,
         duration: duration + "ms",
       },
-      { status: 500 }
+      { status: 500 },
     );
   } finally {
     // Always release lock

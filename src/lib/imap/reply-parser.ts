@@ -13,8 +13,9 @@ export interface ParsedReply {
   receivedAt: string;
   messageId: string;
   inReplyTo: string | null;
-  subject: string; // NEW: Email subject line
-  body: string; // NEW: Plain text body content
+  references: string[]; // RFC 5322 References header - full thread chain
+  subject: string; // Email subject line
+  body: string; // Plain text body content
 }
 
 export function parseReplyIdentity(reply: EmailReplyDetected): ParsedReply {
@@ -32,7 +33,7 @@ export function parseReplyIdentity(reply: EmailReplyDetected): ParsedReply {
     receivedAt: reply.date.toISOString(),
     messageId: reply.messageId,
     inReplyTo: reply.inReplyTo || null,
-    // NEW: Pass through subject and body for storage
+    references: reply.references || [], // RFC 5322 thread chain
     subject: reply.subject || "",
     body: reply.body || "",
   };
@@ -127,7 +128,7 @@ export function isBounceEmail(reply: EmailReplyDetected): boolean {
 
   // Check if from a bounce sender
   const isFromBounceSender = bounceSenders.some((sender) =>
-    fromEmail.includes(sender)
+    fromEmail.includes(sender),
   );
 
   // Common bounce subject patterns
@@ -171,11 +172,11 @@ export function isBounceEmail(reply: EmailReplyDetected): boolean {
   ];
 
   const hasBouncySubject = bounceSubjectPatterns.some((pattern) =>
-    subject.includes(pattern)
+    subject.includes(pattern),
   );
 
   const hasBouncyBody = bounceBodyPatterns.some((pattern) =>
-    body.includes(pattern)
+    body.includes(pattern),
   );
 
   return isFromBounceSender || hasBouncySubject || hasBouncyBody;
@@ -236,14 +237,14 @@ export function extractBounceReason(reply: EmailReplyDetected): string {
  * Extract the original recipient email from a bounce message
  */
 export function extractBounceRecipient(
-  reply: EmailReplyDetected
+  reply: EmailReplyDetected,
 ): string | null {
   const body = reply.body || "";
 
   // Try to find recipient in common bounce formats
   // Format: "Final-Recipient: rfc822;email@example.com"
   const finalRecipientMatch = body.match(
-    /final-recipient:\s*rfc822;?\s*([^\s<>\n]+@[^\s<>\n]+)/i
+    /final-recipient:\s*rfc822;?\s*([^\s<>\n]+@[^\s<>\n]+)/i,
   );
   if (finalRecipientMatch) {
     return normalizeEmail(finalRecipientMatch[1]);
@@ -251,7 +252,7 @@ export function extractBounceRecipient(
 
   // Format: "Recipient Address: email@example.com"
   const recipientAddressMatch = body.match(
-    /recipient\s*address:\s*([^\s<>\n]+@[^\s<>\n]+)/i
+    /recipient\s*address:\s*([^\s<>\n]+@[^\s<>\n]+)/i,
   );
   if (recipientAddressMatch) {
     return normalizeEmail(recipientAddressMatch[1]);
@@ -259,7 +260,7 @@ export function extractBounceRecipient(
 
   // Format: "Your message to email@example.com"
   const yourMessageMatch = body.match(
-    /your message to\s+([^\s<>\n]+@[^\s<>\n]+)/i
+    /your message to\s+([^\s<>\n]+@[^\s<>\n]+)/i,
   );
   if (yourMessageMatch) {
     return normalizeEmail(yourMessageMatch[1]);
