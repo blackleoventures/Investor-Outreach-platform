@@ -21,9 +21,8 @@ export async function markAsDelivered(
 ): Promise<void> {
   const timestamp = new Date().toISOString();
 
-  const emailHistoryEntry = {
+  const emailHistoryEntry: Record<string, any> = {
     emailId,
-    messageId: messageId || undefined, // Store SMTP Message-ID for thread tracking
     type: "initial" as const,
     subject,
     sentAt: timestamp,
@@ -41,6 +40,11 @@ export async function markAsDelivered(
       lastReplyAt: null,
     },
   };
+
+  // Only add messageId if it exists (Firestore rejects undefined values)
+  if (messageId) {
+    emailHistoryEntry.messageId = messageId;
+  }
 
   await adminDb
     .collection("campaignRecipients")
@@ -465,9 +469,8 @@ export async function markAsFollowedUp(
   try {
     const timestamp = new Date().toISOString();
 
-    const followupEmail = {
+    const followupEmail: Record<string, any> = {
       emailId: followupEmailId,
-      messageId: messageId || undefined, // Store SMTP Message-ID for thread tracking
       type: followupType,
       subject: followupSubject,
       sentAt: timestamp,
@@ -485,6 +488,11 @@ export async function markAsFollowedUp(
         lastReplyAt: null,
       },
     };
+
+    // Only add messageId if it exists (Firestore rejects undefined values)
+    if (messageId) {
+      followupEmail.messageId = messageId;
+    }
 
     await adminDb
       .collection("campaignRecipients")
