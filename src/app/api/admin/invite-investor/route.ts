@@ -33,29 +33,43 @@ export async function POST(request: NextRequest) {
 
         console.log(`[InviteInvestor] Creating investor account for ${email}`);
 
-        // 2. Create Passwordless User in Firebase Auth
+        // 2. Generate Secure Access Token
+        const secureAccessToken = crypto.randomUUID();
+
+        // 3. Create Passwordless User in Firebase Auth
         let userRecord;
         try {
             userRecord = await adminAuth.createUser({
                 email,
-                emailVerified: true, // Auto-verify since admin is inviting
+                emailVerified: true,
                 displayName: fullName,
                 disabled: false,
             });
             console.log(`[InviteInvestor] Created Auth user: ${userRecord.uid}`);
         } catch (createError: any) {
             if (createError.code === 'auth/email-already-exists') {
-                // If user exists, we might want to just update their role or fail
-                // For now, let's fetch the existing user
                 userRecord = await adminAuth.getUserByEmail(email);
-                console.log(`[InviteInvestor] User already exists: ${userRecord.uid}. Proceeding to update role.`);
+                console.log(`[InviteInvestor] User already exists: ${userRecord.uid}`);
             } else {
                 throw createError;
             }
         }
 
-        // 3. Set 'investor' role and details in Firestore
-        // Note: We use the UID from Auth to create the User document
+        // 4. Create/Update Investor Record in 'investors' collection
+        await adminDb.collection("investors").doc(userRecord.uid).set({
+            uid: userRecord.uid,
+            email,
+            displayName: fullName,
+            firmName: firm,
+            role: "investor",
+            status: "invited",
+            secureAccessToken, // CRITICAL: This is the key for magic link
+            invitedBy: decodedToken.uid,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        }, { merge: true });
+
+        // 5. Update 'users' collection for consistency
         await adminDb.collection("users").doc(userRecord.uid).set({
             uid: userRecord.uid,
             email,
@@ -64,19 +78,28 @@ export async function POST(request: NextRequest) {
             lastName: fullName.split(' ').slice(1).join(' '),
             role: "investor",
             firmName: firm,
-            createdAt: new Date().toISOString(),
-            invitedBy: decodedToken.uid,
             status: "active"
         }, { merge: true });
 
-        // 4. (Optional) Set Custom Claims for simplified role checks
+        // 6. Set Custom Claims
         await adminAuth.setCustomUserClaims(userRecord.uid, { role: "investor" });
+
+        // 7. Generate Magic Link (Mock Email Send)
+        const magicLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/investor-login?token=${secureAccessToken}`;
+
+        console.log("==================================================================");
+        console.log(`[MAGIC LINK] for ${email}: ${magicLink}`);
+        console.log("==================================================================");
 
         return NextResponse.json(
             {
                 success: true,
-                message: `Investor ${fullName} invited successfully.`,
-                data: { uid: userRecord.uid, email }
+                message: `Investor invited. Magic link generated (check console).`,
+                data: {
+                    uid: userRecord.uid,
+                    email,
+                    magicLink // Returning this for demo purposes
+                }
             },
             { status: 200 }
         );

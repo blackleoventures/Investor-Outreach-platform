@@ -18,11 +18,12 @@ interface Client {
     founderName: string;
     industry: string;
     fundingStage: string;
-    description: string; // Assuming there is a description or bio
+    description: string;
     city: string;
-    investment: string; // Investment ask
-    logoUrl?: string; // If available
+    investment: string;
+    logoUrl?: string;
     status: string;
+    dealRoomPermission?: boolean; // Added
 }
 
 export default function DealRoomDashboard() {
@@ -33,6 +34,7 @@ export default function DealRoomDashboard() {
     const [searchText, setSearchText] = useState("");
     const [industryFilter, setIndustryFilter] = useState<string | null>(null);
     const [stageFilter, setStageFilter] = useState<string | null>(null);
+    const [cityFilter, setCityFilter] = useState<string | null>(null); // Added City Filter
 
     useEffect(() => {
         fetchStartups();
@@ -40,16 +42,13 @@ export default function DealRoomDashboard() {
 
     useEffect(() => {
         filterStartups();
-    }, [searchText, industryFilter, stageFilter, startups]);
+    }, [searchText, industryFilter, stageFilter, cityFilter, startups]);
 
     const fetchStartups = async () => {
         setLoading(true);
         try {
             const user = auth.currentUser;
-            if (!user) {
-                // Handle unauthenticated state if needed, though middleware should catch this
-                return;
-            }
+            if (!user) return;
             const token = await user.getIdToken();
 
             const response = await fetch(`${API_BASE_URL}/clients`, {
@@ -60,8 +59,11 @@ export default function DealRoomDashboard() {
 
             if (response.ok) {
                 const data = await response.json();
-                // Filter only approved clients for investors
-                const approvedClients = (data.data || []).filter((client: Client) => client.status === "approved" || client.status === "active");
+                // Filter: Approved AND Deal Room Permission Permission
+                const approvedClients = (data.data || []).filter((client: Client) =>
+                    (client.status === "approved" || client.status === "active") &&
+                    client.dealRoomPermission === true
+                );
                 setStartups(approvedClients);
             } else {
                 console.error("Failed to fetch startups");
@@ -94,39 +96,44 @@ export default function DealRoomDashboard() {
             result = result.filter((s) => s.fundingStage === stageFilter);
         }
 
+        if (cityFilter) {
+            result = result.filter((s) => s.city === cityFilter);
+        }
+
         setFilteredStartups(result);
     };
 
-    const uniqueIndustories = Array.from(new Set(startups.map((s) => s.industry).filter(Boolean)));
+    const uniqueIndustries = Array.from(new Set(startups.map((s) => s.industry).filter(Boolean)));
     const uniqueStages = Array.from(new Set(startups.map((s) => s.fundingStage).filter(Boolean)));
+    const uniqueCities = Array.from(new Set(startups.map((s) => s.city).filter(Boolean)));
 
     return (
         <div className="min-h-screen bg-gray-50 p-6">
             <div className="max-w-7xl mx-auto">
                 <div className="mb-8">
-                    <Title level={2} style={{ marginBottom: 8 }}>Deal Room</Title>
+                    <Title level={2} style={{ marginBottom: 8 }}>Founder Deal Room</Title>
                     <Text type="secondary" style={{ fontSize: 16 }}>
                         Curated investment opportunities for you.
                     </Text>
                 </div>
 
                 {/* Filters */}
-                <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex flex-col md:flex-row gap-4 items-center">
+                <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex flex-col md:flex-row gap-4 items-center flex-wrap">
                     <Search
                         placeholder="Search by company, founder, or keyword..."
                         allowClear
                         onChange={(e) => setSearchText(e.target.value)}
-                        style={{ width: '100%', maxWidth: 400 }}
+                        style={{ width: '100%', maxWidth: 350 }}
                         prefix={<SearchOutlined className="text-gray-400" />}
                     />
 
                     <Select
                         placeholder="Filter by Industry"
                         allowClear
-                        style={{ width: 200 }}
+                        style={{ width: 180 }}
                         onChange={setIndustryFilter}
                     >
-                        {uniqueIndustories.map(ind => (
+                        {uniqueIndustries.map(ind => (
                             <Option key={ind} value={ind}>{ind}</Option>
                         ))}
                     </Select>
@@ -134,11 +141,22 @@ export default function DealRoomDashboard() {
                     <Select
                         placeholder="Funding Stage"
                         allowClear
-                        style={{ width: 200 }}
+                        style={{ width: 180 }}
                         onChange={setStageFilter}
                     >
                         {uniqueStages.map(stage => (
                             <Option key={stage} value={stage}>{stage}</Option>
+                        ))}
+                    </Select>
+
+                    <Select
+                        placeholder="Filter by City"
+                        allowClear
+                        style={{ width: 180 }}
+                        onChange={setCityFilter}
+                    >
+                        {uniqueCities.map(city => (
+                            <Option key={city} value={city}>{city}</Option>
                         ))}
                     </Select>
                 </div>

@@ -27,7 +27,7 @@ export default function InviteInvestorPage() {
     const router = useRouter();
     const { currentUser, userData } = useAuth();
     const [loading, setLoading] = useState(false);
-    const [successData, setSuccessData] = useState<{ email: string, name: string } | null>(null);
+    const [successData, setSuccessData] = useState<{ email: string, name: string, magicLink?: string } | null>(null);
     const [form] = Form.useForm();
 
     // Basic role check (Frontend only - Backend verifies token)
@@ -67,7 +67,11 @@ export default function InviteInvestorPage() {
                 throw new Error(data.error || "Failed to invite investor");
             }
 
-            setSuccessData({ email: values.email, name: values.fullName });
+            setSuccessData({
+                email: values.email,
+                name: values.fullName,
+                magicLink: data.data.magicLink
+            });
             message.success("Investor invited successfully!");
             form.resetFields();
 
@@ -90,10 +94,17 @@ export default function InviteInvestorPage() {
                             <div className="text-left mt-4 p-4 bg-gray-50 rounded-lg">
                                 <p><strong>Name:</strong> {successData.name}</p>
                                 <p><strong>Email:</strong> {successData.email}</p>
+                                {successData.magicLink && (
+                                    <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded">
+                                        <p className="text-xs font-bold text-blue-700 uppercase mb-1">Testing Magic Link:</p>
+                                        <code className="block text-xs break-all bg-white p-2 rounded border border-blue-200">
+                                            {successData.magicLink}
+                                        </code>
+                                    </div>
+                                )}
                                 <p className="mt-4 text-gray-500 text-sm">
                                     The user has been created in the system with the 'investor' role.
-                                    They can now log in using their email (passwordless/link login) depending on your auth setup,
-                                    or you can manually set a password for them in the Firebase console if needed.
+                                    An email has been sent (mocked) with the secure access link.
                                 </p>
                             </div>
                         }
