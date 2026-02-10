@@ -11,6 +11,7 @@ import {
   Typography,
   Spin,
   Divider,
+  Checkbox,
 } from "antd";
 import {
   FormOutlined,
@@ -71,6 +72,7 @@ export default function SubmitInformation() {
   const [clientData, setClientData] = useState<any>(null);
   const [pitchData, setPitchData] = useState<any>(null);
   const [emailConfiguration, setEmailConfiguration] = useState<any>(null);
+  const [dealRoomPermission, setDealRoomPermission] = useState(false);
 
   useEffect(() => {
     if (currentUser) {
@@ -282,6 +284,7 @@ export default function SubmitInformation() {
           canEditForm: true,
           canAnalyzePitch: true,
         },
+        dealRoomPermission,
       };
 
       console.log("[Frontend] Submitting application:", payload);
@@ -579,10 +582,9 @@ export default function SubmitInformation() {
                 <Text>Form Edits Available:</Text>
                 <Text strong style={{ color: "#52c41a", fontSize: 16 }}>
                   {submission
-                    ? `${
-                        submission.usageLimits.maxFormEdits -
-                        submission.usageLimits.formEditCount
-                      } / ${submission.usageLimits.maxFormEdits}`
+                    ? `${submission.usageLimits.maxFormEdits -
+                    submission.usageLimits.formEditCount
+                    } / ${submission.usageLimits.maxFormEdits}`
                     : "4 / 4"}
                 </Text>
               </div>
@@ -590,10 +592,9 @@ export default function SubmitInformation() {
                 <Text>Pitch Analyses Available:</Text>
                 <Text strong style={{ color: "#52c41a", fontSize: 16 }}>
                   {submission
-                    ? `${
-                        submission.usageLimits.maxPitchAnalysis -
-                        submission.usageLimits.pitchAnalysisCount
-                      } / ${submission.usageLimits.maxPitchAnalysis}`
+                    ? `${submission.usageLimits.maxPitchAnalysis -
+                    submission.usageLimits.pitchAnalysisCount
+                    } / ${submission.usageLimits.maxPitchAnalysis}`
                     : "2 / 2"}
                 </Text>
               </div>
@@ -685,6 +686,17 @@ export default function SubmitInformation() {
                   isFirstTime={true}
                   initialAnalysis={pitchData}
                 />
+
+                <div style={{ marginTop: 24, padding: '16px', background: '#f9f9f9', borderRadius: '8px', border: '1px solid #eee' }}>
+                  <Checkbox
+                    checked={dealRoomPermission}
+                    onChange={(e) => setDealRoomPermission(e.target.checked)}
+                    style={{ fontSize: '15px' }}
+                  >
+                    <span style={{ fontWeight: 500 }}>Share with Investors:</span> I agree to make my company profile and pitch deck visible to verified investors in the secure Deal Room.
+                  </Checkbox>
+                </div>
+
                 <div style={{ marginTop: 24, display: "flex", gap: 16 }}>
                   <Button
                     size="large"
@@ -703,9 +715,15 @@ export default function SubmitInformation() {
                         );
                         return;
                       }
+                      if (!dealRoomPermission) {
+                        message.error(
+                          "You must agree to share your profile with investors to proceed"
+                        );
+                        return;
+                      }
                       setCurrent(2);
                     }}
-                    disabled={!pitchData}
+                    disabled={!pitchData || !dealRoomPermission}
                     style={{
                       height: 48,
                       paddingLeft: 24,
@@ -803,8 +821,8 @@ export default function SubmitInformation() {
                                   pitchData.summary?.status === "GREEN"
                                     ? "#52c41a"
                                     : pitchData.summary?.status === "YELLOW"
-                                    ? "#faad14"
-                                    : "#ff4d4f",
+                                      ? "#faad14"
+                                      : "#ff4d4f",
                                 fontWeight: 600,
                               }}
                             >
@@ -878,9 +896,9 @@ export default function SubmitInformation() {
                   // FIX: Properly merge client data with email configuration
                   submission
                     ? {
-                        ...submission.clientInformation,
-                        emailConfiguration: submission.emailConfiguration,
-                      }
+                      ...submission.clientInformation,
+                      emailConfiguration: submission.emailConfiguration,
+                    }
                     : null
                 }
                 disabled={!isEditing}
