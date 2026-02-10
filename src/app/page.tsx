@@ -1,269 +1,220 @@
 "use client";
 
-import { useEffect, useState, FormEvent } from "react";
-import { useAuth } from "../contexts/AuthContext";
-import { useRouter } from "next/navigation";
-
-import { Mail, Lock, User, Shield, Loader2 } from "lucide-react";
-import Image from "next/image";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { TrendingUp, Zap, Target, BarChart3, Users, Briefcase, Rocket, CheckCircle } from 'lucide-react';
 
 export default function Home() {
-  const { currentUser, userData, loginWithGoogle, loginWithEmail, loading } =
-    useAuth();
-  const { push: navigate } = useRouter();
-  const [mounted, setMounted] = useState(false);
-  const [activeTab, setActiveTab] = useState<"client" | "member">("client");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (currentUser && !loading && userData) {
-      console.log(
-        "User authenticated, redirecting based on role:",
-        userData.role
-      );
-
-      // Redirect based on role
-      if (userData.role === "client") {
-        navigate("/dashboard/submit-information");
-      } else if (userData.role === "admin" || userData.role === "subadmin") {
-        navigate("/dashboard");
-      }
-    }
-  }, [currentUser, loading, userData, navigate]);
-
-  const handleGoogleLogin = async () => {
-    try {
-      setIsLoggingIn(true);
-      await loginWithGoogle();
-    } catch (error) {
-      console.error("Google login failed:", error);
-    } finally {
-      setIsLoggingIn(false);
-    }
+  const handleNavigation = (type: 'founder' | 'investor') => {
+    setLoading(true);
+    // Redirect to login page - the login page should handle role selection or logic
+    // Currently aiming for a simple redirect flow
+    router.push('/login');
   };
-
-  const handleEmailLogin = async (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!email || !password) {
-      return;
-    }
-
-    try {
-      setIsLoggingIn(true);
-      await loginWithEmail(email, password);
-    } catch (error) {
-      console.error("Email login failed:", error);
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  // Prevent hydration mismatch
-  if (!mounted) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-          <p className="text-white text-sm">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show loading spinner during auth check
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-          <p className="text-white text-sm">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // If user is logged in, don't show login page (redirect will happen)
-  if (currentUser) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-          <p className="text-white text-sm">Redirecting...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 px-4">
-      <div className="bg-white/10 backdrop-blur-lg p-8 rounded-2xl shadow-2xl max-w-md w-full border border-white/20">
-        {/* Logo */}
-        <div className="text-center mb-8">
-          <div className="mb-6">
-            <div className="mx-auto w-24 h-24 rounded-full bg-white flex items-center justify-center shadow-lg">
-              <Image
-                src="/logo.png"
-                alt="Logo"
-                width={80}
-                height={80}
-                className="w-20 h-20 object-contain"
-                priority
-              />
+    <div className="min-h-screen bg-white text-gray-900 font-sans">
+      {/* Navigation */}
+      <nav className="fixed w-full z-50 bg-white/80 backdrop-blur-md border-b border-gray-100" data-testid="nav-header">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center gap-2" data-testid="text-logo">
+              <div className="bg-black text-white p-1.5 rounded-lg">
+                <TrendingUp size={20} />
+              </div>
+              <span className="text-xl font-bold tracking-tight">Black Leo Venture</span>
+            </div>
+            <div className="hidden md:flex items-center space-x-8">
+              <a href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900">Sign In</a>
+              <button
+                onClick={() => router.push('/login')}
+                className="bg-black text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-gray-800 transition-colors"
+              >
+                Get Started
+              </button>
             </div>
           </div>
         </div>
+      </nav>
 
-        {/* Tab Navigation */}
-        <div className="flex bg-white/5 rounded-lg p-1 mb-6">
-          <button
-            onClick={() => setActiveTab("client")}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-              activeTab === "client"
-                ? "bg-blue-600 text-white shadow-lg"
-                : "text-gray-300 hover:text-white hover:bg-white/10"
-            }`}
-            data-testid="client-tab"
-          >
-            <User className="w-4 h-4" />
-            Client Area
-          </button>
-          <button
-            onClick={() => setActiveTab("member")}
-            className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-              activeTab === "member"
-                ? "bg-purple-600 text-white shadow-lg"
-                : "text-gray-300 hover:text-white hover:bg-white/10"
-            }`}
-            data-testid="member-tab"
-          >
-            <Shield className="w-4 h-4" />
-            Member Area
-          </button>
-        </div>
+      <main>
+        {/* Hero Section */}
+        <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 text-blue-700 text-sm font-medium mb-8">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+            </span>
+            Now supporting 500+ deals
+          </div>
 
-        {/* Client Area Tab */}
-        {activeTab === "client" && (
-          <div className="space-y-6" data-testid="client-area">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-white mb-2">
-                Client Sign In
-              </h2>
-              <p className="text-gray-300 text-sm mb-6">
-                Access your client dashboard with Google
-              </p>
-            </div>
+          <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-gray-900 mb-6" data-testid="text-hero-title">
+            Connect Founders with Investors <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Through AI Intelligence</span>
+          </h1>
 
+          <p className="text-xl text-gray-600 mb-10 max-w-3xl mx-auto leading-relaxed" data-testid="text-hero-subtitle">
+            Streamline your investment process with automated pitch deck analysis, intelligent scoring, and actionable insights powered by cutting-edge AI technology.
+          </p>
+
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
             <button
-              onClick={handleGoogleLogin}
-              disabled={isLoggingIn}
-              className="w-full bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black font-semibold py-4 px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:scale-105 transform"
-              data-testid="google-signin-btn"
+              className="flex items-center justify-center gap-2 px-8 py-4 bg-black text-white rounded-xl font-semibold text-lg hover:bg-gray-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 w-full sm:w-auto"
+              onClick={() => handleNavigation('founder')}
+              disabled={loading}
+              data-testid="button-login-founder"
             >
-              {isLoggingIn ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-              )}
-              {isLoggingIn ? "Signing in..." : "Sign in with Google"}
+              <Rocket size={20} />
+              Get Started as Founder
+            </button>
+            <button
+              className="flex items-center justify-center gap-2 px-8 py-4 bg-white text-gray-900 border-2 border-gray-200 rounded-xl font-semibold text-lg hover:border-gray-300 hover:bg-gray-50 transition-all w-full sm:w-auto"
+              onClick={() => handleNavigation('investor')}
+              disabled={loading}
+              data-testid="button-login-investor"
+            >
+              <Briefcase size={20} />
+              Join as Investor
             </button>
           </div>
-        )}
 
-        {/* Member Area Tab */}
-        {activeTab === "member" && (
-          <div className="space-y-6" data-testid="member-area">
-            <div className="text-center">
-              <h2 className="text-xl font-semibold text-white mb-2">
-                Member Sign In
-              </h2>
-              <p className="text-gray-300 text-sm mb-6">
-                Team members and administrators only
-              </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto border-t border-gray-100 pt-12">
+            <div className="flex flex-col items-center p-4" data-testid="badge-deals">
+              <div className="text-3xl font-bold text-gray-900 mb-1">500+</div>
+              <div className="text-sm text-gray-500 font-medium uppercase tracking-wide">Deals Analyzed</div>
             </div>
-
-            <form onSubmit={handleEmailLogin} className="space-y-4">
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="email"
-                  placeholder="Email address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-                  required
-                  data-testid="email-input"
-                />
-              </div>
-
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
-                  required
-                  data-testid="password-input"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoggingIn || !email || !password}
-                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:scale-105 transform"
-                data-testid="member-signin-btn"
-              >
-                {isLoggingIn ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Shield className="w-5 h-5" />
-                )}
-                {isLoggingIn ? "Signing in..." : "Sign In"}
-              </button>
-            </form>
-
-            <div className="text-center">
-              <p className="text-xs text-gray-400">
-                Only admin and subadmin accounts can access this area
-              </p>
+            <div className="flex flex-col items-center p-4 border-l-0 md:border-l border-gray-100" data-testid="badge-accuracy">
+              <div className="text-3xl font-bold text-gray-900 mb-1">98%</div>
+              <div className="text-sm text-gray-500 font-medium uppercase tracking-wide">Analysis Accuracy</div>
+            </div>
+            <div className="flex flex-col items-center p-4 border-l-0 md:border-l border-gray-100" data-testid="badge-time">
+              <div className="text-3xl font-bold text-gray-900 mb-1">60s</div>
+              <div className="text-sm text-gray-500 font-medium uppercase tracking-wide">Avg. Analysis Time</div>
             </div>
           </div>
-        )}
+        </section>
 
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-xs text-gray-400">
-            By signing in, you agree to our Terms of Service and Privacy Policy
-          </p>
-          <p className="text-xs text-gray-500 mt-2">
-            Having trouble? Contact support for assistance
-          </p>
+        {/* Features Section */}
+        <section className="py-24 bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" data-testid="text-features-title">
+                Powerful Features for Modern Investors
+              </h2>
+              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+                Everything you need to make data-driven investment decisions
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              {[
+                {
+                  icon: <BarChart3 className="text-blue-600" size={24} />,
+                  title: "AI-Powered Analysis",
+                  description: "Comprehensive evaluation across 10 critical investment criteria including market size, traction, team strength, and competitive advantage."
+                },
+                {
+                  icon: <Zap className="text-amber-500" size={24} />,
+                  title: "Instant Insights",
+                  description: "Get AI-generated summaries, recommended investment actions, and intelligent questions to ask founders in seconds."
+                },
+                {
+                  icon: <Target className="text-red-500" size={24} />,
+                  title: "Smart Scoring System",
+                  description: "Objective 0-100 scoring with detailed breakdowns helping you make data-driven investment decisions with confidence."
+                },
+                {
+                  icon: <TrendingUp className="text-green-600" size={24} />,
+                  title: "Deal Flow Management",
+                  description: "Track investor interest, monitor engagement metrics, and manage your entire pipeline in one centralized platform."
+                },
+                {
+                  icon: <Users className="text-purple-600" size={24} />,
+                  title: "Seamless Collaboration",
+                  description: "Connect founders and investors efficiently with structured data, eliminating endless email threads and missed opportunities."
+                },
+                {
+                  icon: <CheckCircle className="text-indigo-600" size={24} />,
+                  title: "Enterprise Security",
+                  description: "Bank-level encryption and secure file storage ensure your sensitive pitch decks and investment data remain protected."
+                }
+              ].map((feature, i) => (
+                <div key={i} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
+                  <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center mb-6">
+                    {feature.icon}
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-3">{feature.title}</h3>
+                  <p className="text-gray-600 leading-relaxed">
+                    {feature.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* How It Works Section */}
+        <section className="py-24 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-16 text-center" data-testid="text-how-it-works-title">
+              How It Works
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-12 relative">
+              <div className="hidden md:block absolute top-12 left-0 w-full h-0.5 bg-gradient-to-r from-gray-200 via-gray-200 to-transparent -z-10"></div>
+
+              {[
+                { number: "1", title: "Upload Deck", desc: "Founders upload their PDF pitch decks in seconds securely." },
+                { number: "2", title: "AI Analysis", desc: "Our engine analyzes your deck across 10 criteria in <60s." },
+                { number: "3", title: "Get Insights", desc: "Receive scores, summaries, and suggested user questions." },
+                { number: "4", title: "Connect", desc: "Make informed decisions and connect with the right opportunities." }
+              ].map((step, i) => (
+                <div key={i} className="flex flex-col items-center text-center group">
+                  <div className="w-16 h-16 bg-black text-white rounded-2xl flex items-center justify-center text-2xl font-bold mb-6 shadow-xl group-hover:scale-110 transition-transform">
+                    {step.number}
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-900 mb-3">{step.title}</h3>
+                  <p className="text-gray-600">{step.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* CTA Section */}
+        <section className="py-24 px-4">
+          <div className="max-w-5xl mx-auto bg-black rounded-3xl p-12 md:p-20 text-center text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+
+            <div className="relative z-10">
+              <h2 className="text-3xl sm:text-5xl font-bold mb-6" data-testid="text-cta-title">
+                Ready to Transform Your Deal Flow?
+              </h2>
+              <p className="text-xl text-gray-300 mb-10 max-w-2xl mx-auto" data-testid="text-cta-subtitle">
+                Join hundreds of investors and founders making smarter decisions with AI
+              </p>
+              <button
+                className="bg-white text-black px-10 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-colors shadow-xl"
+                onClick={() => router.push('/login')}
+                disabled={loading}
+                data-testid="button-cta-main"
+              >
+                Start Analyzing Deals Today
+              </button>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <footer className="bg-gray-50 py-12 border-t border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 text-center text-gray-500">
+          <p>&copy; {new Date().getFullYear()} Black Leo Venture. All rights reserved.</p>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }

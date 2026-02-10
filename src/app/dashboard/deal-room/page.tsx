@@ -1,0 +1,199 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Input, Select, Tag, Card, Row, Col, Typography, Spin, Empty, Button } from "antd";
+import { SearchOutlined, FilterOutlined, ArrowRightOutlined, EnvironmentOutlined, DollarOutlined } from "@ant-design/icons";
+import { auth } from "@/lib/firebase";
+
+const { Title, Text, Paragraph } = Typography;
+const { Search } = Input;
+const { Option } = Select;
+
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+
+interface Client {
+    id: string;
+    companyName: string;
+    founderName: string;
+    industry: string;
+    fundingStage: string;
+    description: string; // Assuming there is a description or bio
+    city: string;
+    investment: string; // Investment ask
+    logoUrl?: string; // If available
+    status: string;
+}
+
+export default function DealRoomDashboard() {
+    const router = useRouter();
+    const [loading, setLoading] = useState(true);
+    const [startups, setStartups] = useState<Client[]>([]);
+    const [filteredStartups, setFilteredStartups] = useState<Client[]>([]);
+    const [searchText, setSearchText] = useState("");
+    const [industryFilter, setIndustryFilter] = useState<string | null>(null);
+    const [stageFilter, setStageFilter] = useState<string | null>(null);
+
+    useEffect(() => {
+        fetchStartups();
+    }, []);
+
+    useEffect(() => {
+        filterStartups();
+    }, [searchText, industryFilter, stageFilter, startups]);
+
+    const fetchStartups = async () => {
+        setLoading(true);
+        try {
+            const user = auth.currentUser;
+            if (!user) {
+                // Handle unauthenticated state if needed, though middleware should catch this
+                return;
+            }
+            const token = await user.getIdToken();
+
+            const response = await fetch(`${API_BASE_URL}/clients`, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Filter only approved clients for investors
+                const approvedClients = (data.data || []).filter((client: Client) => client.status === "approved" || client.status === "active");
+                setStartups(approvedClients);
+            } else {
+                console.error("Failed to fetch startups");
+            }
+        } catch (error) {
+            console.error("Error fetching startups:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const filterStartups = () => {
+        let result = startups;
+
+        if (searchText) {
+            const lowerSearch = searchText.toLowerCase();
+            result = result.filter(
+                (s) =>
+                    s.companyName?.toLowerCase().includes(lowerSearch) ||
+                    s.founderName?.toLowerCase().includes(lowerSearch) ||
+                    s.industry?.toLowerCase().includes(lowerSearch)
+            );
+        }
+
+        if (industryFilter) {
+            result = result.filter((s) => s.industry === industryFilter);
+        }
+
+        if (stageFilter) {
+            result = result.filter((s) => s.fundingStage === stageFilter);
+        }
+
+        setFilteredStartups(result);
+    };
+
+    const uniqueIndustories = Array.from(new Set(startups.map((s) => s.industry).filter(Boolean)));
+    const uniqueStages = Array.from(new Set(startups.map((s) => s.fundingStage).filter(Boolean)));
+
+    return (
+        <div className="min-h-screen bg-gray-50 p-6">
+            <div className="max-w-7xl mx-auto">
+                <div className="mb-8">
+                    <Title level={2} style={{ marginBottom: 8 }}>Deal Room</Title>
+                    <Text type="secondary" style={{ fontSize: 16 }}>
+                        Curated investment opportunities for you.
+                    </Text>
+                </div>
+
+                {/* Filters */}
+                <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex flex-col md:flex-row gap-4 items-center">
+                    <Search
+                        placeholder="Search by company, founder, or keyword..."
+                        allowClear
+                        onChange={(e) => setSearchText(e.target.value)}
+                        style={{ width: '100%', maxWidth: 400 }}
+                        prefix={<SearchOutlined className="text-gray-400" />}
+                    />
+
+                    <Select
+                        placeholder="Filter by Industry"
+                        allowClear
+                        style={{ width: 200 }}
+                        onChange={setIndustryFilter}
+                    >
+                        {uniqueIndustories.map(ind => (
+                            <Option key={ind} value={ind}>{ind}</Option>
+                        ))}
+                    </Select>
+
+                    <Select
+                        placeholder="Funding Stage"
+                        allowClear
+                        style={{ width: 200 }}
+                        onChange={setStageFilter}
+                    >
+                        {uniqueStages.map(stage => (
+                            <Option key={stage} value={stage}>{stage}</Option>
+                        ))}
+                    </Select>
+                </div>
+
+                {/* Content */}
+                {loading ? (
+                    <div className="flex justify-center items-center h-64">
+                        <Spin size="large" tip="Loading opportunities..." />
+                    </div>
+                ) : filteredStartups.length > 0 ? (
+                    <Row gutter={[24, 24]}>
+                        {filteredStartups.map((startup) => (
+                            <Col xs={24} sm={12} lg={8} key={startup.id}>
+                                <Card
+                                    hoverable
+                                    className="h-full flex flex-col"
+                                    bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}
+                                    onClick={() => router.push(`/deal/${startup.id}`)}
+                                >
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div>
+                                            <Title level={4} style={{ marginBottom: 4 }}>{startup.companyName}</Title>
+                                            <Text type="secondary" className="text-xs uppercase tracking-wide">{startup.industry}</Text>
+                                        </div>
+                                        {startup.fundingStage && (
+                                            <Tag color="blue">{startup.fundingStage}</Tag>
+                                        )}
+                                    </div>
+
+                                    <Paragraph ellipsis={{ rows: 3 }} className="text-gray-600 mb-4 flex-grow">
+                                        {startup.description || "No description provided."}
+                                    </Paragraph>
+
+                                    <div className="mt-auto space-y-3">
+                                        <div className="flex items-center text-gray-500 text-sm">
+                                            <EnvironmentOutlined className="mr-2" /> {startup.city || "Remote"}
+                                        </div>
+                                        {startup.investment && (
+                                            <div className="flex items-center text-gray-900 font-medium">
+                                                <DollarOutlined className="mr-2 text-green-600" /> Ask: {startup.investment}
+                                            </div>
+                                        )}
+
+                                        <Button type="primary" block className="mt-4 flex items-center justify-center bg-black hover:bg-gray-800 border-black">
+                                            View Deal <ArrowRightOutlined className="ml-2" />
+                                        </Button>
+                                    </div>
+                                </Card>
+                            </Col>
+                        ))}
+                    </Row>
+                ) : (
+                    <Empty description="No startups found matching your criteria." />
+                )}
+            </div>
+        </div>
+    );
+}

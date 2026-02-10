@@ -19,7 +19,7 @@ interface UserData {
   uid: string;
   email: string;
   displayName: string;
-  role: "client" | "admin" | "subadmin";
+  role: "client" | "admin" | "subadmin" | "investor";
   photoURL?: string;
   active?: boolean;
   createdAt: any;
@@ -101,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const createOrUpdateUser = async (
     user: User,
-    role?: "client" | "admin" | "subadmin"
+    role?: "client" | "admin" | "subadmin" | "investor"
   ) => {
     try {
       const userDocRef = doc(db, "users", user.uid);
@@ -206,7 +206,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error("User data not found");
       }
 
-      if (data.role !== "admin" && data.role !== "subadmin") {
+      if (data.role !== "admin" && data.role !== "subadmin" && data.role !== "investor") {
         await signOut(auth);
         deleteCookie("userRole");
         message.error("Access denied. This area is for team members only.");

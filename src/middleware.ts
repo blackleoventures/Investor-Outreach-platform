@@ -19,7 +19,7 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith("/dashboard")) {
     const userRole = request.cookies.get("userRole")?.value;
 
-   // console.log("Middleware - Path:", pathname, "Role:", userRole);
+    // console.log("Middleware - Path:", pathname, "Role:", userRole);
 
     if (!userRole) {
       // console.log("No role found, allowing access (will check on client side)");
@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
       // Block access to main dashboard
       if (pathname === "/dashboard") {
         // console.log(
-         //   "Client blocked from main dashboard - Redirecting to submit-information"
+        //   "Client blocked from main dashboard - Redirecting to submit-information"
         // );
         const url = new URL("/dashboard/submit-information", request.url);
         return NextResponse.redirect(url);
@@ -54,13 +54,33 @@ export async function middleware(request: NextRequest) {
       }
     }
 
+    // Investor restrictions
+    if (userRole === "investor") {
+      // Investor can ONLY access /dashboard/deal-room
+      // Block access to main dashboard
+      if (pathname === "/dashboard") {
+        const url = new URL("/dashboard/deal-room", request.url);
+        return NextResponse.redirect(url);
+      }
+
+      // Allow deal-room
+      const isDealRoom =
+        pathname === "/dashboard/deal-room" ||
+        pathname.startsWith("/dashboard/deal-room/");
+
+      if (!isDealRoom) {
+        const url = new URL("/dashboard/deal-room", request.url);
+        return NextResponse.redirect(url);
+      }
+    }
+
     // Subadmin cannot access account-management
     if (userRole === "subadmin") {
       if (
         pathname === "/dashboard/account-management" ||
         pathname.startsWith("/dashboard/account-management/")
       ) {
-      // console.log("Subadmin blocked from account-management");
+        // console.log("Subadmin blocked from account-management");
         const url = new URL("/dashboard", request.url);
         return NextResponse.redirect(url);
       }
