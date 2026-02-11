@@ -57,17 +57,6 @@ export async function GET(
       return NextResponse.json(errorResponse, { status: 404 });
     }
 
-    // Safety check for investors: must have dealRoomPermission
-    if (user.role === "investor" && !client.dealRoomPermission) {
-      const errorResponse: ApiResponse = {
-        success: false,
-        error: {
-          code: ErrorCode.ACCESS_DENIED,
-          message: "You do not have permission to view this profile.",
-        },
-      };
-      return NextResponse.json(errorResponse, { status: 403 });
-    }
 
     const emailConfig = client.clientInformation?.emailConfiguration;
 

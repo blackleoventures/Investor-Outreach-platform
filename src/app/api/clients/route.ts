@@ -36,13 +36,9 @@ export async function GET(request: NextRequest) {
     let clients: ClientDocument[];
 
     if (user.role === "investor") {
-      // Investors only see approved/active clients with dealRoomPermission
+      // Investors only see approved/active clients
       // Skip server-side sorting to avoid requiring a composite index
-      clients = (await dbHelpers.getAll("clients", {
-        filters: {
-          dealRoomPermission: true,
-        },
-      })) as ClientDocument[];
+      clients = (await dbHelpers.getAll("clients")) as ClientDocument[];
 
       // Sort in memory by createdAt desc
       clients.sort((a, b) => {
@@ -52,7 +48,9 @@ export async function GET(request: NextRequest) {
       });
 
       // Secondary safety filter for status
-      clients = clients.filter(c => c.status === "approved" || c.status === "active");
+      clients = clients.filter(
+        (c) => c.status === "approved" || c.status === "active"
+      );
     } else {
       // Admins/Subadmins see everything
       clients = (await dbHelpers.getAll("clients", {

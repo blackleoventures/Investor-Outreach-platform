@@ -26,68 +26,6 @@ interface Client {
     dealRoomPermission?: boolean; // Added
 }
 
-const DUMMY_STARTUPS: Client[] = [
-    {
-        id: "dummy-1",
-        companyName: "Nexus AI",
-        founderName: "Sarah Chen",
-        industry: "Artificial Intelligence",
-        fundingStage: "Seed",
-        description: "Building next-generation autonomous agents for enterprise workflow optimization.",
-        city: "San Francisco",
-        investment: "$1.5M",
-        status: "active",
-        dealRoomPermission: true
-    },
-    {
-        id: "dummy-2",
-        companyName: "GreenGrid",
-        founderName: "Michael Rivera",
-        industry: "CleanTech",
-        fundingStage: "Series A",
-        description: "Smart battery management systems for residential energy storage.",
-        city: "Austin",
-        investment: "$5M",
-        status: "active",
-        dealRoomPermission: true
-    },
-    {
-        id: "dummy-3",
-        companyName: "BioFlow",
-        founderName: "Dr. Elena Rossi",
-        industry: "Healthcare",
-        fundingStage: "Pre-seed",
-        description: "Microfluidic devices for rapid diagnostic testing in rural areas.",
-        city: "Boston",
-        investment: "$500K",
-        status: "approved",
-        dealRoomPermission: true
-    },
-    {
-        id: "dummy-4",
-        companyName: "FinScale",
-        founderName: "James Wilson",
-        industry: "FinTech",
-        fundingStage: "Seed",
-        description: "Scalable payment infrastructure for cross-border e-commerce in Southeast Asia.",
-        city: "Singapore",
-        investment: "$2M",
-        status: "active",
-        dealRoomPermission: true
-    },
-    {
-        id: "dummy-5",
-        companyName: "Omnicart",
-        founderName: "Anya Gupta",
-        industry: "E-commerce",
-        fundingStage: "Series B",
-        description: "Unified commerce platform for omnichannel retailers.",
-        city: "Bangalore",
-        investment: "$12M",
-        status: "active",
-        dealRoomPermission: true
-    }
-];
 
 export default function DealRoomDashboard() {
     const router = useRouter();
@@ -112,9 +50,7 @@ export default function DealRoomDashboard() {
         try {
             const user = auth.currentUser;
             if (!user) {
-                // For development/demo: if no user is signed in, show dummy data
-                setStartups(DUMMY_STARTUPS);
-                setLoading(false);
+                router.push("/login");
                 return;
             }
             const token = await user.getIdToken();
@@ -127,25 +63,14 @@ export default function DealRoomDashboard() {
 
             if (response.ok) {
                 const data = await response.json();
-                // Filter: Approved AND Deal Room Permission Permission
-                const approvedClients = (data.data || []).filter((client: Client) =>
-                    (client.status === "approved" || client.status === "active") &&
-                    client.dealRoomPermission === true
-                );
-
-                // If no real data, use dummy data
-                if (approvedClients.length === 0) {
-                    setStartups(DUMMY_STARTUPS);
-                } else {
-                    setStartups(approvedClients);
-                }
+                setStartups(data.data || []);
             } else {
-                console.error("Failed to fetch startups, using dummy data");
-                setStartups(DUMMY_STARTUPS);
+                console.error("Failed to fetch startups");
+                setStartups([]);
             }
         } catch (error) {
-            console.error("Error fetching startups, using dummy data:", error);
-            setStartups(DUMMY_STARTUPS);
+            console.error("Error fetching startups:", error);
+            setStartups([]);
         } finally {
             setLoading(false);
         }
