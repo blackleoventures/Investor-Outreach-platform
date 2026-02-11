@@ -143,6 +143,7 @@ export interface ClientDocument {
   reviewedAt: string | null;
   reviewNotes: string | null;
   rejectionReason: string | null;
+  dealRoomPermission?: boolean;
 
   // Admin metadata (optional, only if created by admin)
   adminMetadata?: AdminMetadata;
@@ -188,8 +189,9 @@ export interface TransformedClient {
   smtpPort: number;
   smtpSecurity: "TLS" | "SSL" | "None";
   smtpTestStatus: "pending" | "passed" | "failed";
-//  gmailAppPassword?: string;
+  //  gmailAppPassword?: string;
   dailyEmailLimit: number;
+  dealRoomPermission?: boolean;
 
   // Nested data
   pitchAnalyses: PitchAnalysis[];

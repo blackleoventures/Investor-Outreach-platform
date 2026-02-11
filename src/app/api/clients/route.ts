@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   verifyFirebaseToken,
   verifyAdminOrSubadmin,
+  verifyRole,
+  AuthenticationError,
   createAuthErrorResponse,
 } from "@/lib/auth-middleware";
 import { dbHelpers } from "@/lib/db-helpers";
@@ -16,14 +18,48 @@ import {
 export async function GET(request: NextRequest) {
   try {
     const user = await verifyFirebaseToken(request);
-    verifyAdminOrSubadmin(user);
 
-    console.log("[Get All Clients] Fetching all client submissions");
+    // Allow admin, subadmin, and active investors
+    verifyRole(user, ["admin", "subadmin", "investor"]);
 
-    const clients = (await dbHelpers.getAll("clients", {
-      sortBy: "createdAt",
-      sortOrder: "desc",
-    })) as ClientDocument[];
+    // Additional check for investors: must be active
+    if (user.role === "investor" && user.active === false) {
+      throw new AuthenticationError(
+        "Your account is inactive. Please contact support.",
+        "ACCOUNT_DISABLED",
+        403
+      );
+    }
+
+    console.log(`[Get All Clients] Fetching for role: ${user.role}`);
+
+    let clients: ClientDocument[];
+
+    if (user.role === "investor") {
+      // Investors only see approved/active clients with dealRoomPermission
+      // Skip server-side sorting to avoid requiring a composite index
+      clients = (await dbHelpers.getAll("clients", {
+        filters: {
+          dealRoomPermission: true,
+        },
+      })) as ClientDocument[];
+
+      // Sort in memory by createdAt desc
+      clients.sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+
+      // Secondary safety filter for status
+      clients = clients.filter(c => c.status === "approved" || c.status === "active");
+    } else {
+      // Admins/Subadmins see everything
+      clients = (await dbHelpers.getAll("clients", {
+        sortBy: "createdAt",
+        sortOrder: "desc",
+      })) as ClientDocument[];
+    }
 
     console.log(`[Get All Clients] Found ${clients.length} clients`);
 
@@ -71,6 +107,7 @@ export async function GET(request: NextRequest) {
           archived: client.archived || false,
           createdAt: client.createdAt,
           updatedAt: client.updatedAt,
+          dealRoomPermission: client.dealRoomPermission || false,
         };
       }
     );

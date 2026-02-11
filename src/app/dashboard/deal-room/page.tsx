@@ -201,7 +201,7 @@ export default function DealRoomDashboard() {
                                         )}
 
                                         <Button type="primary" block className="mt-4 flex items-center justify-center bg-black hover:bg-gray-800 border-black">
-                                            View Deal <ArrowRightOutlined className="ml-2" />
+                                            View Profile <ArrowRightOutlined className="ml-2" />
                                         </Button>
                                     </div>
                                 </Card>
