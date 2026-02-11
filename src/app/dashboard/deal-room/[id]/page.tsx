@@ -34,88 +34,6 @@ const { Title, Text, Paragraph } = Typography;
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-const DUMMY_STARTUPS: any[] = [
-    {
-        id: "dummy-1",
-        companyName: "Nexus AI",
-        founderName: "Sarah Chen",
-        industry: "Artificial Intelligence",
-        fundingStage: "Seed",
-        city: "San Francisco",
-        revenue: "$1.5M ARR",
-        investment: "$1.5M",
-        email: "sarah@nexusai.io",
-        phone: "+1 (555) 123-4567",
-        pitchDeckFileUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-        pitchDeckFileName: "Nexus_AI_Pitch_Deck.pdf",
-        dealRoomPermission: true,
-        status: "active",
-    },
-    {
-        id: "dummy-2",
-        companyName: "GreenGrid",
-        founderName: "Michael Rivera",
-        industry: "CleanTech",
-        fundingStage: "Series A",
-        city: "Austin",
-        revenue: "$1.2M ARR",
-        investment: "$5M",
-        email: "michael@greengrid.com",
-        phone: "+1 (555) 987-6543",
-        pitchDeckFileUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-        pitchDeckFileName: "GreenGrid_SeriesA_Deck.pdf",
-        dealRoomPermission: true,
-        status: "active",
-    },
-    {
-        id: "dummy-3",
-        companyName: "BioFlow",
-        founderName: "Dr. Elena Rossi",
-        industry: "Healthcare",
-        fundingStage: "Pre-seed",
-        city: "Boston",
-        revenue: "$15k ARR",
-        investment: "$500K",
-        email: "elena@bioflow.med",
-        phone: "+1 (555) 555-0000",
-        pitchDeckFileUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-        pitchDeckFileName: "BioFlow_Introduction.pdf",
-        dealRoomPermission: true,
-        status: "approved",
-    },
-    {
-        id: "dummy-4",
-        companyName: "FinScale",
-        founderName: "James Wilson",
-        industry: "FinTech",
-        fundingStage: "Seed",
-        city: "Singapore",
-        revenue: "$500k ARR",
-        investment: "$2M",
-        email: "james@finscale.sg",
-        phone: "+65 6789 0123",
-        pitchDeckFileUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-        pitchDeckFileName: "FinScale_Deck.pdf",
-        dealRoomPermission: true,
-        status: "active",
-    },
-    {
-        id: "dummy-5",
-        companyName: "Omnicart",
-        founderName: "Anya Gupta",
-        industry: "E-commerce",
-        fundingStage: "Series B",
-        city: "Bangalore",
-        revenue: "$1.5M ARR",
-        investment: "$12M",
-        email: "anya@omnicart.in",
-        phone: "+91 80 1234 5678",
-        pitchDeckFileUrl: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
-        pitchDeckFileName: "Omnicart_Growth_Deck.pdf",
-        dealRoomPermission: true,
-        status: "active",
-    }
-];
 
 export default function FounderProfilePage() {
     const router = useRouter();
@@ -138,13 +56,6 @@ export default function FounderProfilePage() {
         try {
             const user = auth.currentUser;
             if (!user) {
-                // Check if it's a dummy startup
-                const dummy = DUMMY_STARTUPS.find(s => s.id === id);
-                if (dummy) {
-                    setClient(dummy as any);
-                    setLoading(false);
-                    return;
-                }
                 message.error("Please sign in to view this profile.");
                 router.push("/dashboard/deal-room");
                 return;
@@ -161,84 +72,31 @@ export default function FounderProfilePage() {
                 const data = await response.json() as ApiResponse<TransformedClient>;
                 if (data.success && data.data) {
                     setClient(data.data);
-                    // Analysis is now fetched on-demand via handleAIAnalyze
                 } else {
-                    handleFetchError();
+                    message.error("Failed to load founder profile");
+                    router.push("/dashboard/deal-room");
                 }
             } else {
-                handleFetchError();
+                message.error("Failed to load founder profile");
+                router.push("/dashboard/deal-room");
             }
         } catch (error) {
             console.error("Error fetching client details:", error);
-            handleFetchError();
+            message.error("Failed to load founder profile");
+            router.push("/dashboard/deal-room");
         } finally {
             setLoading(false);
         }
     };
 
-    const handleFetchError = () => {
-        const dummy = DUMMY_STARTUPS.find(s => s.id === id);
-        if (dummy) {
-            setClient(dummy as any);
-        } else {
-            message.error("Failed to load founder profile");
-            router.push("/dashboard/deal-room");
-        }
-    };
-
     const handleAIAnalyze = async () => {
-        if (!client?.pitchDeckFileUrl) {
-            message.warning("No pitch deck available for analysis.");
-            return;
-        }
-
         setAnalyzing(true);
         try {
-            // Check for dummy startup first
-            const dummy = DUMMY_STARTUPS.find(s => s.id === id);
-            if (dummy) {
-                setTimeout(() => {
-                    const mockAnalysis: PitchAnalysis = {
-                        summary: {
-                            problem: "Lack of efficient cross-border payment solutions.",
-                            solution: "AI-powered liquidity management and settlement.",
-                            market: "Global B2B payments market ($150T).",
-                            traction: "Pilot programs with 5 regional banks.",
-                            status: "GREEN",
-                            total_score: 85
-                        },
-                        scorecard: {
-                            "Problem & Solution Fit": 9,
-                            "Market Size & Opportunity": 8,
-                            "Business Model": 8,
-                            "Traction & Metrics": 8,
-                            Team: 9,
-                            "Competitive Advantage": 8,
-                            "Go-To-Market Strategy": 7,
-                            "Financials & Ask": 8,
-                            "Exit Potential": 7,
-                            "Alignment with Investor": 8
-                        },
-                        highlights: [
-                            "Strong market positioning in the B2B liquidity space.",
-                            "Scalable business model with high recurring revenue potential.",
-                            "Proven technical team with deep sector expertise."
-                        ],
-                        suggested_questions: [
-                            "How do you handle local currency fluctuations?",
-                            "What is your customer acquisition cost?",
-                            "How do you ensure regulatory compliance?"
-                        ]
-                    };
-                    setLatestAnalysis(mockAnalysis);
-                    setAnalyzing(false);
-                    message.success("Analysis retrieved successfully.");
-                }, 1500);
+            const user = auth.currentUser;
+            if (!user) {
+                message.error("Please sign in to analyze the deck.");
                 return;
             }
-
-            const user = auth.currentUser;
-            if (!user) return;
             const token = await user.getIdToken();
 
             message.info("Retrieving AI analysis...");
@@ -437,13 +295,12 @@ export default function FounderProfilePage() {
                                     loading={analyzing}
                                     onClick={handleAIAnalyze}
                                     className="bg-black hover:bg-gray-800 border-black h-10 px-6"
-                                    disabled={!client.pitchDeckFileUrl}
                                 >
-                                    {latestAnalysis ? "Re-analyze Deck" : "AI Analyze Deck"}
+                                    {analyzing ? "Loading..." : "AI Analyze Deck"}
                                 </Button>
                             </div>
 
-                            {latestAnalysis ? (
+                            {latestAnalysis && (
                                 <div className="space-y-8 animate-in fade-in duration-500">
                                     {/* Score Overview */}
                                     <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
@@ -495,31 +352,38 @@ export default function FounderProfilePage() {
                                     </div>
 
                                     {/* Highlights */}
-                                    <Card bg-gray-50 bordered={false} className="bg-blue-50 border-blue-100">
+                                    <div className="mb-6">
                                         <Title level={5} className="mb-3">Key Highlights</Title>
-                                        <ul className="space-y-2 pl-4 m-0">
-                                            {latestAnalysis.highlights.slice(0, 3).map((h, i) => (
-                                                <li key={i} className="text-sm text-blue-800">
-                                                    <Space align="start">
-                                                        <span className="text-blue-400">•</span>
-                                                        {h}
-                                                    </Space>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </Card>
-                                </div>
-                            ) : (
-                                <div className="py-20 text-center border-2 border-dashed border-gray-100 rounded-xl">
-                                    <Empty
-                                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                                        description={
-                                            <Space direction="vertical" size={4}>
-                                                <Text type="secondary">No analysis data available yet.</Text>
-                                                <Text type="secondary" className="text-xs">Click the button above to generate AI insights.</Text>
-                                            </Space>
-                                        }
-                                    />
+                                        <Card bg-gray-50 bordered={false} className="bg-blue-50 border-blue-100">
+                                            <ul className="space-y-2 pl-4 m-0">
+                                                {(latestAnalysis.highlights || []).slice(0, 3).map((h: string, i: number) => (
+                                                    <li key={i} className="text-sm text-blue-800">
+                                                        <Space align="start">
+                                                            <span className="text-blue-400">•</span>
+                                                            {h}
+                                                        </Space>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </Card>
+                                    </div>
+
+                                    {/* Suggested Questions */}
+                                    {latestAnalysis.suggested_questions && latestAnalysis.suggested_questions.length > 0 && (
+                                        <div>
+                                            <Title level={5} className="mb-3">Suggested Questions for Founder</Title>
+                                            <div className="space-y-3">
+                                                {latestAnalysis.suggested_questions.map((q: string, i: number) => (
+                                                    <div key={i} className="p-3 bg-gray-50 border border-gray-100 rounded-lg flex gap-3 items-start">
+                                                        <div className="bg-black text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] shrink-0 mt-0.5">
+                                                            {i + 1}
+                                                        </div>
+                                                        <Text className="text-sm italic text-gray-700">"{q}"</Text>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </Card>
@@ -536,6 +400,6 @@ export default function FounderProfilePage() {
                     font-weight: 700 !important;
                 }
             `}</style>
-        </div>
+        </div >
     );
 }

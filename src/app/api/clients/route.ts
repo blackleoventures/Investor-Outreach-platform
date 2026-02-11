@@ -106,6 +106,8 @@ export async function GET(request: NextRequest) {
           createdAt: client.createdAt,
           updatedAt: client.updatedAt,
           dealRoomPermission: client.dealRoomPermission || false,
+          pitchDeckFileName: client.pitchDeckFileName || "",
+          pitchDeckFileUrl: client.pitchDeckFileUrl || "",
         };
       }
     );

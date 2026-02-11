@@ -84,6 +84,7 @@ export async function GET(
             summary: analysis.summary,
             scorecard: analysis.scorecard,
             suggested_questions: analysis.suggested_questions || [],
+            highlights: analysis.highlights || [],
         };
 
         const response: ApiResponse<any> = {
