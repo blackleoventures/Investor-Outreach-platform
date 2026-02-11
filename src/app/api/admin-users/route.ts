@@ -25,13 +25,29 @@ export async function GET(request: NextRequest) {
 
     const usersSnapshot = await adminDb
       .collection("users")
-      .where("role", "in", ["admin", "subadmin"])
+      .where("role", "in", ["admin", "subadmin", "investor"])
       .get();
 
     const users: AdminUser[] = [];
-    usersSnapshot.forEach((doc) => {
-      users.push({ uid: doc.id, ...doc.data() } as AdminUser);
-    });
+    for (const doc of usersSnapshot.docs) {
+      const data = doc.data() as AdminUser;
+      if (data.role === "investor") {
+        const investorDoc = await adminDb.collection("investors").doc(doc.id).get();
+        if (investorDoc.exists) {
+          const investorData = investorDoc.data();
+          data.firmName = investorData?.firmName;
+          data.secureAccessToken = investorData?.secureAccessToken;
+          if (!data.createdAt && investorData?.createdAt) {
+            data.createdAt = investorData.createdAt;
+          }
+        }
+      }
+      users.push({
+        ...data,
+        uid: doc.id,
+        active: data.active !== false // Ensure active boolean is present for UI
+      });
+    }
 
     console.log(`[Admin Users] Found ${users.length} admin users`);
 
@@ -43,7 +59,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(response);
   } catch (error: any) {
-    console.error("[Admin Users] Error fetching admin users:", error.message);
+    console.error("[Admin Users] DETAILED ERROR:", error);
+    console.error("[Admin Users] Error stack:", error.stack);
 
     if (error.name === "AuthenticationError") {
       return createAuthErrorResponse(error);
@@ -51,7 +68,7 @@ export async function GET(request: NextRequest) {
 
     const errorResponse: AdminUserApiResponse = {
       success: false,
-      message: "Unable to retrieve admin users. Please try again.",
+      message: `Unable to retrieve admin users: ${error.message || "Internal Server Error"}`,
     };
 
     return NextResponse.json(errorResponse, { status: 500 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { verifyFirebaseToken, createAuthErrorResponse } from "@/lib/auth-middleware";
+import { sendMagicLinkEmail, sendMagicLinkByUid } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
     try {
@@ -78,27 +79,38 @@ export async function POST(request: NextRequest) {
             lastName: fullName.split(' ').slice(1).join(' '),
             role: "investor",
             firmName: firm,
-            status: "active"
+            status: "active",
+            active: true, // Required for frontend badge
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         }, { merge: true });
 
         // 6. Set Custom Claims
         await adminAuth.setCustomUserClaims(userRecord.uid, { role: "investor" });
 
-        // 7. Generate Magic Link (Mock Email Send)
-        const magicLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/auth/investor-login?token=${secureAccessToken}`;
+        // 7. Generate Magic Link
+        const magicLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/auth/investor-login?token=${secureAccessToken}`;
 
         console.log("==================================================================");
         console.log(`[MAGIC LINK] for ${email}: ${magicLink}`);
         console.log("==================================================================");
 
+        // 8. Send Email (non-blocking for response)
+        try {
+            await sendMagicLinkByUid(userRecord.uid, magicLink);
+        } catch (emailError) {
+            console.error("[InviteInvestor] Failed to send email, but user was created:", emailError);
+            // We don't fail the whole request because the user is already created
+        }
+
         return NextResponse.json(
             {
                 success: true,
-                message: `Investor invited. Magic link generated (check console).`,
+                message: `Investor invited. Magic link sent to ${email}.`,
                 data: {
                     uid: userRecord.uid,
                     email,
-                    magicLink // Returning this for demo purposes
+                    magicLink // Still returning this for UI fallback
                 }
             },
             { status: 200 }

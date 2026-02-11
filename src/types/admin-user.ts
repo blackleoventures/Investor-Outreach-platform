@@ -1,7 +1,7 @@
 /**
  * User roles
  */
-export type UserRole = "admin" | "subadmin" | "client";
+export type UserRole = "admin" | "subadmin" | "client" | "investor";
 
 /**
  * Admin User structure
@@ -17,6 +17,8 @@ export interface AdminUser {
   createdAt: string;
   lastLogin?: string | null;
   updatedAt?: string;
+  firmName?: string;
+  secureAccessToken?: string;
 }
 
 /**

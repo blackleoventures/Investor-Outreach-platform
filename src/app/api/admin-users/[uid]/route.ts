@@ -55,11 +55,11 @@ export async function PUT(
 
     const userData = userDoc.data() as AdminUser;
 
-    if (userData.role !== "admin" && userData.role !== "subadmin") {
+    if (userData.role !== "admin" && userData.role !== "subadmin" && userData.role !== "investor") {
       return NextResponse.json(
         {
           success: false,
-          message: "Cannot modify non-admin user accounts.",
+          message: "Cannot modify this user account.",
         },
         { status: 403 }
       );

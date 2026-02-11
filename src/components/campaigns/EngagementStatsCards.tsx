@@ -227,8 +227,8 @@ export default function EngagementStatsCards({
               value={
                 summary.totalRecipients > 0
                   ? Math.round(
-                      (summary.totalOpeners / summary.totalRecipients) * 100
-                    )
+                    (summary.totalOpeners / summary.totalRecipients) * 100
+                  )
                   : 0
               }
               suffix="%"
@@ -241,15 +241,15 @@ export default function EngagementStatsCards({
                   summary.totalOpeners / summary.totalRecipients >= 0.3
                     ? "success"
                     : summary.totalOpeners / summary.totalRecipients >= 0.15
-                    ? "warning"
-                    : "error"
+                      ? "warning"
+                      : "error"
                 }
                 text={
                   summary.totalOpeners / summary.totalRecipients >= 0.3
                     ? "Excellent"
                     : summary.totalOpeners / summary.totalRecipients >= 0.15
-                    ? "Good"
-                    : "Needs Improvement"
+                      ? "Good"
+                      : "Needs Improvement"
                 }
               />
             </div>
@@ -261,8 +261,8 @@ export default function EngagementStatsCards({
               value={
                 summary.totalRecipients > 0
                   ? Math.round(
-                      (summary.totalRepliers / summary.totalRecipients) * 100
-                    )
+                    (summary.totalRepliers / summary.totalRecipients) * 100
+                  )
                   : 0
               }
               suffix="%"
@@ -275,15 +275,15 @@ export default function EngagementStatsCards({
                   summary.totalRepliers / summary.totalRecipients >= 0.05
                     ? "success"
                     : summary.totalRepliers / summary.totalRecipients >= 0.02
-                    ? "warning"
-                    : "error"
+                      ? "warning"
+                      : "error"
                 }
                 text={
                   summary.totalRepliers / summary.totalRecipients >= 0.05
                     ? "Excellent"
                     : summary.totalRepliers / summary.totalRecipients >= 0.02
-                    ? "Good"
-                    : "Needs Improvement"
+                      ? "Good"
+                      : "Needs Improvement"
                 }
               />
             </div>
@@ -297,7 +297,7 @@ export default function EngagementStatsCards({
         campaignName={campaignName}
         openers={data.uniqueOpeners}
         repliers={data.uniqueRepliers}
-        onClose={() => setModalVisible(false)}
+        onCloseAction={() => setModalVisible(false)}
       />
     </>
   );

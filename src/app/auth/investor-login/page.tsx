@@ -1,120 +1,97 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithCustomToken } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { Spin, Result, Button, message } from "antd";
-import { LoadingOutlined, RocketTwoTone } from "@ant-design/icons";
-import { useAuth } from "@/contexts/AuthContext";
+import { LoadingOutlined } from "@ant-design/icons";
 
-
-function LoginProcess() {
+export default function InvestorLoginPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const token = searchParams.get("token");
+
     const [status, setStatus] = useState<"loading" | "error" | "success">("loading");
-    const [errorMsg, setErrorMsg] = useState("Verifying credentials...");
+    const [errorMessage, setErrorMessage] = useState("Verifying your access...");
 
-    // Check for existing session
-    const { currentUser, userData, loading } = useAuth();
-
-    // Effect 1: Handle Redirect if already logged in
     useEffect(() => {
-        if (!loading && currentUser && userData?.role === 'investor') {
-            router.push("/dashboard/deal-room");
-        }
-    }, [currentUser, userData, loading, router]);
-
-    // Effect 2: Handle Token Login
-    useEffect(() => {
-        // If loading or already logged in, wait or skip
-        if (loading || (currentUser && userData?.role === 'investor')) return;
-
         if (!token) {
             setStatus("error");
-            setErrorMsg("No invitation token found in URL.");
+            setErrorMessage("Invalid Link: No access token provided.");
             return;
         }
 
         const verifyAndLogin = async () => {
             try {
-                // 1. Verify token with backend
-                const res = await fetch("/api/auth/investor-login", {
+                // 1. Verify Token with Backend
+                const response = await fetch("/api/auth/verify-magic-link", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ token }),
                 });
 
-                const data = await res.json();
+                const data = await response.json();
 
-                if (!data.success) {
-                    throw new Error(data.error || "Login failed");
+                if (!response.ok) {
+                    throw new Error(data.error || "Verification failed");
                 }
 
-                // 2. Sign in with Custom Token
+                // 2. Sign in with Firebase Custom Token
                 await signInWithCustomToken(auth, data.customToken);
 
                 setStatus("success");
-                message.success("Welcome to the Deal Room!");
+                message.success("Login successful! Redirecting...");
 
-                // 3. Redirect
+                // 3. Redirect to Deal Room
                 setTimeout(() => {
                     router.push("/dashboard/deal-room");
                 }, 1500);
 
-            } catch (err: any) {
-                console.error("Login error:", err);
+            } catch (error: any) {
+                console.error("Login Error:", error);
                 setStatus("error");
-                setErrorMsg(err.message || "Authentication failed.");
+                setErrorMessage(error.message || "Failed to log you in. Please try again.");
             }
         };
 
         verifyAndLogin();
-    }, [token, router, loading, currentUser, userData]);
+    }, [token, router]);
 
-    if (status === "loading" || (currentUser && userData?.role === 'investor')) {
+    if (status === "loading") {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
+            <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 p-4">
                 <Spin indicator={<LoadingOutlined style={{ fontSize: 48 }} spin />} />
-                <h2 className="mt-6 text-xl font-medium text-gray-700">Accessing Deal Room...</h2>
-                <p className="text-gray-500">Verifying specific detailed information...</p>
+                <h2 className="mt-6 text-xl font-semibold text-gray-700">Accessing Deal Room...</h2>
+                <p className="text-gray-500">Verifying your secure invitation.</p>
             </div>
         );
     }
 
     if (status === "error") {
         return (
-            <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
-                <Result
-                    status="error"
-                    title="Access Denied"
-                    subTitle={errorMsg}
-                    extra={[
-                        <Button type="primary" key="home" onClick={() => router.push("/")}>
-                            Go to Home
-                        </Button>,
-                    ]}
-                />
+            <div className="flex min-h-screen items-center justify-center bg-gray-50 p-4">
+                <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-lg">
+                    <Result
+                        status="error"
+                        title="Access Denied"
+                        subTitle={errorMessage}
+                        extra={[
+                            <Button type="primary" key="home" onClick={() => router.push("/")}>
+                                Go Home
+                            </Button>,
+                        ]}
+                    />
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gray-50 p-4">
-            <Result
-                icon={<RocketTwoTone twoToneColor="#52c41a" />}
-                title="Access Granted!"
-                subTitle="Redirecting you to the Deal Room..."
-            />
+        <div className="flex min-h-screen flex-col items-center justify-center bg-green-50 p-4">
+            <Spin indicator={<LoadingOutlined style={{ fontSize: 48 }} spin />} />
+            <h2 className="mt-6 text-xl font-semibold text-green-700">Welcome Back!</h2>
+            <p className="text-gray-500">Redirecting to your dashboard...</p>
         </div>
     );
-}
-
-export default function InvestorLoginPage() {
-    return (
-        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
-            <LoginProcess />
-        </Suspense>
-    )
 }
