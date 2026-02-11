@@ -160,6 +160,9 @@ export interface ClientDocument {
   // Metadata
   ipAddress?: string;
   userAgent?: string;
+  pitchDeckFileName?: string;
+  pitchDeckFileUrl?: string;
+  pitchDeckFileSize?: number;
 }
 
 /**
@@ -192,6 +195,8 @@ export interface TransformedClient {
   //  gmailAppPassword?: string;
   dailyEmailLimit: number;
   dealRoomPermission?: boolean;
+  pitchDeckFileName?: string;
+  pitchDeckFileUrl?: string;
 
   // Nested data
   pitchAnalyses: PitchAnalysis[];
@@ -380,6 +385,7 @@ export interface ApiResponse<T = any> {
  */
 export enum ErrorCode {
   VALIDATION_ERROR = "VALIDATION_ERROR",
+  ACCESS_DENIED = "ACCESS_DENIED",
   DUPLICATE_EMAIL = "DUPLICATE_EMAIL",
   CLIENT_NOT_FOUND = "CLIENT_NOT_FOUND",
   UNAUTHORIZED = "UNAUTHORIZED",

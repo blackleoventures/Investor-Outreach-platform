@@ -26,6 +26,69 @@ interface Client {
     dealRoomPermission?: boolean; // Added
 }
 
+const DUMMY_STARTUPS: Client[] = [
+    {
+        id: "dummy-1",
+        companyName: "Nexus AI",
+        founderName: "Sarah Chen",
+        industry: "Artificial Intelligence",
+        fundingStage: "Seed",
+        description: "Building next-generation autonomous agents for enterprise workflow optimization.",
+        city: "San Francisco",
+        investment: "$1.5M",
+        status: "active",
+        dealRoomPermission: true
+    },
+    {
+        id: "dummy-2",
+        companyName: "GreenGrid",
+        founderName: "Michael Rivera",
+        industry: "CleanTech",
+        fundingStage: "Series A",
+        description: "Smart battery management systems for residential energy storage.",
+        city: "Austin",
+        investment: "$5M",
+        status: "active",
+        dealRoomPermission: true
+    },
+    {
+        id: "dummy-3",
+        companyName: "BioFlow",
+        founderName: "Dr. Elena Rossi",
+        industry: "Healthcare",
+        fundingStage: "Pre-seed",
+        description: "Microfluidic devices for rapid diagnostic testing in rural areas.",
+        city: "Boston",
+        investment: "$500K",
+        status: "approved",
+        dealRoomPermission: true
+    },
+    {
+        id: "dummy-4",
+        companyName: "FinScale",
+        founderName: "James Wilson",
+        industry: "FinTech",
+        fundingStage: "Seed",
+        description: "Scalable payment infrastructure for cross-border e-commerce in Southeast Asia.",
+        city: "Singapore",
+        investment: "$2M",
+        status: "active",
+        dealRoomPermission: true
+    },
+    {
+        id: "dummy-5",
+        companyName: "Omnicart",
+        founderName: "Anya Gupta",
+        industry: "E-commerce",
+        fundingStage: "Series B",
+        description: "Unified commerce platform for omnichannel retailers.",
+        city: "Bangalore",
+        investment: "$12M",
+        status: "active",
+        dealRoomPermission: true
+    }
+];
+
 export default function DealRoomDashboard() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
@@ -48,7 +111,12 @@ export default function DealRoomDashboard() {
         setLoading(true);
         try {
             const user = auth.currentUser;
-            if (!user) return;
+            if (!user) {
+                // For development/demo: if no user is signed in, show dummy data
+                setStartups(DUMMY_STARTUPS);
+                setLoading(false);
+                return;
+            }
             const token = await user.getIdToken();
 
             const response = await fetch(`${API_BASE_URL}/clients`, {
@@ -64,12 +132,20 @@ export default function DealRoomDashboard() {
                     (client.status === "approved" || client.status === "active") &&
                     client.dealRoomPermission === true
                 );
-                setStartups(approvedClients);
+
+                // If no real data, use dummy data
+                if (approvedClients.length === 0) {
+                    setStartups(DUMMY_STARTUPS);
+                } else {
+                    setStartups(approvedClients);
+                }
             } else {
-                console.error("Failed to fetch startups");
+                console.error("Failed to fetch startups, using dummy data");
+                setStartups(DUMMY_STARTUPS);
             }
         } catch (error) {
-            console.error("Error fetching startups:", error);
+            console.error("Error fetching startups, using dummy data:", error);
+            setStartups(DUMMY_STARTUPS);
         } finally {
             setLoading(false);
         }
@@ -174,7 +250,7 @@ export default function DealRoomDashboard() {
                                     hoverable
                                     className="h-full flex flex-col"
                                     bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}
-                                    onClick={() => router.push(`/deal/${startup.id}`)}
+                                    onClick={() => router.push(`/dashboard/deal-room/${startup.id}`)}
                                 >
                                     <div className="flex justify-between items-start mb-4">
                                         <div>
@@ -200,7 +276,12 @@ export default function DealRoomDashboard() {
                                             </div>
                                         )}
 
-                                        <Button type="primary" block className="mt-4 flex items-center justify-center bg-black hover:bg-gray-800 border-black">
+                                        <Button
+                                            type="primary"
+                                            block
+                                            className="mt-4 flex items-center justify-center bg-black hover:bg-gray-800 border-black"
+                                            onClick={() => router.push(`/dashboard/deal-room/${startup.id}`)}
+                                        >
                                             View Profile <ArrowRightOutlined className="ml-2" />
                                         </Button>
                                     </div>
