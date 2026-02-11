@@ -161,10 +161,7 @@ export default function FounderProfilePage() {
                 const data = await response.json() as ApiResponse<TransformedClient>;
                 if (data.success && data.data) {
                     setClient(data.data);
-                    // Get latest analysis
-                    if (data.data.pitchAnalyses && data.data.pitchAnalyses.length > 0) {
-                        setLatestAnalysis(data.data.pitchAnalyses[data.data.pitchAnalyses.length - 1]);
-                    }
+                    // Analysis is now fetched on-demand via handleAIAnalyze
                 } else {
                     handleFetchError();
                 }
@@ -197,64 +194,76 @@ export default function FounderProfilePage() {
 
         setAnalyzing(true);
         try {
+            // Check for dummy startup first
+            const dummy = DUMMY_STARTUPS.find(s => s.id === id);
+            if (dummy) {
+                setTimeout(() => {
+                    const mockAnalysis: PitchAnalysis = {
+                        summary: {
+                            problem: "Lack of efficient cross-border payment solutions.",
+                            solution: "AI-powered liquidity management and settlement.",
+                            market: "Global B2B payments market ($150T).",
+                            traction: "Pilot programs with 5 regional banks.",
+                            status: "GREEN",
+                            total_score: 85
+                        },
+                        scorecard: {
+                            "Problem & Solution Fit": 9,
+                            "Market Size & Opportunity": 8,
+                            "Business Model": 8,
+                            "Traction & Metrics": 8,
+                            Team: 9,
+                            "Competitive Advantage": 8,
+                            "Go-To-Market Strategy": 7,
+                            "Financials & Ask": 8,
+                            "Exit Potential": 7,
+                            "Alignment with Investor": 8
+                        },
+                        highlights: [
+                            "Strong market positioning in the B2B liquidity space.",
+                            "Scalable business model with high recurring revenue potential.",
+                            "Proven technical team with deep sector expertise."
+                        ],
+                        suggested_questions: [
+                            "How do you handle local currency fluctuations?",
+                            "What is your customer acquisition cost?",
+                            "How do you ensure regulatory compliance?"
+                        ]
+                    };
+                    setLatestAnalysis(mockAnalysis);
+                    setAnalyzing(false);
+                    message.success("Analysis retrieved successfully.");
+                }, 1500);
+                return;
+            }
+
             const user = auth.currentUser;
             if (!user) return;
             const token = await user.getIdToken();
 
-            // 1. Trigger Gemini Analysis (This usually requires text, but assuming backend handles text extraction or we have a specialized endpoint)
-            // For now, let's assume the backend 'add-pitch-analysis' is the target but we need the actual analysis data first.
-            // If the user wants a one-click "AI Analyze Deck", we might need a composite endpoint or handle it here.
+            message.info("Retrieving AI analysis...");
 
-            // Assuming we have to fetch the analysis from AI first, then save it.
-            // Mocking the flow based on available API routes:
-
-            // 1. Get raw text (or assume backend handles it if we send URL)
-            // 2. Call /api/ai/analyze-pitch (requires textContent)
-            // 3. Save to /api/clients/[id]/add-pitch-analysis
-
-            message.info("Starting AI analysis of the pitch deck...");
-
-            // Simplified flow for the demo:
-            const aiResponse = await fetch(`${API_BASE_URL}/ai/analyze-pitch`, {
-                method: "POST",
+            const response = await fetch(`${API_BASE_URL}/deal-room/analysis/${id}`, {
                 headers: {
-                    "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 },
-                body: JSON.stringify({
-                    fileName: client.pitchDeckFileName || "Pitch Deck",
-                    textContent: "This is a placeholder for actual PDF text extraction. In a real scenario, we would use a service to extract text from the PDF URL before calling Gemini."
-                }),
             });
 
-            if (aiResponse.ok) {
-                const aiData = await aiResponse.json();
-                const analysisResult = aiData.data;
-
-                // 2. Save result to client record
-                const saveResponse = await fetch(`${API_BASE_URL}/clients/${id}/add-pitch-analysis`, {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-                    body: JSON.stringify({
-                        pitchAnalysis: analysisResult
-                    }),
-                });
-
-                if (saveResponse.ok) {
-                    message.success("AI Analysis completed and saved.");
-                    setLatestAnalysis(analysisResult);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.data) {
+                    setLatestAnalysis(data.data);
+                    message.success("Analysis retrieved successfully.");
                 } else {
-                    message.error("Failed to save AI analysis.");
+                    message.error("No analysis available for this startup.");
                 }
             } else {
-                message.error("AI Analysis failed. Please try again.");
+                const errorData = await response.json().catch(() => ({}));
+                message.error(errorData.error?.message || "Failed to retrieve analysis.");
             }
         } catch (error) {
-            console.error("AI Analysis Error:", error);
-            message.error("An error occurred during AI analysis.");
+            console.error("AI Analysis Retrieval Error:", error);
+            message.error("An error occurred while fetching analysis.");
         } finally {
             setAnalyzing(false);
         }
