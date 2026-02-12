@@ -204,7 +204,7 @@ export default function DealRoomDashboard() {
                                         <Button
                                             type="primary"
                                             block
-                                            className="mt-4 flex items-center justify-center bg-black hover:bg-gray-800 border-black"
+                                            className="mt-4 flex items-center justify-center bg-blue-400 hover:bg-blue-500 border-black"
                                             onClick={() => router.push(`/dashboard/deal-room/${startup.id}`)}
                                         >
                                             View Profile <ArrowRightOutlined className="ml-2" />

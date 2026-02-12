@@ -276,6 +276,7 @@ export interface UpdateClientRequest {
 
   // Other fields
   archived?: boolean;
+  dealRoomPermission?: boolean;
   usageLimits?: Partial<UsageLimits>;
 }
 

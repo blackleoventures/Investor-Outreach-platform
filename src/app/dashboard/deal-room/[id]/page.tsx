@@ -294,7 +294,8 @@ export default function FounderProfilePage() {
                                     icon={<RobotOutlined />}
                                     loading={analyzing}
                                     onClick={handleAIAnalyze}
-                                    className="bg-black hover:bg-gray-800 border-black h-10 px-6"
+                                    disabled={!client.dealRoomPermission}
+                                    className={`${!client.dealRoomPermission ? 'bg-gray-400 border-gray-400' : 'bg-black hover:bg-gray-800 border-black'} h-10 px-6`}
                                 >
                                     {analyzing ? "Loading..." : "AI Analyze Deck"}
                                 </Button>

@@ -91,6 +91,20 @@ export async function POST(
       );
     }
 
+    // Permission check for investors
+    if (user.role === "investor" && !client.dealRoomPermission) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: "ACCESS_DENIED",
+            message: "You do not have permission to perform AI analysis for this startup.",
+          },
+        },
+        { status: 403 }
+      );
+    }
+
     // Add analyzedAt timestamp if not present
     const analysisWithTimestamp = {
       ...pitchAnalysis,

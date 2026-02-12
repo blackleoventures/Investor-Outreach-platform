@@ -108,17 +108,18 @@ interface Client {
   usageLimits: UsageLimits;
   // Status and review
   status:
-    | "draft"
-    | "pending_review"
-    | "approved"
-    | "active"
-    | "inactive"
-    | "rejected";
+  | "draft"
+  | "pending_review"
+  | "approved"
+  | "active"
+  | "inactive"
+  | "rejected";
   reviewedBy: string | null;
   reviewedAt: string | null;
   reviewNotes: string | null;
   // Legacy fields
   archived: boolean;
+  dealRoomPermission: boolean;
   emailVerified: boolean;
   createdAt: string;
   updatedAt: string;
@@ -141,6 +142,7 @@ interface EditFormData {
   smtpSecurity: "TLS" | "SSL" | "None";
   smtpPassword: string;
   archived: boolean;
+  dealRoomPermission?: boolean;
 }
 
 interface UsageLimitsFormData {
@@ -380,7 +382,8 @@ const ClientsData = () => {
       smtpPort: client.smtpPort || 587,
       smtpSecurity: client.smtpSecurity || "TLS",
       smtpPassword: "", // Never pre-fill password
-      archived: client.archived || false,
+      archived: client.archived ?? false,
+      dealRoomPermission: client.dealRoomPermission,
     });
   };
 
@@ -691,6 +694,7 @@ const ClientsData = () => {
         smtpSecurity: editFormData.smtpSecurity,
         smtpPassword: editFormData.smtpPassword || undefined, // Only send if provided
         archived: editFormData.archived,
+        dealRoomPermission: editFormData.dealRoomPermission,
       };
 
       const response = await fetch(
@@ -1189,9 +1193,8 @@ const ClientsData = () => {
                 <AntButton
                   icon={<Copy size={16} />}
                   onClick={() => {
-                    const fullEmail = `Subject: ${
-                      analysis.email_subject || ""
-                    }\n\n${analysis.email_body || ""}`;
+                    const fullEmail = `Subject: ${analysis.email_subject || ""
+                      }\n\n${analysis.email_body || ""}`;
                     handleCopyToClipboard(fullEmail, `full-email-${index}`);
                   }}
                   type="default"
@@ -1307,11 +1310,10 @@ const ClientsData = () => {
       title: "Email Verified",
       render: (_, record: Client) => (
         <span
-          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            record.emailVerified
-              ? "bg-green-100 text-green-800"
-              : "bg-red-100 text-red-800"
-          }`}
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${record.emailVerified
+            ? "bg-green-100 text-green-800"
+            : "bg-red-100 text-red-800"
+            }`}
         >
           {record.emailVerified ? "Verified" : "Not Verified"}
         </span>
@@ -1322,11 +1324,10 @@ const ClientsData = () => {
       title: "Is Archived",
       render: (_, record: Client) => (
         <span
-          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            record.archived
-              ? "bg-red-100 text-red-800"
-              : "bg-green-100 text-green-800"
-          }`}
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${record.archived
+            ? "bg-red-100 text-red-800"
+            : "bg-green-100 text-green-800"
+            }`}
         >
           {record.archived ? "Yes" : "No"}
         </span>
@@ -1566,11 +1567,10 @@ const ClientsData = () => {
                       {selectedClient.email || "N/A"}
                     </span>
                     <span
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                        selectedClient.emailVerified
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${selectedClient.emailVerified
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                        }`}
                     >
                       {selectedClient.emailVerified
                         ? "Verified"
@@ -1701,11 +1701,10 @@ const ClientsData = () => {
                         const today = new Date();
                         const diffDays = Math.floor(
                           (today.getTime() - onboardedDate.getTime()) /
-                            (1000 * 60 * 60 * 24)
+                          (1000 * 60 * 60 * 24)
                         );
-                        return `${diffDays} day${
-                          diffDays !== 1 ? "s" : ""
-                        } ago`;
+                        return `${diffDays} day${diffDays !== 1 ? "s" : ""
+                          } ago`;
                       })()}
                     </div>
                   </div>
@@ -1716,13 +1715,26 @@ const ClientsData = () => {
                     Is Archived
                   </div>
                   <span
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      selectedClient.archived
-                        ? "bg-red-100 text-red-800"
-                        : "bg-green-100 text-green-800"
-                    }`}
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${selectedClient.archived
+                      ? "bg-red-100 text-red-800"
+                      : "bg-green-100 text-green-800"
+                      }`}
                   >
                     {selectedClient.archived ? "Yes" : "No"}
+                  </span>
+                </div>
+
+                <div className="border-b pb-3">
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Investor AI Access
+                  </div>
+                  <span
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${selectedClient.dealRoomPermission
+                      ? "bg-green-100 text-green-800"
+                      : "bg-gray-100 text-gray-800"
+                      }`}
+                  >
+                    {selectedClient.dealRoomPermission ? "Granted" : "Denied"}
                   </span>
                 </div>
               </div>
@@ -1780,11 +1792,10 @@ const ClientsData = () => {
                     Test Status
                   </div>
                   <span
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      selectedClient.smtpTestStatus === "passed"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-orange-100 text-orange-800"
-                    }`}
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${selectedClient.smtpTestStatus === "passed"
+                      ? "bg-green-100 text-green-800"
+                      : "bg-orange-100 text-orange-800"
+                      }`}
                   >
                     {selectedClient.smtpTestStatus?.toUpperCase() || "PENDING"}
                   </span>
@@ -1802,14 +1813,13 @@ const ClientsData = () => {
             </TabPane>
 
             <TabPane
-              tab={`Pitch Analyses (${
-                selectedClient.pitchAnalyses?.length || 0
-              })`}
+              tab={`Pitch Analyses (${selectedClient.pitchAnalyses?.length || 0
+                })`}
               key="2"
             >
               <div className="max-h-[500px] overflow-y-auto">
                 {selectedClient.pitchAnalyses &&
-                selectedClient.pitchAnalyses.length > 0 ? (
+                  selectedClient.pitchAnalyses.length > 0 ? (
                   selectedClient.pitchAnalyses.map((analysis, index) =>
                     renderPitchAnalysis(analysis, index)
                   )
@@ -2373,6 +2383,28 @@ const ClientsData = () => {
                   className="ml-2 text-sm text-gray-700"
                 >
                   Archive Client
+                </label>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={editFormData.dealRoomPermission || false}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      dealRoomPermission: e.target.checked,
+                    })
+                  }
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  id="dealroom-permission-checkbox"
+                  disabled={updateLoading}
+                />
+                <label
+                  htmlFor="dealroom-permission-checkbox"
+                  className="ml-2 text-sm text-gray-700"
+                >
+                  Give access to pitch analysis to investor
                 </label>
               </div>
             </div>

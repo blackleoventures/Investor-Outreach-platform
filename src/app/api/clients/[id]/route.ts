@@ -175,6 +175,7 @@ export async function PUT(
       smtpUsername,
       smtpPassword,
       archived,
+      dealRoomPermission,
       usageLimits,
     } = body;
 
@@ -255,6 +256,9 @@ export async function PUT(
 
     if (typeof archived !== "undefined") {
       updateData.archived = archived;
+    }
+    if (typeof dealRoomPermission !== "undefined") {
+      updateData.dealRoomPermission = dealRoomPermission;
     }
 
     if (usageLimits) {
