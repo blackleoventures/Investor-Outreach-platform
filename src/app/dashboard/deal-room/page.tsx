@@ -163,7 +163,7 @@ export default function DealRoomDashboard() {
                     </Select>
 
                     <Select
-                        placeholder="Filter by City"
+                        placeholder="Search by City"
                         allowClear
                         showSearch
                         searchValue={citySearchValue}
