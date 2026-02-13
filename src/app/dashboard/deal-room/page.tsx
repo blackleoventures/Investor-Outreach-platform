@@ -36,6 +36,7 @@ export default function DealRoomDashboard() {
     const [industryFilter, setIndustryFilter] = useState<string | null>(null);
     const [stageFilter, setStageFilter] = useState<string | null>(null);
     const [cityFilter, setCityFilter] = useState<string | null>(null); // Added City Filter
+    const [citySearchValue, setCitySearchValue] = useState(""); // Track city search input
 
     useEffect(() => {
         fetchStartups();
@@ -164,6 +165,17 @@ export default function DealRoomDashboard() {
                     <Select
                         placeholder="Filter by City"
                         allowClear
+                        showSearch
+                        searchValue={citySearchValue}
+                        onSearch={setCitySearchValue}
+                        open={citySearchValue.length > 0}
+                        onSelect={() => setCitySearchValue("")}
+                        onBlur={() => setCitySearchValue("")}
+                        suffixIcon={<SearchOutlined />}
+                        optionFilterProp="children"
+                        filterOption={(input, option) =>
+                            (option?.value as string ?? '').toLowerCase().includes(input.toLowerCase())
+                        }
                         style={{ width: 180 }}
                         onChange={setCityFilter}
                     >
