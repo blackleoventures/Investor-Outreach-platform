@@ -90,7 +90,11 @@ export default function DealRoomDashboard() {
         }
 
         if (industryFilter) {
-            result = result.filter((s) => s.industry === industryFilter);
+            result = result.filter((s) => {
+                if (!s.industry) return false;
+                const industries = s.industry.split(/[,;/]+/).map(ind => ind.trim().toLowerCase());
+                return industries.includes(industryFilter.toLowerCase());
+            });
         }
 
         if (stageFilter) {
@@ -104,7 +108,14 @@ export default function DealRoomDashboard() {
         setFilteredStartups(result);
     };
 
-    const uniqueIndustries = Array.from(new Set(startups.map((s) => s.industry).filter(Boolean)));
+    const uniqueIndustries = Array.from(new Set(
+        startups.flatMap((s) =>
+            (s.industry || "")
+                .split(/[,;/]+/)
+                .map(ind => ind.trim())
+                .filter(Boolean)
+        )
+    )).sort();
     const uniqueStages = Array.from(new Set(startups.map((s) => s.fundingStage).filter(Boolean)));
     const uniqueCities = Array.from(new Set(startups.map((s) => s.city).filter(Boolean)));
 
