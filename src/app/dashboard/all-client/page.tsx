@@ -21,7 +21,11 @@ import {
   LoadingOutlined,
   FileTextOutlined,
   CheckCircleOutlined,
+  FilePdfOutlined,
 } from "@ant-design/icons";
+import { uploadAttachment } from "@/lib/firebase-storage";
+import { getAuth } from "firebase/auth";
+import app from "@/lib/firebase";
 import {
   Plus,
   Eye,
@@ -143,6 +147,9 @@ interface EditFormData {
   smtpPassword: string;
   archived: boolean;
   dealRoomPermission?: boolean;
+  pitchDeckFileName?: string;
+  pitchDeckFileUrl?: string;
+  pitchDeckFileSize?: number;
 }
 
 interface UsageLimitsFormData {
@@ -209,6 +216,9 @@ const ClientsData = () => {
     smtpSecurity: "TLS",
     smtpPassword: "",
     archived: false,
+    pitchDeckFileName: "",
+    pitchDeckFileUrl: "",
+    pitchDeckFileSize: 0,
   });
 
   const [usageLimitsFormData, setUsageLimitsFormData] =
@@ -384,6 +394,9 @@ const ClientsData = () => {
       smtpPassword: "", // Never pre-fill password
       archived: client.archived ?? false,
       dealRoomPermission: client.dealRoomPermission,
+      pitchDeckFileName: (client as any).pitchDeckFileName || "",
+      pitchDeckFileUrl: (client as any).pitchDeckFileUrl || "",
+      pitchDeckFileSize: (client as any).pitchDeckFileSize || 0,
     });
   };
 
@@ -695,6 +708,9 @@ const ClientsData = () => {
         smtpPassword: editFormData.smtpPassword || undefined, // Only send if provided
         archived: editFormData.archived,
         dealRoomPermission: editFormData.dealRoomPermission,
+        pitchDeckFileName: editFormData.pitchDeckFileName,
+        pitchDeckFileUrl: editFormData.pitchDeckFileUrl,
+        pitchDeckFileSize: editFormData.pitchDeckFileSize,
       };
 
       const response = await fetch(
@@ -2406,6 +2422,91 @@ const ClientsData = () => {
                 >
                   Give access to pitch analysis to investor
                 </label>
+              </div>
+
+              <div className="col-span-2">
+                <h3 className="font-semibold text-gray-900 mb-3 pt-4 border-t">
+                  Pitch Deck Management
+                </h3>
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  {editFormData.pitchDeckFileUrl ? (
+                    <div className="mb-4 flex items-center justify-between bg-white p-3 rounded border">
+                      <div className="flex items-center gap-3">
+                        <FilePdfOutlined className="text-red-500 text-xl" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 mb-0">
+                            {editFormData.pitchDeckFileName || "Pitch Deck"}
+                          </p>
+                          <p className="text-xs text-gray-500 mb-0">
+                            {editFormData.pitchDeckFileSize
+                              ? `${(editFormData.pitchDeckFileSize / (1024 * 1024)).toFixed(2)} MB`
+                              : "Size unknown"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <a
+                          href={editFormData.pitchDeckFileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded border border-blue-200 transition-colors"
+                        >
+                          View
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => setEditFormData(prev => ({ ...prev, pitchDeckFileUrl: "", pitchDeckFileName: "", pitchDeckFileSize: 0 }))}
+                          className="px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded border border-red-200 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-gray-500 text-sm italic">
+                      No pitch deck uploaded for this client.
+                    </div>
+                  )}
+
+                  <AntUpload
+                    accept=".pdf,.doc,.docx,.txt"
+                    showUploadList={false}
+                    beforeUpload={async (file) => {
+                      try {
+                        message.loading("Uploading pitch deck...", 0);
+                        const authInstance = getAuth(app);
+                        const adminUid = authInstance.currentUser?.uid || "admin";
+                        const result = await uploadAttachment(file, adminUid);
+
+                        setEditFormData(prev => ({
+                          ...prev,
+                          pitchDeckFileUrl: result.url,
+                          pitchDeckFileName: file.name,
+                          pitchDeckFileSize: file.size
+                        }));
+
+                        message.destroy();
+                        message.success("Pitch deck uploaded successfully!");
+                      } catch (err: any) {
+                        message.destroy();
+                        message.error(`Upload failed: ${err.message}`);
+                      }
+                      return false;
+                    }}
+                  >
+                    <AntButton
+                      icon={<UploadOutlined />}
+                      block
+                      size="large"
+                      className="mt-2"
+                    >
+                      {editFormData.pitchDeckFileUrl ? "Update / Overwrite Pitch Deck" : "Upload Pitch Deck"}
+                    </AntButton>
+                  </AntUpload>
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    Supported: PDF, Word, TXT (Max 10MB). This link will be visible to investors in the Deal Room.
+                  </p>
+                </div>
               </div>
             </div>
           </form>

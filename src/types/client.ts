@@ -278,6 +278,11 @@ export interface UpdateClientRequest {
   archived?: boolean;
   dealRoomPermission?: boolean;
   usageLimits?: Partial<UsageLimits>;
+
+  // Pitch deck data (NEW)
+  pitchDeckFileName?: string;
+  pitchDeckFileUrl?: string;
+  pitchDeckFileSize?: number;
 }
 
 /**

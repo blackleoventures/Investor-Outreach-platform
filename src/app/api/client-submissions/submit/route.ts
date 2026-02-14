@@ -15,14 +15,14 @@ export async function POST(request: NextRequest) {
     const user = await verifyFirebaseToken(request);
     const userId = user.uid;
 
-    // Parse request body
     const body = await request.json();
     const {
       clientInformation,
       emailConfiguration,
       pitchAnalyses,
       usageLimits,
-      dealRoomPermission
+      dealRoomPermission,
+      pitchDeckData,
     } = body;
 
     console.log("[ClientSubmission] Creating submission for userId:", userId);
@@ -222,6 +222,11 @@ export async function POST(request: NextRequest) {
       // Metadata
       ipAddress: request.headers.get("x-forwarded-for") || "unknown",
       userAgent: request.headers.get("user-agent") || "unknown",
+
+      // Pitch deck data (NEW)
+      pitchDeckFileName: pitchDeckData?.fileName || "",
+      pitchDeckFileUrl: pitchDeckData?.fileUrl || "",
+      pitchDeckFileSize: pitchDeckData?.fileSize || 0,
     };
 
     // ============= CREATE SUBMISSION =============

@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { pitchAnalysis } = body;
+    const { pitchAnalysis, pitchDeckData } = body;
 
     console.log("[ClientSubmission] Adding pitch analysis for userId:", userId);
 
@@ -98,6 +98,12 @@ export async function POST(request: NextRequest) {
       },
     };
 
+    if (pitchDeckData) {
+      (updatedData as any).pitchDeckFileName = pitchDeckData.fileName;
+      (updatedData as any).pitchDeckFileUrl = pitchDeckData.fileUrl;
+      (updatedData as any).pitchDeckFileSize = pitchDeckData.fileSize;
+    }
+
     const updatedSubmission = await dbHelpers.update(COLLECTION, submission.id, updatedData);
 
     console.log(
@@ -118,9 +124,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: responseData,
-      message: `Pitch analysis added successfully! You have ${
-        submission.usageLimits.maxPitchAnalysis - newPitchAnalysisCount
-      } analysis credit(s) remaining.`,
+      message: `Pitch analysis added successfully! You have ${submission.usageLimits.maxPitchAnalysis - newPitchAnalysisCount
+        } analysis credit(s) remaining.`,
     });
   } catch (error: any) {
     console.error("[ClientSubmission] Error adding pitch analysis:", error);

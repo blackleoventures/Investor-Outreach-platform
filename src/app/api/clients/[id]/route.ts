@@ -177,6 +177,9 @@ export async function PUT(
       archived,
       dealRoomPermission,
       usageLimits,
+      pitchDeckFileName,
+      pitchDeckFileUrl,
+      pitchDeckFileSize,
     } = body;
 
     const updatedClientInformation: ClientInformation = {
@@ -259,6 +262,16 @@ export async function PUT(
     }
     if (typeof dealRoomPermission !== "undefined") {
       updateData.dealRoomPermission = dealRoomPermission;
+    }
+
+    if (pitchDeckFileName !== undefined) {
+      updateData.pitchDeckFileName = pitchDeckFileName;
+    }
+    if (pitchDeckFileUrl !== undefined) {
+      updateData.pitchDeckFileUrl = pitchDeckFileUrl;
+    }
+    if (pitchDeckFileSize !== undefined) {
+      updateData.pitchDeckFileSize = pitchDeckFileSize;
     }
 
     if (usageLimits) {

@@ -29,6 +29,9 @@ import {
   CalendarOutlined,
 } from "@ant-design/icons";
 import type { UploadProps } from "antd";
+import { uploadAttachment } from "@/lib/firebase-storage";
+import { getAuth } from "firebase/auth";
+import app from "@/lib/firebase";
 
 const { Title, Text, Paragraph } = Typography;
 const { Dragger } = Upload;
@@ -57,7 +60,7 @@ interface PitchAnalysis {
 }
 
 interface ClientAIPitchAnalysisProps {
-  onAnalysisComplete: (analysis: PitchAnalysis) => void;
+  onAnalysisCompleteAction: (analysis: PitchAnalysis, pitchDeckData?: { fileUrl: string; fileName: string; fileSize: number }) => void;
   existingAnalyses?: PitchAnalysis[];
   disabled?: boolean;
   loading?: boolean;
@@ -66,7 +69,7 @@ interface ClientAIPitchAnalysisProps {
 }
 
 export default function ClientAIPitchAnalysis({
-  onAnalysisComplete,
+  onAnalysisCompleteAction,
   existingAnalyses = [],
   disabled = false,
   loading = false,
@@ -267,6 +270,21 @@ export default function ClientAIPitchAnalysis({
       message.destroy();
       message.success(`File processed successfully!`);
 
+      // Upload to Firebase Storage
+      message.loading("Uploading to secure storage...", 0);
+      const auth = getAuth(app);
+      const userId = auth.currentUser?.uid || "anonymous";
+      const uploadResult = await uploadAttachment(file, userId);
+
+      const pitchDeckData = {
+        fileUrl: uploadResult.url,
+        fileName: file.name,
+        fileSize: file.size,
+      };
+
+      message.destroy();
+      message.success("File uploaded successfully!");
+
       message.loading(
         "Analyzing content with AI... This may take a moment.",
         0
@@ -286,7 +304,7 @@ export default function ClientAIPitchAnalysis({
 
       // Auto-complete for first-time users
       if (isFirstTime) {
-        onAnalysisComplete(analysisWithMetadata);
+        onAnalysisCompleteAction(analysisWithMetadata, pitchDeckData);
       }
 
       message.destroy();
@@ -308,7 +326,9 @@ export default function ClientAIPitchAnalysis({
       message.warning("Please upload and analyze your pitch deck first");
       return;
     }
-    onAnalysisComplete(currentAnalysis);
+    // Note: handleAddAnalysis here doesn't have the original File object to re-upload
+    // In returns where we use existing analyses, we might need a different approach if we want to change the deck
+    onAnalysisCompleteAction(currentAnalysis);
   };
 
   const uploadProps: UploadProps = {
@@ -374,19 +394,19 @@ export default function ClientAIPitchAnalysis({
                       analysis.summary.status === "GREEN"
                         ? "#52c41a"
                         : analysis.summary.status === "YELLOW"
-                        ? "#faad14"
-                        : "#ff4d4f",
+                          ? "#faad14"
+                          : "#ff4d4f",
                     fontWeight: 800,
                   }}
                 >
                   {analysis.summary.status}
                 </Text>
-                <Text type="secondary" style={{ marginLeft: 8 ,fontWeight: 800, color: "black", textTransform: "capitalize"}}>
+                <Text type="secondary" style={{ marginLeft: 8, fontWeight: 800, color: "black", textTransform: "capitalize" }}>
                   {analysis.summary.status === "GREEN"
                     ? "- Investment ready"
                     : analysis.summary.status === "YELLOW"
-                    ? "- Promising, needs refinement"
-                    : "- Not ready"}
+                      ? "- Promising, needs refinement"
+                      : "- Not ready"}
                 </Text>
               </div>
               {analysis.fileName && (

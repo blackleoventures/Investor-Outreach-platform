@@ -71,6 +71,7 @@ export default function SubmitInformation() {
   const [current, setCurrent] = useState(0);
   const [clientData, setClientData] = useState<any>(null);
   const [pitchData, setPitchData] = useState<any>(null);
+  const [pitchDeckData, setPitchDeckData] = useState<any>(null);
   const [emailConfiguration, setEmailConfiguration] = useState<any>(null);
   const [dealRoomPermission, setDealRoomPermission] = useState(false);
 
@@ -151,6 +152,12 @@ export default function SubmitInformation() {
       if (savedPitchData) {
         setPitchData(JSON.parse(savedPitchData));
         console.log("[Frontend] Loaded pitch data from localStorage");
+      }
+
+      const savedPitchDeckData = localStorage.getItem("pitchDeckData");
+      if (savedPitchDeckData) {
+        setPitchDeckData(JSON.parse(savedPitchDeckData));
+        console.log("[Frontend] Loaded pitch deck data from localStorage");
       }
     } catch (error) {
       console.error("[Frontend] Error loading from localStorage:", error);
@@ -242,9 +249,13 @@ export default function SubmitInformation() {
     setCurrent(1);
   };
 
-  const handlePitchNext = (analysis: any) => {
+  const handlePitchNext = (analysis: any, deckData?: any) => {
     setPitchData(analysis);
     localStorage.setItem(STORAGE_KEYS.PITCH_DATA, JSON.stringify(analysis));
+    if (deckData) {
+      setPitchDeckData(deckData);
+      localStorage.setItem("pitchDeckData", JSON.stringify(deckData));
+    }
     message.success("Analysis saved!");
     // setCurrent(2);
   };
@@ -276,6 +287,7 @@ export default function SubmitInformation() {
         clientInformation: clientData,
         emailConfiguration: emailConfiguration,
         pitchAnalyses: [pitchData],
+        pitchDeckData: pitchDeckData,
         usageLimits: {
           formEditCount: 1,
           pitchAnalysisCount: 1,
@@ -431,7 +443,7 @@ export default function SubmitInformation() {
     }
   };
 
-  const handleAddPitchAnalysis = async (analysis: any) => {
+  const handleAddPitchAnalysis = async (analysis: any, deckData?: any) => {
     if (!submission) return;
 
     if (
@@ -455,7 +467,10 @@ export default function SubmitInformation() {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ pitchAnalysis: analysis }),
+          body: JSON.stringify({
+            pitchAnalysis: analysis,
+            pitchDeckData: deckData
+          }),
         }
       );
 
@@ -682,7 +697,7 @@ export default function SubmitInformation() {
             {current === 1 && (
               <Card title="Pitch Deck Analysis" style={{ marginBottom: 32 }}>
                 <ClientAIPitchAnalysis
-                  onAnalysisComplete={handlePitchNext}
+                  onAnalysisCompleteAction={handlePitchNext}
                   isFirstTime={true}
                   initialAnalysis={pitchData}
                 />
@@ -911,7 +926,7 @@ export default function SubmitInformation() {
             {/* Pitch Analysis Section */}
             <Card title="Pitch Deck Analysis" style={{ marginBottom: 32 }}>
               <ClientAIPitchAnalysis
-                onAnalysisComplete={handleAddPitchAnalysis}
+                onAnalysisCompleteAction={handleAddPitchAnalysis}
                 existingAnalyses={submission?.pitchAnalyses || []}
                 disabled={!submission?.usageLimits.canAnalyzePitch}
                 loading={submitting}
