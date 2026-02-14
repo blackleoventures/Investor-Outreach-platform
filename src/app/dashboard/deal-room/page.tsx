@@ -123,66 +123,69 @@ export default function DealRoomDashboard() {
     return (
         <div className="min-h-screen bg-gray-50 p-6">
             <div className="max-w-7xl mx-auto">
-                <div className="mb-8">
-                    <Title level={2} style={{ marginBottom: 8 }}>Founder Deal Room</Title>
-                    <Text type="secondary" style={{ fontSize: 16 }}>
+                <div className="mb-6 md:mb-8 text-center md:text-left">
+                    <Title level={2} style={{ marginBottom: 8, fontSize: 'clamp(1.5rem, 5vw, 2rem)' }}>Founder Deal Room</Title>
+                    <Text type="secondary" style={{ fontSize: 'clamp(0.875rem, 3vw, 1rem)' }}>
                         Curated investment opportunities for you.
                     </Text>
                 </div>
 
                 {/* Filters */}
-                <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex flex-col md:flex-row gap-4 items-center flex-wrap">
+                <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex flex-col lg:flex-row gap-4 items-center">
                     <Search
-                        placeholder="Search by company, founder, or keyword..."
+                        placeholder="Search company, founder, or keyword..."
                         allowClear
                         onChange={(e) => setSearchText(e.target.value)}
-                        style={{ width: '100%', maxWidth: 350 }}
+                        className="w-full lg:max-w-md"
                         prefix={<SearchOutlined className="text-gray-400" />}
                     />
 
-                    <Select
-                        placeholder="Filter by Industry"
-                        allowClear
-                        style={{ width: 180 }}
-                        onChange={setIndustryFilter}
-                    >
-                        {uniqueIndustries.map(ind => (
-                            <Option key={ind} value={ind}>{ind}</Option>
-                        ))}
-                    </Select>
+                    <div className="flex flex-wrap gap-4 w-full lg:w-auto items-center justify-center md:justify-start">
 
-                    <Select
-                        placeholder="Funding Stage"
-                        allowClear
-                        style={{ width: 180 }}
-                        onChange={setStageFilter}
-                    >
-                        {uniqueStages.map(stage => (
-                            <Option key={stage} value={stage}>{stage}</Option>
-                        ))}
-                    </Select>
+                        <Select
+                            placeholder="Industry"
+                            allowClear
+                            className="w-full sm:w-[180px]"
+                            onChange={setIndustryFilter}
+                        >
+                            {uniqueIndustries.map(ind => (
+                                <Option key={ind} value={ind}>{ind}</Option>
+                            ))}
+                        </Select>
 
-                    <Select
-                        placeholder="Search by City"
-                        allowClear
-                        showSearch
-                        searchValue={citySearchValue}
-                        onSearch={setCitySearchValue}
-                        open={citySearchValue.length > 0}
-                        onSelect={() => setCitySearchValue("")}
-                        onBlur={() => setCitySearchValue("")}
-                        suffixIcon={<SearchOutlined />}
-                        optionFilterProp="children"
-                        filterOption={(input, option) =>
-                            (option?.value as string ?? '').toLowerCase().includes(input.toLowerCase())
-                        }
-                        style={{ width: 180 }}
-                        onChange={setCityFilter}
-                    >
-                        {uniqueCities.map(city => (
-                            <Option key={city} value={city}>{city}</Option>
-                        ))}
-                    </Select>
+                        <Select
+                            placeholder="Stage"
+                            allowClear
+                            className="w-full sm:w-[150px]"
+                            onChange={setStageFilter}
+                        >
+                            {uniqueStages.map(stage => (
+                                <Option key={stage} value={stage}>{stage}</Option>
+                            ))}
+                        </Select>
+
+                        <Select
+                            placeholder="City"
+                            allowClear
+                            showSearch
+                            searchValue={citySearchValue}
+                            onSearch={setCitySearchValue}
+                            open={citySearchValue.length > 0}
+                            onSelect={() => setCitySearchValue("")}
+                            onBlur={() => setCitySearchValue("")}
+                            suffixIcon={<SearchOutlined />}
+                            optionFilterProp="children"
+                            filterOption={(input, option) =>
+                                (option?.value as string ?? '').toLowerCase().includes(input.toLowerCase())
+                            }
+                            className="w-full sm:w-[180px]"
+                            onChange={setCityFilter}
+                        >
+                            {uniqueCities.map(city => (
+                                <Option key={city} value={city}>{city}</Option>
+                            ))}
+                        </Select>
+                    </div>
                 </div>
 
                 {/* Content */}

@@ -144,16 +144,16 @@ export default function FounderProfilePage() {
         <div className="min-h-screen bg-gray-50 p-6 md:p-8">
             <div className="max-w-7xl mx-auto">
                 {/* Header Section */}
-                <div className="flex items-center justify-between mb-8">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
                     <Button
                         icon={<ArrowLeftOutlined />}
                         onClick={() => router.back()}
-                        className="flex items-center"
+                        className="w-full sm:w-auto flex items-center justify-center"
                     >
                         Back to Deal Room
                     </Button>
-                    <Title level={2} style={{ margin: 0, fontWeight: 700 }}>Founder Profile</Title>
-                    <div className="w-[100px]"></div> {/* Spacer */}
+                    <Title level={2} style={{ margin: 0, fontWeight: 700, textAlign: 'center' }}>Founder Profile</Title>
+                    <div className="hidden sm:block w-[100px]"></div>
                 </div>
 
                 <Row gutter={[32, 32]}>
@@ -170,20 +170,20 @@ export default function FounderProfilePage() {
                             <div className="p-6">
                                 <section className="mb-8">
                                     <Title level={5} type="secondary" className="uppercase text-xs mb-4">Founder Details</Title>
-                                    <Space direction="vertical" className="w-full" size={16}>
+                                    <div className="space-y-6">
                                         <div>
                                             <Text type="secondary" className="block text-xs">Full Name</Text>
                                             <Text strong className="text-lg">{client.founderName}</Text>
                                         </div>
-                                        <Row gutter={16}>
-                                            <Col span={12}>
+                                        <Row gutter={[16, 16]}>
+                                            <Col xs={24} sm={12}>
                                                 <Text type="secondary" className="block text-xs">Email</Text>
-                                                <Space>
-                                                    <MailOutlined className="text-gray-400" />
-                                                    <Text>{client.email}</Text>
+                                                <Space className="w-full overflow-hidden">
+                                                    <MailOutlined className="text-gray-400 shrink-0" />
+                                                    <Text className="truncate" title={client.email}>{client.email}</Text>
                                                 </Space>
                                             </Col>
-                                            <Col span={12}>
+                                            <Col xs={24} sm={12}>
                                                 <Text type="secondary" className="block text-xs">Phone</Text>
                                                 <Space>
                                                     <PhoneOutlined className="text-gray-400" />
@@ -191,41 +191,41 @@ export default function FounderProfilePage() {
                                                 </Space>
                                             </Col>
                                         </Row>
-                                    </Space>
+                                    </div>
                                 </section>
 
                                 <Divider />
 
                                 <section className="mb-8">
-                                    <Title level={5} type="secondary" className="uppercase text-xs mb-4">Investment Ask & Financials</Title>
-                                    <Row gutter={[24, 24]}>
-                                        <Col span={12}>
-                                            <Card bg-gray-50 bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50">
-                                                <Text type="secondary" className="block text-xs">Funding Stage</Text>
-                                                <Tag color="blue" className="mt-1">{client.fundingStage}</Tag>
+                                    <Title level={5} type="secondary" className="uppercase text-[10px] tracking-wider mb-4">Investment Ask & Financials</Title>
+                                    <Row gutter={[12, 12]}>
+                                        <Col xs={24} sm={12}>
+                                            <Card bg-gray-50 bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
+                                                <Text type="secondary" className="block text-[10px] uppercase tracking-wide mb-1">Funding Stage</Text>
+                                                <Tag color="blue" className="m-0 font-bold">{client.fundingStage}</Tag>
                                             </Card>
                                         </Col>
-                                        <Col span={12}>
-                                            <Card bg-gray-50 bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50">
-                                                <Text type="secondary" className="block text-xs">Investment Ask</Text>
-                                                <Text strong className="text-lg text-green-600">{client.investment}</Text>
+                                        <Col xs={24} sm={12}>
+                                            <Card bg-gray-50 bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
+                                                <Text type="secondary" className="block text-[10px] uppercase tracking-wide mb-1">Investment Ask</Text>
+                                                <Text strong className="text-xl text-green-600 block">{client.investment}</Text>
                                             </Card>
                                         </Col>
-                                        <Col span={12}>
-                                            <Card bg-gray-50 bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50">
-                                                <Text type="secondary" className="block text-xs">Revenue</Text>
+                                        <Col xs={24} sm={12}>
+                                            <Card bg-gray-50 bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
+                                                <Text type="secondary" className="block text-[10px] uppercase tracking-wide mb-1">Current Revenue</Text>
                                                 <Space className="mt-1">
                                                     <BarChartOutlined className="text-blue-500" />
-                                                    <Text strong>{client.revenue || "N/A"}</Text>
+                                                    <Text strong className="text-base">{client.revenue || "Not Disclosed"}</Text>
                                                 </Space>
                                             </Card>
                                         </Col>
-                                        <Col span={12}>
-                                            <Card bg-gray-50 bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50">
-                                                <Text type="secondary" className="block text-xs">Industry</Text>
+                                        <Col xs={24} sm={12}>
+                                            <Card bg-gray-50 bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
+                                                <Text type="secondary" className="block text-[10px] uppercase tracking-wide mb-1">Primary Industry</Text>
                                                 <Space className="mt-1">
-                                                    <RocketOutlined className="text-purple-500" />
-                                                    <Text strong>{client.industry}</Text>
+                                                    <RocketOutlined className="text-purple-500 shrink-0" />
+                                                    <Text strong className="text-base line-clamp-1">{client.industry}</Text>
                                                 </Space>
                                             </Card>
                                         </Col>
@@ -254,7 +254,7 @@ export default function FounderProfilePage() {
                             bodyStyle={{ padding: 0 }}
                         >
                             {client.pitchDeckFileUrl ? (
-                                <div className="aspect-[16/9] w-full bg-gray-100 relative">
+                                <div className="aspect-[16/9] w-full bg-gray-100 relative min-h-[300px] md:min-h-0">
                                     <iframe
                                         src={`${client.pitchDeckFileUrl}#toolbar=0`}
                                         className="w-full h-full border-none"
@@ -267,6 +267,7 @@ export default function FounderProfilePage() {
                                             target="_blank"
                                             type="default"
                                             size="small"
+                                            className="bg-white/80 backdrop-blur-sm"
                                         >
                                             Open Full PDF
                                         </Button>
@@ -305,26 +306,26 @@ export default function FounderProfilePage() {
                                 <div className="space-y-8 animate-in fade-in duration-500">
                                     {/* Score Overview */}
                                     <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
-                                        <Row align="middle" gutter={24}>
-                                            <Col span={8} className="text-center border-r border-gray-200">
-                                                <div className="text-5xl font-black text-black">
+                                        <Row align="middle" gutter={[24, 24]}>
+                                            <Col xs={24} sm={8} className="text-center sm:border-r border-gray-200">
+                                                <div className="text-5xl font-black text-black leading-tight">
                                                     {latestAnalysis.summary.total_score}
                                                     <span className="text-base text-gray-400 font-normal">/100</span>
                                                 </div>
                                                 <Text type="secondary" className="uppercase text-[10px] tracking-widest font-bold">Total Score</Text>
                                             </Col>
-                                            <Col span={16}>
-                                                <Space direction="vertical" className="w-full">
+                                            <Col xs={24} sm={16}>
+                                                <div className="flex flex-col gap-2">
                                                     <div className="flex justify-between items-center">
-                                                        <Text strong>Investment Readiness</Text>
-                                                        <Tag color={latestAnalysis.summary.status === "GREEN" ? "success" : "warning"}>
+                                                        <Text strong className="text-base">Investment Readiness</Text>
+                                                        <Tag color={latestAnalysis.summary.status === "GREEN" ? "success" : "warning"} className="m-0 px-3 py-0.5 rounded-full font-bold">
                                                             {latestAnalysis.summary.status}
                                                         </Tag>
                                                     </div>
-                                                    <Paragraph className="text-sm text-gray-600 mb-0">
-                                                        {latestAnalysis.summary.solution}
+                                                    <Paragraph className="text-sm text-gray-600 mb-0 italic">
+                                                        "{latestAnalysis.summary.solution}"
                                                     </Paragraph>
-                                                </Space>
+                                                </div>
                                             </Col>
                                         </Row>
                                     </div>
@@ -334,13 +335,13 @@ export default function FounderProfilePage() {
                                         <Title level={5} className="mb-4">Scorecard Metrics</Title>
                                         <Row gutter={[16, 16]}>
                                             {Object.entries(latestAnalysis.scorecard).slice(0, 4).map(([key, value]) => (
-                                                <Col span={12} key={key}>
-                                                    <div className="p-3 bg-white border border-gray-100 rounded-lg">
-                                                        <div className="flex justify-between mb-1">
-                                                            <Text className="text-xs text-gray-500">{key}</Text>
-                                                            <Text strong className="text-xs">{value}/10</Text>
+                                                <Col xs={24} sm={12} key={key}>
+                                                    <div className="p-4 bg-white border border-gray-100 rounded-xl h-full shadow-sm hover:border-gray-300 transition-all">
+                                                        <div className="flex justify-between items-center mb-3">
+                                                            <Text strong className="text-xs text-gray-700 uppercase tracking-wide">{key}</Text>
+                                                            <Tag color="black" className="m-0 text-[10px] font-bold">{value}/10</Tag>
                                                         </div>
-                                                        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                                        <div className="w-full h-2 bg-gray-50 rounded-full overflow-hidden border border-gray-100">
                                                             <div
                                                                 className="h-full bg-black rounded-full"
                                                                 style={{ width: `${value * 10}%` }}
