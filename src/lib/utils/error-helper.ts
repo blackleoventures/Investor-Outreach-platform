@@ -16,6 +16,7 @@ export function categorizeEmailError(error: any): ErrorCategory {
     message.includes("auth") ||
     message.includes("login") ||
     message.includes("credentials") ||
+    message.includes("relay") || // Added relay errors
     code.includes("auth")
   ) {
     return "AUTH_FAILED";

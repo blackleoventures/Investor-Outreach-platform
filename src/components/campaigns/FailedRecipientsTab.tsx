@@ -3,12 +3,29 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, Button, Table, Tag, Badge, message, Modal, Tooltip } from "antd";
+import {
+  Card,
+  Button,
+  Table,
+  Tag,
+  Badge,
+  message,
+  Modal,
+  Tooltip,
+  Select,
+  Input,
+  Form,
+  Space,
+  Popconfirm,
+} from "antd";
 import {
   ReloadOutlined,
   WarningOutlined,
   CloseCircleOutlined,
   ExclamationCircleOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  FilterOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { auth } from "@/lib/firebase";
@@ -26,16 +43,35 @@ export default function FailedRecipientsTab({
   campaignName,
 }: FailedRecipientsTabProps) {
   const [loading, setLoading] = useState(false);
-  const [retrying, setRetrying] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [failedRecipients, setFailedRecipients] = useState<FailedRecipient[]>(
-    []
+    [],
   );
+  const [filteredRecipients, setFilteredRecipients] = useState<
+    FailedRecipient[]
+  >([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<string[]>([]);
+
+  // Filter state
+  const [filterType, setFilterType] = useState<"ALL" | "RETRYABLE" | "FATAL">(
+    "ALL",
+  );
+
+  // Edit Modal State
+  const [isEditModalVisible, setIsEditModalVisible] = useState(false);
+  const [editingRecipient, setEditingRecipient] =
+    useState<FailedRecipient | null>(null);
+  const [editForm] = Form.useForm();
 
   useEffect(() => {
     fetchFailedRecipients();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [campaignId]);
+
+  useEffect(() => {
+    applyFilters();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [failedRecipients, filterType]);
 
   const getAuthToken = async () => {
     const user = auth.currentUser;
@@ -58,7 +94,7 @@ export default function FailedRecipientsTab({
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -74,6 +110,20 @@ export default function FailedRecipientsTab({
       setLoading(false);
     }
   };
+
+  const applyFilters = () => {
+    let filtered = [...failedRecipients];
+
+    if (filterType === "RETRYABLE") {
+      filtered = filtered.filter((r) => r.canRetry && r.totalRetries < 3);
+    } else if (filterType === "FATAL") {
+      filtered = filtered.filter((r) => !r.canRetry || r.totalRetries >= 3);
+    }
+
+    setFilteredRecipients(filtered);
+  };
+
+  // --- Actions ---
 
   const handleRetrySingle = (recipientId: string, recipientEmail: string) => {
     Modal.confirm({
@@ -104,7 +154,7 @@ export default function FailedRecipientsTab({
 
   const handleRetry = async (recipientIds: string[]) => {
     try {
-      setRetrying(true);
+      setActionLoading(true);
       const token = await getAuthToken();
       if (!token) return;
 
@@ -117,27 +167,143 @@ export default function FailedRecipientsTab({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ recipientIds }),
-        }
+        },
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to retry emails");
-      }
+      if (!response.ok) throw new Error("Failed to retry emails");
 
       const data = await response.json();
-
       message.success(data.message || "Retry scheduled successfully");
-
-      // Clear selection and refresh
       setSelectedRowKeys([]);
       fetchFailedRecipients();
     } catch (error: any) {
-      console.error("Retry error:", error);
       message.error(error.message || "Failed to retry emails");
     } finally {
-      setRetrying(false);
+      setActionLoading(false);
     }
   };
+
+  // --- Edit Functionality ---
+
+  const openEditModal = (record: FailedRecipient) => {
+    setEditingRecipient(record);
+    editForm.setFieldsValue({
+      name: record.recipientName,
+      email: record.recipientEmail,
+    });
+    setIsEditModalVisible(true);
+  };
+
+  const handleUpdateRecipient = async () => {
+    try {
+      const values = await editForm.validateFields();
+      setActionLoading(true);
+      const token = await getAuthToken();
+      if (!token) return;
+
+      if (!editingRecipient) return;
+
+      const response = await fetch(
+        `${API_BASE_URL}/campaigns/${campaignId}/recipients/${editingRecipient.id}/update`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            name: values.name,
+            email: values.email,
+            shouldRetry: true, // Automatically schedule retry
+          }),
+        },
+      );
+
+      if (!response.ok) throw new Error("Failed to update recipient");
+
+      message.success("Recipient updated and scheduled for retry");
+      setIsEditModalVisible(false);
+      setEditingRecipient(null);
+      fetchFailedRecipients();
+    } catch (error: any) {
+      message.error(error.message || "Failed to update recipient");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // --- Delete Functionality ---
+
+  const handleDelete = async (recipientIds: string[]) => {
+    try {
+      setActionLoading(true);
+      const token = await getAuthToken();
+      if (!token) return;
+
+      const response = await fetch(
+        `${API_BASE_URL}/campaigns/${campaignId}/recipients`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ recipientIds }),
+        },
+      );
+
+      if (!response.ok) throw new Error("Failed to delete recipients");
+
+      const data = await response.json();
+      message.success(data.message || "Recipients deleted successfully");
+      setSelectedRowKeys([]);
+      fetchFailedRecipients();
+    } catch (error: any) {
+      message.error(error.message || "Failed to delete recipients");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const confirmDeleteSingle = (record: FailedRecipient) => {
+    Modal.confirm({
+      title: "Delete recipient?",
+      content: `Are you sure you want to delete ${record.recipientName}? This cannot be undone.`,
+      okText: "Yes, Delete",
+      okType: "danger",
+      cancelText: "Cancel",
+      okButtonProps: {
+        style: {
+          backgroundColor: "#ff4d4f",
+          borderColor: "#ff4d4f",
+          color: "white",
+        },
+      },
+      onOk: () => handleDelete([record.id]),
+    });
+  };
+
+  const confirmDeleteBulk = () => {
+    if (selectedRowKeys.length === 0) return;
+
+    Modal.confirm({
+      title: "Delete Recipients",
+      content: `Are you sure you want to delete ${selectedRowKeys.length} recipients? This cannot be undone.`,
+      okText: "Yes, Delete",
+      okType: "danger",
+      cancelText: "Cancel",
+      okButtonProps: {
+        style: {
+          backgroundColor: "#ff4d4f",
+          borderColor: "#ff4d4f",
+          color: "white",
+        },
+      },
+      onOk: () => handleDelete(selectedRowKeys),
+    });
+  };
+
+  // --- Helpers ---
 
   const getErrorColor = (errorType: ErrorCategory) => {
     const colors: Record<ErrorCategory, string> = {
@@ -163,15 +329,19 @@ export default function FailedRecipientsTab({
     });
   };
 
+  // --- Columns ---
+
   const columns: ColumnsType<FailedRecipient> = [
     {
       title: "Recipient",
       key: "recipient",
-      width: 220,
+      width: 200,
       fixed: "left",
       render: (_, record) => (
-        <div>
-          <p className="font-semibold text-gray-900">{record.recipientName}</p>
+        <div className="group relative">
+          <p className="font-semibold text-gray-900 flex items-center gap-2">
+            {record.recipientName}
+          </p>
           <p className="text-xs text-gray-500">{record.recipientEmail}</p>
           {record.organization && (
             <p className="text-xs text-gray-400">{record.organization}</p>
@@ -182,18 +352,26 @@ export default function FailedRecipientsTab({
     {
       title: "Error Type",
       key: "errorType",
-      width: 140,
+      width: 130,
       render: (_, record) => {
-        // Get the error category/type
+        // Fix: Use errorType instead of category, handle legacy data
         const lastError = record.lastError as any;
+        // Prioritize errorType, fallback to category, fallback to failureCategory from raw
         const errorType =
-          lastError?.category || (record as any).failureCategory || "BOUNCE";
+          lastError?.errorType ||
+          lastError?.category ||
+          (record as any).failureCategory ||
+          "UNKNOWN_ERROR";
+
+        // Friendly name
+        const displayType = String(errorType).replace(/_/g, " ");
+
         return (
           <Tag
             color={getErrorColor(errorType as ErrorCategory)}
             style={{ margin: 0 }}
           >
-            {String(errorType).replace(/_/g, " ")}
+            {displayType}
           </Tag>
         );
       },
@@ -201,10 +379,9 @@ export default function FailedRecipientsTab({
     {
       title: "Error Details",
       key: "errorMessage",
-      width: 280,
+      width: 250,
       ellipsis: false,
       render: (_, record) => {
-        // Get the detailed error message
         const errorMsg =
           record.lastError?.errorMessage ||
           record.failureReason ||
@@ -227,21 +404,19 @@ export default function FailedRecipientsTab({
       title: "Retries",
       dataIndex: "totalRetries",
       key: "totalRetries",
-      width: 100,
+      width: 90,
       align: "center",
       render: (retries: number) => (
         <Badge
           count={`${retries}/3`}
-          style={{
-            backgroundColor: retries >= 3 ? "#ff4d4f" : "#1890ff",
-          }}
+          style={{ backgroundColor: retries >= 3 ? "#ff4d4f" : "#1890ff" }}
         />
       ),
     },
     {
       title: "Last Attempt",
       key: "lastAttempt",
-      width: 180,
+      width: 160,
       render: (_, record) => (
         <span className="text-xs text-gray-600">
           {formatDate(record.lastAttemptAt)}
@@ -251,36 +426,60 @@ export default function FailedRecipientsTab({
     {
       title: "Action",
       key: "action",
-      width: 120,
+      width: 160,
       fixed: "right",
       align: "center",
-      render: (_, record) => {
-        if (!record.canRetry || record.totalRetries >= 3) {
-          return (
-            <Tooltip title="Maximum retries reached or error not retryable">
-              <Tag color="default">
-                <CloseCircleOutlined /> Max Retries
+      render: (_, record) => (
+        <Space size="small">
+          {/* EDIT BUTTON */}
+          <Tooltip title="Edit Email & Retry">
+            <Button
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => openEditModal(record)}
+            />
+          </Tooltip>
+
+          {/* RETRY BUTTON / STATUS */}
+          {!record.canRetry || record.totalRetries >= 3 ? (
+            <Tooltip
+              title={
+                record.totalRetries >= 3
+                  ? "Maximum retries reached"
+                  : "Non-retryable error (Fatal)"
+              }
+            >
+              <Tag color="red" className="mr-0">
+                {record.totalRetries >= 3 ? "Max Retries" : "Fatal Error"}
               </Tag>
             </Tooltip>
-          );
-        }
+          ) : (
+            <Tooltip title="Retry sending">
+              <Button
+                type="primary"
+                size="small"
+                icon={<ReloadOutlined />}
+                onClick={() =>
+                  handleRetrySingle(record.id, record.recipientEmail)
+                }
+                loading={actionLoading}
+                style={{ backgroundColor: "#52c41a", borderColor: "#52c41a" }}
+              />
+            </Tooltip>
+          )}
 
-        return (
-          <Button
-            type="primary"
-            size="small"
-            icon={<ReloadOutlined />}
-            onClick={() => handleRetrySingle(record.id, record.recipientEmail)}
-            loading={retrying}
-            style={{
-              backgroundColor: "#52c41a",
-              borderColor: "#52c41a",
-            }}
-          >
-            Retry
-          </Button>
-        );
-      },
+          {/* DELETE BUTTON */}
+          <Tooltip title="Delete Recipient">
+            <Button
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              loading={actionLoading}
+              onClick={() => confirmDeleteSingle(record)}
+            />
+          </Tooltip>
+        </Space>
+      ),
     },
   ];
 
@@ -289,20 +488,17 @@ export default function FailedRecipientsTab({
     onChange: (selectedKeys: React.Key[]) => {
       setSelectedRowKeys(selectedKeys as string[]);
     },
-    getCheckboxProps: (record: FailedRecipient) => ({
-      disabled: !record.canRetry || record.totalRetries >= 3,
-    }),
   };
 
   const retryableCount = failedRecipients.filter(
-    (r) => r.canRetry && r.totalRetries < 3
+    (r) => r.canRetry && r.totalRetries < 3,
   ).length;
 
   return (
     <Card>
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h3 className="text-lg font-semibold">
+          <h3 className="text-lg font-semibold flex items-center">
             <WarningOutlined className="text-red-500 mr-2" />
             Failed Emails ({failedRecipients.length})
           </h3>
@@ -311,47 +507,66 @@ export default function FailedRecipientsTab({
           </p>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2 items-center">
+          {/* FILTER DROPDOWN */}
+          <Select
+            value={filterType}
+            onChange={setFilterType}
+            style={{ width: 140 }}
+            prefix={<FilterOutlined />}
+          >
+            <Select.Option value="ALL">All Failed</Select.Option>
+            <Select.Option value="RETRYABLE">Retryable</Select.Option>
+            <Select.Option value="FATAL">Fatal Error</Select.Option>
+          </Select>
+
           <Button
             icon={<ReloadOutlined />}
             onClick={fetchFailedRecipients}
             loading={loading}
-            style={{
-              backgroundColor: "#1890ff",
-              borderColor: "#1890ff",
-              color: "white",
-            }}
           >
             Refresh
           </Button>
-          <Button
-            type="primary"
-            icon={<ReloadOutlined />}
-            onClick={handleRetryBulk}
-            disabled={selectedRowKeys.length === 0}
-            loading={retrying}
-            style={{
-              backgroundColor: "#722ed1",
-              borderColor: "#722ed1",
-            }}
-          >
-            Retry Selected ({selectedRowKeys.length})
-          </Button>
+
+          {/* BULK ACTIONS */}
+          {selectedRowKeys.length > 0 && (
+            <>
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={handleRetryBulk}
+                loading={actionLoading}
+                style={{
+                  backgroundColor: "#722ed1",
+                  borderColor: "#722ed1",
+                  color: "white",
+                }}
+              >
+                Retry ({selectedRowKeys.length})
+              </Button>
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={confirmDeleteBulk}
+                loading={actionLoading}
+              >
+                Delete ({selectedRowKeys.length})
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      {failedRecipients.length === 0 && !loading ? (
+      {filteredRecipients.length === 0 && !loading ? (
         <div className="text-center py-12">
-          <p className="text-gray-500">No failed emails found</p>
-          <p className="text-sm text-gray-400 mt-2">
-            All emails were sent successfully!
+          <p className="text-gray-500">
+            No failed emails found matching filter
           </p>
         </div>
       ) : (
         <Table
           rowSelection={rowSelection}
           columns={columns}
-          dataSource={failedRecipients}
+          dataSource={filteredRecipients}
           rowKey="id"
           loading={loading}
           pagination={{
@@ -360,9 +575,46 @@ export default function FailedRecipientsTab({
             pageSizeOptions: ["10", "20", "50", "100"],
             showTotal: (total) => `Total ${total} failed emails`,
           }}
-          scroll={{ x: 1200 }}
+          scroll={{ x: 1300 }}
         />
       )}
+
+      {/* Edit Modal */}
+      <Modal
+        title="Edit Recipient Details"
+        open={isEditModalVisible}
+        onOk={handleUpdateRecipient}
+        onCancel={() => setIsEditModalVisible(false)}
+        confirmLoading={actionLoading}
+        okText="Update & Retry"
+        okButtonProps={{
+          style: { backgroundColor: "#1890ff", color: "white" },
+        }}
+      >
+        <Form form={editForm} layout="vertical">
+          <p className="mb-4 text-gray-500 text-sm">
+            Updating the email addresses will automatically properly re-schedule
+            the email for retry.
+          </p>
+          <Form.Item
+            name="name"
+            label="Recipient Name"
+            rules={[{ required: true, message: "Please enter name" }]}
+          >
+            <Input />
+          </Form.Item>
+          <Form.Item
+            name="email"
+            label="Email Address"
+            rules={[
+              { required: true, message: "Please enter email" },
+              { type: "email", message: "Please enter a valid email" },
+            ]}
+          >
+            <Input />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Card>
   );
 }

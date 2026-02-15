@@ -9,7 +9,7 @@ import type { OpenerInfo, ReplierInfo } from "@/types/tracking"; // adjust impor
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: { id: string } },
 ) {
   try {
     const user = await verifyFirebaseToken(request);
@@ -17,7 +17,9 @@ export async function GET(
 
     const { id } = params;
 
-    console.log(`[Campaign Recipients] Fetching recipients for campaign ${id}...`);
+    console.log(
+      `[Campaign Recipients] Fetching recipients for campaign ${id}...`,
+    );
 
     // Get query parameters for filtering
     const { searchParams } = new URL(request.url);
@@ -28,7 +30,9 @@ export async function GET(
     const limit = parseInt(searchParams.get("limit") || "50");
 
     // Build query
-    let query = adminDb.collection("campaignRecipients").where("campaignId", "==", id);
+    let query = adminDb
+      .collection("campaignRecipients")
+      .where("campaignId", "==", id);
 
     // Apply filters
     if (status) {
@@ -61,8 +65,12 @@ export async function GET(
       const data = doc.data();
 
       const aggregatedTracking = data.aggregatedTracking || {};
-      const uniqueOpeners = normalizeToArray<OpenerInfo>(aggregatedTracking.uniqueOpeners || []);
-      const uniqueRepliers = normalizeToArray<ReplierInfo>(aggregatedTracking.uniqueRepliers || []);
+      const uniqueOpeners = normalizeToArray<OpenerInfo>(
+        aggregatedTracking.uniqueOpeners || [],
+      );
+      const uniqueRepliers = normalizeToArray<ReplierInfo>(
+        aggregatedTracking.uniqueRepliers || [],
+      );
 
       const opener = uniqueOpeners[0];
       const replier = uniqueRepliers[0];
@@ -99,7 +107,9 @@ export async function GET(
       };
     });
 
-    console.log(`[Campaign Recipients] Found ${allRecipients.length} recipients`);
+    console.log(
+      `[Campaign Recipients] Found ${allRecipients.length} recipients`,
+    );
     console.log(`[Campaign Recipients] Sample recipient:`, allRecipients[0]);
 
     return NextResponse.json({
@@ -114,7 +124,7 @@ export async function GET(
     if (error.name === "AuthenticationError") {
       return NextResponse.json(
         { success: false, message: error.message },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
@@ -124,7 +134,68 @@ export async function GET(
         message: "Failed to fetch recipients",
         error: error.message,
       },
-      { status: 500 }
+      { status: 500 },
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  try {
+    const user = await verifyFirebaseToken(request);
+    verifyAdminOrSubadmin(user);
+
+    const campaignId = params.id;
+    const body = await request.json();
+    const { recipientIds } = body;
+
+    if (
+      !recipientIds ||
+      !Array.isArray(recipientIds) ||
+      recipientIds.length === 0
+    ) {
+      return NextResponse.json(
+        { success: false, error: "No recipient IDs provided" },
+        { status: 400 },
+      );
+    }
+
+    console.log(
+      `[Recipient Delete] Deleting ${recipientIds.length} recipients for campaign ${campaignId}`,
+    );
+
+    const batch = adminDb.batch();
+    const recipientsRef = adminDb.collection("campaignRecipients");
+
+    recipientIds.forEach((id: string) => {
+      const docRef = recipientsRef.doc(id);
+      batch.delete(docRef);
+    });
+
+    await batch.commit();
+
+    console.log("[Recipient Delete] Successfully deleted recipients");
+
+    return NextResponse.json({
+      success: true,
+      message: `Successfully deleted ${recipientIds.length} recipients`,
+      deletedCount: recipientIds.length,
+    });
+  } catch (error: any) {
+    console.error("[Recipient Delete] Error:", error);
+
+    if (error.message === "Forbidden") {
+      return NextResponse.json(
+        { success: false, error: "Only admins can delete recipients" },
+        { status: 403 },
+      );
+    }
+
+    return NextResponse.json(
+      { success: false, error: "Failed to delete recipients" },
+      { status: 500 },
     );
   }
 }
