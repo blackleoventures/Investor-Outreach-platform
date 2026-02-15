@@ -46,6 +46,14 @@ export default function FounderProfilePage() {
     const [latestAnalysis, setLatestAnalysis] = useState<PitchAnalysis | null>(null);
 
     useEffect(() => {
+        // Check for link-only access
+        if (typeof window !== "undefined") {
+            const hasAccess = sessionStorage.getItem("dealRoomAccess") === "granted";
+            if (!hasAccess) {
+                router.push("/dashboard");
+                return;
+            }
+        }
         if (id) {
             fetchClientDetails();
         }
