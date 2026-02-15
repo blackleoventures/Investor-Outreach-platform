@@ -40,6 +40,11 @@ export default function InvestorLoginPage() {
                 // 2. Sign in with Firebase Custom Token
                 await signInWithCustomToken(auth, data.customToken);
 
+                // Set session flag for link-only access
+                if (typeof window !== "undefined") {
+                    sessionStorage.setItem('dealRoomAccess', 'granted');
+                }
+
                 setStatus("success");
                 message.success("Login successful! Redirecting...");
 

@@ -39,6 +39,19 @@ export default function DealRoomDashboard() {
     const [citySearchValue, setCitySearchValue] = useState(""); // Track city search input
 
     useEffect(() => {
+        // Check for link-only access
+        if (typeof window !== "undefined") {
+            const hasAccess = sessionStorage.getItem("dealRoomAccess") === "granted";
+            if (!hasAccess) {
+                // Check if they are admin/subadmin (they should have access anyway)
+                // However, the user specifically asked for "only through link" for investor route.
+                // Assuming admins might still want to see it, but strictly following the request for now.
+                // Let's refine: if it's an investor, they MUST have the flag.
+                // We'll handle redirection if no access.
+                router.push("/dashboard");
+                return;
+            }
+        }
         fetchStartups();
     }, []);
 

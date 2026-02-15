@@ -287,7 +287,7 @@ export default function DashboardLayout({
     return items;
   }, [navItem]);
 
-  // Client menu items (only submit information)
+  // Client menu items
   const clientMenuItems = useMemo(
     () => [
       {
