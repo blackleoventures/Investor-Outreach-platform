@@ -15,13 +15,14 @@ export async function POST(request: NextRequest) {
     const user = await verifyFirebaseToken(request);
     const userId = user.uid;
 
-    // Parse request body
     const body = await request.json();
-    const { 
-      clientInformation, 
+    const {
+      clientInformation,
       emailConfiguration,
-      pitchAnalyses, 
-      usageLimits 
+      pitchAnalyses,
+      usageLimits,
+      dealRoomPermission,
+      pitchDeckData,
     } = body;
 
     console.log("[ClientSubmission] Creating submission for userId:", userId);
@@ -143,12 +144,12 @@ export async function POST(request: NextRequest) {
     }
 
     // ============= ENCRYPT SMTP PASSWORD =============
-    
+
     console.log("[ClientSubmission] Encrypting SMTP password...");
     const encryptedPassword = encryptAES256(emailConfiguration.smtpPassword);
 
     // ============= GENERATE SUBMISSION ID =============
-    
+
     const submissionId = `SUB-${new Date().getFullYear()}-${String(Date.now()).slice(-6)}`;
     console.log("[ClientSubmission] Generated submission ID:", submissionId);
 
@@ -157,7 +158,7 @@ export async function POST(request: NextRequest) {
     const submissionData = {
       userId,
       submissionId,
-      
+
       // Entry tracking
       createdBy: {
         method: "client_submission" as const,
@@ -165,7 +166,7 @@ export async function POST(request: NextRequest) {
         role: "client" as const,
         timestamp: new Date().toISOString(),
       },
-      
+
       // Client information with email configuration
       clientInformation: {
         ...clientInformation,
@@ -177,16 +178,16 @@ export async function POST(request: NextRequest) {
           smtpSecurity: emailConfiguration.smtpSecurity,
           smtpUsername: emailConfiguration.smtpUsername,
           smtpPassword: encryptedPassword, // ENCRYPTED
-          
+
           // System-wide fixed limit
           dailyEmailLimit: 50,
-          
+
           // Test status
           testStatus: "passed" as const,
           testDate: new Date().toISOString(),
           testRecipient: emailConfiguration.testRecipient || null,
           testError: null,
-          
+
           // Sending schedule
           sendingHours: {
             start: "09:00",
@@ -195,10 +196,10 @@ export async function POST(request: NextRequest) {
           },
         },
       },
-      
+
       // Pitch analyses
       pitchAnalyses: pitchAnalyses || [],
-      
+
       // Usage limits
       usageLimits: usageLimits || {
         formEditCount: 1,
@@ -208,17 +209,24 @@ export async function POST(request: NextRequest) {
         canEditForm: true,
         canAnalyzePitch: true,
       },
-      
+
+      dealRoomPermission: dealRoomPermission || false,
+
       // Status (pending admin review)
       status: "pending_review" as const,
       reviewedBy: null,
       reviewedAt: null,
       reviewNotes: null,
       rejectionReason: null,
-      
+
       // Metadata
       ipAddress: request.headers.get("x-forwarded-for") || "unknown",
       userAgent: request.headers.get("user-agent") || "unknown",
+
+      // Pitch deck data (NEW)
+      pitchDeckFileName: pitchDeckData?.fileName || "",
+      pitchDeckFileUrl: pitchDeckData?.fileUrl || "",
+      pitchDeckFileSize: pitchDeckData?.fileSize || 0,
     };
 
     // ============= CREATE SUBMISSION =============
@@ -228,7 +236,7 @@ export async function POST(request: NextRequest) {
     console.log("[ClientSubmission] Submission created successfully:", createdSubmission.id);
 
     // ============= PREPARE RESPONSE =============
-    
+
     // Don't return encrypted password in response
     const responseData = {
       ...createdSubmission,

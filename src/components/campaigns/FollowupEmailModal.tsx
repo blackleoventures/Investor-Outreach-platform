@@ -5,7 +5,6 @@ import {
   Modal,
   Button,
   Input,
-  message,
   Spin,
   Tag,
   DatePicker,
@@ -13,6 +12,7 @@ import {
   Radio,
   Space,
   Divider,
+  App,
 } from "antd";
 import {
   ThunderboltOutlined,
@@ -37,8 +37,8 @@ interface FollowupEmailModalProps {
     subject: string;
     body: string;
   };
-  onClose: () => void;
-  onSuccess: () => void;
+  onCloseAction: () => void;
+  onSuccessAction: () => void;
 }
 
 export default function FollowupEmailModal({
@@ -47,9 +47,10 @@ export default function FollowupEmailModal({
   campaignName,
   recipientIds,
   originalTemplate,
-  onClose,
-  onSuccess,
+  onCloseAction,
+  onSuccessAction,
 }: FollowupEmailModalProps) {
+  const { message, modal } = App.useApp();
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
   const [subject, setSubject] = useState("");
@@ -314,7 +315,7 @@ export default function FollowupEmailModal({
             );
           }
           setShowScheduleModal(false);
-          onSuccess();
+          onSuccessAction();
         } catch (error: any) {
           console.error("Send email error:", error);
           message.error(error.message || "Failed to send follow-up emails");
@@ -339,10 +340,10 @@ export default function FollowupEmailModal({
           </div>
         }
         open={visible}
-        onCancel={onClose}
+        onCancel={onCloseAction}
         width={800}
         footer={null}
-        destroyOnClose
+        destroyOnHidden={true}
       >
         {generating ? (
           <div className="text-center py-12">
@@ -417,7 +418,7 @@ export default function FollowupEmailModal({
             </div>
 
             <div className="flex justify-end gap-2 pt-4 border-t">
-              <Button icon={<CloseOutlined />} onClick={onClose}>
+              <Button icon={<CloseOutlined />} onClick={onCloseAction}>
                 Cancel
               </Button>
               <Button
@@ -471,7 +472,7 @@ export default function FollowupEmailModal({
         onCancel={() => setShowScheduleModal(false)}
         width={500}
         footer={null}
-        destroyOnClose
+        destroyOnHidden={true}
       >
         <div className="space-y-4">
           <div className="bg-blue-50 p-3 rounded">

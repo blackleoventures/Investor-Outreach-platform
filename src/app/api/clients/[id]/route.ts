@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   verifyFirebaseToken,
   verifyAdminOrSubadmin,
-  verifyAdmin,
+  verifyRole,
+  AuthenticationError,
   createAuthErrorResponse,
 } from "@/lib/auth-middleware";
 import { dbHelpers } from "@/lib/db-helpers";
@@ -23,11 +24,22 @@ export async function GET(
 ) {
   try {
     const user = await verifyFirebaseToken(request);
-    verifyAdminOrSubadmin(user);
+
+    // Allow admin, subadmin, and active investors
+    verifyRole(user, ["admin", "subadmin", "investor"]);
+
+    // Additional check for investors: must be active
+    if (user.role === "investor" && user.active === false) {
+      throw new AuthenticationError(
+        "Your account is inactive. Please contact support.",
+        "ACCOUNT_DISABLED",
+        403
+      );
+    }
 
     const { id } = params;
 
-    console.log("[Get Client By ID]", id);
+    console.log("[Get Client By ID]", id, "Role:", user.role);
 
     const client = (await dbHelpers.getById(
       "clients",
@@ -44,6 +56,7 @@ export async function GET(
       };
       return NextResponse.json(errorResponse, { status: 404 });
     }
+
 
     const emailConfig = client.clientInformation?.emailConfiguration;
 
@@ -85,6 +98,9 @@ export async function GET(
       archived: client.archived || false,
       createdAt: client.createdAt,
       updatedAt: client.updatedAt,
+      dealRoomPermission: client.dealRoomPermission || false,
+      pitchDeckFileName: client.pitchDeckFileName || "",
+      pitchDeckFileUrl: client.pitchDeckFileUrl || "",
     };
 
     const response: ApiResponse<TransformedClient> = {
@@ -159,7 +175,11 @@ export async function PUT(
       smtpUsername,
       smtpPassword,
       archived,
+      dealRoomPermission,
       usageLimits,
+      pitchDeckFileName,
+      pitchDeckFileUrl,
+      pitchDeckFileSize,
     } = body;
 
     const updatedClientInformation: ClientInformation = {
@@ -240,6 +260,19 @@ export async function PUT(
     if (typeof archived !== "undefined") {
       updateData.archived = archived;
     }
+    if (typeof dealRoomPermission !== "undefined") {
+      updateData.dealRoomPermission = dealRoomPermission;
+    }
+
+    if (pitchDeckFileName !== undefined) {
+      updateData.pitchDeckFileName = pitchDeckFileName;
+    }
+    if (pitchDeckFileUrl !== undefined) {
+      updateData.pitchDeckFileUrl = pitchDeckFileUrl;
+    }
+    if (pitchDeckFileSize !== undefined) {
+      updateData.pitchDeckFileSize = pitchDeckFileSize;
+    }
 
     if (usageLimits) {
       const updatedUsageLimits: UsageLimits = {
@@ -314,6 +347,9 @@ export async function PUT(
       archived: refreshedClient.archived || false,
       createdAt: refreshedClient.createdAt,
       updatedAt: refreshedClient.updatedAt,
+      dealRoomPermission: refreshedClient.dealRoomPermission || false,
+      pitchDeckFileName: refreshedClient.pitchDeckFileName || "",
+      pitchDeckFileUrl: refreshedClient.pitchDeckFileUrl || "",
     };
 
     console.log("[Update Client] Updated successfully");
@@ -350,7 +386,7 @@ export async function DELETE(
 ) {
   try {
     const user = await verifyFirebaseToken(request);
-    verifyAdmin(user);
+    verifyAdminOrSubadmin(user); // Updated to allow subadmin to delete if needed, or keep verifyAdmin
 
     const { id } = params;
 

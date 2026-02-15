@@ -137,8 +137,8 @@ export default function FollowupTab({ campaignId, campaignName }: FollowupTabPro
         campaignName={campaignName}
         recipientIds={selectedRecipients}
         originalTemplate={emailTemplate}
-        onClose={handleModalClose}
-        onSuccess={handleEmailSent}
+        onCloseAction={handleModalClose}
+        onSuccessAction={handleEmailSent}
       />
     </div>
   );

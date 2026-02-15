@@ -21,7 +21,11 @@ import {
   LoadingOutlined,
   FileTextOutlined,
   CheckCircleOutlined,
+  FilePdfOutlined,
 } from "@ant-design/icons";
+import { uploadAttachment } from "@/lib/firebase-storage";
+import { getAuth } from "firebase/auth";
+import app from "@/lib/firebase";
 import {
   Plus,
   Eye,
@@ -108,17 +112,18 @@ interface Client {
   usageLimits: UsageLimits;
   // Status and review
   status:
-    | "draft"
-    | "pending_review"
-    | "approved"
-    | "active"
-    | "inactive"
-    | "rejected";
+  | "draft"
+  | "pending_review"
+  | "approved"
+  | "active"
+  | "inactive"
+  | "rejected";
   reviewedBy: string | null;
   reviewedAt: string | null;
   reviewNotes: string | null;
   // Legacy fields
   archived: boolean;
+  dealRoomPermission: boolean;
   emailVerified: boolean;
   createdAt: string;
   updatedAt: string;
@@ -141,6 +146,10 @@ interface EditFormData {
   smtpSecurity: "TLS" | "SSL" | "None";
   smtpPassword: string;
   archived: boolean;
+  dealRoomPermission?: boolean;
+  pitchDeckFileName?: string;
+  pitchDeckFileUrl?: string;
+  pitchDeckFileSize?: number;
 }
 
 interface UsageLimitsFormData {
@@ -207,6 +216,9 @@ const ClientsData = () => {
     smtpSecurity: "TLS",
     smtpPassword: "",
     archived: false,
+    pitchDeckFileName: "",
+    pitchDeckFileUrl: "",
+    pitchDeckFileSize: 0,
   });
 
   const [usageLimitsFormData, setUsageLimitsFormData] =
@@ -380,7 +392,11 @@ const ClientsData = () => {
       smtpPort: client.smtpPort || 587,
       smtpSecurity: client.smtpSecurity || "TLS",
       smtpPassword: "", // Never pre-fill password
-      archived: client.archived || false,
+      archived: client.archived ?? false,
+      dealRoomPermission: client.dealRoomPermission,
+      pitchDeckFileName: (client as any).pitchDeckFileName || "",
+      pitchDeckFileUrl: (client as any).pitchDeckFileUrl || "",
+      pitchDeckFileSize: (client as any).pitchDeckFileSize || 0,
     });
   };
 
@@ -691,6 +707,10 @@ const ClientsData = () => {
         smtpSecurity: editFormData.smtpSecurity,
         smtpPassword: editFormData.smtpPassword || undefined, // Only send if provided
         archived: editFormData.archived,
+        dealRoomPermission: editFormData.dealRoomPermission,
+        pitchDeckFileName: editFormData.pitchDeckFileName,
+        pitchDeckFileUrl: editFormData.pitchDeckFileUrl,
+        pitchDeckFileSize: editFormData.pitchDeckFileSize,
       };
 
       const response = await fetch(
@@ -1189,9 +1209,8 @@ const ClientsData = () => {
                 <AntButton
                   icon={<Copy size={16} />}
                   onClick={() => {
-                    const fullEmail = `Subject: ${
-                      analysis.email_subject || ""
-                    }\n\n${analysis.email_body || ""}`;
+                    const fullEmail = `Subject: ${analysis.email_subject || ""
+                      }\n\n${analysis.email_body || ""}`;
                     handleCopyToClipboard(fullEmail, `full-email-${index}`);
                   }}
                   type="default"
@@ -1307,11 +1326,10 @@ const ClientsData = () => {
       title: "Email Verified",
       render: (_, record: Client) => (
         <span
-          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            record.emailVerified
-              ? "bg-green-100 text-green-800"
-              : "bg-red-100 text-red-800"
-          }`}
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${record.emailVerified
+            ? "bg-green-100 text-green-800"
+            : "bg-red-100 text-red-800"
+            }`}
         >
           {record.emailVerified ? "Verified" : "Not Verified"}
         </span>
@@ -1322,11 +1340,10 @@ const ClientsData = () => {
       title: "Is Archived",
       render: (_, record: Client) => (
         <span
-          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            record.archived
-              ? "bg-red-100 text-red-800"
-              : "bg-green-100 text-green-800"
-          }`}
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${record.archived
+            ? "bg-red-100 text-red-800"
+            : "bg-green-100 text-green-800"
+            }`}
         >
           {record.archived ? "Yes" : "No"}
         </span>
@@ -1566,11 +1583,10 @@ const ClientsData = () => {
                       {selectedClient.email || "N/A"}
                     </span>
                     <span
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
-                        selectedClient.emailVerified
-                          ? "bg-green-100 text-green-800"
-                          : "bg-red-100 text-red-800"
-                      }`}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${selectedClient.emailVerified
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                        }`}
                     >
                       {selectedClient.emailVerified
                         ? "Verified"
@@ -1701,11 +1717,10 @@ const ClientsData = () => {
                         const today = new Date();
                         const diffDays = Math.floor(
                           (today.getTime() - onboardedDate.getTime()) /
-                            (1000 * 60 * 60 * 24)
+                          (1000 * 60 * 60 * 24)
                         );
-                        return `${diffDays} day${
-                          diffDays !== 1 ? "s" : ""
-                        } ago`;
+                        return `${diffDays} day${diffDays !== 1 ? "s" : ""
+                          } ago`;
                       })()}
                     </div>
                   </div>
@@ -1716,13 +1731,26 @@ const ClientsData = () => {
                     Is Archived
                   </div>
                   <span
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      selectedClient.archived
-                        ? "bg-red-100 text-red-800"
-                        : "bg-green-100 text-green-800"
-                    }`}
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${selectedClient.archived
+                      ? "bg-red-100 text-red-800"
+                      : "bg-green-100 text-green-800"
+                      }`}
                   >
                     {selectedClient.archived ? "Yes" : "No"}
+                  </span>
+                </div>
+
+                <div className="border-b pb-3">
+                  <div className="text-sm font-medium text-gray-500 mb-1">
+                    Investor AI Access
+                  </div>
+                  <span
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${selectedClient.dealRoomPermission
+                      ? "bg-green-100 text-green-800"
+                      : "bg-gray-100 text-gray-800"
+                      }`}
+                  >
+                    {selectedClient.dealRoomPermission ? "Granted" : "Denied"}
                   </span>
                 </div>
               </div>
@@ -1780,11 +1808,10 @@ const ClientsData = () => {
                     Test Status
                   </div>
                   <span
-                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                      selectedClient.smtpTestStatus === "passed"
-                        ? "bg-green-100 text-green-800"
-                        : "bg-orange-100 text-orange-800"
-                    }`}
+                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${selectedClient.smtpTestStatus === "passed"
+                      ? "bg-green-100 text-green-800"
+                      : "bg-orange-100 text-orange-800"
+                      }`}
                   >
                     {selectedClient.smtpTestStatus?.toUpperCase() || "PENDING"}
                   </span>
@@ -1802,14 +1829,13 @@ const ClientsData = () => {
             </TabPane>
 
             <TabPane
-              tab={`Pitch Analyses (${
-                selectedClient.pitchAnalyses?.length || 0
-              })`}
+              tab={`Pitch Analyses (${selectedClient.pitchAnalyses?.length || 0
+                })`}
               key="2"
             >
               <div className="max-h-[500px] overflow-y-auto">
                 {selectedClient.pitchAnalyses &&
-                selectedClient.pitchAnalyses.length > 0 ? (
+                  selectedClient.pitchAnalyses.length > 0 ? (
                   selectedClient.pitchAnalyses.map((analysis, index) =>
                     renderPitchAnalysis(analysis, index)
                   )
@@ -2374,6 +2400,113 @@ const ClientsData = () => {
                 >
                   Archive Client
                 </label>
+              </div>
+
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={editFormData.dealRoomPermission || false}
+                  onChange={(e) =>
+                    setEditFormData({
+                      ...editFormData,
+                      dealRoomPermission: e.target.checked,
+                    })
+                  }
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  id="dealroom-permission-checkbox"
+                  disabled={updateLoading}
+                />
+                <label
+                  htmlFor="dealroom-permission-checkbox"
+                  className="ml-2 text-sm text-gray-700"
+                >
+                  Give access to pitch analysis to investor
+                </label>
+              </div>
+
+              <div className="col-span-2">
+                <h3 className="font-semibold text-gray-900 mb-3 pt-4 border-t">
+                  Pitch Deck Management
+                </h3>
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  {editFormData.pitchDeckFileUrl ? (
+                    <div className="mb-4 flex items-center justify-between bg-white p-3 rounded border">
+                      <div className="flex items-center gap-3">
+                        <FilePdfOutlined className="text-red-500 text-xl" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 mb-0">
+                            {editFormData.pitchDeckFileName || "Pitch Deck"}
+                          </p>
+                          <p className="text-xs text-gray-500 mb-0">
+                            {editFormData.pitchDeckFileSize
+                              ? `${(editFormData.pitchDeckFileSize / (1024 * 1024)).toFixed(2)} MB`
+                              : "Size unknown"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <a
+                          href={editFormData.pitchDeckFileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 rounded border border-blue-200 transition-colors"
+                        >
+                          View
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => setEditFormData(prev => ({ ...prev, pitchDeckFileUrl: "", pitchDeckFileName: "", pitchDeckFileSize: 0 }))}
+                          className="px-3 py-1 text-xs font-medium text-red-600 hover:bg-red-50 rounded border border-red-200 transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 text-gray-500 text-sm italic">
+                      No pitch deck uploaded for this client.
+                    </div>
+                  )}
+
+                  <AntUpload
+                    accept=".pdf,.doc,.docx,.txt"
+                    showUploadList={false}
+                    beforeUpload={async (file) => {
+                      try {
+                        message.loading("Uploading pitch deck...", 0);
+                        const authInstance = getAuth(app);
+                        const adminUid = authInstance.currentUser?.uid || "admin";
+                        const result = await uploadAttachment(file, adminUid);
+
+                        setEditFormData(prev => ({
+                          ...prev,
+                          pitchDeckFileUrl: result.url,
+                          pitchDeckFileName: file.name,
+                          pitchDeckFileSize: file.size
+                        }));
+
+                        message.destroy();
+                        message.success("Pitch deck uploaded successfully!");
+                      } catch (err: any) {
+                        message.destroy();
+                        message.error(`Upload failed: ${err.message}`);
+                      }
+                      return false;
+                    }}
+                  >
+                    <AntButton
+                      icon={<UploadOutlined />}
+                      block
+                      size="large"
+                      className="mt-2"
+                    >
+                      {editFormData.pitchDeckFileUrl ? "Update / Overwrite Pitch Deck" : "Upload Pitch Deck"}
+                    </AntButton>
+                  </AntUpload>
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    Supported: PDF, Word, TXT (Max 10MB). This link will be visible to investors in the Deal Room.
+                  </p>
+                </div>
               </div>
             </div>
           </form>

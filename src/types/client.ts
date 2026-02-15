@@ -143,6 +143,7 @@ export interface ClientDocument {
   reviewedAt: string | null;
   reviewNotes: string | null;
   rejectionReason: string | null;
+  dealRoomPermission?: boolean;
 
   // Admin metadata (optional, only if created by admin)
   adminMetadata?: AdminMetadata;
@@ -159,6 +160,9 @@ export interface ClientDocument {
   // Metadata
   ipAddress?: string;
   userAgent?: string;
+  pitchDeckFileName?: string;
+  pitchDeckFileUrl?: string;
+  pitchDeckFileSize?: number;
 }
 
 /**
@@ -188,8 +192,11 @@ export interface TransformedClient {
   smtpPort: number;
   smtpSecurity: "TLS" | "SSL" | "None";
   smtpTestStatus: "pending" | "passed" | "failed";
-//  gmailAppPassword?: string;
+  //  gmailAppPassword?: string;
   dailyEmailLimit: number;
+  dealRoomPermission?: boolean;
+  pitchDeckFileName?: string;
+  pitchDeckFileUrl?: string;
 
   // Nested data
   pitchAnalyses: PitchAnalysis[];
@@ -269,7 +276,13 @@ export interface UpdateClientRequest {
 
   // Other fields
   archived?: boolean;
+  dealRoomPermission?: boolean;
   usageLimits?: Partial<UsageLimits>;
+
+  // Pitch deck data (NEW)
+  pitchDeckFileName?: string;
+  pitchDeckFileUrl?: string;
+  pitchDeckFileSize?: number;
 }
 
 /**
@@ -378,6 +391,7 @@ export interface ApiResponse<T = any> {
  */
 export enum ErrorCode {
   VALIDATION_ERROR = "VALIDATION_ERROR",
+  ACCESS_DENIED = "ACCESS_DENIED",
   DUPLICATE_EMAIL = "DUPLICATE_EMAIL",
   CLIENT_NOT_FOUND = "CLIENT_NOT_FOUND",
   UNAUTHORIZED = "UNAUTHORIZED",

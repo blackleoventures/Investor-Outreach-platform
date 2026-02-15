@@ -12,6 +12,7 @@ import {
   Button,
   Divider,
   Typography,
+  App,
 } from "antd";
 import {
   EyeOutlined,
@@ -33,7 +34,7 @@ interface EngagementDetailsModalProps {
   campaignName: string;
   openers: any[];
   repliers: any[];
-  onClose: () => void;
+  onCloseAction: () => void;
 }
 
 // Enhanced replier interface with original recipient info
@@ -72,7 +73,7 @@ export default function EngagementDetailsModal({
   campaignName,
   openers,
   repliers,
-  onClose,
+  onCloseAction,
 }: EngagementDetailsModalProps) {
   const isOpeners = type === "openers";
   const rawData = isOpeners ? openers : repliers;
@@ -418,10 +419,10 @@ export default function EngagementDetailsModal({
           </div>
         }
         open={visible}
-        onCancel={onClose}
+        onCancel={onCloseAction}
         width={isOpeners ? 1000 : 1100}
         footer={null}
-        destroyOnClose
+        destroyOnHidden={true}
       >
         {/* Search Input */}
         <div className="mb-4">
@@ -586,8 +587,8 @@ export default function EngagementDetailsModal({
                 <Text>
                   {formatDate(
                     selectedReply.replyReceivedAt ||
-                      selectedReply.firstRepliedAt ||
-                      ""
+                    selectedReply.firstRepliedAt ||
+                    ""
                   )}
                 </Text>
               </div>

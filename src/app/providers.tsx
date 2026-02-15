@@ -2,7 +2,7 @@
 
 import { AuthProvider } from "@/contexts/AuthContext";
 import StyledComponentsRegistry from "@/lib/antd-registry";
-import { ConfigProvider } from "antd";
+import { ConfigProvider, App } from "antd";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -15,7 +15,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
           },
         }}
       >
-        <AuthProvider>{children}</AuthProvider>
+        <App>
+          <AuthProvider>{children}</AuthProvider>
+        </App>
       </ConfigProvider>
     </StyledComponentsRegistry>
   );
