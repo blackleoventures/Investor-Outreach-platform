@@ -335,8 +335,8 @@ export default function FailedRecipientsTab({
     {
       title: "Recipient",
       key: "recipient",
-      width: 200,
-      fixed: "left",
+      width: 150,
+      ellipsis: true,
       render: (_, record) => (
         <div className="group relative">
           <p className="font-semibold text-gray-900 flex items-center gap-2">
@@ -350,51 +350,28 @@ export default function FailedRecipientsTab({
       ),
     },
     {
-      title: "Error Type",
-      key: "errorType",
-      width: 130,
-      render: (_, record) => {
-        // Fix: Use errorType instead of category, handle legacy data
-        const lastError = record.lastError as any;
-        // Prioritize errorType, fallback to category, fallback to failureCategory from raw
-        const errorType =
-          lastError?.errorType ||
-          lastError?.category ||
-          (record as any).failureCategory ||
-          "UNKNOWN_ERROR";
-
-        // Friendly name
-        const displayType = String(errorType).replace(/_/g, " ");
-
-        return (
-          <Tag
-            color={getErrorColor(errorType as ErrorCategory)}
-            style={{ margin: 0 }}
-          >
-            {displayType}
-          </Tag>
-        );
-      },
-    },
-    {
       title: "Error Details",
       key: "errorMessage",
-      width: 250,
+      width: 150,
       ellipsis: false,
       render: (_, record) => {
-        const errorMsg =
-          record.lastError?.errorMessage ||
+        const lastError = record.lastError as any;
+        // Show friendly message as main text, raw error in tooltip
+        const friendlyMsg =
+          lastError?.friendlyMessage ||
           record.failureReason ||
           "Delivery failed";
+        const rawError =
+          lastError?.errorMessage || record.failureReason || "Delivery failed";
 
         return (
           <Tooltip
-            title={errorMsg}
+            title={friendlyMsg}
             placement="topLeft"
             overlayStyle={{ maxWidth: 400 }}
           >
             <span className="text-sm text-gray-700 cursor-help line-clamp-2">
-              {errorMsg}
+              {rawError}
             </span>
           </Tooltip>
         );
@@ -416,7 +393,7 @@ export default function FailedRecipientsTab({
     {
       title: "Last Attempt",
       key: "lastAttempt",
-      width: 160,
+      width: 120,
       render: (_, record) => (
         <span className="text-xs text-gray-600">
           {formatDate(record.lastAttemptAt)}
@@ -427,7 +404,6 @@ export default function FailedRecipientsTab({
       title: "Action",
       key: "action",
       width: 160,
-      fixed: "right",
       align: "center",
       render: (_, record) => (
         <Space size="small">
@@ -575,7 +551,7 @@ export default function FailedRecipientsTab({
             pageSizeOptions: ["10", "20", "50", "100"],
             showTotal: (total) => `Total ${total} failed emails`,
           }}
-          scroll={{ x: 1300 }}
+          scroll={{ x: 1000 }}
         />
       )}
 
