@@ -43,7 +43,10 @@ export default function FailedRecipientsTab({
   campaignName,
 }: FailedRecipientsTabProps) {
   const [loading, setLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [loadingRowIds, setLoadingRowIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
   const [failedRecipients, setFailedRecipients] = useState<FailedRecipient[]>(
     [],
   );
@@ -153,8 +156,14 @@ export default function FailedRecipientsTab({
   };
 
   const handleRetry = async (recipientIds: string[]) => {
+    const isBulk = recipientIds.length > 1;
     try {
-      setActionLoading(true);
+      if (isBulk) {
+        setBulkLoading(true);
+      } else {
+        setLoadingRowIds((prev) => new Set(prev).add(recipientIds[0]));
+      }
+
       const token = await getAuthToken();
       if (!token) return;
 
@@ -179,7 +188,15 @@ export default function FailedRecipientsTab({
     } catch (error: any) {
       message.error(error.message || "Failed to retry emails");
     } finally {
-      setActionLoading(false);
+      if (isBulk) {
+        setBulkLoading(false);
+      } else {
+        setLoadingRowIds((prev) => {
+          const next = new Set(prev);
+          next.delete(recipientIds[0]);
+          return next;
+        });
+      }
     }
   };
 
@@ -197,7 +214,7 @@ export default function FailedRecipientsTab({
   const handleUpdateRecipient = async () => {
     try {
       const values = await editForm.validateFields();
-      setActionLoading(true);
+      setIsUpdating(true);
       const token = await getAuthToken();
       if (!token) return;
 
@@ -228,15 +245,21 @@ export default function FailedRecipientsTab({
     } catch (error: any) {
       message.error(error.message || "Failed to update recipient");
     } finally {
-      setActionLoading(false);
+      setIsUpdating(false);
     }
   };
 
   // --- Delete Functionality ---
 
   const handleDelete = async (recipientIds: string[]) => {
+    const isBulk = recipientIds.length > 1;
     try {
-      setActionLoading(true);
+      if (isBulk) {
+        setBulkLoading(true);
+      } else {
+        setLoadingRowIds((prev) => new Set(prev).add(recipientIds[0]));
+      }
+
       const token = await getAuthToken();
       if (!token) return;
 
@@ -261,7 +284,15 @@ export default function FailedRecipientsTab({
     } catch (error: any) {
       message.error(error.message || "Failed to delete recipients");
     } finally {
-      setActionLoading(false);
+      if (isBulk) {
+        setBulkLoading(false);
+      } else {
+        setLoadingRowIds((prev) => {
+          const next = new Set(prev);
+          next.delete(recipientIds[0]);
+          return next;
+        });
+      }
     }
   };
 
@@ -438,7 +469,7 @@ export default function FailedRecipientsTab({
                 onClick={() =>
                   handleRetrySingle(record.id, record.recipientEmail)
                 }
-                loading={actionLoading}
+                loading={loadingRowIds.has(record.id)}
                 style={{ backgroundColor: "#52c41a", borderColor: "#52c41a" }}
               />
             </Tooltip>
@@ -450,7 +481,7 @@ export default function FailedRecipientsTab({
               size="small"
               danger
               icon={<DeleteOutlined />}
-              loading={actionLoading}
+              loading={loadingRowIds.has(record.id)}
               onClick={() => confirmDeleteSingle(record)}
             />
           </Tooltip>
@@ -510,7 +541,7 @@ export default function FailedRecipientsTab({
               <Button
                 icon={<ReloadOutlined />}
                 onClick={handleRetryBulk}
-                loading={actionLoading}
+                loading={bulkLoading}
                 style={{
                   backgroundColor: "#722ed1",
                   borderColor: "#722ed1",
@@ -523,7 +554,7 @@ export default function FailedRecipientsTab({
                 danger
                 icon={<DeleteOutlined />}
                 onClick={confirmDeleteBulk}
-                loading={actionLoading}
+                loading={bulkLoading}
               >
                 Delete ({selectedRowKeys.length})
               </Button>
@@ -561,7 +592,7 @@ export default function FailedRecipientsTab({
         open={isEditModalVisible}
         onOk={handleUpdateRecipient}
         onCancel={() => setIsEditModalVisible(false)}
-        confirmLoading={actionLoading}
+        confirmLoading={isUpdating}
         okText="Update & Retry"
         okButtonProps={{
           style: { backgroundColor: "#1890ff", color: "white" },

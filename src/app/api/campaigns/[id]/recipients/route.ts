@@ -3,7 +3,11 @@ import {
   verifyFirebaseToken,
   verifyAdminOrSubadmin,
 } from "@/lib/auth-middleware";
-import { adminDb } from "@/lib/firebase-admin";
+import admin, { adminDb } from "@/lib/firebase-admin";
+import {
+  initializeInvestorSheet,
+  initializeIncubatorSheet,
+} from "@/lib/google-sheets";
 import { normalizeToArray } from "@/lib/utils/data-normalizer";
 import type { OpenerInfo, ReplierInfo } from "@/types/tracking"; // adjust import path accordingly
 
@@ -166,6 +170,82 @@ export async function DELETE(
       `[Recipient Delete] Deleting ${recipientIds.length} recipients for campaign ${campaignId}`,
     );
 
+    // 1. Fetch recipients to get their emails before deleting
+    const recipientsSnapshot = await adminDb
+      .collection("campaignRecipients")
+      .where(admin.firestore.FieldPath.documentId(), "in", recipientIds)
+      .get();
+
+    const emailsToDelete = [
+      ...new Set(
+        recipientsSnapshot.docs
+          .map((doc) => doc.data().originalContact?.email?.toLowerCase())
+          .filter(Boolean),
+      ),
+    ];
+
+    console.log(
+      `[Recipient Delete] Found ${emailsToDelete.length} unique emails to sync delete from sheets`,
+    );
+
+    // 2. Best-effort sync delete from Google Sheets
+    if (emailsToDelete.length > 0) {
+      await Promise.allSettled([
+        (async () => {
+          try {
+            const { sheet } = await initializeInvestorSheet();
+            const rows = await sheet.getRows();
+            const rowsToDelete = rows.filter((row) =>
+              emailsToDelete.includes(
+                String(row.get("Partner Email") || "").toLowerCase(),
+              ),
+            );
+
+            if (rowsToDelete.length > 0) {
+              console.log(
+                `[Recipient Delete] Deleting ${rowsToDelete.length} rows from Investor Sheet`,
+              );
+              // Delete sequentially to avoid race conditions/rate limits
+              for (const row of rowsToDelete) {
+                await row.delete();
+              }
+            }
+          } catch (err: any) {
+            console.error(
+              "[Recipient Delete] Failed to sync delete from Investor Sheet:",
+              err.message,
+            );
+          }
+        })(),
+        (async () => {
+          try {
+            const { sheet } = await initializeIncubatorSheet();
+            const rows = await sheet.getRows();
+            const rowsToDelete = rows.filter((row) =>
+              emailsToDelete.includes(
+                String(row.get("Partner Email") || "").toLowerCase(),
+              ),
+            );
+
+            if (rowsToDelete.length > 0) {
+              console.log(
+                `[Recipient Delete] Deleting ${rowsToDelete.length} rows from Incubator Sheet`,
+              );
+              for (const row of rowsToDelete) {
+                await row.delete();
+              }
+            }
+          } catch (err: any) {
+            console.error(
+              "[Recipient Delete] Failed to sync delete from Incubator Sheet:",
+              err.message,
+            );
+          }
+        })(),
+      ]);
+    }
+
+    // 3. Delete from Firestore
     const batch = adminDb.batch();
     const recipientsRef = adminDb.collection("campaignRecipients");
 
@@ -176,7 +256,9 @@ export async function DELETE(
 
     await batch.commit();
 
-    console.log("[Recipient Delete] Successfully deleted recipients");
+    console.log(
+      "[Recipient Delete] Successfully deleted recipients from Firestore",
+    );
 
     return NextResponse.json({
       success: true,

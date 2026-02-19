@@ -5,6 +5,10 @@ import {
 } from "@/lib/auth-middleware";
 import { adminDb } from "@/lib/firebase-admin";
 import * as admin from "firebase-admin";
+import {
+  initializeInvestorSheet,
+  initializeIncubatorSheet,
+} from "@/lib/google-sheets";
 
 export async function POST(
   request: NextRequest,
@@ -46,6 +50,91 @@ export async function POST(
         { success: false, error: "Recipient not found" },
         { status: 404 },
       );
+    }
+
+    const currentData = doc.data();
+    const oldEmail = currentData?.originalContact?.email?.toLowerCase();
+    const oldName = currentData?.originalContact?.name;
+
+    // --- Sync with Google Sheets if critical info changed ---
+    // Only attempt sync if email or name is changing
+    if (
+      oldEmail &&
+      (oldEmail !== email.toLowerCase() || (name && name !== oldName))
+    ) {
+      console.log(
+        `[Recipient Update] Critical info changed. Syncing update to sheets... Old: ${oldEmail}, New: ${email}`,
+      );
+
+      // Best-effort sync update to Google Sheets
+      await Promise.allSettled([
+        (async () => {
+          try {
+            const { sheet } = await initializeInvestorSheet();
+            const rows = await sheet.getRows();
+            // Find row by OLD email
+            const rowToUpdate = rows.find(
+              (row) =>
+                String(row.get("Partner Email") || "").toLowerCase() ===
+                oldEmail,
+            );
+
+            if (rowToUpdate) {
+              console.log(
+                `[Recipient Update] Found matching Investor row. Updating...`,
+              );
+              // Update fields
+              rowToUpdate.set("Partner Email", email);
+              if (name) {
+                rowToUpdate.set("Investor Name", name);
+                // Optionally update Partner Name if it exists/matches logic, but "Investor Name" is safer generic
+                // rowToUpdate.set("Partner Name", name);
+              }
+              await rowToUpdate.save();
+              console.log(
+                `[Recipient Update] Investor row updated successfully.`,
+              );
+            }
+          } catch (err: any) {
+            console.error(
+              "[Recipient Update] Failed to sync update to Investor Sheet:",
+              err.message,
+            );
+          }
+        })(),
+        (async () => {
+          try {
+            const { sheet } = await initializeIncubatorSheet();
+            const rows = await sheet.getRows();
+            // Find row by OLD email
+            const rowToUpdate = rows.find(
+              (row) =>
+                String(row.get("Partner Email") || "").toLowerCase() ===
+                oldEmail,
+            );
+
+            if (rowToUpdate) {
+              console.log(
+                `[Recipient Update] Found matching Incubator row. Updating...`,
+              );
+              // Update fields
+              rowToUpdate.set("Partner Email", email);
+              if (name) {
+                rowToUpdate.set("Incubator Name", name);
+              }
+              await rowToUpdate.save();
+              console.log(
+                `[Recipient Update] Incubator row updated successfully.`,
+              );
+            }
+          } catch (err: any) {
+            console.error(
+              "[Recipient Update] Failed to sync update to Incubator Sheet:",
+              err.message,
+            );
+          }
+        })(),
+      ]);
     }
 
     // Prepare updates
