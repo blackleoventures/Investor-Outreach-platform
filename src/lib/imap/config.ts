@@ -14,7 +14,7 @@ export interface ImapConfig {
 }
 
 export async function getClientImapConfig(
-  clientId: string
+  clientId: string,
 ): Promise<ImapConfig> {
   const clientDoc = await adminDb.collection("clients").doc(clientId).get();
 
@@ -54,15 +54,15 @@ export async function getClientImapConfig(
     decryptedPassword = decryptAES256(smtpSettings.smtpPassword);
     console.log(
       "[IMAP Config] Password decrypted successfully for client:",
-      clientId
+      clientId,
     );
   } catch (error: any) {
     console.error(
       "[IMAP Config] Failed to decrypt password for client:",
-      clientId
+      clientId,
     );
     throw new Error(
-      `Failed to decrypt IMAP password for client ${clientId}: ${error.message}`
+      `Failed to decrypt IMAP password for client ${clientId}: ${error.message}`,
     );
   }
 
@@ -78,7 +78,46 @@ export async function getClientImapConfig(
   };
 }
 
+// ============================================
+// Known SMTP → IMAP host mappings for providers
+// where the standard "smtp" → "imap" replace fails.
+// ============================================
+const KNOWN_IMAP_HOSTS: Record<string, string> = {
+  // GoDaddy: smtpout.secureserver.net → imap.secureserver.net
+  "smtpout.secureserver.net": "imap.secureserver.net",
+
+  // Microsoft Outlook / Office 365
+  "smtp.office365.com": "outlook.office365.com",
+  "smtp-mail.outlook.com": "outlook.office365.com",
+
+  // Amazon SES (send-only, no IMAP inbox)
+  "email-smtp.us-east-1.amazonaws.com": "",
+  "email-smtp.us-east-2.amazonaws.com": "",
+  "email-smtp.us-west-2.amazonaws.com": "",
+  "email-smtp.eu-west-1.amazonaws.com": "",
+  "email-smtp.eu-central-1.amazonaws.com": "",
+  "email-smtp.ap-south-1.amazonaws.com": "",
+  "email-smtp.ap-southeast-1.amazonaws.com": "",
+  "email-smtp.ap-southeast-2.amazonaws.com": "",
+};
+
 function convertSmtpToImapHost(smtpHost: string): string {
+  const normalized = smtpHost.trim().toLowerCase();
+
+  // 1. Check known edge-case providers first
+  if (normalized in KNOWN_IMAP_HOSTS) {
+    const imapHost = KNOWN_IMAP_HOSTS[normalized];
+    if (!imapHost) {
+      // Amazon SES or similar send-only providers
+      throw new Error(
+        `Provider "${smtpHost}" is a send-only service (e.g. Amazon SES) and does not support IMAP for receiving emails`,
+      );
+    }
+    console.log(`[IMAP Config] Using known mapping: ${smtpHost} → ${imapHost}`);
+    return imapHost;
+  }
+
+  // 2. Fallback: standard smtp → imap replacement (works for Gmail, Hostinger, DreamHost, Zoho, Yandex, etc.)
   let imapHost = smtpHost.trim();
 
   if (imapHost.includes("smtp")) {
@@ -116,7 +155,7 @@ export async function getAllActiveClientsImapConfigs(): Promise<
     console.log(
       "[IMAP Config] Loading IMAP configs for",
       clientIds.size,
-      "clients"
+      "clients",
     );
 
     // OPTIMIZATION: Batch fetch all clients instead of N+1 queries
@@ -130,7 +169,7 @@ export async function getAllActiveClientsImapConfigs(): Promise<
 
       // Use getAll for efficient batch fetching
       const clientRefs = batch.map((id) =>
-        adminDb.collection("clients").doc(id)
+        adminDb.collection("clients").doc(id),
       );
       const clientDocs = await adminDb.getAll(...clientRefs);
 
@@ -159,7 +198,7 @@ export async function getAllActiveClientsImapConfigs(): Promise<
         if (!smtpSettings) {
           console.warn(
             "[IMAP Config] Skipping client (no email config):",
-            clientId
+            clientId,
           );
           continue;
         }
@@ -167,7 +206,7 @@ export async function getAllActiveClientsImapConfigs(): Promise<
         if (!smtpSettings.smtpHost || !smtpSettings.smtpHost.trim()) {
           console.warn(
             "[IMAP Config] Skipping client (no SMTP host):",
-            clientId
+            clientId,
           );
           continue;
         }
@@ -175,7 +214,7 @@ export async function getAllActiveClientsImapConfigs(): Promise<
         if (!smtpSettings.smtpUsername || !smtpSettings.smtpUsername.trim()) {
           console.warn(
             "[IMAP Config] Skipping client (no SMTP username):",
-            clientId
+            clientId,
           );
           continue;
         }
@@ -183,7 +222,7 @@ export async function getAllActiveClientsImapConfigs(): Promise<
         if (!smtpSettings.smtpPassword || !smtpSettings.smtpPassword.trim()) {
           console.warn(
             "[IMAP Config] Skipping client (no SMTP password):",
-            clientId
+            clientId,
           );
           continue;
         }
@@ -196,7 +235,7 @@ export async function getAllActiveClientsImapConfigs(): Promise<
         } catch (error: any) {
           console.warn(
             "[IMAP Config] Skipping client (password decrypt failed):",
-            clientId
+            clientId,
           );
           continue;
         }
@@ -217,14 +256,14 @@ export async function getAllActiveClientsImapConfigs(): Promise<
           "[IMAP Config] Loaded config for client:",
           clientId,
           "Host:",
-          imapHost
+          imapHost,
         );
       } catch (error: any) {
         console.warn(
           "[IMAP Config] Skipping client:",
           clientId,
           "Reason:",
-          error.message
+          error.message,
         );
       }
     }
@@ -232,7 +271,7 @@ export async function getAllActiveClientsImapConfigs(): Promise<
     console.log(
       "[IMAP Config] Successfully loaded",
       configs.size,
-      "client configurations"
+      "client configurations",
     );
 
     return configs;
