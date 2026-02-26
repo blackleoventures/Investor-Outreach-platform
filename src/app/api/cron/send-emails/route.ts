@@ -20,6 +20,7 @@ import {
 } from "@/lib/utils/error-helper";
 import type { ErrorCategory } from "@/types";
 import { withRetry } from "@/lib/utils/retry-helper";
+import { logCampaignAlert } from "@/lib/services/campaign-alert-logger";
 import {
   campaignCache,
   clientCache,
@@ -368,6 +369,15 @@ export async function GET(request: NextRequest) {
           } catch (error: any) {
             console.error(`[Cron: Main Emails] SMTP verification failed`);
             logError("SMTP Verification", error, { campaignId });
+
+            // Log alert for dashboard visibility
+            await logCampaignAlert({
+              campaignId,
+              clientId: campaignData.clientId,
+              rawError: error.message || String(error),
+              source: "cron:send-emails",
+            });
+
             continue;
           }
 
@@ -555,6 +565,20 @@ export async function GET(request: NextRequest) {
 
               const errorCategory = categorizeEmailError(error);
               errorBreakdown[errorCategory]++;
+
+              // Log alert for critical send failures (auth, quota, spam)
+              if (
+                errorCategory === "AUTH_FAILED" ||
+                errorCategory === "QUOTA_EXCEEDED" ||
+                errorCategory === "SPAM_BLOCKED"
+              ) {
+                await logCampaignAlert({
+                  campaignId,
+                  clientId: campaignData.clientId,
+                  rawError: error.message || String(error),
+                  source: "cron:send-emails",
+                });
+              }
 
               // Schedule retry if eligible
               if (retryAttempt < 3 && canRetryError(errorCategory)) {

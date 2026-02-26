@@ -40,6 +40,7 @@ import FollowupTab from "@/components/campaigns/FollowupTab";
 import EngagementStatsCards from "@/components/campaigns/EngagementStatsCards";
 import FailedRecipientsTab from "@/components/campaigns/FailedRecipientsTab";
 import CampaignActions from "@/components/campaigns/CampaignActions";
+import CampaignAlertsPanel from "@/components/campaigns/CampaignAlertsPanel";
 import { auth } from "@/lib/firebase";
 import { getBaseUrl } from "@/lib/env-helper";
 
@@ -1004,6 +1005,9 @@ export default function CampaignDetailPage() {
         >
           Back to Campaigns
         </Button>
+
+        {/* Campaign Health Alerts */}
+        <CampaignAlertsPanel campaignId={params.id as string} />
 
         {/* Campaign Details */}
         <div>

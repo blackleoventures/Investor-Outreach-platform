@@ -18,6 +18,7 @@ import {
 import { getCurrentTimestamp } from "@/lib/utils/date-helper";
 import { markAsReplied } from "@/lib/services/recipient-status-manager";
 import { logError } from "@/lib/utils/error-helper";
+import { logCampaignAlert } from "@/lib/services/campaign-alert-logger";
 import { SafeArray, normalizeToArray } from "@/lib/utils/data-normalizer";
 import type { EmailHistoryItem } from "@/types";
 
@@ -126,6 +127,27 @@ export async function GET(request: NextRequest) {
         imapError.message,
       );
       console.error("[Cron: Check Replies] Error stack:", imapError.stack);
+
+      // Log alert for all active campaigns so it shows on the dashboard
+      try {
+        const activeCampaigns = await adminDb
+          .collection("campaigns")
+          .where("status", "in", ["active", "paused", "completed"])
+          .get();
+
+        for (const campaignDoc of activeCampaigns.docs) {
+          await logCampaignAlert({
+            campaignId: campaignDoc.id,
+            clientId: campaignDoc.data().clientId,
+            type: "IMAP_CONNECTION_FAILED",
+            rawError: imapError.message || String(imapError),
+            source: "cron:check-replies",
+          });
+        }
+      } catch (alertErr) {
+        console.error("[Cron: Check Replies] Failed to log alert:", alertErr);
+      }
+
       return NextResponse.json(
         {
           success: false,
