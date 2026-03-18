@@ -191,7 +191,7 @@ export default function ClientSelection({
       title: "Action",
       key: "action",
       width: 100,
-      fixed: "right",
+      fixed: "right" as const,
       render: (_: any, record: any) => (
         <Button
           type="primary"
