@@ -38,7 +38,7 @@ export default function ClientSelection({
         (client) =>
           client.companyName.toLowerCase().includes(searchText.toLowerCase()) ||
           client.founderName.toLowerCase().includes(searchText.toLowerCase()) ||
-          client.industry.toLowerCase().includes(searchText.toLowerCase())
+          client.industry.toLowerCase().includes(searchText.toLowerCase()),
       );
       setFilteredClients(filtered);
     } else {
@@ -59,7 +59,7 @@ export default function ClientSelection({
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -91,7 +91,7 @@ export default function ClientSelection({
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -114,35 +114,73 @@ export default function ClientSelection({
       title: "Company Name",
       dataIndex: "companyName",
       key: "companyName",
+      width: 180,
+      ellipsis: true,
       render: (text: string) => <strong>{text}</strong>,
     },
     {
       title: "Founder",
       dataIndex: "founderName",
       key: "founderName",
+      width: 120,
+      ellipsis: true,
     },
     {
       title: "Industry",
       dataIndex: "industry",
       key: "industry",
-      render: (text: string) => <Tag color="blue">{text}</Tag>,
+      width: 200,
+      render: (text: string) => {
+        if (!text) return <Tag color="blue">-</Tag>;
+        const industries = text
+          .split(",")
+          .map((i) => i.trim())
+          .filter(Boolean);
+        if (industries.length === 0) return <Tag color="blue">{text}</Tag>;
+        return (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "4px",
+              maxWidth: "200px",
+            }}
+          >
+            {industries.slice(0, 3).map((industry, idx) => (
+              <Tag key={idx} color="blue" style={{ margin: 0 }}>
+                {industry.length > 15
+                  ? `${industry.slice(0, 15)}...`
+                  : industry}
+              </Tag>
+            ))}
+            {industries.length > 3 && (
+              <Tag color="blue" style={{ margin: 0 }}>
+                +{industries.length - 3}
+              </Tag>
+            )}
+          </div>
+        );
+      },
     },
     {
       title: "Funding Stage",
       dataIndex: "fundingStage",
       key: "fundingStage",
+      width: 120,
       render: (text: string) => <Tag color="green">{text}</Tag>,
     },
     {
       title: "Daily Limit",
       dataIndex: ["emailConfiguration", "dailyEmailLimit"],
       key: "dailyLimit",
+      width: 110,
       render: (limit: number) => `${limit} emails/day`,
     },
     {
       title: "SMTP Status",
       dataIndex: ["emailConfiguration", "testStatus"],
       key: "smtpStatus",
+      width: 110,
       render: (status: string) => (
         <Tag color={status === "passed" ? "success" : "error"}>
           {status === "passed" ? "Verified" : "Not Verified"}
@@ -152,6 +190,8 @@ export default function ClientSelection({
     {
       title: "Action",
       key: "action",
+      width: 100,
+      fixed: "right",
       render: (_: any, record: any) => (
         <Button
           type="primary"
@@ -201,6 +241,7 @@ export default function ClientSelection({
           dataSource={filteredClients}
           rowKey="id"
           loading={loading}
+          scroll={{ x: "max-content" }}
           pagination={{
             pageSize: 10,
             showSizeChanger: false,
