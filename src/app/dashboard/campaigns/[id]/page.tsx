@@ -34,6 +34,7 @@ import {
   FileTextOutlined,
   WarningOutlined,
   PaperClipOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 import DataTable, { Column, FilterColumn } from "@/components/data-table";
 import FollowupTab from "@/components/campaigns/FollowupTab";
@@ -41,6 +42,7 @@ import EngagementStatsCards from "@/components/campaigns/EngagementStatsCards";
 import FailedRecipientsTab from "@/components/campaigns/FailedRecipientsTab";
 import CampaignActions from "@/components/campaigns/CampaignActions";
 import CampaignAlertsPanel from "@/components/campaigns/CampaignAlertsPanel";
+import EditEmailModal from "@/components/campaigns/EditEmailModal";
 import { auth } from "@/lib/firebase";
 import { getBaseUrl } from "@/lib/env-helper";
 
@@ -170,6 +172,7 @@ export default function CampaignDetailPage() {
   const [recipientsLoading, setRecipientsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [userRole, setUserRole] = useState<string>("");
+  const [editEmailModalVisible, setEditEmailModalVisible] = useState(false);
 
   useEffect(() => {
     fetchUserRole();
@@ -821,6 +824,14 @@ export default function CampaignDetailPage() {
       ),
       children: (
         <div className="space-y-6">
+          <div className="flex justify-end">
+            <Button
+              icon={<EditOutlined />}
+              onClick={() => setEditEmailModalVisible(true)}
+            >
+              Edit Email
+            </Button>
+          </div>
           <Card title="Email Subject">
             <div className="bg-gray-50 p-4 rounded">
               <p className="text-lg font-semibold">
@@ -1120,6 +1131,30 @@ export default function CampaignDetailPage() {
       <Card>
         <Tabs activeKey={activeTab} onChange={setActiveTab} items={tabItems} />
       </Card>
+
+      <EditEmailModal
+        visible={editEmailModalVisible}
+        campaignId={campaignId}
+        campaignStatus={campaign.status}
+        initialSubject={campaign.emailTemplate.currentSubject}
+        initialBody={campaign.emailTemplate.currentBody}
+        onCloseAction={() => setEditEmailModalVisible(false)}
+        onSuccessAction={(subject, body) => {
+          setCampaign((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  emailTemplate: {
+                    ...prev.emailTemplate,
+                    currentSubject: subject,
+                    currentBody: body,
+                  },
+                }
+              : prev,
+          );
+          setEditEmailModalVisible(false);
+        }}
+      />
     </div>
   );
 }
