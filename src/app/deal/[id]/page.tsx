@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
-import { message, Spin, Typography, Card, Row, Col, Divider, Tag, Button, Progress, Space } from "antd";
+import { message, Spin, Typography, Card, Row, Col, Divider, Tag, Button, Progress, Space, Result } from "antd";
+import Link from "next/link";
 import {
     ArrowLeftOutlined,
     MailOutlined,
@@ -17,7 +18,9 @@ import {
     BarChartOutlined,
     BulbOutlined,
     QuestionCircleOutlined,
-    RobotOutlined
+    RobotOutlined,
+    LockOutlined,
+    MinusCircleOutlined
 } from "@ant-design/icons";
 
 const { Title, Text, Paragraph } = Typography;
@@ -70,6 +73,7 @@ export default function DealDetailPage() {
     const [loading, setLoading] = useState(true);
     const [client, setClient] = useState<Client | null>(null);
     const [latestAnalysis, setLatestAnalysis] = useState<PitchAnalysis | null>(null);
+    const [authRequired, setAuthRequired] = useState(false);
 
     useEffect(() => {
         if (id) {
@@ -81,7 +85,13 @@ export default function DealDetailPage() {
         setLoading(true);
         try {
             const user = auth.currentUser;
-            if (!user) return; // Middleware handles auth
+            if (!user) {
+                // No authenticated user: stop the spinner and show an explanatory state
+                // instead of hanging forever. Auth is still required to view the deal.
+                setAuthRequired(true);
+                setLoading(false);
+                return;
+            }
             const token = await user.getIdToken();
 
             // We might need a specific endpoint for single client by ID if not available
@@ -124,7 +134,7 @@ export default function DealDetailPage() {
             case "RED":
                 return <CloseCircleOutlined style={{ color: "#ff4d4f", fontSize: 24 }} />;
             default:
-                return <CheckCircleOutlined style={{ color: "#1890ff", fontSize: 24 }} />;
+                return <MinusCircleOutlined style={{ color: "#94a3b8", fontSize: 24 }} />;
         }
     };
 
@@ -134,21 +144,94 @@ export default function DealDetailPage() {
         return "#ff4d4f";
     };
 
+    const BrandHeader = () => (
+        <header className="bg-white border-b border-gray-200">
+            <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center text-white font-bold text-lg">
+                    R
+                </div>
+                <span className="text-lg font-semibold text-brand-700">Black Leo Venture</span>
+            </div>
+        </header>
+    );
+
+    const BrandFooter = () => (
+        <footer className="mt-12 border-t border-gray-200 bg-white">
+            <div className="max-w-7xl mx-auto px-6 py-6 text-center text-sm text-gray-500">
+                <p className="mb-1">
+                    <span className="font-semibold text-brand-700">Black Leo Venture</span> · Investor Outreach Platform
+                </p>
+                <p className="text-xs text-gray-400">
+                    This deal information is shared confidentially with invited investors.
+                </p>
+            </div>
+        </footer>
+    );
+
     if (loading) {
         return (
-            <div className="min-h-screen flex justify-center items-center">
-                <Spin size="large" tip="Loading deal details..." />
+            <div className="min-h-screen flex flex-col bg-gray-50">
+                <BrandHeader />
+                <div className="flex-1 flex flex-col gap-3 justify-center items-center">
+                    <Spin size="large" />
+                    <p className="text-gray-500 text-sm">Loading deal details...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (authRequired) {
+        return (
+            <div className="min-h-screen flex flex-col bg-gray-50">
+                <BrandHeader />
+                <div className="flex-1 flex justify-center items-center p-6">
+                    <Card className="max-w-md w-full text-center shadow-md">
+                        <div className="w-14 h-14 rounded-full bg-brand-50 flex items-center justify-center mx-auto mb-4">
+                            <LockOutlined style={{ fontSize: 26, color: "#4f46e5" }} />
+                        </div>
+                        <Title level={4} style={{ marginBottom: 8 }}>Sign in to view this deal</Title>
+                        <Paragraph type="secondary" className="mb-6">
+                            Please sign in to view this deal, or this link may have expired.
+                        </Paragraph>
+                        <Link href="/auth/investor-login">
+                            <Button type="primary" size="large" style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}>
+                                Investor Sign In
+                            </Button>
+                        </Link>
+                    </Card>
+                </div>
+                <BrandFooter />
             </div>
         );
     }
 
     if (!client) {
-        return <div className="p-8 text-center">Deal not found.</div>;
+        return (
+            <div className="min-h-screen flex flex-col bg-gray-50">
+                <BrandHeader />
+                <div className="flex-1 flex justify-center items-center p-6">
+                    <Result
+                        status="404"
+                        title="Deal not found"
+                        subTitle="This deal may have been removed, or the link may have expired."
+                        extra={
+                            <Link href="/auth/investor-login">
+                                <Button type="primary" style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}>
+                                    Investor Sign In
+                                </Button>
+                            </Link>
+                        }
+                    />
+                </div>
+                <BrandFooter />
+            </div>
+        );
     }
 
     return (
-        <div className="min-h-screen bg-gray-50 p-6">
-            <div className="max-w-7xl mx-auto">
+        <div className="min-h-screen bg-gray-50">
+            <BrandHeader />
+            <div className="max-w-7xl mx-auto p-6">
                 <Button
                     icon={<ArrowLeftOutlined />}
                     onClick={() => router.back()}
@@ -167,7 +250,7 @@ export default function DealDetailPage() {
                                 </div>
                                 <Title level={3} style={{ marginBottom: 4 }}>{client.companyName}</Title>
                                 <Text type="secondary" className="block mb-2">{client.industry} • {client.city}</Text>
-                                <Tag color="blue">{client.fundingStage}</Tag>
+                                <Tag color="#4f46e5">{client.fundingStage}</Tag>
                             </div>
 
                             <Divider />
@@ -215,9 +298,9 @@ export default function DealDetailPage() {
                     <Col xs={24} lg={16}>
                         {/* AI Analysis Section */}
                         {latestAnalysis ? (
-                            <Card className="mb-6 border-blue-100 shadow-md">
+                            <Card className="mb-6 border-brand-100 shadow-md">
                                 <div className="flex items-center gap-3 mb-6">
-                                    <RobotOutlined style={{ fontSize: 24, color: '#1890ff' }} />
+                                    <RobotOutlined style={{ fontSize: 24, color: '#4f46e5' }} />
                                     <Title level={3} style={{ marginBottom: 0 }}>AI Investment Analysis</Title>
                                 </div>
 
@@ -265,12 +348,12 @@ export default function DealDetailPage() {
                                             {latestAnalysis.summary.solution}
                                         </Card>
                                         <Row gutter={16}>
-                                            <Col span={12}>
+                                            <Col xs={24} md={12}>
                                                 <Card type="inner" title="Market" size="small" className="h-full">
                                                     {latestAnalysis.summary.market}
                                                 </Card>
                                             </Col>
-                                            <Col span={12}>
+                                            <Col xs={24} md={12}>
                                                 <Card type="inner" title="Traction" size="small" className="h-full">
                                                     {latestAnalysis.summary.traction}
                                                 </Card>
@@ -288,9 +371,9 @@ export default function DealDetailPage() {
                                                 <div className="bg-white border rounded p-3">
                                                     <div className="flex justify-between mb-1">
                                                         <span className="font-medium text-gray-700">{key}</span>
-                                                        <span className="font-bold text-blue-600">{score}/10</span>
+                                                        <span className="font-bold text-brand-600">{score}/10</span>
                                                     </div>
-                                                    <Progress percent={score * 10} showInfo={false} size="small" strokeColor="#1890ff" />
+                                                    <Progress percent={score * 10} showInfo={false} size="small" strokeColor="#4f46e5" />
                                                 </div>
                                             </Col>
                                         ))}
@@ -314,8 +397,8 @@ export default function DealDetailPage() {
                                         <Title level={5}><QuestionCircleOutlined /> Suggested Questions</Title>
                                         <ul className="list-none p-0 space-y-2">
                                             {latestAnalysis.suggested_questions.map((q, i) => (
-                                                <li key={i} className="flex items-start gap-2 bg-blue-50 p-2 rounded">
-                                                    <QuestionCircleOutlined className="text-blue-500 mt-1" />
+                                                <li key={i} className="flex items-start gap-2 bg-brand-50 p-2 rounded">
+                                                    <QuestionCircleOutlined className="text-brand-600 mt-1" />
                                                     <span className="text-sm">{q}</span>
                                                 </li>
                                             ))}
@@ -335,6 +418,7 @@ export default function DealDetailPage() {
                     </Col>
                 </Row>
             </div>
+            <BrandFooter />
         </div>
     );
 }

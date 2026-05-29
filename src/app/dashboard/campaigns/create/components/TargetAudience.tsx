@@ -26,23 +26,23 @@ export default function TargetAudience({
     {
       value: "investors",
       title: "Investors Only",
-      icon: <UserSwitchOutlined style={{ fontSize: 48, color: "#1890ff" }} />,
+      icon: <UserSwitchOutlined style={{ fontSize: 48, color: "#4f46e5" }} />,
       description: "Target venture capital firms, angel investors, and investment funds",
-      count: "~45,000 active investors",
+      count: "Best for fundraising and direct investment outreach",
     },
     {
       value: "incubators",
       title: "Incubators Only",
-      icon: <RobotOutlined style={{ fontSize: 48, color: "#52c41a" }} />,
+      icon: <RobotOutlined style={{ fontSize: 48, color: "#4f46e5" }} />,
       description: "Target accelerators, incubator programs, and startup support organizations",
-      count: "~8,000 active incubators",
+      count: "Best for early-stage support and program applications",
     },
     {
       value: "both",
       title: "Both Investors & Incubators",
-      icon: <TeamOutlined style={{ fontSize: 48, color: "#722ed1" }} />,
+      icon: <TeamOutlined style={{ fontSize: 48, color: "#4f46e5" }} />,
       description: "Target all types for maximum reach and exposure (Recommended)",
-      count: "~53,000 total contacts",
+      count: "Widest reach across both investors and incubators",
       recommended: true,
     },
   ];
@@ -70,7 +70,7 @@ export default function TargetAudience({
                 hoverable
                 className={`cursor-pointer transition-all ${
                   targetType === option.value
-                    ? "border-2 border-blue-500 shadow-lg"
+                    ? "border-2 border-brand-600 shadow-lg"
                     : "border border-gray-200"
                 }`}
                 onClick={() => onTargetSelect(option.value as any)}
@@ -84,7 +84,7 @@ export default function TargetAudience({
                           {option.title}
                         </h3>
                         {option.recommended && (
-                          <span className="bg-green-100 text-green-800 text-xs font-semibold px-2 py-1 rounded">
+                          <span className="bg-brand-100 text-brand-800 text-xs font-semibold px-2 py-1 rounded">
                             Recommended
                           </span>
                         )}
@@ -103,7 +103,7 @@ export default function TargetAudience({
 
         <Alert
           message="Note"
-          description="These are total database counts before matching. Actual recipients will be determined by the matching algorithm based on your client's profile."
+          description="The actual recipients are determined by the matching algorithm based on your client's profile. You'll see the exact matched contacts in the next step."
           type="warning"
           showIcon
           className="mt-6"
@@ -111,16 +111,7 @@ export default function TargetAudience({
       </Card>
 
       <div className="flex justify-between">
-        <Button
-          size="large"
-          onClick={onBack}
-          icon={<ArrowLeftOutlined />}
-          style={{
-            backgroundColor: "#6c757d",
-            borderColor: "#6c757d",
-            color: "white",
-          }}
-        >
+        <Button size="large" onClick={onBack} icon={<ArrowLeftOutlined />}>
           Back
         </Button>
         <Button
@@ -129,8 +120,8 @@ export default function TargetAudience({
           onClick={onNext}
           icon={<ArrowRightOutlined />}
           style={{
-            backgroundColor: "#1890ff",
-            borderColor: "#1890ff",
+            backgroundColor: "#4f46e5",
+            borderColor: "#4f46e5",
           }}
         >
           Find Matches

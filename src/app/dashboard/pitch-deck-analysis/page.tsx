@@ -24,6 +24,7 @@ import {
   BarChartOutlined,
   BulbOutlined,
   CalendarOutlined,
+  MinusCircleOutlined,
 } from "@ant-design/icons";
 import type { UploadProps } from "antd";
 
@@ -53,6 +54,24 @@ export default function PitchDeckAnalysisPage() {
     null
   );
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
+  // Single inline status region (replaces the stacked toast chain)
+  const [statusMessage, setStatusMessage] = useState<string>("");
+
+  const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+  const ALLOWED_EXTENSIONS = ["pdf", "docx", "txt"];
+
+  // Centralized validation used by both handleFileUpload and extractTextFromFile.
+  // Returns an error string if invalid, otherwise null.
+  const validatePitchFile = (file: File): string | null => {
+    const fileExtension = file.name.split(".").pop()?.toLowerCase();
+    if (!fileExtension || !ALLOWED_EXTENSIONS.includes(fileExtension)) {
+      return "Unsupported file type. Please upload a PDF, Word (.docx), or Text (.txt) file.";
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      return "File is too large. Please use a file smaller than 10MB.";
+    }
+    return null;
+  };
 
   const parseTextFile = async (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -98,11 +117,9 @@ export default function PitchDeckAnalysisPage() {
   };
 
   const extractTextFromFile = async (file: File): Promise<string> => {
-    const maxSizeInBytes = 10 * 1024 * 1024;
-    if (file.size > maxSizeInBytes) {
-      throw new Error(
-        "File size is too large. Please use a file smaller than 10MB."
-      );
+    const validationError = validatePitchFile(file);
+    if (validationError) {
+      throw new Error(validationError);
     }
 
     const fileExtension = file.name.split(".").pop()?.toLowerCase();
@@ -112,7 +129,7 @@ export default function PitchDeckAnalysisPage() {
       extractedText = await parseTextFile(file);
     } else if (fileExtension === "pdf") {
       extractedText = await parsePDFFile(file);
-    } else if (fileExtension === "doc" || fileExtension === "docx") {
+    } else if (fileExtension === "docx") {
       extractedText = await parseWordFile(file);
     } else {
       throw new Error(`Unsupported file type: .${fileExtension}`);
@@ -155,19 +172,9 @@ export default function PitchDeckAnalysisPage() {
   };
 
   const handleFileUpload = async (file: File) => {
-    const fileExtension = file.name.split(".").pop()?.toLowerCase();
-    const allowedExtensions = ["pdf", "doc", "docx", "txt"];
-
-    if (!fileExtension || !allowedExtensions.includes(fileExtension)) {
-      message.error(
-        "Unsupported file type. Please upload PDF, Word, or Text files only."
-      );
-      return false;
-    }
-
-    const maxSizeInBytes = 10 * 1024 * 1024;
-    if (file.size > maxSizeInBytes) {
-      message.error("File is too large. Please use a file smaller than 10MB.");
+    const validationError = validatePitchFile(file);
+    if (validationError) {
+      message.error(validationError);
       return false;
     }
 
@@ -176,16 +183,10 @@ export default function PitchDeckAnalysisPage() {
     setCurrentAnalysis(null);
 
     try {
-      message.loading("Processing file...", 0);
+      setStatusMessage("Extracting text from your file...");
       const extractedText = await extractTextFromFile(file);
 
-      message.destroy();
-      message.success(`File processed successfully!`);
-
-      message.loading(
-        "Analyzing content with AI... This may take a moment.",
-        0
-      );
+      setStatusMessage("Analyzing content with AI... This may take a moment.");
       const analysis = await callAnalysisAPI(extractedText, file.name);
 
       const analysisWithMetadata = {
@@ -195,12 +196,11 @@ export default function PitchDeckAnalysisPage() {
       };
 
       setCurrentAnalysis(analysisWithMetadata);
-
-      message.destroy();
+      setStatusMessage("");
       message.success("Analysis completed successfully!");
     } catch (error: any) {
       console.error("File processing error:", error);
-      message.destroy();
+      setStatusMessage("");
       message.error(error.message || "Something went wrong.");
       setCurrentAnalysis(null);
     } finally {
@@ -213,7 +213,7 @@ export default function PitchDeckAnalysisPage() {
   const uploadProps: UploadProps = {
     name: "file",
     multiple: false,
-    accept: ".pdf,.doc,.docx,.txt",
+    accept: ".pdf,.docx,.txt",
     beforeUpload: handleFileUpload,
     showUploadList: false,
     disabled: analysisLoading,
@@ -233,7 +233,7 @@ export default function PitchDeckAnalysisPage() {
         );
       default:
         return (
-          <CheckCircleOutlined style={{ color: "#1890ff", fontSize: 24 }} />
+          <MinusCircleOutlined style={{ color: "#94a3b8", fontSize: 24 }} />
         );
     }
   };
@@ -245,7 +245,7 @@ export default function PitchDeckAnalysisPage() {
   };
 
   return (
-    <div>
+    <div className="max-w-7xl mx-auto">
       <Title level={3} style={{ marginBottom: 24 }}>
         <RobotOutlined /> AI-Powered Pitch Deck Analysis
       </Title>
@@ -254,47 +254,41 @@ export default function PitchDeckAnalysisPage() {
       <Card style={{ marginBottom: 24, border: "1px solid #d9d9d9" }}>
         <Dragger {...uploadProps} style={{ padding: 24 }}>
           <p className="ant-upload-drag-icon">
-            <UploadOutlined style={{ color: "#1890ff", fontSize: 48 }} />
+            <UploadOutlined style={{ color: "#4f46e5", fontSize: 48 }} />
           </p>
           <Title level={5} style={{ marginBottom: 8 }}>
             Click or drag file to upload
           </Title>
           <Text style={{ fontSize: 14 }}>
-            Supported formats: PDF, Word (.doc, .docx), Text (.txt) | Max size:
-            10MB
+            Supported formats: PDF, Word (.docx), Text (.txt) | Max size: 10MB
           </Text>
         </Dragger>
 
-        {analysisLoading && (
-          <div style={{ textAlign: "center", marginTop: 24 }}>
-            <LoadingOutlined
-              style={{ fontSize: 48, color: "#1890ff", marginBottom: 16 }}
-            />
-            <div>
-              <Text strong style={{ fontSize: 16 }}>
-                Analyzing your pitch deck...
-              </Text>
-              <Paragraph style={{ color: "#666", marginTop: 8 }}>
-                This may take 10-30 seconds depending on the content length.
-              </Paragraph>
-            </div>
+        {/* Selected file chip - shown immediately on selection */}
+        {uploadedFileName && (
+          <div
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-brand-50 border border-brand-100 px-4 py-2"
+          >
+            <FileTextOutlined style={{ color: "#4f46e5" }} />
+            <Text strong className="text-brand-700">
+              {uploadedFileName}
+            </Text>
           </div>
         )}
 
-        {uploadedFileName && !analysisLoading && !currentAnalysis && (
-          <div
-            style={{
-              marginTop: 16,
-              padding: 12,
-              backgroundColor: "#f0f0f0",
-              borderRadius: 8,
-              textAlign: "center",
-            }}
-          >
-            <FileTextOutlined style={{ fontSize: 20, color: "#1890ff" }} />
-            <Text strong style={{ marginLeft: 8 }}>
-              {uploadedFileName}
-            </Text>
+        {/* Single inline status region with progress (replaces stacked toasts) */}
+        {analysisLoading && (
+          <div className="mt-4 rounded-lg border border-brand-100 bg-brand-50 p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <LoadingOutlined style={{ color: "#4f46e5", fontSize: 18 }} />
+              <Text strong style={{ fontSize: 15 }}>
+                {statusMessage || "Processing..."}
+              </Text>
+            </div>
+            <Progress percent={100} status="active" showInfo={false} strokeColor="#4f46e5" />
+            <Paragraph type="secondary" style={{ marginTop: 8, marginBottom: 0 }}>
+              This may take 10-30 seconds depending on the content length.
+            </Paragraph>
           </div>
         )}
       </Card>
@@ -442,13 +436,13 @@ export default function PitchDeckAnalysisPage() {
                       }}
                     >
                       <Text strong>{criteria}</Text>
-                      <Text strong style={{ color: "#1890ff" }}>
+                      <Text strong style={{ color: "#4f46e5" }}>
                         {score}/10
                       </Text>
                     </div>
                     <Progress
                       percent={score * 10}
-                      strokeColor="#1890ff"
+                      strokeColor="#4f46e5"
                       trailColor="#f0f0f0"
                       strokeWidth={10}
                       showInfo={false}

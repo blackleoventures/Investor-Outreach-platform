@@ -30,6 +30,15 @@ export default function InviteInvestorPage() {
     const [successData, setSuccessData] = useState<{ email: string, name: string, magicLink?: string } | null>(null);
     const [form] = Form.useForm();
 
+    // Wait for role to resolve before deciding access (avoids 403 flash)
+    if (userData === undefined) {
+        return (
+            <div className="flex justify-center items-center min-h-screen">
+                <Spin size="large" />
+            </div>
+        );
+    }
+
     // Basic role check (Frontend only - Backend verifies token)
     if (!userData || (userData.role !== 'admin' && userData.role !== 'subadmin')) {
         return (
@@ -72,7 +81,6 @@ export default function InviteInvestorPage() {
                 name: values.fullName,
                 magicLink: data.data.magicLink
             });
-            message.success("Investor invited successfully!");
             form.resetFields();
 
         } catch (error: any) {
@@ -94,10 +102,10 @@ export default function InviteInvestorPage() {
                             <div className="text-left mt-4 p-4 bg-gray-50 rounded-lg">
                                 <p><strong>Name:</strong> {successData.name}</p>
                                 <p><strong>Email:</strong> {successData.email}</p>
-                                {successData.magicLink && (
-                                    <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded">
-                                        <p className="text-xs font-bold text-blue-700 uppercase mb-1">Testing Magic Link:</p>
-                                        <code className="block text-xs break-all bg-white p-2 rounded border border-blue-200">
+                                {process.env.NODE_ENV === 'development' && successData.magicLink && (
+                                    <div className="mt-4 p-3 bg-brand-50 border border-brand-100 rounded">
+                                        <p className="text-xs font-bold text-brand-700 uppercase mb-1">Testing Magic Link (dev only):</p>
+                                        <code className="block text-xs break-all bg-white p-2 rounded border border-brand-200">
                                             {successData.magicLink}
                                         </code>
                                     </div>
@@ -145,14 +153,14 @@ export default function InviteInvestorPage() {
             </div>
 
             <div className="flex justify-center">
-                <Card className="w-full max-w-lg shadow-md border-t-4 border-t-blue-500">
+                <Card className="w-full max-w-lg shadow-md border-t-4 border-t-brand-600">
                     <div className="flex justify-center mb-6">
-                        <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center">
-                            <UserAddOutlined className="text-3xl text-blue-500" />
+                        <div className="w-16 h-16 bg-brand-50 rounded-full flex items-center justify-center">
+                            <UserAddOutlined className="text-3xl text-brand-600" />
                         </div>
                     </div>
 
-                    <Form form={form} layout="vertical" onFinish={handleSubmit}>
+                    <Form form={form} layout="vertical" onFinish={handleSubmit} disabled={loading}>
                         <Form.Item
                             name="fullName"
                             label="Full Name"
@@ -180,16 +188,16 @@ export default function InviteInvestorPage() {
                             <Input prefix={<BankOutlined className="text-gray-400" />} placeholder="e.g. Sequoia Capital" size="large" />
                         </Form.Item>
 
-                        <div className="bg-blue-50 p-4 rounded-md mb-6 flex gap-3">
-                            <SafetyCertificateOutlined className="text-blue-500 text-xl mt-1" />
-                            <div className="text-sm text-blue-700">
+                        <div className="bg-brand-50 p-4 rounded-md mb-6 flex gap-3">
+                            <SafetyCertificateOutlined className="text-brand-600 text-xl mt-1" />
+                            <div className="text-sm text-brand-700">
                                 <strong>Security Note:</strong> This will create a verified user account with
                                 access to the Deal Room. Ensure the email is correct.
                             </div>
                         </div>
 
                         <Form.Item>
-                            <Button type="primary" htmlType="submit" size="large" block loading={loading} className="bg-blue-600 hover:bg-blue-500 h-12">
+                            <Button type="primary" htmlType="submit" size="large" block loading={loading} className="bg-brand-600 hover:bg-brand-700 h-12">
                                 Send Invitation & Create Account
                             </Button>
                         </Form.Item>

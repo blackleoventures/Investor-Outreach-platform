@@ -47,17 +47,27 @@ export default function MatchResults({
   getAuthToken,
 }: MatchResultsProps) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
+  // Key identifying the inputs that produced the current matches. Used to
+  // detect stale matches when the user goes Back and changes client/target.
+  const currentInputKey = `${selectedClient?.id ?? ""}|${targetType}`;
+
   useEffect(() => {
-    if (!matchResults) {
+    // Run matching when there are no results yet, or when the existing results
+    // were produced for a different client/targetType (stale after going Back).
+    const stale =
+      matchResults && matchResults.__inputKey && matchResults.__inputKey !== currentInputKey;
+    if (!matchResults || stale) {
       runMatching();
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentInputKey]);
 
   useEffect(() => {
     if (matchResults?.matches) {
@@ -68,6 +78,7 @@ export default function MatchResults({
   const runMatching = async () => {
     try {
       setLoading(true);
+      setError(null);
       const token = await getAuthToken();
       if (!token) return;
 
@@ -88,10 +99,12 @@ export default function MatchResults({
       }
 
       const data = await response.json();
-      onMatchComplete(data);
+      // Stamp the inputs that produced these matches so we can detect staleness.
+      onMatchComplete({ ...data, __inputKey: currentInputKey });
       message.success(`Found ${data.totalMatches} matches!`);
     } catch (error: any) {
       console.error("Matching error:", error);
+      setError(error.message || "Failed to find matches");
       message.error(error.message || "Failed to find matches");
     } finally {
       setLoading(false);
@@ -128,17 +141,19 @@ export default function MatchResults({
     }
 
     Modal.confirm({
-      title: "Delete Selected Contacts?",
+      title: "Remove Selected Contacts?",
       icon: <ExclamationCircleOutlined />,
       content: (
         <div>
-          <p>Are you sure you want to remove <strong>{selectedRowKeys.length}</strong> selected contacts from this campaign?</p>
+          <p>Remove <strong>{selectedRowKeys.length}</strong> selected contacts from this campaign?</p>
           <p className="text-gray-600 text-sm mt-2">
-            This action cannot be undone. The removed contacts will not receive emails from this campaign.
+            These contacts won't receive emails from this campaign. This only
+            affects the current selection — you can re-run matching to bring
+            them back.
           </p>
         </div>
       ),
-      okText: "Yes, Delete",
+      okText: "Remove",
       okType: "danger",
       cancelText: "Cancel",
       onOk: () => {
@@ -171,11 +186,17 @@ export default function MatchResults({
           incubatorPercent: totalMatches > 0 ? Math.round((incubatorCount / totalMatches) * 100) : 0,
         };
 
-        onMatchComplete(updatedResults);
+        onMatchComplete({ ...updatedResults, __inputKey: currentInputKey });
         setSelectedRowKeys([]);
         message.success(`${selectedRowKeys.length} contacts removed successfully`);
       },
     });
+  };
+
+  const escapeCsv = (value: any) => {
+    const str = value === null || value === undefined ? "" : String(value);
+    // Always quote and escape embedded double-quotes per RFC 4180.
+    return `"${str.replace(/"/g, '""')}"`;
   };
 
   const exportToCSV = () => {
@@ -190,10 +211,10 @@ export default function MatchResults({
         item.type,
         item.priority,
         item.matchScore,
-        item.matchedCriteria.join("; "),
+        (item.matchedCriteria || []).join("; "),
       ]),
     ]
-      .map((row) => row.join(","))
+      .map((row) => row.map(escapeCsv).join(","))
       .join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv" });
@@ -247,7 +268,7 @@ export default function MatchResults({
       key: "email",
       width: 200,
       render: (email: string) => (
-        <span className="text-blue-600">{email}</span>
+        <span className="text-brand-600">{email}</span>
       ),
     },
     {
@@ -324,8 +345,67 @@ export default function MatchResults({
     );
   }
 
+  // Error state: matching failed — let the user retry instead of a blank screen.
+  if (error && !matchResults) {
+    return (
+      <div>
+        <Card>
+          <div className="flex flex-col justify-center items-center py-12 text-center">
+            <ExclamationCircleOutlined style={{ fontSize: 40, color: "#ff4d4f" }} />
+            <p className="mt-4 text-lg font-semibold">Matching failed</p>
+            <p className="text-gray-500 mb-4">{error}</p>
+            <Button
+              type="primary"
+              onClick={runMatching}
+              style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}
+            >
+              Retry matching
+            </Button>
+          </div>
+        </Card>
+        <div className="flex justify-between mt-6">
+          <Button size="large" onClick={onBack} icon={<ArrowLeftOutlined />}>
+            Back
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!matchResults) {
     return null;
+  }
+
+  const totalMatches = matchResults.totalMatches ?? matchResults.matches?.length ?? 0;
+
+  // Zero-matches empty state.
+  if (totalMatches === 0) {
+    return (
+      <div>
+        <Card>
+          <div className="flex flex-col justify-center items-center py-12 text-center">
+            <SearchOutlined style={{ fontSize: 40, color: "#94a3b8" }} />
+            <p className="mt-4 text-lg font-semibold">No matches found</p>
+            <p className="text-gray-500 mb-4">
+              No contacts matched this client and audience. Try a different
+              target audience or re-run matching.
+            </p>
+            <Button
+              type="primary"
+              onClick={runMatching}
+              style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}
+            >
+              Re-run matching
+            </Button>
+          </div>
+        </Card>
+        <div className="flex justify-between mt-6">
+          <Button size="large" onClick={onBack} icon={<ArrowLeftOutlined />}>
+            Back
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -371,13 +451,13 @@ export default function MatchResults({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-gray-600 mb-2">Investors</p>
-              <p className="text-2xl font-bold text-blue-600">
+              <p className="text-2xl font-bold text-brand-600">
                 {matchResults.investorCount} ({matchResults.investorPercent}%)
               </p>
             </div>
             <div>
               <p className="text-gray-600 mb-2">Incubators</p>
-              <p className="text-2xl font-bold text-green-600">
+              <p className="text-2xl font-bold text-brand-500">
                 {matchResults.incubatorCount} ({matchResults.incubatorPercent}%)
               </p>
             </div>
@@ -420,8 +500,8 @@ export default function MatchResults({
             icon={<DownloadOutlined />}
             onClick={exportToCSV}
             style={{
-              backgroundColor: "#52c41a",
-              borderColor: "#52c41a",
+              backgroundColor: "#4f46e5",
+              borderColor: "#4f46e5",
               color: "white",
             }}
           >
@@ -453,27 +533,20 @@ export default function MatchResults({
       </Card>
 
       <div className="flex justify-between">
-        <Button
-          size="large"
-          onClick={onBack}
-          icon={<ArrowLeftOutlined />}
-          style={{
-            backgroundColor: "#6c757d",
-            borderColor: "#6c757d",
-            color: "white",
-          }}
-        >
+        <Button size="large" onClick={onBack} icon={<ArrowLeftOutlined />}>
           Back
         </Button>
         <Button
           type="primary"
           size="large"
           onClick={onNext}
+          disabled={totalMatches === 0}
           icon={<ArrowRightOutlined />}
-          style={{
-            backgroundColor: "#1890ff",
-            borderColor: "#1890ff",
-          }}
+          style={
+            totalMatches === 0
+              ? undefined
+              : { backgroundColor: "#4f46e5", borderColor: "#4f46e5" }
+          }
         >
           Continue to Email Template
         </Button>

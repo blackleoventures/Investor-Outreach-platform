@@ -29,6 +29,7 @@ import {
   ThunderboltOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  ExclamationCircleOutlined,
   UploadOutlined,
   FileTextOutlined,
   LoadingOutlined,
@@ -172,8 +173,6 @@ export default function AddClient() {
         setPitchAnalysis(analysis);
         setUploadedFileName(analysis.fileName || "");
       }
-
-      console.log("[AddClient] Data loaded from localStorage");
     } catch (error) {
       console.error("[AddClient] Error loading from localStorage:", error);
     }
@@ -185,7 +184,6 @@ export default function AddClient() {
       localStorage.removeItem(STORAGE_KEYS.EMAIL_CONFIG);
       localStorage.removeItem(STORAGE_KEYS.PITCH_ANALYSIS);
       localStorage.removeItem(STORAGE_KEYS.CURRENT_STEP);
-      //  console.log("[AddClient] LocalStorage cleared");
     } catch (error) {
       console.error("[AddClient] Error clearing localStorage:", error);
     }
@@ -236,8 +234,12 @@ export default function AddClient() {
 
       setCurrentStep(1);
       message.success("Client information saved!");
-    } catch (error) {
+    } catch (error: any) {
       message.error("Please fill in all required fields");
+      const firstField = error?.errorFields?.[0]?.name;
+      if (firstField) {
+        form.scrollToField(firstField, { behavior: "smooth", block: "center" });
+      }
     }
   };
 
@@ -271,8 +273,12 @@ export default function AddClient() {
 
       setTestEmailAddress("");
       setSmtpTestModalVisible(true);
-    } catch (error) {
+    } catch (error: any) {
       message.error("Please fill in all SMTP configuration fields first");
+      const firstField = error?.errorFields?.[0]?.name;
+      if (firstField) {
+        form.scrollToField(firstField, { behavior: "smooth", block: "center" });
+      }
     }
   };
 
@@ -326,7 +332,9 @@ export default function AddClient() {
       setSmtpTestStatus("passed");
       setSmtpTestModalVisible(false);
 
-      // Save email config to localStorage ONLY after successful test
+      // Save email config to localStorage ONLY after successful test.
+      // SECURITY: do NOT persist the SMTP password to localStorage. It is kept
+      // only in the form state and read directly at final submit time.
       const emailConfig = {
         platformName: values.platformName,
         senderEmail: values.senderEmail,
@@ -334,7 +342,6 @@ export default function AddClient() {
         smtpPort: values.smtpPort,
         smtpSecurity: values.smtpSecurity,
         smtpUsername: values.smtpUsername,
-        smtpPassword: values.smtpPassword,
         testPassed: true,
       };
       localStorage.setItem(
@@ -347,7 +354,7 @@ export default function AddClient() {
         content: (
           <div>
             <p>A test email has been sent to:</p>
-            <p style={{ fontWeight: 600, color: "#1890ff" }}>
+            <p style={{ fontWeight: 600, color: "#4f46e5" }}>
               {testEmailAddress}
             </p>
             <p style={{ marginTop: 12 }}>
@@ -621,8 +628,12 @@ export default function AddClient() {
         localStorage.getItem(STORAGE_KEYS.PITCH_ANALYSIS) || "{}"
       );
 
+      // SECURITY: the SMTP password is intentionally not persisted to
+      // localStorage. Read it from the live form state instead.
+      const smtpPassword = form.getFieldValue("smtpPassword");
+
       // Validate all data is present (pitch analysis is optional)
-      if (!clientInfo.companyName || !emailConfig.smtpPassword) {
+      if (!clientInfo.companyName || !smtpPassword) {
         message.error(
           "Some data is missing. Please go through all steps again."
         );
@@ -646,7 +657,7 @@ export default function AddClient() {
         smtpPort: emailConfig.smtpPort,
         smtpSecurity: emailConfig.smtpSecurity,
         smtpUsername: emailConfig.smtpUsername,
-        smtpPassword: emailConfig.smtpPassword.replace(/\s/g, ""),
+        smtpPassword: smtpPassword.replace(/\s/g, ""),
         // Only include pitchAnalysis if it exists
         ...(pitchData.summary ? { pitchAnalysis: pitchData } : {}),
       };
@@ -795,7 +806,14 @@ export default function AddClient() {
               <Form.Item
                 name="phone"
                 label="Phone"
-                rules={[{ required: true, message: "Phone is required" }]}
+                rules={[
+                  { required: true, message: "Phone is required" },
+                  {
+                    pattern:
+                      /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/,
+                    message: "Please enter a valid phone number",
+                  },
+                ]}
               >
                 <Input placeholder="e.g., +1 555 000 0000" />
               </Form.Item>
@@ -853,7 +871,7 @@ export default function AddClient() {
                 type="primary"
                 onClick={handleStep1Next}
                 icon={<ArrowRightOutlined />}
-                style={{ backgroundColor: "#1890ff", borderColor: "#1890ff" }}
+                style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}
               >
                 Save & Continue to Email Setup
               </Button>
@@ -960,7 +978,19 @@ export default function AddClient() {
               <Form.Item
                 name="smtpPort"
                 label="SMTP Port"
-                rules={[{ required: true, message: "Required" }]}
+                rules={[
+                  { required: true, message: "Required" },
+                  {
+                    type: "number",
+                    transform: (value) =>
+                      value === undefined || value === null || value === ""
+                        ? value
+                        : Number(value),
+                    min: 1,
+                    max: 65535,
+                    message: "Port must be between 1 and 65535",
+                  },
+                ]}
                 tooltip="Port number for secure connection"
                 initialValue={587}
               >
@@ -1014,7 +1044,8 @@ export default function AddClient() {
                         marginBottom: 8,
                       }}
                     >
-                      ⚠️ IMPORTANT: Use App Password, NOT Regular Password
+                      <ExclamationCircleOutlined style={{ marginRight: 6 }} />
+                      IMPORTANT: Use App Password, NOT Regular Password
                     </Text>
                     <div style={{ fontSize: 12, lineHeight: 1.6 }}>
                       <p style={{ marginBottom: 8 }}>
@@ -1046,7 +1077,7 @@ export default function AddClient() {
 
             {smtpTestStatus === "passed" && (
               <Alert
-                message="✓ Email Configuration Tested & Saved Successfully"
+                message="Email Configuration Tested & Saved Successfully"
                 description="The SMTP configuration has been verified and saved. You can proceed to the next step."
                 type="success"
                 showIcon
@@ -1057,7 +1088,7 @@ export default function AddClient() {
 
             {smtpTestStatus === "failed" && (
               <Alert
-                message="✗ Email Configuration Test Failed"
+                message="Email Configuration Test Failed"
                 description={smtpTestError}
                 type="error"
                 showIcon
@@ -1081,22 +1112,26 @@ export default function AddClient() {
                 icon={<ThunderboltOutlined />}
                 style={{
                   backgroundColor:
-                    smtpTestStatus === "passed" ? "#52c41a" : "#1890ff",
+                    smtpTestStatus === "passed" ? "#52c41a" : "#4f46e5",
                   borderColor:
-                    smtpTestStatus === "passed" ? "#52c41a" : "#1890ff",
+                    smtpTestStatus === "passed" ? "#52c41a" : "#4f46e5",
                   color: "#fff",
                 }}
               >
-                {smtpTestStatus === "passed"
-                  ? "✓ Test Passed - Retest?"
-                  : "Test Email Configuration"}
+                {smtpTestStatus === "passed" ? (
+                  <>
+                    <CheckCircleOutlined /> Test Passed - Retest?
+                  </>
+                ) : (
+                  "Test Email Configuration"
+                )}
               </Button>
               <Button
                 type="primary"
                 onClick={handleStep2Next}
                 disabled={smtpTestStatus !== "passed"}
                 icon={<ArrowRightOutlined />}
-                style={{ backgroundColor: "#1890ff", borderColor: "#1890ff" }}
+                style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}
               >
                 Continue to Pitch Analysis
               </Button>
@@ -1129,7 +1164,7 @@ export default function AddClient() {
               style={{ marginBottom: 24 }}
             >
               <p className="ant-upload-drag-icon">
-                <UploadOutlined style={{ color: "#1890ff", fontSize: 48 }} />
+                <UploadOutlined style={{ color: "#4f46e5", fontSize: 48 }} />
               </p>
               <p className="ant-upload-text">Click or drag file to upload</p>
               <p className="ant-upload-hint">
@@ -1158,7 +1193,7 @@ export default function AddClient() {
               <Card
                 style={{
                   marginTop: 24,
-                  border: "2px solid #1890ff",
+                  border: "2px solid #4f46e5",
                   borderRadius: 8,
                 }}
               >
@@ -1357,8 +1392,8 @@ export default function AddClient() {
                 loading={loading}
                 icon={<SaveOutlined />}
                 style={{
-                  backgroundColor: "#52c41a",
-                  borderColor: "#52c41a",
+                  backgroundColor: "#4f46e5",
+                  borderColor: "#4f46e5",
                   height: 48,
                   fontSize: 16,
                   fontWeight: 600,
@@ -1377,7 +1412,7 @@ export default function AddClient() {
       <Modal
         title={
           <Space>
-            <ThunderboltOutlined style={{ color: "#1890ff" }} />
+            <ThunderboltOutlined style={{ color: "#4f46e5" }} />
             <span>Test Email Configuration</span>
           </Space>
         }
@@ -1398,8 +1433,8 @@ export default function AddClient() {
             loading={testEmailLoading}
             disabled={!testEmailAddress}
             style={{
-              backgroundColor: "#1890ff",
-              borderColor: "#1890ff",
+              backgroundColor: "#4f46e5",
+              borderColor: "#4f46e5",
             }}
           >
             Send Test Email

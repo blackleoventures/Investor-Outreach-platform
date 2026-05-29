@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { TrendingUp, Zap, Target, BarChart3, Users, Briefcase, Rocket, CheckCircle } from 'lucide-react';
+import { TrendingUp, Zap, Target, BarChart3, Users, Briefcase, Rocket, CheckCircle, ArrowRight } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
@@ -10,28 +10,34 @@ export default function Home() {
 
   const handleNavigation = (type: 'founder' | 'investor') => {
     setLoading(true);
-    // Redirect to login page - the login page should handle role selection or logic
-    // Currently aiming for a simple redirect flow
-    router.push('/login');
+    router.push(`/login?role=${type}`);
   };
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 font-sans">
+    <div className="min-h-screen bg-surface-50 text-surface-900 font-sans selection:bg-brand-500 selection:text-white">
       {/* Navigation */}
-      <nav className="fixed w-full z-50 bg-white/80 backdrop-blur-md border-b border-gray-100" data-testid="nav-header">
+      <nav className="fixed w-full z-50 bg-white/70 backdrop-blur-xl border-b border-surface-200/50 transition-all duration-300" data-testid="nav-header">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-2" data-testid="text-logo">
-              <div className="bg-black text-white p-1.5 rounded-lg">
-                <TrendingUp size={20} />
+          <div className="flex justify-between items-center h-20">
+            <button
+              type="button"
+              onClick={() => router.push('/')}
+              aria-label="Black Leo Venture home"
+              className="flex items-center gap-3 cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              data-testid="text-logo"
+            >
+              <div className="bg-gradient-to-br from-brand-600 to-brand-800 text-white p-2 rounded-xl shadow-lg shadow-brand-500/20">
+                <TrendingUp size={22} strokeWidth={2.5} aria-hidden="true" />
               </div>
-              <span className="text-xl font-bold tracking-tight">Black Leo Venture</span>
-            </div>
+              <span className="text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-surface-900 to-surface-700">
+                Black Leo Venture
+              </span>
+            </button>
             <div className="hidden md:flex items-center space-x-8">
-              <a href="/login" className="text-sm font-medium text-gray-600 hover:text-gray-900">Sign In</a>
+              <a href="/login" className="text-sm font-semibold text-surface-600 hover:text-brand-600 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">Sign In</a>
               <button
                 onClick={() => router.push('/login')}
-                className="bg-black text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-gray-800 transition-colors"
+                className="bg-surface-900 text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-brand-600 transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
               >
                 Get Started
               </button>
@@ -42,112 +48,128 @@ export default function Home() {
 
       <main>
         {/* Hero Section */}
-        <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 text-blue-700 text-sm font-medium mb-8">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-            </span>
-            Now supporting 500+ deals
+        <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 px-4 overflow-hidden">
+          {/* Background Decorative Elements */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full pointer-events-none">
+            <div aria-hidden="true" className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-brand-400 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-blob motion-reduce:animate-none"></div>
+            <div aria-hidden="true" className="absolute top-[20%] right-[-10%] w-96 h-96 bg-violet-400 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-blob motion-reduce:animate-none" style={{ animationDelay: '2s' }}></div>
           </div>
 
-          <h1 className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tight text-gray-900 mb-6" data-testid="text-hero-title">
-            Connect Founders with Investors <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Through AI Intelligence</span>
-          </h1>
-
-          <p className="text-xl text-gray-600 mb-10 max-w-3xl mx-auto leading-relaxed" data-testid="text-hero-subtitle">
-            Streamline your investment process with automated pitch deck analysis, intelligent scoring, and actionable insights powered by cutting-edge AI technology.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
-            <button
-              className="flex items-center justify-center gap-2 px-8 py-4 bg-black text-white rounded-xl font-semibold text-lg hover:bg-gray-800 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 w-full sm:w-auto"
-              onClick={() => handleNavigation('founder')}
-              disabled={loading}
-              data-testid="button-login-founder"
-            >
-              <Rocket size={20} />
-              Get Started as Founder
-            </button>
-            <button
-              className="flex items-center justify-center gap-2 px-8 py-4 bg-white text-gray-900 border-2 border-gray-200 rounded-xl font-semibold text-lg hover:border-gray-300 hover:bg-gray-50 transition-all w-full sm:w-auto"
-              onClick={() => handleNavigation('investor')}
-              disabled={loading}
-              data-testid="button-login-investor"
-            >
-              <Briefcase size={20} />
-              Join as Investor
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto border-t border-gray-100 pt-12">
-            <div className="flex flex-col items-center p-4" data-testid="badge-deals">
-              <div className="text-3xl font-bold text-gray-900 mb-1">500+</div>
-              <div className="text-sm text-gray-500 font-medium uppercase tracking-wide">Deals Analyzed</div>
+          <div className="relative max-w-5xl mx-auto text-center z-10 animate-fade-in-up">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 border border-brand-100 text-brand-700 text-sm font-semibold mb-8 shadow-sm">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping motion-reduce:animate-none absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-600"></span>
+              </span>
+              Now analyzing 500+ premium deals
             </div>
-            <div className="flex flex-col items-center p-4 border-l-0 md:border-l border-gray-100" data-testid="badge-accuracy">
-              <div className="text-3xl font-bold text-gray-900 mb-1">98%</div>
-              <div className="text-sm text-gray-500 font-medium uppercase tracking-wide">Analysis Accuracy</div>
+
+            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold tracking-tight text-surface-950 mb-8 leading-[1.1]" data-testid="text-hero-title">
+              Smarter Deal Flow.<br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 via-brand-500 to-violet-600">Powered by AI.</span>
+            </h1>
+
+            <p className="text-xl sm:text-2xl text-surface-600 mb-12 max-w-3xl mx-auto leading-relaxed font-light" data-testid="text-hero-subtitle">
+              Streamline your investment process with instant pitch deck analysis, predictive scoring, and deep diligence insights.
+            </p>
+
+            <div className="flex flex-col sm:flex-row gap-5 justify-center items-center mb-20">
+              <button
+                className="group flex items-center justify-center gap-2 px-8 py-4 bg-brand-600 text-white rounded-2xl font-semibold text-lg hover:bg-brand-700 transition-all duration-300 shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50 hover:-translate-y-1 w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => handleNavigation('investor')}
+                disabled={loading}
+                aria-busy={loading}
+              >
+                <Briefcase size={22} aria-hidden="true" />
+                <span>Join as Investor</span>
+                <ArrowRight size={18} aria-hidden="true" className="opacity-0 -ml-4 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
+              </button>
+              <button
+                className="flex items-center justify-center gap-2 px-8 py-4 bg-white text-surface-900 border border-surface-200 rounded-2xl font-semibold text-lg hover:border-brand-300 hover:bg-brand-50 transition-all duration-300 shadow-sm hover:shadow-md w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => handleNavigation('founder')}
+                disabled={loading}
+                aria-busy={loading}
+              >
+                <Rocket size={22} className="text-surface-500" aria-hidden="true" />
+                Submit Pitch Deck
+              </button>
             </div>
-            <div className="flex flex-col items-center p-4 border-l-0 md:border-l border-gray-100" data-testid="badge-time">
-              <div className="text-3xl font-bold text-gray-900 mb-1">60s</div>
-              <div className="text-sm text-gray-500 font-medium uppercase tracking-wide">Avg. Analysis Time</div>
+
+            {/* Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-8 max-w-3xl mx-auto p-8 bg-white/60 backdrop-blur-md rounded-3xl border border-white/80 shadow-xl shadow-surface-200/20">
+              <div className="flex flex-col items-center">
+                <div className="text-4xl font-extrabold text-surface-900 mb-1">500+</div>
+                <div className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Deals Analyzed</div>
+              </div>
+              <div className="flex flex-col items-center">
+                <div className="text-4xl font-extrabold text-brand-600 mb-1">98%</div>
+                <div className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Data Accuracy</div>
+              </div>
+              <div className="flex flex-col items-center col-span-2 md:col-span-1">
+                <div className="text-4xl font-extrabold text-surface-900 mb-1"><span className="text-2xl text-surface-400">&lt;</span>60s</div>
+                <div className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Analysis Time</div>
+              </div>
             </div>
           </div>
         </section>
 
         {/* Features Section */}
-        <section className="py-24 bg-gray-50">
+        <section className="py-32 bg-white relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" data-testid="text-features-title">
-                Powerful Features for Modern Investors
+            <div className="text-center mb-20">
+              <h2 className="text-4xl sm:text-5xl font-extrabold text-surface-900 mb-6 tracking-tight">
+                Enterprise Intelligence
               </h2>
-              <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-                Everything you need to make data-driven investment decisions
+              <p className="text-xl text-surface-600 max-w-2xl mx-auto font-light">
+                Uncover hidden risks and opportunities with our proprietary evaluation engine.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {[
                 {
-                  icon: <BarChart3 className="text-blue-600" size={24} />,
-                  title: "AI-Powered Analysis",
-                  description: "Comprehensive evaluation across 10 critical investment criteria including market size, traction, team strength, and competitive advantage."
+                  icon: <BarChart3 className="text-brand-600" size={28} aria-hidden="true" />,
+                  bg: "bg-brand-50",
+                  title: "Deep Tech Analysis",
+                  description: "Comprehensive evaluation across market size, technical defensibility, and competitive moats."
                 },
                 {
-                  icon: <Zap className="text-amber-500" size={24} />,
-                  title: "Instant Insights",
-                  description: "Get AI-generated summaries, recommended investment actions, and intelligent questions to ask founders in seconds."
+                  icon: <Zap className="text-amber-500" size={28} aria-hidden="true" />,
+                  bg: "bg-amber-50",
+                  title: "Instant Diligence",
+                  description: "Generate structured summaries and targeted Q&A prompts instantly from raw pitch decks."
                 },
                 {
-                  icon: <Target className="text-red-500" size={24} />,
-                  title: "Smart Scoring System",
-                  description: "Objective 0-100 scoring with detailed breakdowns helping you make data-driven investment decisions with confidence."
+                  icon: <Target className="text-emerald-500" size={28} aria-hidden="true" />,
+                  bg: "bg-emerald-50",
+                  title: "Smart Scoring",
+                  description: "Objective 0-100 venture scoring with detailed criterion breakdowns for rapid filtering."
                 },
                 {
-                  icon: <TrendingUp className="text-green-600" size={24} />,
-                  title: "Deal Flow Management",
-                  description: "Track investor interest, monitor engagement metrics, and manage your entire pipeline in one centralized platform."
+                  icon: <TrendingUp className="text-brand-500" size={28} aria-hidden="true" />,
+                  bg: "bg-brand-50",
+                  title: "Pipeline Management",
+                  description: "Track founder engagement, team sentiment, and manage your entire deal flow in one place."
                 },
                 {
-                  icon: <Users className="text-purple-600" size={24} />,
-                  title: "Seamless Collaboration",
-                  description: "Connect founders and investors efficiently with structured data, eliminating endless email threads and missed opportunities."
+                  icon: <Users className="text-violet-500" size={28} aria-hidden="true" />,
+                  bg: "bg-violet-50",
+                  title: "Syndicate Sync",
+                  description: "Share structured deal memos and co-invest effortlessly without endless email threads."
                 },
                 {
-                  icon: <CheckCircle className="text-indigo-600" size={24} />,
-                  title: "Enterprise Security",
-                  description: "Bank-level encryption and secure file storage ensure your sensitive pitch decks and investment data remain protected."
+                  icon: <CheckCircle className="text-rose-500" size={28} aria-hidden="true" />,
+                  bg: "bg-rose-50",
+                  title: "Bank-Grade Security",
+                  description: "End-to-end encryption ensures highly confidential IP and financials remain protected."
                 }
               ].map((feature, i) => (
-                <div key={i} className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-                  <div className="w-12 h-12 bg-gray-50 rounded-xl flex items-center justify-center mb-6">
+                <div key={i} className="group bg-surface-50 p-8 rounded-3xl border border-surface-200/60 hover:bg-white hover:shadow-2xl hover:shadow-brand-900/5 hover:-translate-y-1 transition-all duration-300">
+                  <div className={`w-14 h-14 ${feature.bg} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
                     {feature.icon}
                   </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">{feature.title}</h3>
-                  <p className="text-gray-600 leading-relaxed">
+                  <h3 className="text-xl font-bold text-surface-900 mb-3">{feature.title}</h3>
+                  <p className="text-surface-600 leading-relaxed font-light">
                     {feature.description}
                   </p>
                 </div>
@@ -156,62 +178,35 @@ export default function Home() {
           </div>
         </section>
 
-        {/* How It Works Section */}
-        <section className="py-24 bg-white">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-16 text-center" data-testid="text-how-it-works-title">
-              How It Works
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-12 relative">
-              <div className="hidden md:block absolute top-12 left-0 w-full h-0.5 bg-gradient-to-r from-gray-200 via-gray-200 to-transparent -z-10"></div>
-
-              {[
-                { number: "1", title: "Upload Deck", desc: "Founders upload their PDF pitch decks in seconds securely." },
-                { number: "2", title: "AI Analysis", desc: "Our engine analyzes your deck across 10 criteria in <60s." },
-                { number: "3", title: "Get Insights", desc: "Receive scores, summaries, and suggested user questions." },
-                { number: "4", title: "Connect", desc: "Make informed decisions and connect with the right opportunities." }
-              ].map((step, i) => (
-                <div key={i} className="flex flex-col items-center text-center group">
-                  <div className="w-16 h-16 bg-black text-white rounded-2xl flex items-center justify-center text-2xl font-bold mb-6 shadow-xl group-hover:scale-110 transition-transform">
-                    {step.number}
-                  </div>
-                  <h3 className="text-xl font-bold text-gray-900 mb-3">{step.title}</h3>
-                  <p className="text-gray-600">{step.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
         {/* CTA Section */}
         <section className="py-24 px-4">
-          <div className="max-w-5xl mx-auto bg-black rounded-3xl p-12 md:p-20 text-center text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-            <div className="absolute bottom-0 left-0 w-64 h-64 bg-purple-600 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+          <div className="max-w-6xl mx-auto bg-surface-950 rounded-[3rem] p-12 md:p-24 text-center text-white relative overflow-hidden shadow-2xl">
+            {/* Ambient glows */}
+            <div aria-hidden="true" className="absolute top-0 right-0 w-96 h-96 bg-brand-600 rounded-full mix-blend-screen filter blur-[100px] opacity-30 animate-pulse-slow motion-reduce:animate-none"></div>
+            <div aria-hidden="true" className="absolute bottom-0 left-0 w-96 h-96 bg-violet-600 rounded-full mix-blend-screen filter blur-[100px] opacity-30"></div>
 
             <div className="relative z-10">
-              <h2 className="text-3xl sm:text-5xl font-bold mb-6" data-testid="text-cta-title">
-                Ready to Transform Your Deal Flow?
+              <h2 className="text-4xl sm:text-6xl font-extrabold mb-8 tracking-tight">
+                Upgrade Your Deal Flow
               </h2>
-              <p className="text-xl text-gray-300 mb-10 max-w-2xl mx-auto" data-testid="text-cta-subtitle">
-                Join hundreds of investors and founders making smarter decisions with AI
+              <p className="text-xl text-surface-300 mb-12 max-w-2xl mx-auto font-light leading-relaxed">
+                Join top-tier venture funds and angel networks making smarter, faster investment decisions with Black Leo.
               </p>
               <button
-                className="bg-white text-black px-10 py-4 rounded-xl font-bold text-lg hover:bg-gray-100 transition-colors shadow-xl"
+                className="bg-white text-surface-950 px-10 py-5 rounded-2xl font-bold text-lg hover:bg-brand-50 hover:scale-105 transition-all duration-300 shadow-xl shadow-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => router.push('/login')}
                 disabled={loading}
-                data-testid="button-cta-main"
+                aria-busy={loading}
               >
-                Start Analyzing Deals Today
+                Start Analyzing Deals
               </button>
             </div>
           </div>
         </section>
       </main>
 
-      <footer className="bg-gray-50 py-12 border-t border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 text-center text-gray-500">
+      <footer className="bg-white py-12 border-t border-surface-100">
+        <div className="max-w-7xl mx-auto px-4 text-center text-surface-400 font-medium">
           <p>&copy; {new Date().getFullYear()} Black Leo Venture. All rights reserved.</p>
         </div>
       </footer>

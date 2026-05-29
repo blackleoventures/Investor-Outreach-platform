@@ -12,6 +12,7 @@ import {
   Tag,
   message,
   Alert,
+  Input,
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -22,6 +23,8 @@ import {
   PaperClipOutlined,
 } from "@ant-design/icons";
 import dayjs from "dayjs";
+import { getWordCount } from "@/components/ui/RichTextEditor";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 const { Panel } = Collapse;
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -34,6 +37,7 @@ interface FinalReviewProps {
   scheduleConfig: any;
   onBack: () => void;
   getAuthToken: () => Promise<string | null>;
+  onActivated?: () => void;
 }
 
 export default function FinalReview({
@@ -44,6 +48,7 @@ export default function FinalReview({
   scheduleConfig,
   onBack,
   getAuthToken,
+  onActivated,
 }: FinalReviewProps) {
   const router = useRouter();
   const [confirmChecks, setConfirmChecks] = useState({
@@ -54,6 +59,7 @@ export default function FinalReview({
   });
   const [activationLoading, setActivationLoading] = useState(false);
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  const [activated, setActivated] = useState(false);
 
   const allChecked = Object.values(confirmChecks).every(Boolean);
 
@@ -100,6 +106,9 @@ export default function FinalReview({
       const data = await response.json();
 
       setConfirmModalVisible(false);
+      setActivated(true);
+      // Clear any persisted wizard draft now that the campaign is live
+      onActivated?.();
 
       // Show success modal
       Modal.confirm({
@@ -122,35 +131,28 @@ export default function FinalReview({
               {dayjs(scheduleConfig.startDate).format("MMM DD, YYYY")} at{" "}
               {scheduleConfig.sendingWindow.start}
             </p>
-            <div className="mt-4 p-3 bg-blue-50 rounded">
-              <p className="text-sm text-blue-800 mb-2">
+            <div className="mt-4 p-3 bg-brand-50 rounded">
+              <p className="text-sm text-brand-800 mb-2">
                 <strong>Public Report Link:</strong>
               </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={data.publicReportUrl}
-                  readOnly
-                  className="flex-1 px-2 py-1 text-xs border rounded"
-                />
-                <Button
-                  size="small"
-                  className="bg-green-600 hover:bg-green-700 border-green-600"
-                  onClick={() => {
+              <Input.Search
+                value={data.publicReportUrl}
+                readOnly
+                enterButton="Copy"
+                size="small"
+                onSearch={() => {
+                  try {
                     navigator.clipboard.writeText(data.publicReportUrl);
                     message.success("Link copied!");
-                  }}
-                >
-                  Copy
-                </Button>
-              </div>
+                  } catch {
+                    message.error("Could not copy. Please copy the link manually.");
+                  }
+                }}
+              />
             </div>
           </div>
         ),
         okText: "View Campaigns",
-        okButtonProps: {
-          style: { backgroundColor: "#1677ff", borderColor: "#1677ff" }, // Blue color
-        },
         width: 600,
         onOk: () => router.push("/dashboard/campaigns"),
       });
@@ -167,13 +169,13 @@ export default function FinalReview({
       <Card title="Campaign Review" className="mb-6">
         <Alert
           message="Please review all campaign details before activation"
-          description="Once activated, the campaign will run automatically and cannot be stopped or significantly modified."
+          description="Once activated, sending begins automatically on the schedule below. You can pause the campaign or edit pending emails afterward, but emails that have already been sent cannot be recalled."
           type="info"
           showIcon
           className="mb-6"
         />
 
-        <Collapse defaultActiveKey={["1", "2"]} className="mb-6">
+        <Collapse defaultActiveKey={["1", "2", "3", "4"]} className="mb-6">
           {/* Client Information */}
           <Panel
             header={
@@ -218,7 +220,7 @@ export default function FinalReview({
           >
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
               <div className="text-center">
-                <p className="text-2xl font-bold text-blue-600">
+                <p className="text-2xl font-bold text-brand-600">
                   {matchResults.totalMatches}
                 </p>
                 <p className="text-gray-600">Total Recipients</p>
@@ -246,10 +248,10 @@ export default function FinalReview({
               </div>
             </div>
             <div className="flex gap-2">
-              <Tag color="blue">Target: {targetType}</Tag>
+              <Tag color="#4f46e5">Target: {targetType}</Tag>
               {targetType === "both" && (
                 <>
-                  <Tag color="blue">
+                  <Tag color="#4f46e5">
                     Investors: {matchResults.investorCount}
                   </Tag>
                   <Tag color="green">
@@ -310,12 +312,12 @@ export default function FinalReview({
                   font-style: italic;
                 }
                 .email-preview-container a {
-                  color: #2563eb;
+                  color: #4f46e5;
                   text-decoration: underline;
                   cursor: pointer;
                 }
                 .email-preview-container a:hover {
-                  color: #1d4ed8;
+                  color: #4338ca;
                 }
               `}</style>
               <div
@@ -326,10 +328,12 @@ export default function FinalReview({
                   lineHeight: "1.6",
                   color: "#333333",
                 }}
-                dangerouslySetInnerHTML={{ __html: emailTemplate.currentBody }}
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeHtml(emailTemplate.currentBody),
+                }}
               />
               <p className="text-sm text-gray-500 mt-2">
-                Words: {emailTemplate.currentBody.split(" ").length}
+                Words: {getWordCount(emailTemplate.currentBody)}
                 {emailTemplate.bodyImproved && (
                   <Tag color="green" className="ml-2">
                     Improved
@@ -351,7 +355,7 @@ export default function FinalReview({
                       <Tag
                         key={att.id}
                         icon={<PaperClipOutlined />}
-                        color="blue"
+                        color="#4f46e5"
                       >
                         {att.originalName || att.name} (
                         {(att.size / 1024).toFixed(1)} KB)
@@ -438,8 +442,8 @@ export default function FinalReview({
               checked={confirmChecks.noStop}
               onChange={(e) => handleCheckChange("noStop", e.target.checked)}
             >
-              I acknowledge that once activated, this campaign cannot be stopped
-              or significantly modified
+              I understand that emails already sent cannot be recalled, even
+              though I can pause the campaign or edit pending emails afterward
             </Checkbox>
           </div>
         </div>
@@ -453,11 +457,11 @@ export default function FinalReview({
           type="primary"
           size="large"
           onClick={showActivationConfirm}
-          disabled={!allChecked}
+          disabled={!allChecked || activated}
+          loading={activationLoading}
           icon={<RocketOutlined />}
-          className="bg-green-600 hover:bg-green-700 border-green-600"
         >
-          Activate Campaign
+          {activated ? "Campaign Activated" : "Activate Campaign"}
         </Button>
       </div>
 
@@ -486,7 +490,7 @@ export default function FinalReview({
         <div className="py-4">
           <Alert
             message="Campaign Activation Warning"
-            description="You are about to activate a campaign that will send emails to recipients over multiple days. This action cannot be undone."
+            description="You are about to activate a campaign that will send emails to recipients over multiple days. You can pause it or edit pending emails later, but emails already sent cannot be recalled."
             type="warning"
             showIcon
             className="mb-4"

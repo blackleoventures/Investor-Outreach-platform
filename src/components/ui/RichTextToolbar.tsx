@@ -99,7 +99,7 @@ function ToolbarButton({
         p-2 rounded-md transition-all duration-200 
         ${
           isActive
-            ? "bg-blue-500 text-white shadow-sm"
+            ? "bg-brand-600 text-white shadow-sm"
             : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
         }
         ${disabled ? "opacity-40 cursor-not-allowed" : "cursor-pointer"}
@@ -171,8 +171,8 @@ function ToolbarDropdown({
                 onChange(option.value);
                 setIsOpen(false);
               }}
-              className={`w-full px-3 py-1.5 text-left text-sm hover:bg-blue-50 transition-colors
-                ${value === option.name ? "bg-blue-50 text-blue-600" : ""}`}
+              className={`w-full px-3 py-1.5 text-left text-sm hover:bg-brand-50 transition-colors
+                ${value === option.name ? "bg-brand-50 text-brand-600" : ""}`}
             >
               {option.name}
             </button>
@@ -202,6 +202,34 @@ export default function RichTextToolbar({
     const found = EMAIL_SAFE_FONTS.find((f) => f.value === fontFamily);
     return found?.name || "Arial";
   };
+
+  // Keep the displayed font-size / line-height dropdowns in sync with the
+  // text style at the current cursor/selection.
+  useEffect(() => {
+    if (!editor) return;
+
+    const syncFromSelection = () => {
+      const attrs = editor.getAttributes("textStyle");
+
+      const fs = FONT_SIZES.find((s) => s.value === attrs.fontSize);
+      setCurrentFontSize(fs?.name || "14");
+
+      const lh = LINE_HEIGHTS.find((l) => l.value === attrs.lineHeight);
+      setCurrentLineHeight(lh?.name || "1.5");
+
+      const ls = LETTER_SPACINGS.find((l) => l.value === attrs.letterSpacing);
+      setCurrentLetterSpacing(ls?.name || "Normal");
+    };
+
+    editor.on("selectionUpdate", syncFromSelection);
+    editor.on("transaction", syncFromSelection);
+    syncFromSelection();
+
+    return () => {
+      editor.off("selectionUpdate", syncFromSelection);
+      editor.off("transaction", syncFromSelection);
+    };
+  }, [editor]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -372,7 +400,7 @@ export default function RichTextToolbar({
                 key={font.name}
                 type="button"
                 onClick={() => handleFontChange(font.value)}
-                className="w-full px-3 py-2 text-left hover:bg-blue-50 transition-colors"
+                className="w-full px-3 py-2 text-left hover:bg-brand-50 transition-colors"
                 style={{ fontFamily: font.value }}
               >
                 {font.name}
@@ -449,7 +477,7 @@ export default function RichTextToolbar({
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
                 placeholder="https://example.com"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
                     e.preventDefault();
@@ -481,7 +509,7 @@ export default function RichTextToolbar({
                 <button
                   type="button"
                   onClick={handleSetLink}
-                  className="px-3 py-1.5 text-sm bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors"
+                  className="px-3 py-1.5 text-sm bg-brand-600 text-white hover:bg-brand-700 rounded-md transition-colors"
                 >
                   Apply
                 </button>

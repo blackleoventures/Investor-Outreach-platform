@@ -7,11 +7,14 @@ import {
   Button,
   Card,
   message,
-  Spin,
 } from "antd";
 import {
   ArrowLeftOutlined,
-  ArrowRightOutlined,
+  UserOutlined,
+  AimOutlined,
+  ThunderboltOutlined,
+  MailOutlined,
+  ClockCircleOutlined,
   CheckCircleOutlined,
 } from "@ant-design/icons";
 import { auth } from "@/lib/firebase";
@@ -24,12 +27,11 @@ import EmailTemplate from "./components/EmailTemplate";
 import ScheduleConfig from "./components/ScheduleConfig";
 import FinalReview from "./components/FinalReview";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+const STORAGE_KEY = "create-campaign-wizard-state";
 
 export default function CreateCampaignPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
-  const [loading, setLoading] = useState(false);
 
   // Campaign data state
   const [selectedClient, setSelectedClient] = useState<any>(null);
@@ -37,27 +39,87 @@ export default function CreateCampaignPage() {
   const [matchResults, setMatchResults] = useState<any>(null);
   const [emailTemplate, setEmailTemplate] = useState<any>(null);
   const [scheduleConfig, setScheduleConfig] = useState<any>(null);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Rehydrate wizard state from sessionStorage on mount.
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved && typeof saved === "object") {
+          if (typeof saved.currentStep === "number") setCurrentStep(saved.currentStep);
+          if (saved.selectedClient) setSelectedClient(saved.selectedClient);
+          if (saved.targetType) setTargetType(saved.targetType);
+          if (saved.matchResults) setMatchResults(saved.matchResults);
+          if (saved.emailTemplate) setEmailTemplate(saved.emailTemplate);
+          if (saved.scheduleConfig) setScheduleConfig(saved.scheduleConfig);
+        }
+      }
+    } catch (error) {
+      // Corrupt/unparseable state — start fresh without crashing.
+      console.warn("Failed to restore campaign wizard state:", error);
+      try {
+        sessionStorage.removeItem(STORAGE_KEY);
+      } catch {}
+    } finally {
+      setHydrated(true);
+    }
+  }, []);
+
+  // Persist wizard state on change. Note: in-memory File blobs (e.g. attachment
+  // File objects) are not serializable and are intentionally not persisted.
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      const toPersist = {
+        currentStep,
+        selectedClient,
+        targetType,
+        matchResults,
+        emailTemplate,
+        scheduleConfig,
+      };
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(toPersist));
+    } catch (error) {
+      console.warn("Failed to persist campaign wizard state:", error);
+    }
+  }, [
+    hydrated,
+    currentStep,
+    selectedClient,
+    targetType,
+    matchResults,
+    emailTemplate,
+    scheduleConfig,
+  ]);
+
+  const clearWizardState = () => {
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch {}
+  };
 
   const steps = [
     {
       title: "Select Client",
-      icon: <CheckCircleOutlined />,
+      icon: <UserOutlined />,
     },
     {
       title: "Target Audience",
-      icon: <CheckCircleOutlined />,
+      icon: <AimOutlined />,
     },
     {
       title: "Match Results",
-      icon: <CheckCircleOutlined />,
+      icon: <ThunderboltOutlined />,
     },
     {
       title: "Email Template",
-      icon: <CheckCircleOutlined />,
+      icon: <MailOutlined />,
     },
     {
       title: "Schedule",
-      icon: <CheckCircleOutlined />,
+      icon: <ClockCircleOutlined />,
     },
     {
       title: "Review & Activate",
@@ -82,6 +144,18 @@ export default function CreateCampaignPage() {
   };
 
   const handleNext = () => {
+    // Gate transitions that matter; per-step components self-police the rest.
+    if (currentStep === 0 && !selectedClient) {
+      message.error("Please select a client before continuing");
+      return;
+    }
+    if (currentStep === 2) {
+      const total = matchResults?.totalMatches ?? matchResults?.matches?.length ?? 0;
+      if (!matchResults || total === 0) {
+        message.error("You need at least one matched recipient to continue");
+        return;
+      }
+    }
     setCurrentStep(currentStep + 1);
   };
 
@@ -153,6 +227,7 @@ export default function CreateCampaignPage() {
             scheduleConfig={scheduleConfig}
             onBack={handleBack}
             getAuthToken={getAuthToken}
+            onActivated={clearWizardState}
           />
         );
       default:
@@ -180,7 +255,7 @@ export default function CreateCampaignPage() {
 
       {/* Progress Steps */}
       <Card className="mb-6">
-        <Steps current={currentStep} items={steps} />
+        <Steps current={currentStep} items={steps} size="small" responsive />
       </Card>
 
       {/* Step Content */}

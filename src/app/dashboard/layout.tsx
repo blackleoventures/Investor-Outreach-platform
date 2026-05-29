@@ -361,7 +361,7 @@ export default function DashboardLayout({
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <div className="w-12 h-12 border-4 border-brand-600 border-t-transparent rounded-full animate-spin" />
           <p className="text-gray-600 text-sm">Loading...</p>
         </div>
       </div>
@@ -372,7 +372,7 @@ export default function DashboardLayout({
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <div className="w-12 h-12 border-4 border-brand-600 border-t-transparent rounded-full animate-spin" />
           <p className="text-gray-600 text-sm">Loading dashboard...</p>
         </div>
       </div>
@@ -479,7 +479,7 @@ export default function DashboardLayout({
               />
             )}
             <h2 className="text-lg font-bold hidden sm:block">
-              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-brand-600 to-brand-400 bg-clip-text text-transparent">
                 Welcome back,
               </span>{" "}
               <span className="text-base">{currentUser.displayName}</span>
@@ -497,7 +497,7 @@ export default function DashboardLayout({
                 icon={<UserOutlined />}
                 src={currentUser.photoURL || undefined}
                 size="default"
-                className="bg-gradient-to-br from-blue-500 to-purple-600"
+                className="bg-gradient-to-br from-brand-500 to-brand-700"
               />
               <span className="text-sm font-medium text-gray-700 hidden sm:inline">
                 {currentUser.displayName || currentUser.email?.split("@")[0]}

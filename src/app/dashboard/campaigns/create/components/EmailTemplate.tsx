@@ -38,6 +38,7 @@ import {
   MAX_FILE_SIZE,
   MAX_TOTAL_SIZE,
 } from "@/lib/firebase-storage";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 const { TextArea } = Input;
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -77,6 +78,11 @@ export default function EmailTemplate({
   >("optimized");
   const [customInstructions, setCustomInstructions] = useState("");
   const [loading, setLoading] = useState(false);
+  const [loadingType, setLoadingType] = useState<"subject" | "body" | null>(null);
+
+  // Undo snapshots: hold the previous value so an AI improvement can be reverted.
+  const [prevSubject, setPrevSubject] = useState<string | null>(null);
+  const [prevBody, setPrevBody] = useState<string | null>(null);
 
   // Attachments state
   const [attachments, setAttachments] = useState<Attachment[]>(
@@ -89,6 +95,7 @@ export default function EmailTemplate({
   const improveSubject = async () => {
     try {
       setLoading(true);
+      setLoadingType("subject");
       const token = await getAuthToken();
       if (!token) return;
 
@@ -117,21 +124,48 @@ export default function EmailTemplate({
       }
 
       const data = await response.json();
+      // Snapshot the prior value so the user can undo this improvement.
+      const previous = currentSubject;
+      setPrevSubject(previous);
       setCurrentSubject(data.improvedSubject);
       setSubjectModalVisible(false);
       setCustomInstructions(""); // Reset custom instructions
-      message.success("Subject improved successfully!");
+      message.success({
+        content: (
+          <span>
+            Subject improved.{" "}
+            <a
+              onClick={() => {
+                setCurrentSubject(previous);
+                setPrevSubject(null);
+              }}
+            >
+              Undo
+            </a>
+          </span>
+        ),
+        duration: 6,
+      });
     } catch (error: any) {
       console.error("Subject improvement error:", error);
       message.error(error.message || "Failed to improve subject");
     } finally {
       setLoading(false);
+      setLoadingType(null);
     }
+  };
+
+  const undoSubject = () => {
+    if (prevSubject === null) return;
+    setCurrentSubject(prevSubject);
+    setPrevSubject(null);
+    message.info("Subject reverted");
   };
 
   const improveBody = async () => {
     try {
       setLoading(true);
+      setLoadingType("body");
       const token = await getAuthToken();
       if (!token) return;
 
@@ -162,16 +196,42 @@ export default function EmailTemplate({
       const data = await response.json();
       // Convert markdown to HTML for the rich text editor
       const cleanedBody = markdownToHtml(data.improvedBody);
+      // Snapshot the prior value so the user can undo this improvement.
+      const previous = currentBody;
+      setPrevBody(previous);
       setCurrentBody(cleanedBody);
       setBodyModalVisible(false);
       setCustomInstructions(""); // Reset custom instructions
-      message.success("Email body improved successfully!");
+      message.success({
+        content: (
+          <span>
+            Email body improved.{" "}
+            <a
+              onClick={() => {
+                setCurrentBody(previous);
+                setPrevBody(null);
+              }}
+            >
+              Undo
+            </a>
+          </span>
+        ),
+        duration: 6,
+      });
     } catch (error: any) {
       console.error("Body improvement error:", error);
       message.error(error.message || "Failed to improve email body");
     } finally {
       setLoading(false);
+      setLoadingType(null);
     }
+  };
+
+  const undoBody = () => {
+    if (prevBody === null) return;
+    setCurrentBody(prevBody);
+    setPrevBody(null);
+    message.info("Email body reverted");
   };
 
   // ============================================================
@@ -287,17 +347,26 @@ export default function EmailTemplate({
       <Card
         title="Email Subject Line"
         extra={
-          <Button
-            icon={<ThunderboltOutlined />}
-            onClick={() => setSubjectModalVisible(true)}
-            style={{
-              backgroundColor: "#722ed1",
-              borderColor: "#722ed1",
-              color: "white",
-            }}
-          >
-            Improve Subject
-          </Button>
+          <Space>
+            {prevSubject !== null && (
+              <Button size="small" onClick={undoSubject}>
+                Undo
+              </Button>
+            )}
+            <Button
+              icon={<ThunderboltOutlined />}
+              onClick={() => setSubjectModalVisible(true)}
+              loading={loadingType === "subject"}
+              disabled={loadingType === "subject"}
+              style={{
+                backgroundColor: "#4f46e5",
+                borderColor: "#4f46e5",
+                color: "white",
+              }}
+            >
+              Improve Subject
+            </Button>
+          </Space>
         }
         className="mb-6"
       >
@@ -314,7 +383,13 @@ export default function EmailTemplate({
           placeholder="Email subject line..."
           style={{ backgroundColor: "#ffffff" }}
         />
-        <p className="text-sm text-gray-500 mt-2">
+        <p
+          className={`text-sm mt-2 ${
+            currentSubject.length < 40 || currentSubject.length > 60
+              ? "text-amber-600"
+              : "text-gray-500"
+          }`}
+        >
           Character count: {currentSubject.length} (recommended: 40-60)
         </p>
       </Card>
@@ -323,17 +398,26 @@ export default function EmailTemplate({
       <Card
         title="Email Body"
         extra={
-          <Button
-            icon={<ThunderboltOutlined />}
-            onClick={() => setBodyModalVisible(true)}
-            style={{
-              backgroundColor: "#722ed1",
-              borderColor: "#722ed1",
-              color: "white",
-            }}
-          >
-            Improve Body
-          </Button>
+          <Space>
+            {prevBody !== null && (
+              <Button size="small" onClick={undoBody}>
+                Undo
+              </Button>
+            )}
+            <Button
+              icon={<ThunderboltOutlined />}
+              onClick={() => setBodyModalVisible(true)}
+              loading={loadingType === "body"}
+              disabled={loadingType === "body"}
+              style={{
+                backgroundColor: "#4f46e5",
+                borderColor: "#4f46e5",
+                color: "white",
+              }}
+            >
+              Improve Body
+            </Button>
+          </Space>
         }
         className="mb-6"
       >
@@ -379,8 +463,8 @@ export default function EmailTemplate({
           onDrop={handleDrop}
           className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
             isDragging
-              ? "border-blue-500 bg-blue-50"
-              : "border-gray-300 hover:border-blue-400"
+              ? "border-brand-600 bg-brand-50"
+              : "border-gray-300 hover:border-brand-400"
           } ${
             attachments.length >= MAX_FILES
               ? "opacity-50 cursor-not-allowed"
@@ -404,7 +488,7 @@ export default function EmailTemplate({
 
           {uploadingFiles ? (
             <div>
-              <LoadingOutlined className="text-2xl text-blue-500 mb-2" />
+              <LoadingOutlined className="text-2xl text-brand-600 mb-2" />
               <p className="text-gray-600">Uploading files...</p>
             </div>
           ) : (
@@ -494,11 +578,6 @@ export default function EmailTemplate({
               setCustomInstructions("");
               setImprovementMethod("optimized");
             }}
-            style={{
-              backgroundColor: "#6c757d",
-              borderColor: "#6c757d",
-              color: "white",
-            }}
           >
             Cancel
           </Button>,
@@ -508,8 +587,8 @@ export default function EmailTemplate({
             loading={loading}
             onClick={improveSubject}
             style={{
-              backgroundColor: "#52c41a",
-              borderColor: "#52c41a",
+              backgroundColor: "#4f46e5",
+              borderColor: "#4f46e5",
             }}
           >
             Generate Improved Subject
@@ -569,11 +648,6 @@ export default function EmailTemplate({
               setCustomInstructions("");
               setImprovementMethod("optimized");
             }}
-            style={{
-              backgroundColor: "#6c757d",
-              borderColor: "#6c757d",
-              color: "white",
-            }}
           >
             Cancel
           </Button>,
@@ -583,8 +657,8 @@ export default function EmailTemplate({
             loading={loading}
             onClick={improveBody}
             style={{
-              backgroundColor: "#52c41a",
-              borderColor: "#52c41a",
+              backgroundColor: "#4f46e5",
+              borderColor: "#4f46e5",
             }}
           >
             Generate Improved Body
@@ -596,9 +670,10 @@ export default function EmailTemplate({
           <p className="mb-4">
             <strong>Current Body:</strong>
           </p>
-          <div className="bg-gray-50 p-3 rounded mb-4 max-h-60 overflow-y-auto">
-            <pre className="whitespace-pre-wrap text-sm">{currentBody}</pre>
-          </div>
+          <div
+            className="bg-gray-50 p-3 rounded mb-4 max-h-60 overflow-y-auto text-sm"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(currentBody) }}
+          />
 
           <Divider />
 
@@ -630,27 +705,21 @@ export default function EmailTemplate({
       </Modal>
 
       <div className="flex justify-between">
-        <Button
-          size="large"
-          onClick={onBack}
-          icon={<ArrowLeftOutlined />}
-          style={{
-            backgroundColor: "#6c757d",
-            borderColor: "#6c757d",
-            color: "white",
-          }}
-        >
+        <Button size="large" onClick={onBack} icon={<ArrowLeftOutlined />}>
           Back
         </Button>
         <Button
           type="primary"
           size="large"
           onClick={handleNext}
+          loading={uploadingFiles}
+          disabled={uploadingFiles}
           icon={<ArrowRightOutlined />}
-          style={{
-            backgroundColor: "#1890ff",
-            borderColor: "#1890ff",
-          }}
+          style={
+            uploadingFiles
+              ? undefined
+              : { backgroundColor: "#4f46e5", borderColor: "#4f46e5" }
+          }
         >
           Continue to Schedule
         </Button>

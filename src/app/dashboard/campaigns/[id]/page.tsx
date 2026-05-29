@@ -35,6 +35,7 @@ import {
   WarningOutlined,
   PaperClipOutlined,
   EditOutlined,
+  ReloadOutlined,
 } from "@ant-design/icons";
 import DataTable, { Column, FilterColumn } from "@/components/data-table";
 import FollowupTab from "@/components/campaigns/FollowupTab";
@@ -45,6 +46,7 @@ import CampaignAlertsPanel from "@/components/campaigns/CampaignAlertsPanel";
 import EditEmailModal from "@/components/campaigns/EditEmailModal";
 import { auth } from "@/lib/firebase";
 import { getBaseUrl } from "@/lib/env-helper";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -169,6 +171,7 @@ export default function CampaignDetailPage() {
   const [aggregates, setAggregates] = useState<Aggregates | null>(null);
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [recipientsLoading, setRecipientsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [userRole, setUserRole] = useState<string>("");
@@ -208,6 +211,7 @@ export default function CampaignDetailPage() {
   const fetchCampaignDetails = async () => {
     try {
       setLoading(true);
+      setLoadError(false);
       const token = await getAuthToken();
       if (!token) return;
 
@@ -225,8 +229,14 @@ export default function CampaignDetailPage() {
       setCampaign(data.campaign);
       setClient(data.client);
       setAggregates(data.aggregates);
+
+      // Keep the recipients list in sync after status changes (pause/resume/etc.)
+      if (activeTab === "recipients") {
+        fetchRecipients();
+      }
     } catch (error: any) {
       console.error("Fetch campaign error:", error);
+      setLoadError(true);
       message.error(error.message || "Failed to load campaign");
     } finally {
       setLoading(false);
@@ -254,7 +264,6 @@ export default function CampaignDetailPage() {
 
       const data = await response.json();
       setRecipients(data.recipients || []);
-      console.log(recipients);
     } catch (error: any) {
       console.error("Fetch recipients error:", error);
       message.error(error.message || "Failed to load recipients");
@@ -385,8 +394,33 @@ export default function CampaignDetailPage() {
 
   if (loading) {
     return (
+      <div className="flex flex-col gap-3 items-center justify-center min-h-screen">
+        <Spin size="large" />
+        <p className="text-gray-500 text-sm">Loading campaign details...</p>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
       <div className="flex items-center justify-center min-h-screen">
-        <Spin size="large" tip="Loading campaign details..." />
+        <div className="text-center">
+          <WarningOutlined className="text-4xl text-red-500 mb-4" />
+          <p className="text-gray-700 font-medium mb-1">
+            Failed to load campaign
+          </p>
+          <p className="text-gray-500 mb-4">
+            Something went wrong while fetching this campaign. Please try again.
+          </p>
+          <div className="flex items-center justify-center gap-2">
+            <Button type="primary" onClick={fetchCampaignDetails}>
+              Retry
+            </Button>
+            <Button onClick={() => router.push("/dashboard/campaigns")}>
+              Back to Campaigns
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
@@ -886,7 +920,7 @@ export default function CampaignDetailPage() {
                 color: "#333333",
               }}
               dangerouslySetInnerHTML={{
-                __html: campaign.emailTemplate.currentBody,
+                __html: sanitizeHtml(campaign.emailTemplate.currentBody),
               }}
             />
             {campaign.emailTemplate.bodyImproved && (
@@ -948,22 +982,33 @@ export default function CampaignDetailPage() {
         </span>
       ),
       children: (
-        <DataTable
-          columns={recipientColumns}
-          data={recipients}
-          loading={recipientsLoading}
-          onRefresh={fetchRecipients}
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={fetchRecipients}
+              loading={recipientsLoading}
+            >
+              Refresh
+            </Button>
+          </div>
+          <DataTable
+            columns={recipientColumns}
+            data={recipients}
+            loading={recipientsLoading}
+            onRefresh={fetchRecipients}
           searchPlaceholder="Search by name or email..."
           searchKeys={[
             "originalContact.name",
             "originalContact.email",
             "originalContact.organization",
           ]}
-          rowKey={(record) => record.id}
-          filterColumns={recipientFilters}
-          pageSize={50}
-          pageSizeOptions={[25, 50, 100, 200]}
-        />
+            rowKey={(record) => record.id}
+            filterColumns={recipientFilters}
+            pageSize={50}
+            pageSizeOptions={[25, 50, 100, 200]}
+          />
+        </div>
       ),
     },
     {
@@ -1050,9 +1095,10 @@ export default function CampaignDetailPage() {
           />
 
           <Button
+            type="primary"
             icon={<EyeOutlined />}
             onClick={openPublicReport}
-            className="bg-blue-500 border-blue-500 text-white hover:bg-blue-600"
+            className="bg-brand-600 border-brand-600 text-white hover:!bg-brand-700 hover:!border-brand-700"
           >
             Public Report
           </Button>
@@ -1060,7 +1106,7 @@ export default function CampaignDetailPage() {
           <Button
             icon={<LinkOutlined />}
             onClick={copyPublicLink}
-            className="bg-green-500 border-green-500 text-white hover:bg-green-600"
+            className="border-brand-600 text-brand-600 hover:!text-brand-700 hover:!border-brand-700"
           >
             Copy Link
           </Button>
@@ -1068,7 +1114,7 @@ export default function CampaignDetailPage() {
           <Button
             icon={<DownloadOutlined />}
             onClick={downloadCSV}
-            className="bg-purple-600 border-purple-600 text-white hover:bg-purple-700"
+            className="border-brand-600 text-brand-600 hover:!text-brand-700 hover:!border-brand-700"
           >
             Export CSV
           </Button>
@@ -1087,8 +1133,8 @@ export default function CampaignDetailPage() {
           percent={progress}
           status={campaign.status === "completed" ? "success" : "active"}
           strokeColor={{
-            "0%": "#108ee9",
-            "100%": "#87d068",
+            "0%": "#6366f1",
+            "100%": "#4f46e5",
           }}
         />
       </Card>
@@ -1096,10 +1142,10 @@ export default function CampaignDetailPage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
         <Card>
           <Statistic
-            title="Total Sent"
+            title="Processed"
             value={campaign.stats.sent + campaign.stats.failed}
             prefix={<MailOutlined />}
-            valueStyle={{ color: "#1890ff" }}
+            valueStyle={{ color: "#4f46e5" }}
           />
         </Card>
         <Card>

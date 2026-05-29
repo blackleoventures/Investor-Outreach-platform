@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, Button, message, Spin, Tag, Divider } from "antd";
+import { useState } from "react";
+import { Card, Button, message, Tag, Divider, Modal, Result } from "antd";
 import {
   ThunderboltOutlined,
   MailOutlined,
@@ -11,6 +11,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
 } from "@ant-design/icons";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface JobResult {
   timestamp: string;
@@ -22,32 +23,19 @@ interface JobResult {
 }
 
 export default function CronControlPage() {
+  const { userData } = useAuth();
+  const isAdmin = userData?.role === "admin";
+  const roleLoaded = !!userData;
+
   const [sendEmailsLoading, setSendEmailsLoading] = useState(false);
   const [checkRepliesLoading, setCheckRepliesLoading] = useState(false);
   const [updateStatsLoading, setUpdateStatsLoading] = useState(false);
-  
+
   const [sendEmailsResult, setSendEmailsResult] = useState<any>(null);
   const [checkRepliesResult, setCheckRepliesResult] = useState<any>(null);
   const [updateStatsResult, setUpdateStatsResult] = useState<any>(null);
-  
+
   const [activityLog, setActivityLog] = useState<JobResult[]>([]);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-
-  // Auto-refresh every 30 seconds if enabled
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    const interval = setInterval(() => {
-      refreshAllStatus();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh]);
-
-  const refreshAllStatus = async () => {
-    // This could fetch latest stats from campaigns
-    message.info("Auto-refreshing status...");
-  };
 
   const addToActivityLog = (result: JobResult) => {
     setActivityLog(prev => [result, ...prev.slice(0, 19)]); // Keep last 20
@@ -205,9 +193,43 @@ export default function CronControlPage() {
     await triggerUpdateStats();
   };
 
+  const confirmSendEmails = () => {
+    Modal.confirm({
+      title: "Send pending emails now?",
+      content: "This will send up to 50 pending emails to real recipients via SMTP. This action cannot be undone.",
+      okText: "Send Now",
+      okButtonProps: { style: { backgroundColor: "#4f46e5", borderColor: "#4f46e5" } },
+      cancelText: "Cancel",
+      onOk: triggerSendEmails,
+    });
+  };
+
+  const confirmAllJobs = () => {
+    Modal.confirm({
+      title: "Run all cron jobs?",
+      content: "This will send pending emails to real recipients, then check replies and update stats. This action cannot be undone.",
+      okText: "Run All Jobs",
+      okButtonProps: { style: { backgroundColor: "#4f46e5", borderColor: "#4f46e5" } },
+      cancelText: "Cancel",
+      onOk: triggerAllJobs,
+    });
+  };
+
   const formatTimestamp = (timestamp: string) => {
     return new Date(timestamp).toLocaleString();
   };
+
+  if (roleLoaded && !isAdmin) {
+    return (
+      <div className="max-w-7xl mx-auto p-6">
+        <Result
+          status="403"
+          title="Access denied"
+          subTitle="Only administrators can access the Cron Job Control Panel."
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto p-6">
@@ -227,18 +249,18 @@ export default function CronControlPage() {
         <Card
           title={
             <div className="flex items-center gap-2">
-              <MailOutlined style={{ fontSize: 20, color: "#1890ff" }} />
+              <MailOutlined style={{ fontSize: 20, color: "#4f46e5" }} />
               <span>Send Emails</span>
             </div>
           }
-          bordered
+          variant="outlined"
         >
           <p className="text-gray-600 mb-4">
             Processes up to 50 pending emails and sends them via SMTP
           </p>
 
           {sendEmailsResult && (
-            <div className="mb-4 p-3 bg-blue-50 rounded">
+            <div className="mb-4 p-3 bg-brand-50 rounded">
               <div className="text-sm space-y-1">
                 <p>
                   <strong>Sent:</strong> {sendEmailsResult.sent}
@@ -257,12 +279,12 @@ export default function CronControlPage() {
             type="primary"
             size="large"
             block
-            onClick={triggerSendEmails}
+            onClick={confirmSendEmails}
             loading={sendEmailsLoading}
             icon={<MailOutlined />}
             style={{
-              backgroundColor: "#1890ff",
-              borderColor: "#1890ff",
+              backgroundColor: "#4f46e5",
+              borderColor: "#4f46e5",
             }}
           >
             Send Now
@@ -273,11 +295,11 @@ export default function CronControlPage() {
         <Card
           title={
             <div className="flex items-center gap-2">
-              <InboxOutlined style={{ fontSize: 20, color: "#52c41a" }} />
+              <InboxOutlined style={{ fontSize: 20, color: "#4f46e5" }} />
               <span>Check Replies</span>
             </div>
           }
-          bordered
+          variant="outlined"
         >
           <p className="text-gray-600 mb-4">
             Scans client inboxes via IMAP for email replies
@@ -307,8 +329,8 @@ export default function CronControlPage() {
             loading={checkRepliesLoading}
             icon={<InboxOutlined />}
             style={{
-              backgroundColor: "#52c41a",
-              borderColor: "#52c41a",
+              backgroundColor: "#4f46e5",
+              borderColor: "#4f46e5",
             }}
           >
             Check Now
@@ -319,11 +341,11 @@ export default function CronControlPage() {
         <Card
           title={
             <div className="flex items-center gap-2">
-              <BarChartOutlined style={{ fontSize: 20, color: "#fa8c16" }} />
+              <BarChartOutlined style={{ fontSize: 20, color: "#4f46e5" }} />
               <span>Update Stats</span>
             </div>
           }
-          bordered
+          variant="outlined"
         >
           <p className="text-gray-600 mb-4">
             Recalculates all campaign metrics and rates
@@ -353,8 +375,8 @@ export default function CronControlPage() {
             loading={updateStatsLoading}
             icon={<BarChartOutlined />}
             style={{
-              backgroundColor: "#fa8c16",
-              borderColor: "#fa8c16",
+              backgroundColor: "#4f46e5",
+              borderColor: "#4f46e5",
             }}
           >
             Update Now
@@ -373,12 +395,12 @@ export default function CronControlPage() {
           </div>
           <Button
             size="large"
-            onClick={triggerAllJobs}
+            onClick={confirmAllJobs}
             loading={sendEmailsLoading || checkRepliesLoading || updateStatsLoading}
             icon={<ThunderboltOutlined />}
             style={{
-              backgroundColor: "#722ed1",
-              borderColor: "#722ed1",
+              backgroundColor: "#4f46e5",
+              borderColor: "#4f46e5",
               color: "white",
             }}
           >
@@ -408,9 +430,9 @@ export default function CronControlPage() {
           </div>
         ) : (
           <div className="space-y-3 max-h-96 overflow-y-auto">
-            {activityLog.map((log, index) => (
+            {activityLog.map((log) => (
               <div
-                key={index}
+                key={`${log.timestamp}-${log.job}`}
                 className={`p-3 rounded border ${
                   log.status === "success"
                     ? "bg-green-50 border-green-200"
@@ -457,12 +479,12 @@ export default function CronControlPage() {
 
         <Divider />
 
-        <div className="bg-blue-50 p-4 rounded">
-          <h4 className="font-semibold mb-2 text-blue-900">Production Note</h4>
-          <p className="text-sm text-blue-800">
+        <div className="bg-brand-50 p-4 rounded">
+          <h4 className="font-semibold mb-2 text-brand-900">Production Note</h4>
+          <p className="text-sm text-brand-800">
             In production (Vercel), these jobs run automatically via Vercel Cron:
           </p>
-          <ul className="list-disc list-inside text-sm text-blue-800 mt-2 space-y-1">
+          <ul className="list-disc list-inside text-sm text-brand-800 mt-2 space-y-1">
             <li><strong>Send Emails:</strong> Every 5 minutes</li>
             <li><strong>Check Replies:</strong> Every 15 minutes</li>
             <li><strong>Update Stats:</strong> Every 1 hour</li>

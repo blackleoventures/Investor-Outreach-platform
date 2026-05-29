@@ -5,7 +5,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import DataTable, { type Column } from "@/components/data-table";
-import { Modal, message, Form, Input} from "antd";
+import { Modal, message, Form, Input, Button as AntButton } from "antd";
 import { Plus, Eye, Edit, Trash2, User, Copy } from "lucide-react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -29,6 +29,7 @@ export default function AllIncubatorsPage() {
   const [editLoading, setEditLoading] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string>("");
   const [selectedIncubator, setSelectedIncubator] = useState<Incubator | null>(null);
   const [form] = Form.useForm();
 
@@ -73,7 +74,10 @@ export default function AllIncubatorsPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Failed to load incubators");
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Unknown error occurred" }));
+        throw new Error(errorData.error || `HTTP error: ${response.status}`);
       }
 
       const result = await response.json();
@@ -95,10 +99,14 @@ export default function AllIncubatorsPage() {
       }));
 
       setIncubators(formattedData);
-      message.success(`Successfully loaded ${formattedData.length} incubators`);
+      setLastUpdated(new Date().toLocaleTimeString());
     } catch (error) {
       console.error("Failed to fetch incubators:", error);
-      message.error("Unable to load incubators. Please try again.");
+      message.error(
+        error instanceof Error
+          ? error.message
+          : "Unable to load incubators. Please try again.",
+      );
       setIncubators([]);
     } finally {
       setLoading(false);
@@ -200,12 +208,17 @@ export default function AllIncubatorsPage() {
       key: "incubatorName",
       title: "Incubator Name",
       width: 200,
+      sortable: true,
+      sorter: (a, b) =>
+        String(a["Incubator Name"] || "").localeCompare(
+          String(b["Incubator Name"] || ""),
+        ),
       render: (_, record) => {
         const name = record["Incubator Name"];
         return (
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-              <User className="h-4 w-4 text-purple-600" />
+            <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center">
+              <User className="h-4 w-4 text-brand-600" />
             </div>
             <span className="font-medium">{name || "N/A"}</span>
           </div>
@@ -216,6 +229,11 @@ export default function AllIncubatorsPage() {
       key: "partnerName",
       title: "Partner Name",
       width: 160,
+      sortable: true,
+      sorter: (a, b) =>
+        String(a["Partner Name"] || "").localeCompare(
+          String(b["Partner Name"] || ""),
+        ),
       render: (_, record) => record["Partner Name"] || "N/A",
     },
     {
@@ -226,10 +244,10 @@ export default function AllIncubatorsPage() {
         const email = record["Partner Email"];
         return email ? (
           <div className="flex items-center gap-2">
-            <span className="text-blue-600">{email}</span>
+            <span className="text-brand-600">{email}</span>
             <button
               onClick={() => copyToClipboard(email)}
-              className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+              className="p-1 text-gray-400 hover:text-brand-600 transition-colors"
               title="Copy email"
             >
               <Copy className="h-3 w-3" />
@@ -277,12 +295,20 @@ export default function AllIncubatorsPage() {
       key: "country",
       title: "Country",
       width: 140,
+      sortable: true,
+      sorter: (a, b) =>
+        String(a["Country"] || "").localeCompare(String(b["Country"] || "")),
       render: (_, record) => record["Country"] || "N/A",
     },
     {
       key: "stateCity",
       title: "State/City",
       width: 160,
+      sortable: true,
+      sorter: (a, b) =>
+        String(a["State/City"] || "").localeCompare(
+          String(b["State/City"] || ""),
+        ),
       render: (_, record) => record["State/City"] || "N/A",
     },
     {
@@ -292,7 +318,7 @@ export default function AllIncubatorsPage() {
       render: (_, record) => {
         const website = record["Website"];
         return website ? (
-          <a href={website} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+          <a href={website} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline">
             {website.length > 30 ? website.substring(0, 30) + "..." : website}
           </a>
         ) : (
@@ -312,7 +338,7 @@ export default function AllIncubatorsPage() {
               setSelectedIncubator(record);
               setViewModalOpen(true);
             }}
-            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+            className="p-1.5 text-brand-600 hover:bg-brand-50 rounded transition-colors"
             title="View details"
           >
             <Eye className="h-4 w-4" />
@@ -352,7 +378,7 @@ export default function AllIncubatorsPage() {
 
           <button
             onClick={() => router.push("/dashboard/add-incubator")}
-            className="flex items-center gap-2 px-4 py-2 bg-[#ac6a1e] text-white rounded-lg hover:bg-[#8d5518] transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
           >
             <Plus className="h-4 w-4" />
             <span>Add Incubators</span>
@@ -381,7 +407,7 @@ export default function AllIncubatorsPage() {
           pageSize={10}
           pageSizeOptions={[10, 20, 50, 100]}
           dataSource="Google Sheets"
-          lastUpdated={new Date().toLocaleTimeString()}
+          lastUpdated={lastUpdated}
         />
       </div>
 
@@ -508,28 +534,25 @@ export default function AllIncubatorsPage() {
               </Form.Item>
             </div>
             <div className="flex gap-3 mt-4">
-              <button
-                type="submit"
-                disabled={editLoading}
-                className={`px-4 py-2 text-white rounded-lg transition-colors flex items-center gap-2 ${
-                  editLoading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-                }`}
+              <AntButton
+                htmlType="submit"
+                type="primary"
+                loading={editLoading}
+                style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}
               >
-                {editLoading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                 {editLoading ? "Updating..." : "Save Changes"}
-              </button>
-              <button
-                type="button"
+              </AntButton>
+              <AntButton
+                htmlType="button"
                 disabled={editLoading}
                 onClick={() => {
                   setEditModalOpen(false);
                   setSelectedIncubator(null);
                   form.resetFields();
                 }}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
-              </button>
+              </AntButton>
             </div>
           </Form>
       </Modal>

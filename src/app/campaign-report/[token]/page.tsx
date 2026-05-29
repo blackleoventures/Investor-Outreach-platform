@@ -101,7 +101,13 @@ export default function CampaignReportPage() {
       const response = await fetch(`${API_BASE_URL}/campaigns/public/${token}`);
 
       if (!response.ok) {
-        throw new Error("Campaign report not found");
+        if (response.status === 401 || response.status === 403) {
+          throw new Error("This link has expired or is invalid");
+        } else if (response.status === 404) {
+          throw new Error("Report not found");
+        } else {
+          throw new Error("Something went wrong");
+        }
       }
 
       const data = await response.json();
@@ -138,18 +144,24 @@ export default function CampaignReportPage() {
 
   const handleExport = () => {
     const exportUrl = `${API_BASE_URL}/campaigns/public/${token}/export`;
-    window.open(exportUrl, "_blank");
-    message.success("Exporting campaign data...");
+    const link = document.createElement("a");
+    link.href = exportUrl;
+    link.download = `campaign-report-${token}.csv`;
+    link.rel = "noopener";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    message.success("Your export will download shortly...");
   };
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       active: "green",
-      completed: "blue",
+      completed: "#4f46e5",
       paused: "orange",
       pending: "default",
       delivered: "cyan",
-      opened: "purple",
+      opened: "#4f46e5",
       replied: "green",
       failed: "red",
     };
@@ -210,7 +222,7 @@ export default function CampaignReportPage() {
           return <span className="text-gray-400">-</span>;
 
         const emails = openers.map((o: any) => o.email).join(", ");
-        return <div className="text-xs text-blue-600">{emails}</div>;
+        return <div className="text-xs text-brand-600">{emails}</div>;
       },
     },
     {
@@ -238,28 +250,51 @@ export default function CampaignReportPage() {
           return <span className="text-gray-400">-</span>;
 
         const emails = repliers.map((r: any) => r.email).join(", ");
-        return <div className="text-xs text-purple-600">{emails}</div>;
+        return <div className="text-xs text-brand-600">{emails}</div>;
       },
     },
   ];
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <Spin size="large" tip="Loading campaign report..." />
+      <div className="flex flex-col gap-3 items-center justify-center min-h-screen bg-gray-50">
+        <Spin size="large" />
+        <p className="text-gray-500 text-sm">Loading campaign report...</p>
       </div>
     );
   }
 
   if (error || !campaign) {
+    const errorMsg = error || "Report not found";
+    const hint =
+      errorMsg === "This link has expired or is invalid"
+        ? "Please request a fresh report link from the person who shared it with you."
+        : errorMsg === "Report not found"
+        ? "Double-check the link, or the campaign may no longer be available."
+        : "Please try again in a few minutes. If the problem persists, contact us.";
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <Card className="text-center shadow-md max-w-md">
-          <CloseCircleOutlined className="text-red-500 text-5xl mb-4" />
-          <p className="text-gray-700 text-lg mb-4">
-            {error || "Campaign report not found"}
-          </p>
-        </Card>
+      <div className="flex flex-col min-h-screen bg-gray-50">
+        <header className="bg-white border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center text-white font-bold text-lg">
+              R
+            </div>
+            <span className="text-lg font-semibold text-brand-700">Black Leo Venture</span>
+          </div>
+        </header>
+        <div className="flex-1 flex items-center justify-center p-6">
+          <Card className="text-center shadow-md max-w-md">
+            <CloseCircleOutlined className="text-red-500 text-5xl mb-4" />
+            <p className="text-gray-900 text-lg font-semibold mb-2">{errorMsg}</p>
+            <p className="text-gray-600 text-sm mb-4">{hint}</p>
+            <p className="text-xs text-gray-500">
+              Need help? Contact{" "}
+              <a href="mailto:info@blackleoventures.com" className="text-brand-600">
+                info@blackleoventures.com
+              </a>
+            </p>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -271,9 +306,24 @@ export default function CampaignReportPage() {
 
   const remaining = campaign.totalRecipients - campaign.stats.sent;
 
+  const pendingPct =
+    campaign.totalRecipients > 0
+      ? Math.round((remaining / campaign.totalRecipients) * 100)
+      : 0;
+
   return (
-    <div className="min-h-screen bg-gray-50 py-6 sm:py-8 md:py-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-50">
+      {/* Branded Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center text-white font-bold text-lg">
+            R
+          </div>
+          <span className="text-lg font-semibold text-brand-700">Black Leo Venture</span>
+        </div>
+      </header>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 md:py-12">
         {/* Header */}
         <div className="bg-white border border-gray-200 rounded-lg shadow-sm px-4 sm:px-6 md:px-8 py-4 sm:py-6 mb-6 sm:mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
@@ -309,7 +359,7 @@ export default function CampaignReportPage() {
                 value={campaign.stats.sent}
                 prefix={<SendOutlined className="text-gray-700" />}
                 valueStyle={{
-                  color: "#1f2937",
+                  color: "#4f46e5",
                   fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
                   fontWeight: "600",
                 }}
@@ -331,14 +381,13 @@ export default function CampaignReportPage() {
                 value={remaining}
                 prefix={<ClockCircleOutlined className="text-gray-700" />}
                 valueStyle={{
-                  color: "#1f2937",
+                  color: "#4f46e5",
                   fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
                   fontWeight: "600",
                 }}
               />
               <div className="mt-2 text-xs sm:text-sm text-gray-500">
-                {Math.round((remaining / campaign.totalRecipients) * 100)}%
-                pending outreach
+                {pendingPct}% pending outreach
               </div>
             </Card>
           </Col>
@@ -353,7 +402,7 @@ export default function CampaignReportPage() {
                 value={campaign.stats.totalFollowUpsSent || 0}
                 prefix={<ReloadOutlined className="text-gray-700" />}
                 valueStyle={{
-                  color: "#1f2937",
+                  color: "#4f46e5",
                   fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
                   fontWeight: "600",
                 }}
@@ -375,7 +424,7 @@ export default function CampaignReportPage() {
                 value={campaign.stats.uniqueResponded || campaign.stats.replied}
                 prefix={<MessageOutlined className="text-gray-700" />}
                 valueStyle={{
-                  color: "#1f2937",
+                  color: "#4f46e5",
                   fontSize: "clamp(1.75rem, 4vw, 2.25rem)",
                   fontWeight: "600",
                 }}
@@ -401,7 +450,7 @@ export default function CampaignReportPage() {
           <Progress
             percent={progress}
             status={campaign.status === "completed" ? "success" : "active"}
-            strokeColor="#1f2937"
+            strokeColor="#4f46e5"
             strokeWidth={10}
           />
         </Card>
@@ -440,9 +489,11 @@ export default function CampaignReportPage() {
                           {investorCount}
                         </div>
                         <div className="text-xs sm:text-sm text-gray-600">
-                          {Math.round(
-                            (investorCount / campaign.totalRecipients) * 100
-                          )}
+                          {campaign.totalRecipients > 0
+                            ? Math.round(
+                                (investorCount / campaign.totalRecipients) * 100
+                              )
+                            : 0}
                           % of total
                         </div>
                       </div>
@@ -460,9 +511,11 @@ export default function CampaignReportPage() {
                           {incubatorCount}
                         </div>
                         <div className="text-xs sm:text-sm text-gray-600">
-                          {Math.round(
-                            (incubatorCount / campaign.totalRecipients) * 100
-                          )}
+                          {campaign.totalRecipients > 0
+                            ? Math.round(
+                                (incubatorCount / campaign.totalRecipients) * 100
+                              )
+                            : 0}
                           % of total
                         </div>
                       </div>
@@ -536,8 +589,8 @@ export default function CampaignReportPage() {
             loading={recipientsLoading}
             className="w-full sm:w-auto"
             style={{
-              backgroundColor: "#1f2937",
-              borderColor: "#1f2937",
+              backgroundColor: "#4f46e5",
+              borderColor: "#4f46e5",
               height: "48px",
               fontSize: "16px",
               fontWeight: "500",
@@ -563,13 +616,19 @@ export default function CampaignReportPage() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-8 sm:mt-12 text-gray-600 px-4">
+        <div className="text-center mt-8 sm:mt-12 border-t border-gray-200 pt-6 text-gray-600 px-4">
           <p className="text-sm sm:text-base mb-2">
             Campaign started on{" "}
             <strong>{formatDate(campaign.createdAt)}</strong>
           </p>
+          <p className="text-sm font-semibold text-brand-700 mb-1">
+            Black Leo Venture · Investor Outreach Platform
+          </p>
           <p className="text-xs sm:text-sm text-gray-500">
-            Email Campaign System Report
+            This report is shared confidentially. Questions? Contact{" "}
+            <a href="mailto:info@blackleoventures.com" className="text-brand-600">
+              info@blackleoventures.com
+            </a>
           </p>
         </div>
       </div>
@@ -593,8 +652,8 @@ export default function CampaignReportPage() {
             onClick={handleExport}
             size="large"
             style={{
-              backgroundColor: "#1f2937",
-              borderColor: "#1f2937",
+              backgroundColor: "#4f46e5",
+              borderColor: "#4f46e5",
               color: "white",
             }}
           >

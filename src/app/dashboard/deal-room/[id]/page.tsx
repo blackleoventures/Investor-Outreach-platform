@@ -14,7 +14,9 @@ import {
     Tag,
     Button,
     Space,
-    Empty
+    Empty,
+    Tooltip,
+    Skeleton
 } from "antd";
 import {
     ArrowLeftOutlined,
@@ -44,6 +46,7 @@ export default function FounderProfilePage() {
     const [client, setClient] = useState<TransformedClient | null>(null);
     const [analyzing, setAnalyzing] = useState(false);
     const [latestAnalysis, setLatestAnalysis] = useState<PitchAnalysis | null>(null);
+    const [analysisAttempted, setAnalysisAttempted] = useState(false);
 
     useEffect(() => {
         // Check for link-only access
@@ -99,6 +102,7 @@ export default function FounderProfilePage() {
 
     const handleAIAnalyze = async () => {
         setAnalyzing(true);
+        setAnalysisAttempted(true);
         try {
             const user = auth.currentUser;
             if (!user) {
@@ -168,9 +172,9 @@ export default function FounderProfilePage() {
                     {/* Left Column: Founder & Company Details */}
                     <Col xs={24} lg={10}>
                         <Card className="shadow-sm border-0 rounded-xl overflow-hidden">
-                            <div className="bg-black p-6 text-white">
+                            <div className="bg-brand-600 p-6 text-white">
                                 <Space direction="vertical" size={2}>
-                                    <Text className="text-gray-400 uppercase text-xs tracking-widest font-bold">Company</Text>
+                                    <Text className="text-brand-100 uppercase text-xs tracking-widest font-bold">Company</Text>
                                     <Title level={3} style={{ color: 'white', margin: 0 }}>{client.companyName}</Title>
                                 </Space>
                             </div>
@@ -205,34 +209,34 @@ export default function FounderProfilePage() {
                                 <Divider />
 
                                 <section className="mb-8">
-                                    <Title level={5} type="secondary" className="uppercase text-[10px] tracking-wider mb-4">Investment Ask & Financials</Title>
+                                    <Title level={5} type="secondary" className="uppercase text-xs tracking-wider mb-4">Investment Ask & Financials</Title>
                                     <Row gutter={[12, 12]}>
                                         <Col xs={24} sm={12}>
-                                            <Card bg-gray-50 bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
-                                                <Text type="secondary" className="block text-[10px] uppercase tracking-wide mb-1">Funding Stage</Text>
-                                                <Tag color="blue" className="m-0 font-bold">{client.fundingStage}</Tag>
+                                            <Card bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
+                                                <Text type="secondary" className="block text-xs text-gray-500 uppercase tracking-wide mb-1">Funding Stage</Text>
+                                                <Tag color="#4f46e5" className="m-0 font-bold">{client.fundingStage}</Tag>
                                             </Card>
                                         </Col>
                                         <Col xs={24} sm={12}>
-                                            <Card bg-gray-50 bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
-                                                <Text type="secondary" className="block text-[10px] uppercase tracking-wide mb-1">Investment Ask</Text>
+                                            <Card bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
+                                                <Text type="secondary" className="block text-xs text-gray-500 uppercase tracking-wide mb-1">Investment Ask</Text>
                                                 <Text strong className="text-xl text-green-600 block">{client.investment}</Text>
                                             </Card>
                                         </Col>
                                         <Col xs={24} sm={12}>
-                                            <Card bg-gray-50 bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
-                                                <Text type="secondary" className="block text-[10px] uppercase tracking-wide mb-1">Current Revenue</Text>
+                                            <Card bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
+                                                <Text type="secondary" className="block text-xs text-gray-500 uppercase tracking-wide mb-1">Current Revenue</Text>
                                                 <Space className="mt-1">
-                                                    <BarChartOutlined className="text-blue-500" />
+                                                    <BarChartOutlined className="text-brand-600" />
                                                     <Text strong className="text-base">{client.revenue || "Not Disclosed"}</Text>
                                                 </Space>
                                             </Card>
                                         </Col>
                                         <Col xs={24} sm={12}>
-                                            <Card bg-gray-50 bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
-                                                <Text type="secondary" className="block text-[10px] uppercase tracking-wide mb-1">Primary Industry</Text>
+                                            <Card bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
+                                                <Text type="secondary" className="block text-xs text-gray-500 uppercase tracking-wide mb-1">Primary Industry</Text>
                                                 <Space className="mt-1">
-                                                    <RocketOutlined className="text-purple-500 shrink-0" />
+                                                    <RocketOutlined className="text-brand-600 shrink-0" />
                                                     <Text strong className="text-base line-clamp-1">{client.industry}</Text>
                                                 </Space>
                                             </Card>
@@ -262,22 +266,36 @@ export default function FounderProfilePage() {
                             bodyStyle={{ padding: 0 }}
                         >
                             {client.pitchDeckFileUrl ? (
-                                <div className="aspect-[16/9] w-full bg-gray-100 relative min-h-[300px] md:min-h-0">
-                                    <iframe
-                                        src={`${client.pitchDeckFileUrl}#toolbar=0`}
-                                        className="w-full h-full border-none"
-                                        title="Pitch Deck Viewer"
-                                    />
-                                    <div className="absolute bottom-4 right-4">
+                                <div>
+                                    <div className="aspect-[16/9] w-full bg-gray-100 relative min-h-[300px] md:min-h-0">
+                                        <iframe
+                                            src={`${client.pitchDeckFileUrl}#toolbar=0`}
+                                            className="w-full h-full border-none"
+                                            title="Pitch Deck Viewer"
+                                        />
+                                        <div className="absolute bottom-4 right-4">
+                                            <Button
+                                                icon={<GlobalOutlined />}
+                                                href={client.pitchDeckFileUrl}
+                                                target="_blank"
+                                                type="default"
+                                                size="small"
+                                                className="bg-white/80 backdrop-blur-sm"
+                                            >
+                                                Open Full PDF
+                                            </Button>
+                                        </div>
+                                    </div>
+                                    {/* Mobile-friendly fallback: inline PDF viewers are unreliable on mobile */}
+                                    <div className="p-4 border-t border-gray-100 text-center">
                                         <Button
-                                            icon={<GlobalOutlined />}
+                                            icon={<FilePdfOutlined />}
                                             href={client.pitchDeckFileUrl}
                                             target="_blank"
-                                            type="default"
-                                            size="small"
-                                            className="bg-white/80 backdrop-blur-sm"
+                                            rel="noopener noreferrer"
+                                            type="link"
                                         >
-                                            Open Full PDF
+                                            Trouble viewing? Open PDF in a new tab
                                         </Button>
                                     </div>
                                 </div>
@@ -298,17 +316,42 @@ export default function FounderProfilePage() {
                                     <Title level={4} style={{ margin: 0 }}>AI Investment Analysis</Title>
                                     <Text type="secondary">Intelligent assessment of the opportunity</Text>
                                 </Space>
-                                <Button
-                                    type="primary"
-                                    icon={<RobotOutlined />}
-                                    loading={analyzing}
-                                    onClick={handleAIAnalyze}
-                                    disabled={!client.dealRoomPermission}
-                                    className={`${!client.dealRoomPermission ? 'bg-gray-400 border-gray-400' : 'bg-black hover:bg-gray-800 border-black'} h-10 px-6`}
+                                <Tooltip
+                                    title={!client.dealRoomPermission ? "AI analysis is not enabled for this deal. Ask an admin to grant deal room permission." : ""}
                                 >
-                                    {analyzing ? "Loading..." : "AI Analyze Deck"}
-                                </Button>
+                                    <span className={!client.dealRoomPermission ? "inline-block cursor-not-allowed" : "inline-block"}>
+                                        <Button
+                                            type="primary"
+                                            icon={<RobotOutlined />}
+                                            loading={analyzing}
+                                            onClick={handleAIAnalyze}
+                                            disabled={!client.dealRoomPermission}
+                                            style={!client.dealRoomPermission ? undefined : { backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}
+                                            className="h-10 px-6"
+                                        >
+                                            {analyzing ? "Loading..." : "AI Analyze Deck"}
+                                        </Button>
+                                    </span>
+                                </Tooltip>
                             </div>
+
+                            {analyzing && !latestAnalysis && (
+                                <div className="space-y-6">
+                                    <Skeleton.Input active block style={{ height: 120, borderRadius: 12 }} />
+                                    <Skeleton active paragraph={{ rows: 4 }} />
+                                </div>
+                            )}
+
+                            {!analyzing && !latestAnalysis && analysisAttempted && (
+                                <Empty
+                                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                    description={
+                                        <span className="text-gray-500">
+                                            No AI analysis is available for this startup yet.
+                                        </span>
+                                    }
+                                />
+                            )}
 
                             {latestAnalysis && (
                                 <div className="space-y-8 animate-in fade-in duration-500">
@@ -316,17 +359,17 @@ export default function FounderProfilePage() {
                                     <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
                                         <Row align="middle" gutter={[24, 24]}>
                                             <Col xs={24} sm={8} className="text-center sm:border-r border-gray-200">
-                                                <div className="text-5xl font-black text-black leading-tight">
+                                                <div className="text-5xl font-black text-brand-600 leading-tight">
                                                     {latestAnalysis.summary.total_score}
                                                     <span className="text-base text-gray-400 font-normal">/100</span>
                                                 </div>
-                                                <Text type="secondary" className="uppercase text-[10px] tracking-widest font-bold">Total Score</Text>
+                                                <Text type="secondary" className="uppercase text-xs text-gray-500 tracking-widest font-bold">Total Score</Text>
                                             </Col>
                                             <Col xs={24} sm={16}>
                                                 <div className="flex flex-col gap-2">
                                                     <div className="flex justify-between items-center">
                                                         <Text strong className="text-base">Investment Readiness</Text>
-                                                        <Tag color={latestAnalysis.summary.status === "GREEN" ? "success" : "warning"} className="m-0 px-3 py-0.5 rounded-full font-bold">
+                                                        <Tag color={latestAnalysis.summary.status === "GREEN" ? "success" : latestAnalysis.summary.status === "RED" ? "error" : "warning"} className="m-0 px-3 py-0.5 rounded-full font-bold">
                                                             {latestAnalysis.summary.status}
                                                         </Tag>
                                                     </div>
@@ -347,11 +390,11 @@ export default function FounderProfilePage() {
                                                     <div className="p-4 bg-white border border-gray-100 rounded-xl h-full shadow-sm hover:border-gray-300 transition-all">
                                                         <div className="flex justify-between items-center mb-3">
                                                             <Text strong className="text-xs text-gray-700 uppercase tracking-wide">{key}</Text>
-                                                            <Tag color="black" className="m-0 text-[10px] font-bold">{value}/10</Tag>
+                                                            <Tag color="#4f46e5" className="m-0 text-xs font-bold">{value}/10</Tag>
                                                         </div>
                                                         <div className="w-full h-2 bg-gray-50 rounded-full overflow-hidden border border-gray-100">
                                                             <div
-                                                                className="h-full bg-black rounded-full"
+                                                                className="h-full bg-brand-600 rounded-full"
                                                                 style={{ width: `${value * 10}%` }}
                                                             />
                                                         </div>
@@ -364,12 +407,12 @@ export default function FounderProfilePage() {
                                     {/* Highlights */}
                                     <div className="mb-6">
                                         <Title level={5} className="mb-3">Key Highlights</Title>
-                                        <Card bg-gray-50 bordered={false} className="bg-blue-50 border-blue-100">
+                                        <Card bordered={false} className="bg-brand-50 border-brand-100">
                                             <ul className="space-y-2 pl-4 m-0">
                                                 {(latestAnalysis.highlights || []).slice(0, 3).map((h: string, i: number) => (
-                                                    <li key={i} className="text-sm text-blue-800">
+                                                    <li key={i} className="text-sm text-brand-800">
                                                         <Space align="start">
-                                                            <span className="text-blue-400">•</span>
+                                                            <span className="text-brand-400">•</span>
                                                             {h}
                                                         </Space>
                                                     </li>
@@ -385,7 +428,7 @@ export default function FounderProfilePage() {
                                             <div className="space-y-3">
                                                 {latestAnalysis.suggested_questions.map((q: string, i: number) => (
                                                     <div key={i} className="p-3 bg-gray-50 border border-gray-100 rounded-lg flex gap-3 items-start">
-                                                        <div className="bg-black text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] shrink-0 mt-0.5">
+                                                        <div className="bg-brand-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shrink-0 mt-0.5">
                                                             {i + 1}
                                                         </div>
                                                         <Text className="text-sm italic text-gray-700">"{q}"</Text>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Input, Select, Tag, Card, Row, Col, Typography, Spin, Empty, Button } from "antd";
-import { SearchOutlined, FilterOutlined, ArrowRightOutlined, EnvironmentOutlined, DollarOutlined } from "@ant-design/icons";
+import { SearchOutlined, FilterOutlined, ArrowRightOutlined, EnvironmentOutlined, DollarOutlined, ReloadOutlined } from "@ant-design/icons";
 import { auth } from "@/lib/firebase";
 
 const { Title, Text, Paragraph } = Typography;
@@ -36,7 +36,7 @@ export default function DealRoomDashboard() {
     const [industryFilter, setIndustryFilter] = useState<string | null>(null);
     const [stageFilter, setStageFilter] = useState<string | null>(null);
     const [cityFilter, setCityFilter] = useState<string | null>(null); // Added City Filter
-    const [citySearchValue, setCitySearchValue] = useState(""); // Track city search input
+    const [fetchError, setFetchError] = useState(false);
 
     useEffect(() => {
         // Check for link-only access
@@ -61,6 +61,7 @@ export default function DealRoomDashboard() {
 
     const fetchStartups = async () => {
         setLoading(true);
+        setFetchError(false);
         try {
             const user = auth.currentUser;
             if (!user) {
@@ -81,10 +82,12 @@ export default function DealRoomDashboard() {
             } else {
                 console.error("Failed to fetch startups");
                 setStartups([]);
+                setFetchError(true);
             }
         } catch (error) {
             console.error("Error fetching startups:", error);
             setStartups([]);
+            setFetchError(true);
         } finally {
             setLoading(false);
         }
@@ -178,14 +181,9 @@ export default function DealRoomDashboard() {
                         </Select>
 
                         <Select
-                            placeholder="City"
+                            placeholder="Search city..."
                             allowClear
                             showSearch
-                            searchValue={citySearchValue}
-                            onSearch={setCitySearchValue}
-                            open={citySearchValue.length > 0}
-                            onSelect={() => setCitySearchValue("")}
-                            onBlur={() => setCitySearchValue("")}
                             suffixIcon={<SearchOutlined />}
                             optionFilterProp="children"
                             filterOption={(input, option) =>
@@ -203,9 +201,23 @@ export default function DealRoomDashboard() {
 
                 {/* Content */}
                 {loading ? (
-                    <div className="flex justify-center items-center h-64">
-                        <Spin size="large" tip="Loading opportunities..." />
+                    <div className="flex flex-col gap-3 justify-center items-center h-64">
+                        <Spin size="large" />
+                        <p className="text-gray-500 text-sm">Loading opportunities...</p>
                     </div>
+                ) : fetchError ? (
+                    <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description={
+                            <span className="text-gray-600">
+                                We couldn&apos;t load opportunities. Please try again.
+                            </span>
+                        }
+                    >
+                        <Button type="primary" icon={<ReloadOutlined />} onClick={fetchStartups}>
+                            Retry
+                        </Button>
+                    </Empty>
                 ) : filteredStartups.length > 0 ? (
                     <Row gutter={[24, 24]}>
                         {filteredStartups.map((startup) => (
@@ -217,12 +229,12 @@ export default function DealRoomDashboard() {
                                     onClick={() => router.push(`/dashboard/deal-room/${startup.id}`)}
                                 >
                                     <div className="flex justify-between items-start mb-4">
-                                        <div>
+                                        <div className="min-w-0">
                                             <Title level={4} style={{ marginBottom: 4 }}>{startup.companyName}</Title>
-                                            <Text type="secondary" className="text-xs uppercase tracking-wide">{startup.industry}</Text>
+                                            <Text type="secondary" className="text-xs uppercase tracking-wide line-clamp-1" title={startup.industry}>{startup.industry}</Text>
                                         </div>
                                         {startup.fundingStage && (
-                                            <Tag color="blue">{startup.fundingStage}</Tag>
+                                            <Tag color="#4f46e5">{startup.fundingStage}</Tag>
                                         )}
                                     </div>
 
@@ -243,8 +255,11 @@ export default function DealRoomDashboard() {
                                         <Button
                                             type="primary"
                                             block
-                                            className="mt-4 flex items-center justify-center bg-blue-400 hover:bg-blue-500 border-black"
-                                            onClick={() => router.push(`/dashboard/deal-room/${startup.id}`)}
+                                            className="mt-4 flex items-center justify-center"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                router.push(`/dashboard/deal-room/${startup.id}`);
+                                            }}
                                         >
                                             View Profile <ArrowRightOutlined className="ml-2" />
                                         </Button>

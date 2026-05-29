@@ -85,10 +85,6 @@ export default function SubmitInformation() {
     setPageLoading(true);
     try {
       const token = await currentUser?.getIdToken();
-      console.log(
-        "[Frontend] Checking submission status for user:",
-        currentUser?.uid
-      );
 
       const response = await fetch(
         `${API_BASE_URL}/client-submissions/my-submission`,
@@ -100,15 +96,11 @@ export default function SubmitInformation() {
         }
       );
 
-      console.log("[Frontend] Response status:", response.status);
-
       if (response.ok) {
         const data = await response.json();
-        console.log("[Frontend] Response data:", data);
 
         if (data.data) {
           // Returning user - has submitted before
-          console.log("[Frontend] Returning user - submission found");
           setHasSubmitted(true);
           setSubmission(data.data);
           setClientData(data.data.clientInformation);
@@ -118,12 +110,10 @@ export default function SubmitInformation() {
           clearFirstTimeFlowStorage();
         } else {
           // First time user - load from localStorage if exists
-          console.log("[Frontend] First time user - no submission found");
           loadFirstTimeFlowFromStorage();
         }
       } else {
         const errorData = await response.json().catch(() => null);
-        console.error("[Frontend] Error response:", errorData);
         throw new Error(errorData?.error?.message || "Failed to fetch");
       }
     } catch (error) {
@@ -143,21 +133,17 @@ export default function SubmitInformation() {
 
       if (savedClientData) {
         setClientData(JSON.parse(savedClientData));
-        console.log("[Frontend] Loaded client data from localStorage");
       }
       if (savedEmailConfig) {
         setEmailConfiguration(JSON.parse(savedEmailConfig));
-        console.log("[Frontend] Loaded email config from localStorage");
       }
       if (savedPitchData) {
         setPitchData(JSON.parse(savedPitchData));
-        console.log("[Frontend] Loaded pitch data from localStorage");
       }
 
       const savedPitchDeckData = localStorage.getItem("pitchDeckData");
       if (savedPitchDeckData) {
         setPitchDeckData(JSON.parse(savedPitchDeckData));
-        console.log("[Frontend] Loaded pitch deck data from localStorage");
       }
     } catch (error) {
       console.error("[Frontend] Error loading from localStorage:", error);
@@ -171,7 +157,6 @@ export default function SubmitInformation() {
       localStorage.removeItem(STORAGE_KEYS.EMAIL_CONFIG);
       localStorage.removeItem(STORAGE_KEYS.PITCH_DATA);
       // Note: We keep SMTP_TEST storage as it's managed by SmtpConfigurationSection
-      console.log("[Frontend] Cleared first-time flow localStorage");
     } catch (error) {
       console.error("[Frontend] Error clearing localStorage:", error);
     }
@@ -179,12 +164,6 @@ export default function SubmitInformation() {
 
   // FIRST TIME USER HANDLERS
   const handleFormNext = (formData: any) => {
-    console.log("[Frontend] Form data received:", formData);
-    console.log(
-      "[Frontend] SMTP Test Status in formData:",
-      formData.smtpTestStatus
-    );
-
     // Extract SMTP configuration
     const {
       platformName,
@@ -230,19 +209,21 @@ export default function SubmitInformation() {
     setClientData(completeFormData);
     setEmailConfiguration(emailConfig);
 
+    // SECURITY: keep the SMTP password only in React state. Persist
+    // password-stripped copies to localStorage so the secret is never
+    // written to disk. The in-session submit uses the full state objects.
+    const { smtpPassword: _pwd1, ...completeFormDataForStorage } =
+      completeFormData;
+    const { smtpPassword: _pwd2, ...emailConfigForStorage } = emailConfig;
+
     // Save to localStorage with SMTP test status included
     localStorage.setItem(
       STORAGE_KEYS.CLIENT_FORM,
-      JSON.stringify(completeFormData)
+      JSON.stringify(completeFormDataForStorage)
     );
     localStorage.setItem(
       STORAGE_KEYS.EMAIL_CONFIG,
-      JSON.stringify(emailConfig)
-    );
-
-    console.log(
-      "[Frontend] Saved to localStorage with test status:",
-      smtpTestStatus
+      JSON.stringify(emailConfigForStorage)
     );
 
     message.success("Information saved!");
@@ -299,8 +280,6 @@ export default function SubmitInformation() {
         dealRoomPermission,
       };
 
-      console.log("[Frontend] Submitting application:", payload);
-
       const response = await fetch(
         `${API_BASE_URL}/client-submissions/submit`,
         {
@@ -314,7 +293,6 @@ export default function SubmitInformation() {
       );
 
       const data = await response.json();
-      console.log("[Frontend] Submit response:", data);
 
       if (!response.ok) {
         throw new Error(data.error?.message || "Failed to submit");
@@ -373,7 +351,6 @@ export default function SubmitInformation() {
     setSubmitting(true);
     try {
       const token = await currentUser?.getIdToken();
-      console.log("[Frontend] Updating client info");
 
       // Extract SMTP configuration
       const {
@@ -421,7 +398,6 @@ export default function SubmitInformation() {
       );
 
       const data = await response.json();
-      console.log("[Frontend] Update response:", data);
 
       if (!response.ok) {
         throw new Error(data.error?.message || "Failed to update");
@@ -457,7 +433,6 @@ export default function SubmitInformation() {
     setSubmitting(true);
     try {
       const token = await currentUser?.getIdToken();
-      console.log("[Frontend] Adding pitch analysis");
 
       const response = await fetch(
         `${API_BASE_URL}/client-submissions/add-pitch-analysis`,
@@ -475,7 +450,6 @@ export default function SubmitInformation() {
       );
 
       const data = await response.json();
-      console.log("[Frontend] Add pitch response:", data);
 
       if (!response.ok) {
         throw new Error(data.error?.message || "Failed to add pitch analysis");
@@ -568,8 +542,8 @@ export default function SubmitInformation() {
                 height: 48,
                 paddingLeft: 24,
                 paddingRight: 24,
-                backgroundColor: "#1890ff",
-                borderColor: "#1890ff",
+                backgroundColor: "#4f46e5",
+                borderColor: "#4f46e5",
               }}
             >
               Edit Information
@@ -743,8 +717,8 @@ export default function SubmitInformation() {
                       height: 48,
                       paddingLeft: 24,
                       paddingRight: 24,
-                      backgroundColor: "#1890ff",
-                      borderColor: "#1890ff",
+                      backgroundColor: "#4f46e5",
+                      borderColor: "#4f46e5",
                     }}
                   >
                     Next
@@ -846,7 +820,7 @@ export default function SubmitInformation() {
                           </p>
                           <p>
                             <strong>Problem:</strong>{" "}
-                            {pitchData.summary?.problem.substring(0, 100)}...
+                            {pitchData.summary?.problem?.substring(0, 100)}...
                           </p>
                         </div>
                       ) : (
@@ -884,8 +858,8 @@ export default function SubmitInformation() {
                         height: 48,
                         paddingLeft: 32,
                         paddingRight: 32,
-                        backgroundColor: "#1890ff",
-                        borderColor: "#1890ff",
+                        backgroundColor: "#4f46e5",
+                        borderColor: "#4f46e5",
                       }}
                     >
                       Submit Application

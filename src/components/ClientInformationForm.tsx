@@ -191,20 +191,14 @@ export default function ClientInformationForm({
     }
   };
 
-  // Watch for SMTP test status changes from SmtpConfigurationSection
+  // Watch for SMTP test status changes from SmtpConfigurationSection.
+  // Form.useWatch subscribes to field updates reactively, replacing the
+  // previous 500ms setInterval polling.
+  const watchedTestStatus = Form.useWatch("smtpTestStatus", form);
   useEffect(() => {
-    const interval = setInterval(() => {
-      const testStatus = form.getFieldValue("smtpTestStatus");
-      const newTestPassed = testStatus === "passed";
-
-      if (newTestPassed !== smtpTestPassed) {
-        setSmtpTestPassed(newTestPassed);
-      //  console.log("[ClientForm] SMTP test status changed to:", testStatus);
-      }
-    }, 500);
-
-    return () => clearInterval(interval);
-  }, [form, smtpTestPassed]);
+    const newTestPassed = watchedTestStatus === "passed";
+    setSmtpTestPassed((prev) => (prev !== newTestPassed ? newTestPassed : prev));
+  }, [watchedTestStatus]);
 
   const handleSubmit = async (values: ClientFormValues) => {
     try {
@@ -288,11 +282,11 @@ export default function ClientInformationForm({
               <Input
                 prefix={
                   <BankOutlined
-                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                    style={{ color: disabled ? "#bfbfbf" : "#4f46e5" }}
                   />
                 }
                 placeholder="e.g., Acme Inc, TechStart Solutions"
-                style={{ height: 48 }}
+                style={{ height: 40 }}
               />
             </Form.Item>
 
@@ -318,11 +312,11 @@ export default function ClientInformationForm({
               <Input
                 prefix={
                   <UserOutlined
-                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                    style={{ color: disabled ? "#bfbfbf" : "#4f46e5" }}
                   />
                 }
                 placeholder="e.g., John Doe"
-                style={{ height: 48 }}
+                style={{ height: 40 }}
               />
             </Form.Item>
 
@@ -344,11 +338,11 @@ export default function ClientInformationForm({
               <Input
                 prefix={
                   <MailOutlined
-                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                    style={{ color: disabled ? "#bfbfbf" : "#4f46e5" }}
                   />
                 }
                 placeholder="founder@company.com"
-                style={{ height: 48 }}
+                style={{ height: 40 }}
               />
             </Form.Item>
 
@@ -371,11 +365,11 @@ export default function ClientInformationForm({
               <Input
                 prefix={
                   <PhoneOutlined
-                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                    style={{ color: disabled ? "#bfbfbf" : "#4f46e5" }}
                   />
                 }
                 placeholder="+1 555 000 0000"
-                style={{ height: 48 }}
+                style={{ height: 40 }}
               />
             </Form.Item>
 
@@ -391,7 +385,7 @@ export default function ClientInformationForm({
               <Select
                 options={FUNDING_STAGES}
                 placeholder="Select your current funding stage"
-                style={{ height: 48 }}
+                style={{ height: 40 }}
               />
             </Form.Item>
 
@@ -412,11 +406,11 @@ export default function ClientInformationForm({
               <Input
                 prefix={
                   <DollarOutlined
-                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                    style={{ color: disabled ? "#bfbfbf" : "#4f46e5" }}
                   />
                 }
                 placeholder="e.g., $1.5M or 1500000"
-                style={{ height: 48 }}
+                style={{ height: 40 }}
               />
             </Form.Item>
 
@@ -439,11 +433,11 @@ export default function ClientInformationForm({
               <Input
                 prefix={
                   <DollarOutlined
-                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                    style={{ color: disabled ? "#bfbfbf" : "#4f46e5" }}
                   />
                 }
                 placeholder="e.g., $2M or 2000000"
-                style={{ height: 48 }}
+                style={{ height: 40 }}
               />
             </Form.Item>
 
@@ -465,11 +459,11 @@ export default function ClientInformationForm({
               <Input
                 prefix={
                   <BankOutlined
-                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                    style={{ color: disabled ? "#bfbfbf" : "#4f46e5" }}
                   />
                 }
                 placeholder="Enter your industry"
-                style={{ height: 48 }}
+                style={{ height: 40 }}
               />
             </Form.Item>
 
@@ -488,11 +482,11 @@ export default function ClientInformationForm({
               <Input
                 prefix={
                   <EnvironmentOutlined
-                    style={{ color: disabled ? "#bfbfbf" : "#1890ff" }}
+                    style={{ color: disabled ? "#bfbfbf" : "#4f46e5" }}
                   />
                 }
                 placeholder="e.g., San Francisco, CA, USA"
-                style={{ height: 48 }}
+                style={{ height: 40 }}
               />
             </Form.Item>
           </div>
@@ -531,21 +525,12 @@ export default function ClientInformationForm({
                   paddingRight: 40,
                   fontSize: 16,
                   fontWeight: 600,
-                  backgroundColor: smtpTestPassed ? "#1890ff" : undefined,
-                  borderColor: smtpTestPassed ? "#1890ff" : undefined,
+                  backgroundColor: smtpTestPassed ? "#4f46e5" : undefined,
+                  borderColor: smtpTestPassed ? "#4f46e5" : undefined,
                 }}
               >
                 {smtpTestPassed ? "Next" : "Test Email Configuration First"}
               </Button>
-
-              {/* Debug Info - Remove in production */}
-              {process.env.NODE_ENV === "development" && (
-                <div style={{ marginTop: 16, fontSize: 12, color: "#999" }}>
-                  Debug: Test Status ={" "}
-                  {form.getFieldValue("smtpTestStatus") || "not set"} | Button
-                  Enabled = {smtpTestPassed ? "Yes" : "No"}
-                </div>
-              )}
             </div>
           ) : isEditing ? (
             <Space>
@@ -559,8 +544,8 @@ export default function ClientInformationForm({
                   height: 48,
                   paddingLeft: 32,
                   paddingRight: 32,
-                  backgroundColor: "#1890ff",
-                  borderColor: "#1890ff",
+                  backgroundColor: "#4f46e5",
+                  borderColor: "#4f46e5",
                 }}
               >
                 Update
