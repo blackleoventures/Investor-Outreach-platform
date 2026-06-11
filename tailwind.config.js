@@ -37,6 +37,14 @@ module.exports = {
           800: '#1e293b',
           900: '#0f172a',
           950: '#020617',
+        },
+        // Black Leo Ventures brand (matches blackleoventures.com)
+        blv: {
+          accent: '#ff9617',
+          bg: '#000000',
+          surface: '#0a0a0a',
+          border: '#1f1f22',
+          muted: '#a1a1aa',
         }
       },
       fontFamily: {

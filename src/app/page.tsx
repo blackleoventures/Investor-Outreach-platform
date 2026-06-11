@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { TrendingUp, Zap, Target, BarChart3, Users, Briefcase, Rocket, CheckCircle, ArrowRight } from 'lucide-react';
+import Image from 'next/image';
+import { ArrowRight, ArrowUpRight } from 'lucide-react';
 
 export default function Home() {
   const router = useRouter();
@@ -14,30 +15,40 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-surface-50 text-surface-900 font-sans selection:bg-brand-500 selection:text-white">
+    <div className="min-h-screen bg-blv-bg text-white font-sans selection:bg-blv-accent selection:text-black">
       {/* Navigation */}
-      <nav className="fixed w-full z-50 bg-white/70 backdrop-blur-xl border-b border-surface-200/50 transition-all duration-300" data-testid="nav-header">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <nav className="fixed w-full z-50 bg-black/80 backdrop-blur-md border-b border-blv-border" data-testid="nav-header">
+        <div className="max-w-7xl mx-auto px-6 lg:px-12">
           <div className="flex justify-between items-center h-20">
             <button
               type="button"
               onClick={() => router.push('/')}
-              aria-label="Black Leo Venture home"
-              className="flex items-center gap-3 cursor-pointer rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              aria-label="Black Leo Ventures home"
+              className="flex items-center gap-3 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blv-accent"
               data-testid="text-logo"
             >
-              <div className="bg-gradient-to-br from-brand-600 to-brand-800 text-white p-2 rounded-xl shadow-lg shadow-brand-500/20">
-                <TrendingUp size={22} strokeWidth={2.5} aria-hidden="true" />
-              </div>
-              <span className="text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-surface-900 to-surface-700">
-                Black Leo Venture
+              <span className="w-10 h-10 bg-white rounded-md flex items-center justify-center flex-none">
+                <Image src="/logo.png" alt="Black Leo Ventures" width={32} height={32} className="w-8 h-8 object-contain" />
+              </span>
+              <span className="text-lg font-bold tracking-tight">
+                Black Leo Ventures
               </span>
             </button>
-            <div className="hidden md:flex items-center space-x-8">
-              <a href="/login" className="text-sm font-semibold text-surface-600 hover:text-brand-600 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">Sign In</a>
+            <div className="flex items-center gap-6">
+              <a
+                href="https://www.blackleoventures.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hidden md:block text-xs font-bold uppercase tracking-wider text-blv-muted hover:text-blv-accent transition-colors"
+              >
+                Main Site
+              </a>
+              <a href="/login" className="text-xs font-bold uppercase tracking-wider text-blv-muted hover:text-blv-accent transition-colors">
+                Sign In
+              </a>
               <button
                 onClick={() => router.push('/login')}
-                className="bg-surface-900 text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-brand-600 transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                className="px-5 py-2.5 bg-blv-accent text-black font-bold uppercase tracking-wide text-xs hover:bg-white transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 Get Started
               </button>
@@ -47,167 +58,232 @@ export default function Home() {
       </nav>
 
       <main>
-        {/* Hero Section */}
-        <section className="relative pt-32 pb-20 lg:pt-48 lg:pb-32 px-4 overflow-hidden">
-          {/* Background Decorative Elements */}
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-7xl h-full pointer-events-none">
-            <div aria-hidden="true" className="absolute top-[-10%] left-[-10%] w-96 h-96 bg-brand-400 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-blob motion-reduce:animate-none"></div>
-            <div aria-hidden="true" className="absolute top-[20%] right-[-10%] w-96 h-96 bg-violet-400 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-blob motion-reduce:animate-none" style={{ animationDelay: '2s' }}></div>
-          </div>
+        {/* Hero */}
+        <section className="relative min-h-[100svh] flex items-center pt-28 pb-16 px-6 lg:px-12 overflow-hidden">
+          <div aria-hidden="true" className="absolute top-1/4 -left-1/4 w-[700px] h-[700px] bg-blv-accent/15 blur-[150px] rounded-full pointer-events-none"></div>
 
-          <div className="relative max-w-5xl mx-auto text-center z-10 animate-fade-in-up">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-brand-50 border border-brand-100 text-brand-700 text-sm font-semibold mb-8 shadow-sm">
-              <span className="relative flex h-2.5 w-2.5">
-                <span className="animate-ping motion-reduce:animate-none absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-600"></span>
-              </span>
-              Now analyzing 500+ premium deals
+          <div className="relative w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-14 items-center">
+            <div className="lg:col-span-7">
+              <p className="text-blv-accent text-xs font-bold uppercase tracking-[0.25em] mb-6">
+                The Black Leo Ventures Platform
+              </p>
+              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-extrabold uppercase leading-[1.02] tracking-tight mb-8" data-testid="text-hero-title">
+                Your startup,<br />
+                in front of <span className="text-blv-accent">real investors.</span>
+              </h1>
+              <p className="text-lg sm:text-xl text-blv-muted max-w-xl leading-relaxed mb-10" data-testid="text-hero-subtitle">
+                You build the company. We handle the fundraise — one profile, your pitch deck,
+                and outreach to investors who actually invest in your sector and stage.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  className="group flex items-center justify-center gap-3 px-8 py-4 bg-blv-accent text-black font-bold uppercase tracking-wide text-sm hover:bg-white transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => handleNavigation('founder')}
+                  disabled={loading}
+                  aria-busy={loading}
+                >
+                  I&apos;m a Founder
+                  <ArrowRight size={18} aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1" />
+                </button>
+                <button
+                  className="group flex items-center justify-center gap-3 px-8 py-4 border border-blv-border text-white font-bold uppercase tracking-wide text-sm hover:border-blv-accent hover:text-blv-accent transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blv-accent disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => handleNavigation('investor')}
+                  disabled={loading}
+                  aria-busy={loading}
+                >
+                  I&apos;m an Investor
+                  <ArrowUpRight size={18} aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1" />
+                </button>
+              </div>
             </div>
 
-            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-extrabold tracking-tight text-surface-950 mb-8 leading-[1.1]" data-testid="text-hero-title">
-              Smarter Deal Flow.<br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-600 via-brand-500 to-violet-600">Powered by AI.</span>
-            </h1>
+            {/* How it works panel */}
+            <div className="lg:col-span-5">
+              <div className="border border-blv-border bg-blv-surface p-8">
+                <p className="text-xs font-bold uppercase tracking-[0.25em] text-blv-muted mb-8">How it works</p>
+                <ol className="space-y-8">
+                  <li className="flex gap-5">
+                    <span className="text-blv-accent font-extrabold text-2xl leading-none" aria-hidden="true">01</span>
+                    <div>
+                      <p className="font-bold mb-1">Tell us about your startup</p>
+                      <p className="text-sm text-blv-muted leading-relaxed">One form. Company details, what you&apos;re raising, and your pitch deck.</p>
+                    </div>
+                  </li>
+                  <li className="flex gap-5">
+                    <span className="text-blv-accent font-extrabold text-2xl leading-none" aria-hidden="true">02</span>
+                    <div>
+                      <p className="font-bold mb-1">We match and reach out</p>
+                      <p className="text-sm text-blv-muted leading-relaxed">We match you with investors by sector, stage, city and ticket size — then email them from your own inbox.</p>
+                    </div>
+                  </li>
+                  <li className="flex gap-5">
+                    <span className="text-blv-accent font-extrabold text-2xl leading-none" aria-hidden="true">03</span>
+                    <div>
+                      <p className="font-bold mb-1">Investors see your deal</p>
+                      <p className="text-sm text-blv-muted leading-relaxed">Interested investors get a private deal room with your profile and deck. They contact you directly.</p>
+                    </div>
+                  </li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </section>
 
-            <p className="text-xl sm:text-2xl text-surface-600 mb-12 max-w-3xl mx-auto leading-relaxed font-light" data-testid="text-hero-subtitle">
-              Streamline your investment process with instant pitch deck analysis, predictive scoring, and deep diligence insights.
+        {/* For Founders / For Investors */}
+        <section className="py-24 px-6 lg:px-12 border-t border-blv-border">
+          <div className="max-w-7xl mx-auto">
+            <h2 className="text-3xl sm:text-5xl font-extrabold uppercase tracking-tight mb-4">
+              Two sides. <span className="text-blv-accent">One table.</span>
+            </h2>
+            <p className="text-blv-muted text-lg max-w-2xl mb-16">
+              Founders raise. Investors find deals. We sit in the middle and make the introduction.
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-5 justify-center items-center mb-20">
-              <button
-                className="group flex items-center justify-center gap-2 px-8 py-4 bg-brand-600 text-white rounded-2xl font-semibold text-lg hover:bg-brand-700 transition-all duration-300 shadow-lg shadow-brand-500/30 hover:shadow-brand-500/50 hover:-translate-y-1 w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={() => handleNavigation('investor')}
-                disabled={loading}
-                aria-busy={loading}
-              >
-                <Briefcase size={22} aria-hidden="true" />
-                <span>Join as Investor</span>
-                <ArrowRight size={18} aria-hidden="true" className="opacity-0 -ml-4 group-hover:opacity-100 group-hover:ml-0 transition-all duration-300" />
-              </button>
-              <button
-                className="flex items-center justify-center gap-2 px-8 py-4 bg-white text-surface-900 border border-surface-200 rounded-2xl font-semibold text-lg hover:border-brand-300 hover:bg-brand-50 transition-all duration-300 shadow-sm hover:shadow-md w-full sm:w-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={() => handleNavigation('founder')}
-                disabled={loading}
-                aria-busy={loading}
-              >
-                <Rocket size={22} className="text-surface-500" aria-hidden="true" />
-                Submit Pitch Deck
-              </button>
-            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-px bg-blv-border border border-blv-border">
+              <div className="bg-blv-surface p-10 lg:p-14">
+                <p className="text-xs font-bold uppercase tracking-[0.25em] text-blv-accent mb-6">For Founders</p>
+                <h3 className="text-2xl font-extrabold uppercase mb-6">Raise without chasing</h3>
+                <ul className="space-y-4 text-blv-muted mb-10">
+                  <li className="flex gap-3">
+                    <span className="text-blv-accent mt-0.5" aria-hidden="true">—</span>
+                    Outreach goes from your own email address, not a cold-mail server. Investors see you, not a tool.
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-blv-accent mt-0.5" aria-hidden="true">—</span>
+                    Every open and every reply is tracked. You always know who is interested.
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-blv-accent mt-0.5" aria-hidden="true">—</span>
+                    Your deck gets a clean, private profile page that investors can study properly.
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-blv-accent mt-0.5" aria-hidden="true">—</span>
+                    Backed by the Black Leo Ventures team — mentorship, execution and investor network included.
+                  </li>
+                </ul>
+                <button
+                  className="group inline-flex items-center gap-3 text-sm font-bold uppercase tracking-wide text-blv-accent hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blv-accent disabled:opacity-50"
+                  onClick={() => handleNavigation('founder')}
+                  disabled={loading}
+                >
+                  Submit your pitch deck
+                  <ArrowRight size={16} aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1" />
+                </button>
+              </div>
 
-            {/* Metrics */}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-8 max-w-3xl mx-auto p-8 bg-white/60 backdrop-blur-md rounded-3xl border border-white/80 shadow-xl shadow-surface-200/20">
-              <div className="flex flex-col items-center">
-                <div className="text-4xl font-extrabold text-surface-900 mb-1">500+</div>
-                <div className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Deals Analyzed</div>
-              </div>
-              <div className="flex flex-col items-center">
-                <div className="text-4xl font-extrabold text-brand-600 mb-1">98%</div>
-                <div className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Data Accuracy</div>
-              </div>
-              <div className="flex flex-col items-center col-span-2 md:col-span-1">
-                <div className="text-4xl font-extrabold text-surface-900 mb-1"><span className="text-2xl text-surface-400">&lt;</span>60s</div>
-                <div className="text-xs font-semibold text-surface-500 uppercase tracking-wider">Analysis Time</div>
+              <div className="bg-blv-surface p-10 lg:p-14">
+                <p className="text-xs font-bold uppercase tracking-[0.25em] text-blv-accent mb-6">For Investors</p>
+                <h3 className="text-2xl font-extrabold uppercase mb-6">Deal flow, not spam</h3>
+                <ul className="space-y-4 text-blv-muted mb-10">
+                  <li className="flex gap-3">
+                    <span className="text-blv-accent mt-0.5" aria-hidden="true">—</span>
+                    Invite-only deal room. Every startup inside has been reviewed by our team first.
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-blv-accent mt-0.5" aria-hidden="true">—</span>
+                    Filter by sector, stage and city. Read the deck right on the page.
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-blv-accent mt-0.5" aria-hidden="true">—</span>
+                    Get a structured analysis of each deck — scorecard, market, traction, risks — before you spend a minute on a call.
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="text-blv-accent mt-0.5" aria-hidden="true">—</span>
+                    Founder contact details on every profile. No middleman when you&apos;re ready to talk.
+                  </li>
+                </ul>
+                <button
+                  className="group inline-flex items-center gap-3 text-sm font-bold uppercase tracking-wide text-blv-accent hover:text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blv-accent disabled:opacity-50"
+                  onClick={() => handleNavigation('investor')}
+                  disabled={loading}
+                >
+                  Request deal room access
+                  <ArrowUpRight size={16} aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1" />
+                </button>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Features Section */}
-        <section className="py-32 bg-white relative">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-20">
-              <h2 className="text-4xl sm:text-5xl font-extrabold text-surface-900 mb-6 tracking-tight">
-                Enterprise Intelligence
+        {/* Plain-words section */}
+        <section className="py-24 px-6 lg:px-12 border-t border-blv-border">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12">
+            <div className="lg:col-span-5">
+              <h2 className="text-3xl sm:text-4xl font-extrabold uppercase tracking-tight leading-tight">
+                No jargon.<br />Here&apos;s what we <span className="text-blv-accent">actually do.</span>
               </h2>
-              <p className="text-xl text-surface-600 max-w-2xl mx-auto font-light">
-                Uncover hidden risks and opportunities with our proprietary evaluation engine.
-              </p>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {[
-                {
-                  icon: <BarChart3 className="text-brand-600" size={28} aria-hidden="true" />,
-                  bg: "bg-brand-50",
-                  title: "Deep Tech Analysis",
-                  description: "Comprehensive evaluation across market size, technical defensibility, and competitive moats."
-                },
-                {
-                  icon: <Zap className="text-amber-500" size={28} aria-hidden="true" />,
-                  bg: "bg-amber-50",
-                  title: "Instant Diligence",
-                  description: "Generate structured summaries and targeted Q&A prompts instantly from raw pitch decks."
-                },
-                {
-                  icon: <Target className="text-emerald-500" size={28} aria-hidden="true" />,
-                  bg: "bg-emerald-50",
-                  title: "Smart Scoring",
-                  description: "Objective 0-100 venture scoring with detailed criterion breakdowns for rapid filtering."
-                },
-                {
-                  icon: <TrendingUp className="text-brand-500" size={28} aria-hidden="true" />,
-                  bg: "bg-brand-50",
-                  title: "Pipeline Management",
-                  description: "Track founder engagement, team sentiment, and manage your entire deal flow in one place."
-                },
-                {
-                  icon: <Users className="text-violet-500" size={28} aria-hidden="true" />,
-                  bg: "bg-violet-50",
-                  title: "Syndicate Sync",
-                  description: "Share structured deal memos and co-invest effortlessly without endless email threads."
-                },
-                {
-                  icon: <CheckCircle className="text-rose-500" size={28} aria-hidden="true" />,
-                  bg: "bg-rose-50",
-                  title: "Bank-Grade Security",
-                  description: "End-to-end encryption ensures highly confidential IP and financials remain protected."
-                }
-              ].map((feature, i) => (
-                <div key={i} className="group bg-surface-50 p-8 rounded-3xl border border-surface-200/60 hover:bg-white hover:shadow-2xl hover:shadow-brand-900/5 hover:-translate-y-1 transition-all duration-300">
-                  <div className={`w-14 h-14 ${feature.bg} rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300`}>
-                    {feature.icon}
-                  </div>
-                  <h3 className="text-xl font-bold text-surface-900 mb-3">{feature.title}</h3>
-                  <p className="text-surface-600 leading-relaxed font-light">
-                    {feature.description}
-                  </p>
-                </div>
-              ))}
+            <div className="lg:col-span-7 space-y-8 text-lg text-blv-muted leading-relaxed">
+              <p>
+                Most founders waste months sending cold emails to the wrong investors.
+                Most investors drown in decks that were never meant for them.
+              </p>
+              <p>
+                We fix both. Your startup&apos;s profile is matched against our investor network —
+                who invests in your sector, at your stage, in your region, at your ticket size.
+                Only the right people hear from you, and they hear from <span className="text-white font-semibold">your</span> email address.
+              </p>
+              <p>
+                When an investor is interested, they don&apos;t get a forwarded PDF. They get access to our
+                deal room — your full profile, your deck, and a straight answer on whether this deal fits them.
+              </p>
+              <p className="text-white font-semibold">
+                That&apos;s it. No magic. Just the boring work of fundraising, done properly, by a team in India that does this every day.
+              </p>
             </div>
           </div>
         </section>
 
-        {/* CTA Section */}
-        <section className="py-24 px-4">
-          <div className="max-w-6xl mx-auto bg-surface-950 rounded-[3rem] p-12 md:p-24 text-center text-white relative overflow-hidden shadow-2xl">
-            {/* Ambient glows */}
-            <div aria-hidden="true" className="absolute top-0 right-0 w-96 h-96 bg-brand-600 rounded-full mix-blend-screen filter blur-[100px] opacity-30 animate-pulse-slow motion-reduce:animate-none"></div>
-            <div aria-hidden="true" className="absolute bottom-0 left-0 w-96 h-96 bg-violet-600 rounded-full mix-blend-screen filter blur-[100px] opacity-30"></div>
-
-            <div className="relative z-10">
-              <h2 className="text-4xl sm:text-6xl font-extrabold mb-8 tracking-tight">
-                Upgrade Your Deal Flow
+        {/* CTA */}
+        <section className="border-t border-blv-border">
+          <div className="max-w-7xl mx-auto px-6 lg:px-12 py-24 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-10">
+            <div>
+              <h2 className="text-4xl sm:text-6xl font-extrabold uppercase tracking-tight mb-4">
+                Ready to raise?
               </h2>
-              <p className="text-xl text-surface-300 mb-12 max-w-2xl mx-auto font-light leading-relaxed">
-                Join top-tier venture funds and angel networks making smarter, faster investment decisions with Black Leo.
+              <p className="text-blv-muted text-lg max-w-xl">
+                Submit your pitch deck today. If it&apos;s a fit, our team will reach out and put it to work.
               </p>
-              <button
-                className="bg-white text-surface-950 px-10 py-5 rounded-2xl font-bold text-lg hover:bg-brand-50 hover:scale-105 transition-all duration-300 shadow-xl shadow-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={() => router.push('/login')}
-                disabled={loading}
-                aria-busy={loading}
-              >
-                Start Analyzing Deals
-              </button>
             </div>
+            <button
+              className="group flex items-center gap-3 px-10 py-5 bg-blv-accent text-black font-bold uppercase tracking-wide text-sm hover:bg-white transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white disabled:opacity-50 disabled:cursor-not-allowed flex-none"
+              onClick={() => router.push('/login')}
+              disabled={loading}
+              aria-busy={loading}
+            >
+              Get Started
+              <ArrowRight size={18} aria-hidden="true" className="transition-transform duration-300 group-hover:translate-x-1" />
+            </button>
           </div>
         </section>
       </main>
 
-      <footer className="bg-white py-12 border-t border-surface-100">
-        <div className="max-w-7xl mx-auto px-4 text-center text-surface-400 font-medium">
-          <p>&copy; {new Date().getFullYear()} Black Leo Venture. All rights reserved.</p>
+      <footer className="border-t border-blv-border py-12 px-6 lg:px-12">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between gap-8">
+          <div>
+            <div className="flex items-center gap-3 mb-3">
+              <span className="w-8 h-8 bg-white rounded-md flex items-center justify-center flex-none">
+                <Image src="/logo.png" alt="Black Leo Ventures" width={24} height={24} className="w-6 h-6 object-contain" />
+              </span>
+              <span className="font-bold">Black Leo Ventures</span>
+            </div>
+            <p className="text-sm text-blv-muted max-w-xs">
+              We build, fund &amp; scale companies. Proudly built in India.
+            </p>
+          </div>
+          <div className="text-sm text-blv-muted space-y-2 md:text-right">
+            <p>
+              <a href="https://www.blackleoventures.com" target="_blank" rel="noopener noreferrer" className="hover:text-blv-accent transition-colors">
+                blackleoventures.com
+              </a>
+            </p>
+            <p>
+              <a href="tel:+917837059633" className="hover:text-blv-accent transition-colors">+91 78370 59633</a>
+            </p>
+            <p>CIN: U85300MP2020PTC053751</p>
+            <p>&copy; {new Date().getFullYear()} Black Leo Ventures. All rights reserved.</p>
+          </div>
         </div>
       </footer>
     </div>
