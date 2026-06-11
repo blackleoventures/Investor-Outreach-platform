@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Input, Select, Tag, Card, Row, Col, Typography, Spin, Empty, Button } from "antd";
 import { SearchOutlined, FilterOutlined, ArrowRightOutlined, EnvironmentOutlined, DollarOutlined, ReloadOutlined } from "@ant-design/icons";
 import { auth } from "@/lib/firebase";
+import { useAuth } from "@/contexts/AuthContext";
 
 const { Title, Text, Paragraph } = Typography;
 const { Search } = Input;
@@ -29,6 +30,7 @@ interface Client {
 
 export default function DealRoomDashboard() {
     const router = useRouter();
+    const { userData, loading: authLoading } = useAuth();
     const [loading, setLoading] = useState(true);
     const [startups, setStartups] = useState<Client[]>([]);
     const [filteredStartups, setFilteredStartups] = useState<Client[]>([]);
@@ -39,21 +41,19 @@ export default function DealRoomDashboard() {
     const [fetchError, setFetchError] = useState(false);
 
     useEffect(() => {
-        // Check for link-only access
-        if (typeof window !== "undefined") {
-            const hasAccess = sessionStorage.getItem("dealRoomAccess") === "granted";
-            if (!hasAccess) {
-                // Check if they are admin/subadmin (they should have access anyway)
-                // However, the user specifically asked for "only through link" for investor route.
-                // Assuming admins might still want to see it, but strictly following the request for now.
-                // Let's refine: if it's an investor, they MUST have the flag.
-                // We'll handle redirection if no access.
-                router.push("/dashboard");
-                return;
-            }
+        if (authLoading) return;
+        // Admins and subadmins can browse the deal room directly from the sidebar.
+        // Investors must arrive via their magic link, which sets the sessionStorage flag.
+        const isStaff = userData?.role === "admin" || userData?.role === "subadmin";
+        const hasAccess =
+            typeof window !== "undefined" &&
+            sessionStorage.getItem("dealRoomAccess") === "granted";
+        if (!isStaff && !hasAccess) {
+            router.push("/dashboard");
+            return;
         }
         fetchStartups();
-    }, []);
+    }, [authLoading, userData?.role]);
 
     useEffect(() => {
         filterStartups();

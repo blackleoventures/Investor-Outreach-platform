@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
+import { useAuth } from "@/contexts/AuthContext";
 import {
     message,
     Spin,
@@ -41,6 +42,7 @@ export default function FounderProfilePage() {
     const router = useRouter();
     const params = useParams();
     const id = params?.id as string;
+    const { userData, loading: authLoading } = useAuth();
 
     const [loading, setLoading] = useState(true);
     const [client, setClient] = useState<TransformedClient | null>(null);
@@ -49,18 +51,21 @@ export default function FounderProfilePage() {
     const [analysisAttempted, setAnalysisAttempted] = useState(false);
 
     useEffect(() => {
-        // Check for link-only access
-        if (typeof window !== "undefined") {
-            const hasAccess = sessionStorage.getItem("dealRoomAccess") === "granted";
-            if (!hasAccess) {
-                router.push("/dashboard");
-                return;
-            }
+        if (authLoading) return;
+        // Admins and subadmins can browse the deal room directly from the sidebar.
+        // Investors must arrive via their magic link, which sets the sessionStorage flag.
+        const isStaff = userData?.role === "admin" || userData?.role === "subadmin";
+        const hasAccess =
+            typeof window !== "undefined" &&
+            sessionStorage.getItem("dealRoomAccess") === "granted";
+        if (!isStaff && !hasAccess) {
+            router.push("/dashboard");
+            return;
         }
         if (id) {
             fetchClientDetails();
         }
-    }, [id]);
+    }, [id, authLoading, userData?.role]);
 
     const fetchClientDetails = async () => {
         setLoading(true);
