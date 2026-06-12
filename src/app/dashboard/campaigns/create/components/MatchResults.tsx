@@ -14,6 +14,7 @@ import {
   Select,
   Space,
   Modal,
+  Checkbox,
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -51,6 +52,7 @@ export default function MatchResults({
   const [searchText, setSearchText] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [stateFilter, setStateFilter] = useState<string>("all");
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
@@ -73,7 +75,29 @@ export default function MatchResults({
     if (matchResults?.matches) {
       filterData();
     }
-  }, [searchText, priorityFilter, typeFilter, matchResults]);
+  }, [searchText, priorityFilter, typeFilter, stateFilter, matchResults]);
+
+  // Location strings for a match: incubators carry "State/City" from the
+  // sheet, investors carry a free-form locations array.
+  const getMatchLocations = (item: any): string[] => {
+    const locs: string[] = [];
+    if (item.rawData?.stateCity) locs.push(item.rawData.stateCity);
+    if (Array.isArray(item.rawData?.locations)) locs.push(...item.rawData.locations);
+    return locs.map((l) => String(l).trim()).filter((l) => l.length > 0);
+  };
+
+  // Unique state/location options across all matches (case-insensitive dedupe,
+  // first-seen casing wins).
+  const stateOptions: string[] = (() => {
+    const seen = new Map<string, string>();
+    (matchResults?.matches || []).forEach((item: any) => {
+      getMatchLocations(item).forEach((l) => {
+        const key = l.toLowerCase();
+        if (!seen.has(key)) seen.set(key, l);
+      });
+    });
+    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
+  })();
 
   const runMatching = async () => {
     try {
@@ -129,6 +153,14 @@ export default function MatchResults({
 
     if (typeFilter !== "all") {
       filtered = filtered.filter((item: any) => item.type === typeFilter);
+    }
+
+    if (stateFilter !== "all") {
+      filtered = filtered.filter((item: any) =>
+        getMatchLocations(item).some(
+          (l) => l.toLowerCase() === stateFilter.toLowerCase()
+        )
+      );
     }
 
     setFilteredData(filtered);
@@ -203,11 +235,12 @@ export default function MatchResults({
     if (!matchResults?.matches) return;
 
     const csvContent = [
-      ["Name", "Email", "Organization", "Type", "Priority", "Score", "Matched Criteria"],
+      ["Name", "Email", "Organization", "Location", "Type", "Priority", "Score", "Matched Criteria"],
       ...matchResults.matches.map((item: any) => [
         item.name,
         item.email,
         item.organization,
+        getMatchLocations(item).join("; "),
         item.type,
         item.priority,
         item.matchScore,
@@ -245,6 +278,22 @@ export default function MatchResults({
     onChange: (selectedKeys: React.Key[]) => {
       setSelectedRowKeys(selectedKeys);
     },
+    selections: [
+      Table.SELECTION_ALL,
+      Table.SELECTION_INVERT,
+      Table.SELECTION_NONE,
+    ],
+  };
+
+  const allFilteredSelected =
+    filteredData.length > 0 &&
+    (() => {
+      const selected = new Set(selectedRowKeys);
+      return filteredData.every((item: any) => selected.has(item.id));
+    })();
+
+  const handleSelectAllFiltered = (checked: boolean) => {
+    setSelectedRowKeys(checked ? filteredData.map((item: any) => item.id) : []);
   };
 
   const columns = [
@@ -276,6 +325,19 @@ export default function MatchResults({
       dataIndex: "organization",
       key: "organization",
       width: 180,
+    },
+    {
+      title: "Location",
+      key: "location",
+      width: 140,
+      render: (_: any, record: any) => {
+        const locs = getMatchLocations(record);
+        return locs.length > 0 ? (
+          <span>{locs.join(", ")}</span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        );
+      },
     },
     {
       title: "Type",
@@ -496,6 +558,20 @@ export default function MatchResults({
               <Select.Option value="incubator">Incubators</Select.Option>
             </Select>
           )}
+          <Select
+            value={stateFilter}
+            onChange={setStateFilter}
+            style={{ width: 200 }}
+            showSearch
+            optionFilterProp="children"
+          >
+            <Select.Option value="all">All States / Locations</Select.Option>
+            {stateOptions.map((state) => (
+              <Select.Option key={state} value={state}>
+                {state}
+              </Select.Option>
+            ))}
+          </Select>
           <Button
             icon={<DownloadOutlined />}
             onClick={exportToCSV}
@@ -515,6 +591,25 @@ export default function MatchResults({
             >
               Delete Selected ({selectedRowKeys.length})
             </Button>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between mb-3">
+          <Checkbox
+            checked={allFilteredSelected}
+            indeterminate={selectedRowKeys.length > 0 && !allFilteredSelected}
+            onChange={(e) => handleSelectAllFiltered(e.target.checked)}
+            disabled={filteredData.length === 0}
+          >
+            Select all {filteredData.length} contacts
+            {stateFilter !== "all" || priorityFilter !== "all" || searchText
+              ? " (filtered)"
+              : ""}
+          </Checkbox>
+          {selectedRowKeys.length > 0 && (
+            <span className="text-sm text-gray-500">
+              {selectedRowKeys.length} selected
+            </span>
           )}
         </div>
 
