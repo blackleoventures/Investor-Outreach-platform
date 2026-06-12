@@ -558,20 +558,6 @@ export default function MatchResults({
               <Select.Option value="incubator">Incubators</Select.Option>
             </Select>
           )}
-          <Select
-            value={stateFilter}
-            onChange={setStateFilter}
-            style={{ width: 200 }}
-            showSearch
-            optionFilterProp="children"
-          >
-            <Select.Option value="all">All States / Locations</Select.Option>
-            {stateOptions.map((state) => (
-              <Select.Option key={state} value={state}>
-                {state}
-              </Select.Option>
-            ))}
-          </Select>
           <Button
             icon={<DownloadOutlined />}
             onClick={exportToCSV}
@@ -583,6 +569,20 @@ export default function MatchResults({
           >
             Export CSV
           </Button>
+          <Select
+            value={stateFilter}
+            onChange={setStateFilter}
+            style={{ width: 200 }}
+            showSearch
+            optionFilterProp="children"
+          >
+            <Select.Option value="all">All States</Select.Option>
+            {stateOptions.map((state) => (
+              <Select.Option key={state} value={state}>
+                {state}
+              </Select.Option>
+            ))}
+          </Select>
           {selectedRowKeys.length > 0 && (
             <Button
               danger
