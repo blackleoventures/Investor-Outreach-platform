@@ -584,13 +584,18 @@ export default function MatchResults({
             ))}
           </Select>
           {selectedRowKeys.length > 0 && (
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={handleDeleteSelected}
-            >
-              Delete Selected ({selectedRowKeys.length})
-            </Button>
+            <>
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleDeleteSelected}
+              >
+                Delete Selected ({selectedRowKeys.length})
+              </Button>
+              <Button onClick={() => setSelectedRowKeys([])}>
+                Unselect All
+              </Button>
+            </>
           )}
         </div>
 
