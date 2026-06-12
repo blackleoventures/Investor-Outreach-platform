@@ -77,13 +77,27 @@ export default function MatchResults({
     }
   }, [searchText, priorityFilter, typeFilter, stateFilter, matchResults]);
 
-  // Location strings for a match: incubators carry "State/City" from the
-  // sheet, investors carry a free-form locations array.
+  // Location tokens for a match: incubators carry "State/City" from the
+  // sheet, investors carry a free-form locations array. Values are split on
+  // comma / slash / semicolon so composite cells like "Mohali, Punjab" yield
+  // clean individual tokens. The filter dropdown and the row matching both
+  // use this same token set, so a selected state always matches exactly.
   const getMatchLocations = (item: any): string[] => {
-    const locs: string[] = [];
-    if (item.rawData?.stateCity) locs.push(item.rawData.stateCity);
-    if (Array.isArray(item.rawData?.locations)) locs.push(...item.rawData.locations);
-    return locs.map((l) => String(l).trim()).filter((l) => l.length > 0);
+    const raw: string[] = [];
+    if (item.rawData?.stateCity) raw.push(String(item.rawData.stateCity));
+    if (Array.isArray(item.rawData?.locations)) {
+      raw.push(...item.rawData.locations.map((l: any) => String(l)));
+    }
+    const seen = new Map<string, string>();
+    raw
+      .flatMap((value) => value.split(/[,/;]/))
+      .map((l) => l.replace(/\s+/g, " ").trim())
+      .filter((l) => l.length > 0)
+      .forEach((l) => {
+        const key = l.toLowerCase();
+        if (!seen.has(key)) seen.set(key, l);
+      });
+    return Array.from(seen.values());
   };
 
   // Unique state/location options across all matches (case-insensitive dedupe,

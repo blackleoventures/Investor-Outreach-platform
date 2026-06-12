@@ -203,8 +203,10 @@ export default function ClientSelection({
           <Button
             type="primary"
             size="small"
-            onClick={() => handleSelectClient(record)}
-            disabled={isSelected || !isVerified}
+            onClick={() =>
+              isSelected ? onClientSelect(null) : handleSelectClient(record)
+            }
+            disabled={!isVerified && !isSelected}
             loading={selectingId === record.id}
             icon={isSelected ? <CheckCircleOutlined /> : null}
             style={
@@ -221,6 +223,13 @@ export default function ClientSelection({
         if (!isVerified && !isSelected) {
           return (
             <Tooltip title="SMTP must be verified before this client can be used in a campaign">
+              <span>{button}</span>
+            </Tooltip>
+          );
+        }
+        if (isSelected) {
+          return (
+            <Tooltip title="Click to unselect">
               <span>{button}</span>
             </Tooltip>
           );
