@@ -1,17 +1,61 @@
 "use client";
 
-import { Card, Radio, Button, Space, Alert } from "antd";
+import { Card, Radio, Button, Space, Alert, Select, Checkbox, message } from "antd";
 import {
   ArrowLeftOutlined,
   ArrowRightOutlined,
   UserSwitchOutlined,
   RobotOutlined,
   TeamOutlined,
+  EnvironmentOutlined,
 } from "@ant-design/icons";
+
+export const INDIAN_STATES = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Andaman and Nicobar Islands",
+  "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi",
+  "Jammu and Kashmir",
+  "Ladakh",
+  "Lakshadweep",
+  "Puducherry",
+];
 
 interface TargetAudienceProps {
   targetType: "investors" | "incubators" | "both";
   onTargetSelect: (type: "investors" | "incubators" | "both") => void;
+  searchMode: "sector" | "state" | "both";
+  onSearchModeChange: (mode: "sector" | "state" | "both") => void;
+  selectedStates: string[];
+  onStatesChange: (states: string[]) => void;
   onNext: () => void;
   onBack: () => void;
 }
@@ -19,9 +63,23 @@ interface TargetAudienceProps {
 export default function TargetAudience({
   targetType,
   onTargetSelect,
+  searchMode,
+  onSearchModeChange,
+  selectedStates,
+  onStatesChange,
   onNext,
   onBack,
 }: TargetAudienceProps) {
+  const allStatesSelected = selectedStates.length === INDIAN_STATES.length;
+
+  const handleNext = () => {
+    if (searchMode !== "sector" && selectedStates.length === 0) {
+      message.error("Please select at least one state for state-based search");
+      return;
+    }
+    onNext();
+  };
+
   const options = [
     {
       value: "investors",
@@ -110,6 +168,72 @@ export default function TargetAudience({
         />
       </Card>
 
+      <Card
+        title={
+          <span>
+            <EnvironmentOutlined className="mr-2" />
+            Search Mode
+          </span>
+        }
+        className="mb-6"
+      >
+        <Radio.Group
+          value={searchMode}
+          onChange={(e) => onSearchModeChange(e.target.value)}
+          className="mb-4"
+        >
+          <Space direction="vertical">
+            <Radio value="sector">
+              <strong>Sector-Based</strong> (Default) — match contacts by your
+              client&apos;s sector, stage, location and ticket size
+            </Radio>
+            <Radio value="state">
+              <strong>State-Based</strong> — show all contacts from the selected
+              states, even if their preferred sectors don&apos;t match
+            </Radio>
+            <Radio value="both">
+              <strong>Both</strong> — sector matches plus all contacts from the
+              selected states (duplicates removed)
+            </Radio>
+          </Space>
+        </Radio.Group>
+
+        {searchMode !== "sector" && (
+          <div className="mt-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="font-medium">Select States</span>
+              <Checkbox
+                checked={allStatesSelected}
+                indeterminate={selectedStates.length > 0 && !allStatesSelected}
+                onChange={(e) =>
+                  onStatesChange(e.target.checked ? [...INDIAN_STATES] : [])
+                }
+              >
+                Select All States
+              </Checkbox>
+            </div>
+            <Select
+              mode="multiple"
+              allowClear
+              showSearch
+              placeholder="Search and select states (e.g. West Bengal, Odisha, Assam)"
+              value={selectedStates}
+              onChange={onStatesChange}
+              style={{ width: "100%" }}
+              maxTagCount={6}
+              options={INDIAN_STATES.map((state) => ({
+                label: state,
+                value: state,
+              }))}
+            />
+            <p className="text-gray-500 text-sm mt-2">
+              Useful for state-specific government grants and schemes — startups
+              often need incubation support from a center located in that state.
+            </p>
+          </div>
+        )}
+      </Card>
+
       <div className="flex justify-between">
         <Button size="large" onClick={onBack} icon={<ArrowLeftOutlined />}>
           Back
@@ -117,7 +241,7 @@ export default function TargetAudience({
         <Button
           type="primary"
           size="large"
-          onClick={onNext}
+          onClick={handleNext}
           icon={<ArrowRightOutlined />}
           style={{
             backgroundColor: "#4f46e5",

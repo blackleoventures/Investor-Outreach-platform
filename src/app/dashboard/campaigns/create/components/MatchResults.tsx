@@ -31,6 +31,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 interface MatchResultsProps {
   selectedClient: any;
   targetType: string;
+  searchMode: "sector" | "state" | "both";
+  selectedStates: string[];
   matchResults: any;
   onMatchComplete: (results: any) => void;
   onNext: () => void;
@@ -41,6 +43,8 @@ interface MatchResultsProps {
 export default function MatchResults({
   selectedClient,
   targetType,
+  searchMode,
+  selectedStates,
   matchResults,
   onMatchComplete,
   onNext,
@@ -58,7 +62,7 @@ export default function MatchResults({
 
   // Key identifying the inputs that produced the current matches. Used to
   // detect stale matches when the user goes Back and changes client/target.
-  const currentInputKey = `${selectedClient?.id ?? ""}|${targetType}`;
+  const currentInputKey = `${selectedClient?.id ?? ""}|${targetType}|${searchMode}|${[...selectedStates].sort().join(",")}`;
 
   useEffect(() => {
     // Run matching when there are no results yet, or when the existing results
@@ -129,6 +133,8 @@ export default function MatchResults({
         body: JSON.stringify({
           clientId: selectedClient.id,
           targetType,
+          searchMode,
+          selectedStates,
         }),
       });
 

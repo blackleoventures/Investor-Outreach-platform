@@ -192,6 +192,22 @@ function calculateMatchScore(
   return { score, matchedCriteria };
 }
 
+// Location tokens for a contact: incubators carry "State/City" and country
+// columns, investors carry a free-form locations array. Composite cells like
+// "Mohali, Punjab" are split so each state/city becomes its own token.
+function getContactLocationTokens(contact: any): string[] {
+  const raw: string[] = [];
+  if (contact.stateCity) raw.push(String(contact.stateCity));
+  if (contact.country) raw.push(String(contact.country));
+  if (Array.isArray(contact.locations)) {
+    raw.push(...contact.locations.map((l: any) => String(l)));
+  }
+  return raw
+    .flatMap((v) => v.split(/[,/;]/))
+    .map((t) => t.replace(/\s+/g, " ").trim().toLowerCase())
+    .filter((t) => t.length > 0);
+}
+
 function parseInvestmentAmount(amount: string): number {
   if (!amount) return 0;
 
@@ -226,11 +242,34 @@ export async function POST(request: NextRequest) {
     verifyAdminOrSubadmin(user);
 
     const body = await request.json();
-    const { clientId, targetType } = body;
+    const { clientId, targetType, searchMode = "sector", selectedStates = [] } = body;
 
     if (!clientId || !targetType) {
       return NextResponse.json(
         { success: false, message: "Missing required fields" },
+        { status: 400 }
+      );
+    }
+
+    if (!["sector", "state", "both"].includes(searchMode)) {
+      return NextResponse.json(
+        { success: false, message: "Invalid search mode" },
+        { status: 400 }
+      );
+    }
+
+    const normalizedStates: string[] = Array.isArray(selectedStates)
+      ? selectedStates
+          .map((s: any) => String(s).replace(/\s+/g, " ").trim().toLowerCase())
+          .filter((s: string) => s.length > 0)
+      : [];
+
+    if (searchMode !== "sector" && normalizedStates.length === 0) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Select at least one state for state-based search",
+        },
         { status: 400 }
       );
     }
@@ -293,6 +332,17 @@ export async function POST(request: NextRequest) {
         contact.type
       );
 
+      // State-based selection: contact qualifies if any of its location
+      // tokens equals a selected state (case-insensitive).
+      const stateMatch =
+        normalizedStates.length > 0 &&
+        getContactLocationTokens(contact).some((t) =>
+          normalizedStates.includes(t)
+        );
+      if (stateMatch) {
+        matchedCriteria.push("State");
+      }
+
       return {
         id: contact.email, // Use email as unique ID
         name: contact.partnerName || contact.name,
@@ -302,15 +352,39 @@ export async function POST(request: NextRequest) {
         matchScore: score,
         matchedCriteria,
         priority: score >= 80 ? "high" : score >= 60 ? "medium" : "low",
+        stateMatch,
         rawData: contact,
       };
     });
 
-    // Filter by minimum score threshold (50)
-    const filteredContacts = scoredContacts.filter((c) => c.matchScore >= 50);
+    // Apply search mode:
+    // - "sector" (default): existing behavior — score threshold only.
+    // - "state": contacts from the selected states, regardless of sector score.
+    // - "both": union of sector matches and state matches.
+    let filteredContacts;
+    if (searchMode === "state") {
+      filteredContacts = scoredContacts.filter((c) => c.stateMatch);
+    } else if (searchMode === "both") {
+      filteredContacts = scoredContacts.filter(
+        (c) => c.matchScore >= 50 || c.stateMatch
+      );
+    } else {
+      filteredContacts = scoredContacts.filter((c) => c.matchScore >= 50);
+    }
     console.log(
-      `[Match] After score filter (>=50): ${filteredContacts.length} contacts`
+      `[Match] After ${searchMode} mode filter: ${filteredContacts.length} contacts`
     );
+
+    // Remove duplicates (same email), keeping the higher-scored entry.
+    const byEmail = new Map<string, any>();
+    for (const c of filteredContacts) {
+      const key = c.email.toLowerCase();
+      const existing = byEmail.get(key);
+      if (!existing || c.matchScore > existing.matchScore) {
+        byEmail.set(key, c);
+      }
+    }
+    filteredContacts = Array.from(byEmail.values());
 
     // Sort by score descending
     filteredContacts.sort((a, b) => b.matchScore - a.matchScore);

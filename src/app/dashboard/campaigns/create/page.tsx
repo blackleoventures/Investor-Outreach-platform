@@ -36,6 +36,8 @@ export default function CreateCampaignPage() {
   // Campaign data state
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [targetType, setTargetType] = useState<"investors" | "incubators" | "both">("both");
+  const [searchMode, setSearchMode] = useState<"sector" | "state" | "both">("sector");
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [matchResults, setMatchResults] = useState<any>(null);
   const [emailTemplate, setEmailTemplate] = useState<any>(null);
   const [scheduleConfig, setScheduleConfig] = useState<any>(null);
@@ -51,6 +53,8 @@ export default function CreateCampaignPage() {
           if (typeof saved.currentStep === "number") setCurrentStep(saved.currentStep);
           if (saved.selectedClient) setSelectedClient(saved.selectedClient);
           if (saved.targetType) setTargetType(saved.targetType);
+          if (saved.searchMode) setSearchMode(saved.searchMode);
+          if (Array.isArray(saved.selectedStates)) setSelectedStates(saved.selectedStates);
           if (saved.matchResults) setMatchResults(saved.matchResults);
           if (saved.emailTemplate) setEmailTemplate(saved.emailTemplate);
           if (saved.scheduleConfig) setScheduleConfig(saved.scheduleConfig);
@@ -76,6 +80,8 @@ export default function CreateCampaignPage() {
         currentStep,
         selectedClient,
         targetType,
+        searchMode,
+        selectedStates,
         matchResults,
         emailTemplate,
         scheduleConfig,
@@ -89,6 +95,8 @@ export default function CreateCampaignPage() {
     currentStep,
     selectedClient,
     targetType,
+    searchMode,
+    selectedStates,
     matchResults,
     emailTemplate,
     scheduleConfig,
@@ -179,6 +187,10 @@ export default function CreateCampaignPage() {
           <TargetAudience
             targetType={targetType}
             onTargetSelect={setTargetType}
+            searchMode={searchMode}
+            onSearchModeChange={setSearchMode}
+            selectedStates={selectedStates}
+            onStatesChange={setSelectedStates}
             onNext={handleNext}
             onBack={handleBack}
           />
@@ -188,6 +200,8 @@ export default function CreateCampaignPage() {
           <MatchResults
             selectedClient={selectedClient}
             targetType={targetType}
+            searchMode={searchMode}
+            selectedStates={selectedStates}
             matchResults={matchResults}
             onMatchComplete={setMatchResults}
             onNext={handleNext}
