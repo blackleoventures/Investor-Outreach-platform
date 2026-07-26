@@ -1,15 +1,5 @@
-import nodemailer from "nodemailer";
 import { adminDb } from "./firebase-admin";
-
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT || "465"),
-  secure: process.env.SMTP_SECURE !== "false", // default to true for 465
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+import { sendMail } from "./mailer";
 
 /**
  * Sends a magic link email to an investor using their UID to fetch details from DB
@@ -40,7 +30,6 @@ export async function sendMagicLinkByUid(uid: string, magicLink: string) {
 
 export async function sendMagicLinkEmail(email: string, displayName: string, magicLink: string) {
   const mailOptions = {
-    from: `"Deal Room" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
     to: email,
     subject: "Your Exclusive Access to the Deal Room",
     html: `
@@ -61,15 +50,12 @@ export async function sendMagicLinkEmail(email: string, displayName: string, mag
   };
 
   try {
-    console.log(`[Email] Attempting to send mail to: ${email} via ${process.env.SMTP_HOST || 'smtp.gmail.com'}`);
-    const info = await transporter.sendMail(mailOptions);
-    console.log("[Email] Magic link sent successfully:", info.messageId);
-    return { success: true, messageId: info.messageId };
+    console.log(`[Email] Sending magic link to: ${email}`);
+    const info = await sendMail(mailOptions);
+    console.log("[Email] Magic link sent successfully:", info.id);
+    return { success: true, messageId: info.id };
   } catch (error: any) {
-    console.error("[Email] Error sending magic link:");
-    console.error("- Message:", error.message);
-    console.error("- Code:", error.code);
-    console.error("- SMTP User:", process.env.SMTP_USER);
+    console.error("[Email] Error sending magic link:", error.message);
     throw error;
   }
 }
