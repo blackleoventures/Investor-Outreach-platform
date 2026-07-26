@@ -3,8 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   verifyFirebaseToken,
   verifyAdminOrSubadmin,
-  verifyRole,
-  AuthenticationError,
   createAuthErrorResponse,
 } from "@/lib/auth-middleware";
 import { dbHelpers } from "@/lib/db-helpers";
@@ -24,18 +22,11 @@ export async function POST(
   { params }: { params: Promise<Params> }
 ) {
   try {
-    // Authenticate user and verify role
+    // Writing an analysis onto a client record is a team action. Investors were
+    // previously accepted here, which let any invited investor attach analysis
+    // data to any client.
     const user = await verifyFirebaseToken(request);
-    verifyRole(user, ["admin", "subadmin", "investor"]);
-
-    // Additional check for investors: must be active
-    if (user.role === "investor" && user.active === false) {
-      throw new AuthenticationError(
-        "Your account is inactive. Please contact support.",
-        "ACCOUNT_DISABLED",
-        403
-      );
-    }
+    verifyAdminOrSubadmin(user);
 
     const { id: clientId } = await params;
 

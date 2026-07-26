@@ -9,6 +9,10 @@ import {
 import { dbHelpers } from "@/lib/db-helpers";
 import { encryptAES256 } from "@/lib/encryption";
 import {
+  toInvestorSafeClient,
+  type InvestorSafeClient,
+} from "@/lib/client-projection";
+import {
   ClientDocument,
   TransformedClient,
   UpdateClientRequest,
@@ -102,6 +106,15 @@ export async function GET(
       pitchDeckFileName: client.pitchDeckFileName || "",
       pitchDeckFileUrl: client.pitchDeckFileUrl || "",
     };
+
+    // Investors receive a redacted projection: no founder email or phone, no
+    // SMTP configuration, no internal identifiers or review trail.
+    if (user.role === "investor") {
+      return NextResponse.json({
+        success: true,
+        data: toInvestorSafeClient(transformedClient),
+      } as ApiResponse<InvestorSafeClient>);
+    }
 
     const response: ApiResponse<TransformedClient> = {
       success: true,
