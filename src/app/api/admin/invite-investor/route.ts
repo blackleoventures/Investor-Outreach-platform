@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminAuth, adminDb } from "@/lib/firebase-admin";
 import { verifyFirebaseToken, createAuthErrorResponse } from "@/lib/auth-middleware";
 import { sendMagicLinkEmail, sendMagicLinkByUid } from "@/lib/email";
+import { appUrl } from "@/lib/app-url";
 
 export async function POST(request: NextRequest) {
     try {
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
         await adminAuth.setCustomUserClaims(userRecord.uid, { role: "investor" });
 
         // 7. Generate Magic Link
-        const magicLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/auth/investor-login?token=${secureAccessToken}`;
+        const magicLink = `${appUrl()}/auth/investor-login?token=${secureAccessToken}`;
 
         console.log("==================================================================");
         console.log(`[MAGIC LINK] for ${email}: ${magicLink}`);
