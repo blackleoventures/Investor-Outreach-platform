@@ -176,9 +176,19 @@ export default function DashboardLayout({
         label: "Deal Room",
         children: [
           {
+            key: "/dashboard/applications",
+            icon: <FileTextOutlined />,
+            ...navItem("/dashboard/applications", "Applications"),
+          },
+          {
             key: "/dashboard/deal-room",
             icon: <ShopOutlined />,
             ...navItem("/dashboard/deal-room", "View Deal Room"),
+          },
+          {
+            key: "/dashboard/introductions",
+            icon: <MailOutlined />,
+            ...navItem("/dashboard/introductions", "Introductions"),
           },
           {
             key: "/dashboard/invite-investor",
@@ -293,9 +303,19 @@ export default function DashboardLayout({
         label: "Deal Room",
         children: [
           {
+            key: "/dashboard/applications",
+            icon: <FileTextOutlined />,
+            ...navItem("/dashboard/applications", "Applications"),
+          },
+          {
             key: "/dashboard/deal-room",
             icon: <ShopOutlined />,
             ...navItem("/dashboard/deal-room", "View Deal Room"),
+          },
+          {
+            key: "/dashboard/introductions",
+            icon: <MailOutlined />,
+            ...navItem("/dashboard/introductions", "Introductions"),
           },
           {
             key: "/dashboard/invite-investor",

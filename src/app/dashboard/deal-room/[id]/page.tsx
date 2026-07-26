@@ -1,463 +1,607 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
-import { useAuth } from "@/contexts/AuthContext";
 import {
-    message,
-    Spin,
-    Typography,
-    Card,
-    Row,
-    Col,
-    Divider,
-    Tag,
-    Button,
-    Space,
-    Empty,
-    Tooltip,
-    Skeleton
+  Alert,
+  Button,
+  Card,
+  Col,
+  Divider,
+  Empty,
+  Input,
+  Modal,
+  Row,
+  Space,
+  Spin,
+  Statistic,
+  Tag,
+  Typography,
+  message,
 } from "antd";
 import {
-    ArrowLeftOutlined,
-    MailOutlined,
-    PhoneOutlined,
-    EnvironmentOutlined,
-    GlobalOutlined,
-    FilePdfOutlined,
-    RobotOutlined,
-    RocketOutlined,
-    BarChartOutlined,
-    DollarOutlined
+  ArrowLeftOutlined,
+  BankOutlined,
+  CheckCircleOutlined,
+  DollarOutlined,
+  EnvironmentOutlined,
+  ExperimentOutlined,
+  FilePdfOutlined,
+  GlobalOutlined,
+  LinkOutlined,
+  LockOutlined,
+  PlayCircleOutlined,
+  SafetyCertificateOutlined,
+  TeamOutlined,
+  TrophyOutlined,
+  UserOutlined,
 } from "@ant-design/icons";
-import { TransformedClient, ApiResponse, PitchAnalysis } from "@/types/client";
+import { auth } from "@/lib/firebase";
+import { useAuth } from "@/contexts/AuthContext";
+import { formatUsd } from "@/lib/config/deal-room-options";
+import type { PublicStartupProfile } from "@/types/startup-application";
 
 const { Title, Text, Paragraph } = Typography;
+const { TextArea } = Input;
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+/**
+ * Google Drive share links don't render in an iframe as-is; the /preview
+ * variant does. Anything else is offered as a plain link.
+ */
+function toEmbeddableUrl(url: string): string | null {
+  if (!url) return null;
+  const driveFile = url.match(/drive\.google\.com\/file\/d\/([^/]+)/);
+  if (driveFile) return `https://drive.google.com/file/d/${driveFile[1]}/preview`;
+  const drivePresentation = url.match(/docs\.google\.com\/presentation\/d\/([^/]+)/);
+  if (drivePresentation)
+    return `https://docs.google.com/presentation/d/${drivePresentation[1]}/preview`;
+  if (/\.pdf($|\?)/i.test(url)) return url;
+  return null;
+}
 
+function SectionCard({
+  title,
+  icon,
+  children,
+  extra,
+}: {
+  title: string;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  extra?: React.ReactNode;
+}) {
+  return (
+    <Card
+      className="mb-6 rounded-xl"
+      title={
+        <Space>
+          {icon}
+          {title}
+        </Space>
+      }
+      extra={extra}
+    >
+      {children}
+    </Card>
+  );
+}
 
-export default function FounderProfilePage() {
-    const router = useRouter();
-    const params = useParams();
-    const id = params?.id as string;
-    const { userData, loading: authLoading } = useAuth();
+export default function StartupProfilePage() {
+  const router = useRouter();
+  const params = useParams();
+  const id = params?.id as string;
+  const { userData, loading: authLoading } = useAuth();
 
-    const [loading, setLoading] = useState(true);
-    const [client, setClient] = useState<TransformedClient | null>(null);
-    const [analyzing, setAnalyzing] = useState(false);
-    const [latestAnalysis, setLatestAnalysis] = useState<PitchAnalysis | null>(null);
-    const [analysisAttempted, setAnalysisAttempted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [startup, setStartup] = useState<PublicStartupProfile | null>(null);
+  const [alreadyRequested, setAlreadyRequested] = useState(false);
 
-    useEffect(() => {
-        if (authLoading) return;
-        // Admins and subadmins can browse the deal room directly from the sidebar.
-        // Investors must arrive via their magic link, which sets the sessionStorage flag.
-        const isStaff = userData?.role === "admin" || userData?.role === "subadmin";
-        const hasAccess =
-            typeof window !== "undefined" &&
-            sessionStorage.getItem("dealRoomAccess") === "granted";
-        if (!isStaff && !hasAccess) {
-            router.push("/dashboard");
-            return;
-        }
-        if (id) {
-            fetchClientDetails();
-        }
-    }, [id, authLoading, userData?.role]);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [sending, setSending] = useState(false);
 
-    const fetchClientDetails = async () => {
-        setLoading(true);
-        try {
-            const user = auth.currentUser;
-            if (!user) {
-                message.error("Please sign in to view this profile.");
-                router.push("/dashboard/deal-room");
-                return;
-            }
-            const token = await user.getIdToken();
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+      const token = await user.getIdToken();
+      const headers = { Authorization: `Bearer ${token}` };
 
-            const response = await fetch(`${API_BASE_URL}/clients/${id}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+      const [profileResponse, requestsResponse] = await Promise.all([
+        fetch(`/api/deal-room/startups/${id}`, { headers }),
+        fetch("/api/introduction-requests", { headers }),
+      ]);
 
-            if (response.ok) {
-                const data = await response.json() as ApiResponse<TransformedClient>;
-                if (data.success && data.data) {
-                    setClient(data.data);
-                } else {
-                    message.error("Failed to load founder profile");
-                    router.push("/dashboard/deal-room");
-                }
-            } else {
-                message.error("Failed to load founder profile");
-                router.push("/dashboard/deal-room");
-            }
-        } catch (error) {
-            console.error("Error fetching client details:", error);
-            message.error("Failed to load founder profile");
-            router.push("/dashboard/deal-room");
-        } finally {
-            setLoading(false);
-        }
-    };
+      const profileData = await profileResponse.json();
 
-    const handleAIAnalyze = async () => {
-        setAnalyzing(true);
-        setAnalysisAttempted(true);
-        try {
-            const user = auth.currentUser;
-            if (!user) {
-                message.error("Please sign in to analyze the deck.");
-                return;
-            }
-            const token = await user.getIdToken();
+      if (profileResponse.ok && profileData.success) {
+        setStartup(profileData.data);
+      } else {
+        message.error(profileData.error?.message || "Unable to load this startup.");
+        router.push("/dashboard/deal-room");
+        return;
+      }
 
-            message.info("Retrieving AI analysis...");
-
-            const response = await fetch(`${API_BASE_URL}/deal-room/analysis/${id}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                if (data.success && data.data) {
-                    setLatestAnalysis(data.data);
-                    message.success("Analysis retrieved successfully.");
-                } else {
-                    message.error("No analysis available for this startup.");
-                }
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                message.error(errorData.error?.message || "Failed to retrieve analysis.");
-            }
-        } catch (error) {
-            console.error("AI Analysis Retrieval Error:", error);
-            message.error("An error occurred while fetching analysis.");
-        } finally {
-            setAnalyzing(false);
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="min-h-screen flex justify-center items-center bg-gray-50">
-                <Space direction="vertical" align="center">
-                    <Spin size="large" />
-                    <Text type="secondary">Loading founder profile...</Text>
-                </Space>
-            </div>
+      if (requestsResponse.ok) {
+        const requestsData = await requestsResponse.json();
+        const mine = (requestsData.data || []).filter(
+          (r: any) => r.startupId === id && r.stage !== "closed"
         );
+        setAlreadyRequested(mine.length > 0);
+      }
+    } catch (error) {
+      console.error("Failed to load startup profile:", error);
+      message.error("Unable to load this startup.");
+      router.push("/dashboard/deal-room");
+    } finally {
+      setLoading(false);
+    }
+  }, [id, router]);
+
+  useEffect(() => {
+    if (authLoading) return;
+
+    const isStaff = userData?.role === "admin" || userData?.role === "subadmin";
+    const hasInvite =
+      typeof window !== "undefined" &&
+      sessionStorage.getItem("dealRoomAccess") === "granted";
+
+    if (!isStaff && !hasInvite) {
+      router.push("/dashboard");
+      return;
     }
 
-    if (!client) return null;
+    if (id) loadProfile();
+  }, [authLoading, userData?.role, id, loadProfile, router]);
 
+  const submitRequest = async () => {
+    setSending(true);
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+      const token = await user.getIdToken();
+
+      const response = await fetch("/api/introduction-requests", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ startupId: id, message: note.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        message.success(data.message);
+        setAlreadyRequested(true);
+        setModalOpen(false);
+        setNote("");
+      } else if (response.status === 409) {
+        message.info(data.error?.message);
+        setAlreadyRequested(true);
+        setModalOpen(false);
+      } else {
+        message.error(data.error?.message || "Unable to send your request.");
+      }
+    } catch (error) {
+      console.error("Introduction request failed:", error);
+      message.error("Unable to send your request.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  if (loading) {
     return (
-        <div className="min-h-screen bg-gray-50 p-6 md:p-8">
-            <div className="max-w-7xl mx-auto">
-                {/* Header Section */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mb-8">
-                    <Button
-                        icon={<ArrowLeftOutlined />}
-                        onClick={() => router.back()}
-                        className="w-full sm:w-auto flex items-center justify-center"
-                    >
-                        Back to Deal Room
-                    </Button>
-                    <Title level={2} style={{ margin: 0, fontWeight: 700, textAlign: 'center' }}>Founder Profile</Title>
-                    <div className="hidden sm:block w-[100px]"></div>
-                </div>
-
-                <Row gutter={[32, 32]}>
-                    {/* Left Column: Founder & Company Details */}
-                    <Col xs={24} lg={10}>
-                        <Card className="shadow-sm border-0 rounded-xl overflow-hidden">
-                            <div className="bg-brand-600 p-6 text-white">
-                                <Space direction="vertical" size={2}>
-                                    <Text className="text-brand-100 uppercase text-xs tracking-widest font-bold">Company</Text>
-                                    <Title level={3} style={{ color: 'white', margin: 0 }}>{client.companyName}</Title>
-                                </Space>
-                            </div>
-
-                            <div className="p-6">
-                                <section className="mb-8">
-                                    <Title level={5} type="secondary" className="uppercase text-xs mb-4">Founder Details</Title>
-                                    <div className="space-y-6">
-                                        <div>
-                                            <Text type="secondary" className="block text-xs">Full Name</Text>
-                                            <Text strong className="text-lg">{client.founderName}</Text>
-                                        </div>
-                                        <Row gutter={[16, 16]}>
-                                            <Col xs={24} sm={12}>
-                                                <Text type="secondary" className="block text-xs">Email</Text>
-                                                <Space className="w-full overflow-hidden">
-                                                    <MailOutlined className="text-gray-400 shrink-0" />
-                                                    <Text className="truncate" title={client.email}>{client.email}</Text>
-                                                </Space>
-                                            </Col>
-                                            <Col xs={24} sm={12}>
-                                                <Text type="secondary" className="block text-xs">Phone</Text>
-                                                <Space>
-                                                    <PhoneOutlined className="text-gray-400" />
-                                                    <Text>{client.phone}</Text>
-                                                </Space>
-                                            </Col>
-                                        </Row>
-                                    </div>
-                                </section>
-
-                                <Divider />
-
-                                <section className="mb-8">
-                                    <Title level={5} type="secondary" className="uppercase text-xs tracking-wider mb-4">Investment Ask & Financials</Title>
-                                    <Row gutter={[12, 12]}>
-                                        <Col xs={24} sm={12}>
-                                            <Card bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
-                                                <Text type="secondary" className="block text-xs text-gray-500 uppercase tracking-wide mb-1">Funding Stage</Text>
-                                                <Tag color="#4f46e5" className="m-0 font-bold">{client.fundingStage}</Tag>
-                                            </Card>
-                                        </Col>
-                                        <Col xs={24} sm={12}>
-                                            <Card bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
-                                                <Text type="secondary" className="block text-xs text-gray-500 uppercase tracking-wide mb-1">Investment Ask</Text>
-                                                <Text strong className="text-xl text-green-600 block">{client.investment}</Text>
-                                            </Card>
-                                        </Col>
-                                        <Col xs={24} sm={12}>
-                                            <Card bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
-                                                <Text type="secondary" className="block text-xs text-gray-500 uppercase tracking-wide mb-1">Current Revenue</Text>
-                                                <Space className="mt-1">
-                                                    <BarChartOutlined className="text-brand-600" />
-                                                    <Text strong className="text-base">{client.revenue || "Not Disclosed"}</Text>
-                                                </Space>
-                                            </Card>
-                                        </Col>
-                                        <Col xs={24} sm={12}>
-                                            <Card bordered={false} bodyStyle={{ padding: '16px' }} className="h-full bg-gray-50 hover:bg-gray-100 transition-colors">
-                                                <Text type="secondary" className="block text-xs text-gray-500 uppercase tracking-wide mb-1">Primary Industry</Text>
-                                                <Space className="mt-1">
-                                                    <RocketOutlined className="text-brand-600 shrink-0" />
-                                                    <Text strong className="text-base line-clamp-1">{client.industry}</Text>
-                                                </Space>
-                                            </Card>
-                                        </Col>
-                                    </Row>
-                                </section>
-
-                                <Divider />
-
-                                <section>
-                                    <Title level={5} type="secondary" className="uppercase text-xs mb-4">Location</Title>
-                                    <Space>
-                                        <EnvironmentOutlined className="text-red-500" />
-                                        <Text strong>{client.city}</Text>
-                                    </Space>
-                                </section>
-                            </div>
-                        </Card>
-                    </Col>
-
-                    {/* Right Column: Pitch Deck & AI Analysis */}
-                    <Col xs={24} lg={14}>
-                        {/* Pitch Deck Section */}
-                        <Card
-                            title={<Space><FilePdfOutlined /> Pitch Deck</Space>}
-                            className="shadow-sm border-0 rounded-xl mb-8"
-                            bodyStyle={{ padding: 0 }}
-                        >
-                            {client.pitchDeckFileUrl ? (
-                                <div>
-                                    <div className="aspect-[16/9] w-full bg-gray-100 relative min-h-[300px] md:min-h-0">
-                                        <iframe
-                                            src={`${client.pitchDeckFileUrl}#toolbar=0`}
-                                            className="w-full h-full border-none"
-                                            title="Pitch Deck Viewer"
-                                        />
-                                        <div className="absolute bottom-4 right-4">
-                                            <Button
-                                                icon={<GlobalOutlined />}
-                                                href={client.pitchDeckFileUrl}
-                                                target="_blank"
-                                                type="default"
-                                                size="small"
-                                                className="bg-white/80 backdrop-blur-sm"
-                                            >
-                                                Open Full PDF
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    {/* Mobile-friendly fallback: inline PDF viewers are unreliable on mobile */}
-                                    <div className="p-4 border-t border-gray-100 text-center">
-                                        <Button
-                                            icon={<FilePdfOutlined />}
-                                            href={client.pitchDeckFileUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            type="link"
-                                        >
-                                            Trouble viewing? Open PDF in a new tab
-                                        </Button>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="py-20 text-center">
-                                    <Empty description="No pitch deck uploaded for this founder." />
-                                </div>
-                            )}
-                        </Card>
-
-                        {/* AI Analysis Section */}
-                        <Card
-                            className="shadow-sm border-0 rounded-xl bg-white"
-                            bodyStyle={{ padding: '24px' }}
-                        >
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-                                <Space direction="vertical" size={0}>
-                                    <Title level={4} style={{ margin: 0 }}>AI Investment Analysis</Title>
-                                    <Text type="secondary">Intelligent assessment of the opportunity</Text>
-                                </Space>
-                                <Tooltip
-                                    title={!client.dealRoomPermission ? "AI analysis is not enabled for this deal. Ask an admin to grant deal room permission." : ""}
-                                >
-                                    <span className={!client.dealRoomPermission ? "inline-block cursor-not-allowed" : "inline-block"}>
-                                        <Button
-                                            type="primary"
-                                            icon={<RobotOutlined />}
-                                            loading={analyzing}
-                                            onClick={handleAIAnalyze}
-                                            disabled={!client.dealRoomPermission}
-                                            style={!client.dealRoomPermission ? undefined : { backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}
-                                            className="h-10 px-6"
-                                        >
-                                            {analyzing ? "Loading..." : "AI Analyze Deck"}
-                                        </Button>
-                                    </span>
-                                </Tooltip>
-                            </div>
-
-                            {analyzing && !latestAnalysis && (
-                                <div className="space-y-6">
-                                    <Skeleton.Input active block style={{ height: 120, borderRadius: 12 }} />
-                                    <Skeleton active paragraph={{ rows: 4 }} />
-                                </div>
-                            )}
-
-                            {!analyzing && !latestAnalysis && analysisAttempted && (
-                                <Empty
-                                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                                    description={
-                                        <span className="text-gray-500">
-                                            No AI analysis is available for this startup yet.
-                                        </span>
-                                    }
-                                />
-                            )}
-
-                            {latestAnalysis && (
-                                <div className="space-y-8 animate-in fade-in duration-500">
-                                    {/* Score Overview */}
-                                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-100">
-                                        <Row align="middle" gutter={[24, 24]}>
-                                            <Col xs={24} sm={8} className="text-center sm:border-r border-gray-200">
-                                                <div className="text-5xl font-black text-brand-600 leading-tight">
-                                                    {latestAnalysis.summary.total_score}
-                                                    <span className="text-base text-gray-400 font-normal">/100</span>
-                                                </div>
-                                                <Text type="secondary" className="uppercase text-xs text-gray-500 tracking-widest font-bold">Total Score</Text>
-                                            </Col>
-                                            <Col xs={24} sm={16}>
-                                                <div className="flex flex-col gap-2">
-                                                    <div className="flex justify-between items-center">
-                                                        <Text strong className="text-base">Investment Readiness</Text>
-                                                        <Tag color={latestAnalysis.summary.status === "GREEN" ? "success" : latestAnalysis.summary.status === "RED" ? "error" : "warning"} className="m-0 px-3 py-0.5 rounded-full font-bold">
-                                                            {latestAnalysis.summary.status}
-                                                        </Tag>
-                                                    </div>
-                                                    <Paragraph className="text-sm text-gray-600 mb-0 italic">
-                                                        "{latestAnalysis.summary.solution}"
-                                                    </Paragraph>
-                                                </div>
-                                            </Col>
-                                        </Row>
-                                    </div>
-
-                                    {/* Scorecard */}
-                                    <div>
-                                        <Title level={5} className="mb-4">Scorecard Metrics</Title>
-                                        <Row gutter={[16, 16]}>
-                                            {Object.entries(latestAnalysis.scorecard).slice(0, 4).map(([key, value]) => (
-                                                <Col xs={24} sm={12} key={key}>
-                                                    <div className="p-4 bg-white border border-gray-100 rounded-xl h-full shadow-sm hover:border-gray-300 transition-all">
-                                                        <div className="flex justify-between items-center mb-3">
-                                                            <Text strong className="text-xs text-gray-700 uppercase tracking-wide">{key}</Text>
-                                                            <Tag color="#4f46e5" className="m-0 text-xs font-bold">{value}/10</Tag>
-                                                        </div>
-                                                        <div className="w-full h-2 bg-gray-50 rounded-full overflow-hidden border border-gray-100">
-                                                            <div
-                                                                className="h-full bg-brand-600 rounded-full"
-                                                                style={{ width: `${value * 10}%` }}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </Col>
-                                            ))}
-                                        </Row>
-                                    </div>
-
-                                    {/* Highlights */}
-                                    <div className="mb-6">
-                                        <Title level={5} className="mb-3">Key Highlights</Title>
-                                        <Card bordered={false} className="bg-brand-50 border-brand-100">
-                                            <ul className="space-y-2 pl-4 m-0">
-                                                {(latestAnalysis.highlights || []).slice(0, 3).map((h: string, i: number) => (
-                                                    <li key={i} className="text-sm text-brand-800">
-                                                        <Space align="start">
-                                                            <span className="text-brand-400">•</span>
-                                                            {h}
-                                                        </Space>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </Card>
-                                    </div>
-
-                                    {/* Suggested Questions */}
-                                    {latestAnalysis.suggested_questions && latestAnalysis.suggested_questions.length > 0 && (
-                                        <div>
-                                            <Title level={5} className="mb-3">Suggested Questions for Founder</Title>
-                                            <div className="space-y-3">
-                                                {latestAnalysis.suggested_questions.map((q: string, i: number) => (
-                                                    <div key={i} className="p-3 bg-gray-50 border border-gray-100 rounded-lg flex gap-3 items-start">
-                                                        <div className="bg-brand-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs shrink-0 mt-0.5">
-                                                            {i + 1}
-                                                        </div>
-                                                        <Text className="text-sm italic text-gray-700">"{q}"</Text>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </Card>
-                    </Col>
-                </Row>
-            </div>
-
-            <style jsx global>{`
-                .ant-card-head {
-                    border-bottom: 1px solid #f0f0f0 !important;
-                    min-height: 56px !important;
-                }
-                .ant-card-head-title {
-                    font-weight: 700 !important;
-                }
-            `}</style>
-        </div >
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <Spin size="large" />
+      </div>
     );
+  }
+
+  if (!startup) return null;
+
+  const deckEmbed = toEmbeddableUrl(startup.pitchDeckUrl);
+
+  const requestButton = alreadyRequested ? (
+    <Button size="large" icon={<CheckCircleOutlined />} disabled block>
+      Introduction Requested
+    </Button>
+  ) : (
+    <Button
+      type="primary"
+      size="large"
+      block
+      icon={<TeamOutlined />}
+      style={{ backgroundColor: "#4f46e5" }}
+      onClick={() => setModalOpen(true)}
+    >
+      Request Introduction
+    </Button>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <div className="mx-auto max-w-6xl">
+        <Button
+          icon={<ArrowLeftOutlined />}
+          onClick={() => router.push("/dashboard/deal-room")}
+          className="mb-4"
+        >
+          Back to Deal Room
+        </Button>
+
+        {/* Overview */}
+        <Card className="mb-6 overflow-hidden rounded-xl" bodyStyle={{ padding: 0 }}>
+          <div className="bg-black p-6 text-white md:p-8">
+            <Space wrap size={8} className="mb-3">
+              <Tag color="#4f46e5" className="m-0">
+                {startup.stage}
+              </Tag>
+              <Tag className="m-0">{startup.sector}</Tag>
+              {startup.isIncubated && (
+                <Tag icon={<BankOutlined />} color="geekblue" className="m-0">
+                  Incubated
+                </Tag>
+              )}
+              {startup.isGrantWinner && (
+                <Tag icon={<TrophyOutlined />} color="gold" className="m-0">
+                  Grant Winner
+                </Tag>
+              )}
+            </Space>
+
+            <Title level={2} style={{ color: "white", margin: "0 0 8px" }}>
+              {startup.startupName}
+            </Title>
+            <Paragraph style={{ color: "#d4d4d8", fontSize: 16, marginBottom: 16 }}>
+              {startup.oneLineDescription}
+            </Paragraph>
+
+            <Space wrap size={16} className="text-sm" style={{ color: "#a1a1aa" }}>
+              <span>
+                <EnvironmentOutlined /> {startup.country}
+              </span>
+              {startup.incubationCentre && (
+                <span>
+                  <BankOutlined /> {startup.incubationCentre}
+                </span>
+              )}
+              {startup.companyWebsite && (
+                <a
+                  href={startup.companyWebsite}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#ff9617" }}
+                >
+                  <GlobalOutlined /> Website
+                </a>
+              )}
+            </Space>
+          </div>
+
+          <div className="p-6">
+            <Row gutter={[24, 24]}>
+              <Col xs={12} md={6}>
+                <Statistic
+                  title="Funding Ask"
+                  value={startup.raisingAmount || formatUsd(startup.raisingAmountUsd)}
+                  valueStyle={{ color: "#16a34a", fontSize: 20 }}
+                />
+              </Col>
+              <Col xs={12} md={6}>
+                <Statistic
+                  title="Monthly Revenue"
+                  value={startup.monthlyRevenue}
+                  valueStyle={{ fontSize: 16 }}
+                />
+              </Col>
+              <Col xs={12} md={6}>
+                <Statistic title="Paying Customers" value={startup.payingCustomers} />
+              </Col>
+              <Col xs={12} md={6}>
+                <Statistic title="Technology Readiness" value={`TRL ${startup.trl}`} />
+              </Col>
+            </Row>
+          </div>
+        </Card>
+
+        <Row gutter={[24, 0]}>
+          <Col xs={24} lg={15}>
+            {/* Pitch Deck */}
+            <SectionCard
+              title="Pitch Deck"
+              icon={<FilePdfOutlined />}
+              extra={
+                startup.pitchDeckUrl && (
+                  <Button
+                    size="small"
+                    icon={<LinkOutlined />}
+                    href={startup.pitchDeckUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open
+                  </Button>
+                )
+              }
+            >
+              {deckEmbed ? (
+                <div className="aspect-[16/10] w-full overflow-hidden rounded-lg bg-gray-100">
+                  <iframe
+                    src={deckEmbed}
+                    className="h-full w-full border-none"
+                    title="Pitch deck"
+                    allow="autoplay"
+                  />
+                </div>
+              ) : startup.pitchDeckUrl ? (
+                <div className="py-8 text-center">
+                  <Paragraph type="secondary">
+                    This deck is hosted somewhere that can&apos;t be previewed inline.
+                  </Paragraph>
+                  <Button
+                    type="primary"
+                    icon={<FilePdfOutlined />}
+                    href={startup.pitchDeckUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ backgroundColor: "#4f46e5" }}
+                  >
+                    Open Pitch Deck
+                  </Button>
+                </div>
+              ) : (
+                <Empty description="No pitch deck provided." />
+              )}
+
+              {startup.productDemoUrl && (
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <Button
+                    icon={<PlayCircleOutlined />}
+                    href={startup.productDemoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    View Product Demo
+                  </Button>
+                </div>
+              )}
+            </SectionCard>
+
+            {/* Metrics */}
+            <SectionCard title="Metrics" icon={<ExperimentOutlined />}>
+              <Row gutter={[16, 16]}>
+                <Col xs={12} sm={8}>
+                  <Text type="secondary" className="block text-xs uppercase">
+                    Stage
+                  </Text>
+                  <Text strong>{startup.stage}</Text>
+                </Col>
+                <Col xs={12} sm={8}>
+                  <Text type="secondary" className="block text-xs uppercase">
+                    Business Model
+                  </Text>
+                  <Text strong>{startup.businessModel || "Not specified"}</Text>
+                </Col>
+                <Col xs={12} sm={8}>
+                  <Text type="secondary" className="block text-xs uppercase">
+                    TRL
+                  </Text>
+                  <Text strong>TRL {startup.trl}</Text>
+                </Col>
+                <Col xs={12} sm={8}>
+                  <Text type="secondary" className="block text-xs uppercase">
+                    Monthly Revenue
+                  </Text>
+                  <Text strong>{startup.monthlyRevenue}</Text>
+                </Col>
+                <Col xs={12} sm={8}>
+                  <Text type="secondary" className="block text-xs uppercase">
+                    Paying Customers
+                  </Text>
+                  <Text strong>{startup.payingCustomers}</Text>
+                </Col>
+                <Col xs={12} sm={8}>
+                  <Text type="secondary" className="block text-xs uppercase">
+                    Incubation
+                  </Text>
+                  <Text strong>{startup.incubationCentre || "Not incubated"}</Text>
+                </Col>
+              </Row>
+
+              <Divider orientation="left" plain>
+                Technology & Defensibility
+              </Divider>
+              <Paragraph className="whitespace-pre-wrap text-gray-700">
+                {startup.technologyDescription}
+              </Paragraph>
+
+              <Divider orientation="left" plain>
+                Intellectual Property
+              </Divider>
+              <Space wrap>
+                {startup.ipTypes.length > 0 ? (
+                  startup.ipTypes.map((ip) => (
+                    <Tag key={ip} icon={<SafetyCertificateOutlined />} color="purple">
+                      {ip}
+                    </Tag>
+                  ))
+                ) : (
+                  <Text type="secondary">Not disclosed</Text>
+                )}
+              </Space>
+            </SectionCard>
+
+            {/* Use of Funds */}
+            <SectionCard title="Use of Funds" icon={<DollarOutlined />}>
+              {startup.useOfFunds ? (
+                <Paragraph className="whitespace-pre-wrap text-gray-700">
+                  {startup.useOfFunds}
+                </Paragraph>
+              ) : (
+                <Text type="secondary">
+                  Not provided. Request an introduction to discuss deployment plans.
+                </Text>
+              )}
+            </SectionCard>
+
+            {/* Financial Highlights */}
+            <SectionCard title="Financial Highlights" icon={<DollarOutlined />}>
+              {startup.financialHighlights ? (
+                <Paragraph className="whitespace-pre-wrap text-gray-700">
+                  {startup.financialHighlights}
+                </Paragraph>
+              ) : (
+                <Text type="secondary">Not provided.</Text>
+              )}
+            </SectionCard>
+
+            {/* Grant History */}
+            <SectionCard title="Grant History" icon={<TrophyOutlined />}>
+              {startup.grantHistory ? (
+                <Paragraph className="whitespace-pre-wrap text-gray-700">
+                  {startup.grantHistory}
+                </Paragraph>
+              ) : startup.isGrantWinner ? (
+                <Text type="secondary">
+                  This startup has received grant funding. Details not provided.
+                </Text>
+              ) : (
+                <Text type="secondary">No grants recorded.</Text>
+              )}
+            </SectionCard>
+          </Col>
+
+          {/* Sidebar */}
+          <Col xs={24} lg={9}>
+            <Card className="mb-6 rounded-xl">
+              <Title level={5} style={{ marginTop: 0 }}>
+                Interested in this startup?
+              </Title>
+              <Paragraph type="secondary" className="text-sm">
+                Founder contact details are not published. Our team verifies every investor,
+                contacts the startup, and coordinates the meeting directly.
+              </Paragraph>
+              {requestButton}
+              {alreadyRequested && (
+                <Alert
+                  className="mt-3"
+                  type="success"
+                  showIcon
+                  message="Our team has your request and will be in touch."
+                />
+              )}
+            </Card>
+
+            {/* Funding Ask */}
+            <SectionCard title="Funding Ask" icon={<DollarOutlined />}>
+              <div className="mb-4">
+                <Text type="secondary" className="block text-xs uppercase">
+                  Raising
+                </Text>
+                <Title level={3} style={{ margin: 0, color: "#16a34a" }}>
+                  {startup.raisingAmount || formatUsd(startup.raisingAmountUsd)}
+                </Title>
+                {startup.raisingAmountUsd !== null && startup.raisingAmount && (
+                  <Text type="secondary" className="text-xs">
+                    ~{formatUsd(startup.raisingAmountUsd)} USD equivalent
+                  </Text>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <Text type="secondary" className="block text-xs uppercase">
+                  Current Valuation
+                </Text>
+                <Text strong>{startup.currentValuation || "Not disclosed"}</Text>
+              </div>
+
+              <div>
+                <Text type="secondary" className="mb-2 block text-xs uppercase">
+                  Previous Funding
+                </Text>
+                <Space wrap>
+                  {startup.previousFunding.length > 0 ? (
+                    startup.previousFunding.map((entry) => <Tag key={entry}>{entry}</Tag>)
+                  ) : (
+                    <Text type="secondary">Not disclosed</Text>
+                  )}
+                </Space>
+              </div>
+            </SectionCard>
+
+            {/* Founder Profiles */}
+            <SectionCard title="Founder Profiles" icon={<UserOutlined />}>
+              {startup.founders.length > 0 ? (
+                startup.founders.map((founder, index) => (
+                  <div
+                    key={index}
+                    className="mb-3 flex items-center gap-3 rounded-lg bg-gray-50 p-3"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-600 font-semibold text-white">
+                      {founder.founderName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <Text strong className="block truncate">
+                        {founder.founderName}
+                      </Text>
+                      <Text type="secondary" className="text-xs">
+                        {founder.designation}
+                      </Text>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <Text type="secondary">Not provided.</Text>
+              )}
+
+              <Alert
+                className="mt-3"
+                type="info"
+                icon={<LockOutlined />}
+                showIcon
+                message="Contact details protected"
+                description="Email, phone, and LinkedIn are shared only after our team verifies your request."
+              />
+            </SectionCard>
+          </Col>
+        </Row>
+      </div>
+
+      <Modal
+        open={modalOpen}
+        title={`Request an introduction to ${startup.startupName}`}
+        onCancel={() => setModalOpen(false)}
+        onOk={submitRequest}
+        confirmLoading={sending}
+        okText="Send Request"
+        okButtonProps={{ style: { backgroundColor: "#4f46e5" } }}
+      >
+        <Paragraph type="secondary" className="text-sm">
+          Our team will verify your request, contact {startup.startupName}, and coordinate a
+          meeting. You&apos;ll hear from us directly.
+        </Paragraph>
+        <Text strong className="mb-2 block">
+          Add a note (optional)
+        </Text>
+        <TextArea
+          rows={4}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          maxLength={2000}
+          showCount
+          placeholder="What interests you about this startup? Any specific questions for the founder?"
+        />
+      </Modal>
+    </div>
+  );
 }
