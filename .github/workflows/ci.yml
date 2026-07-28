@@ -1,0 +1,128 @@
+# Continuous checks for pull requests and pushes to shared branches.
+#
+# Deliberately requires no secrets: everything here runs on source alone, so a
+# fork or a first-time contributor gets the same signal as a maintainer.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, ui-ux-overhaul]
+
+# A newer push to the same branch or PR makes the previous run irrelevant.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    name: Typecheck and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.x
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      # Reported but not blocking: the existing tree has lint debt, and failing
+      # every PR on pre-existing findings would train people to ignore CI.
+      # Flip to a blocking step once the backlog is clear.
+      - name: Lint
+        run: npm run lint
+        continue-on-error: true
+
+  secret-scan:
+    name: Secret scan (changed files)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Scans only what this push or PR introduces. Scanning full history would
+      # fail permanently on secrets already committed in the past, which makes
+      # the check useless as a gate on new work.
+      - name: Scan introduced changes
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_HEAD: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+          EMPTY_TREE=4b825dc642cb6eb9a060e54bf8d69288fbee4904
+
+          if [ "$EVENT" = "pull_request" ]; then
+            BASE="$PR_BASE"; HEAD="$PR_HEAD"
+          else
+            BASE="$PUSH_BEFORE"; HEAD="$PUSH_HEAD"
+          fi
+
+          # A new branch reports an all-zero "before"; compare against the empty
+          # tree so the whole branch is still scanned.
+          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            BASE="$EMPTY_TREE"
+          fi
+
+          echo "Comparing $BASE..$HEAD"
+          FAILED=0
+
+          # 1. Environment files must never be committed. The guardrail that
+          #    failed before was .gitignore, which `git add -f` walks straight
+          #    past; this one cannot be bypassed from a developer's machine.
+          ENV_FILES=$(git diff --name-only --diff-filter=AM "$BASE" "$HEAD" \
+            | grep -E '(^|/)\.env($|\.)' | grep -v '\.env\.example$' || true)
+          if [ -n "$ENV_FILES" ]; then
+            echo "::error::Environment files must not be committed:"
+            echo "$ENV_FILES" | sed 's/^/  /'
+            FAILED=1
+          fi
+
+          # 2. Credential-shaped content in added lines.
+          ADDED=$(git diff --unified=0 --diff-filter=AM "$BASE" "$HEAD" \
+            -- . ':(exclude)package-lock.json' \
+            | grep -E '^\+' | grep -vE '^\+\+\+' || true)
+
+          scan() {
+            local label="$1" pattern="$2"
+            local count
+            # -e is required: the private key pattern begins with "-", which
+            # grep would otherwise parse as an option.
+            count=$(printf '%s\n' "$ADDED" | grep -cE -e "$pattern" || true)
+            if [ "${count:-0}" -gt 0 ]; then
+              # Report the kind and how many, never the value itself: CI logs on a
+              # public repo are readable by anyone.
+              echo "::error::Possible $label introduced ($count occurrence(s))"
+              FAILED=1
+            fi
+          }
+
+          scan "private key"        '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+          scan "AWS access key id"  'AKIA[0-9A-Z]{16}'
+          scan "Google API key"     'AIzaSy[0-9A-Za-z_\-]{30,}'
+          scan "Slack token"        'xox[abprs]-[0-9A-Za-z-]{10,}'
+          scan "Stripe secret key"  'sk_live_[0-9A-Za-z]{16,}'
+          scan "SendGrid API key"   'SG\.[0-9A-Za-z_\-]{20,}\.[0-9A-Za-z_\-]{20,}'
+          scan "Resend API key"     're_[0-9A-Za-z_]{20,}'
+          scan "GitHub token"       'gh[pousr]_[0-9A-Za-z]{30,}'
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo ""
+            echo "If a match is a placeholder or example, rename it so it does not"
+            echo "look like a live credential (for example FIREBASE_PRIVATE_KEY=<your-key>)."
+            exit 1
+          fi
+
+          echo "No credential-shaped content introduced."
