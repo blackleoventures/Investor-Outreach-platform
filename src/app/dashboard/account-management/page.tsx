@@ -110,9 +110,12 @@ export default function AccountManagementPage() {
 
   const [magicLink, setMagicLink] = useState<string | null>(null);
 
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
   const onCreateSubmit = async () => {
     if (!createForm.displayName?.trim()) return message.error("Name is required");
     if (!createForm.email?.trim()) return message.error("Email is required");
+    if (!isValidEmail(createForm.email.trim())) return message.error("Please enter a valid email address");
 
     // Validation based on Role
     if (createForm.role === "subadmin") {
@@ -455,7 +458,7 @@ export default function AccountManagementPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCreateOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-white hover:bg-brand-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
             disabled={actionLoading}
           >
             <Plus className="h-4 w-4" />
@@ -507,8 +510,8 @@ export default function AccountManagementPage() {
         confirmLoading={actionLoading}
         okButtonProps={{
           style: {
-            backgroundColor: "#1677ff",
-            borderColor: "#1677ff",
+            backgroundColor: "#4f46e5",
+            borderColor: "#4f46e5",
             color: "#fff",
           },
           disabled: actionLoading,
@@ -530,7 +533,7 @@ export default function AccountManagementPage() {
               onChange={(e) =>
                 setCreateForm((s) => ({ ...s, photoURL: e.target.value }))
               }
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
               disabled={actionLoading}
             />
           </div>
@@ -545,7 +548,7 @@ export default function AccountManagementPage() {
               onChange={(e) =>
                 setCreateForm((s) => ({ ...s, displayName: e.target.value }))
               }
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
               disabled={actionLoading}
             />
           </div>
@@ -560,7 +563,7 @@ export default function AccountManagementPage() {
               onChange={(e) =>
                 setCreateForm((s) => ({ ...s, email: e.target.value }))
               }
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
               disabled={actionLoading}
             />
           </div>
@@ -576,7 +579,7 @@ export default function AccountManagementPage() {
                   name="role"
                   checked={createForm.role === 'subadmin'}
                   onChange={() => setCreateForm(s => ({ ...s, role: 'subadmin' }))}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-brand-600"
                 />
                 <span className="text-sm text-gray-900">Sub Admin</span>
               </label>
@@ -586,7 +589,7 @@ export default function AccountManagementPage() {
                   name="role"
                   checked={createForm.role === 'investor'}
                   onChange={() => setCreateForm(s => ({ ...s, role: 'investor' }))}
-                  className="w-4 h-4 text-blue-600"
+                  className="w-4 h-4 text-brand-600"
                 />
                 <span className="text-sm text-gray-900">Investor</span>
               </label>
@@ -603,7 +606,7 @@ export default function AccountManagementPage() {
                   placeholder="e.g. Sequoia Capital"
                   value={createForm.firmName}
                   onChange={(e) => setCreateForm(s => ({ ...s, firmName: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
               </div>
             </div>
@@ -622,7 +625,7 @@ export default function AccountManagementPage() {
                   onChange={(e) =>
                     setCreateForm((s) => ({ ...s, password: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-brand-500"
                   disabled={actionLoading}
                 />
                 <button
@@ -647,7 +650,7 @@ export default function AccountManagementPage() {
             <span className="text-sm font-medium text-gray-700">Status</span>
             <div className="flex items-center gap-2">
               <span
-                className={`text-xs ${createForm.active ? "text-blue-700" : "text-gray-600"
+                className={`text-xs ${createForm.active ? "text-brand-700" : "text-gray-600"
                   }`}
               >
                 {createForm.active ? "Active" : "Inactive"}
@@ -657,8 +660,10 @@ export default function AccountManagementPage() {
                 onClick={() =>
                   setCreateForm((s) => ({ ...s, active: !s.active }))
                 }
-                className={`h-6 w-11 rounded-full transition-colors ${createForm.active ? "bg-blue-500" : "bg-gray-300"
+                className={`h-6 w-11 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${createForm.active ? "bg-brand-500" : "bg-gray-300"
                   }`}
+                role="switch"
+                aria-checked={createForm.active}
                 aria-pressed={createForm.active}
                 aria-label="Toggle active"
                 disabled={actionLoading}
@@ -682,9 +687,13 @@ export default function AccountManagementPage() {
                   {magicLink}
                 </code>
                 <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(magicLink);
-                    message.success("Copied to clipboard!");
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(magicLink);
+                      message.success("Copied to clipboard!");
+                    } catch {
+                      message.error("Unable to copy. Please copy the link manually.");
+                    }
                   }}
                   className="px-3 py-1 bg-white border border-green-200 rounded hover:bg-green-100 text-green-700 text-sm"
                 >
@@ -709,8 +718,8 @@ export default function AccountManagementPage() {
         confirmLoading={actionLoading}
         okButtonProps={{
           style: {
-            backgroundColor: "#1677ff",
-            borderColor: "#1677ff",
+            backgroundColor: "#4f46e5",
+            borderColor: "#4f46e5",
             color: "#fff",
           },
           disabled: actionLoading,
@@ -763,7 +772,7 @@ export default function AccountManagementPage() {
               onChange={(e) =>
                 setEditForm((s) => ({ ...s, photoURL: e.target.value }))
               }
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
               disabled={actionLoading}
             />
           </div>
@@ -779,7 +788,7 @@ export default function AccountManagementPage() {
               onChange={(e) =>
                 setEditForm((s) => ({ ...s, displayName: e.target.value }))
               }
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500"
               disabled={actionLoading}
             />
           </div>
@@ -797,32 +806,44 @@ export default function AccountManagementPage() {
           </div>
 
           {editForm.role === 'investor' ? (
-            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-              <label className="mb-2 block text-sm font-medium text-blue-800">
+            <div className="mt-4 p-4 bg-brand-50 border border-brand-200 rounded-lg">
+              <label className="mb-2 block text-sm font-medium text-brand-800">
                 Magic Link
               </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={`${window.location.origin}/auth/investor-login?token=${editForm.secureAccessToken}`}
-                  className="flex-1 rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm text-blue-900 focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const link = `${window.location.origin}/auth/investor-login?token=${editForm.secureAccessToken}`;
-                    navigator.clipboard.writeText(link);
-                    message.success("Magic link copied!");
-                  }}
-                  className="rounded-lg bg-blue-600 px-3 py-2 text-white hover:bg-blue-700 transition-colors"
-                >
-                  <Copy className="h-4 w-4" />
-                </button>
-              </div>
-              <p className="mt-2 text-xs text-blue-600 italic">
-                Investors use this link to log in without a password.
-              </p>
+              {editForm.secureAccessToken ? (
+                <>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${window.location.origin}/auth/investor-login?token=${editForm.secureAccessToken}`}
+                      className="flex-1 rounded-lg border border-brand-300 bg-white px-3 py-2 text-sm text-brand-900 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const link = `${window.location.origin}/auth/investor-login?token=${editForm.secureAccessToken}`;
+                        try {
+                          await navigator.clipboard.writeText(link);
+                          message.success("Magic link copied!");
+                        } catch {
+                          message.error("Unable to copy. Please copy the link manually.");
+                        }
+                      }}
+                      className="rounded-lg bg-brand-600 px-3 py-2 text-white hover:bg-brand-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className="mt-2 text-xs text-brand-600 italic">
+                    Investors use this link to log in without a password.
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-brand-700">
+                  No magic link is available for this account yet.
+                </p>
+              )}
             </div>
           ) : (
             <div>
@@ -837,7 +858,7 @@ export default function AccountManagementPage() {
                   onChange={(e) =>
                     setEditForm((s) => ({ ...s, password: e.target.value }))
                   }
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-brand-500"
                   disabled={actionLoading}
                 />
                 <button
@@ -866,7 +887,7 @@ export default function AccountManagementPage() {
             <span className="text-sm font-medium text-gray-700">Status</span>
             <div className="flex items-center gap-2">
               <span
-                className={`text-xs ${editForm.active ? "text-blue-700" : "text-gray-600"
+                className={`text-xs ${editForm.active ? "text-brand-700" : "text-gray-600"
                   }`}
               >
                 {editForm.active ? "Active" : "Inactive"}
@@ -876,8 +897,10 @@ export default function AccountManagementPage() {
                 onClick={() =>
                   setEditForm((s) => ({ ...s, active: !s.active }))
                 }
-                className={`h-6 w-11 rounded-full transition-colors ${editForm.active ? "bg-blue-500" : "bg-gray-300"
+                className={`h-6 w-11 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 ${editForm.active ? "bg-brand-500" : "bg-gray-300"
                   }`}
+                role="switch"
+                aria-checked={editForm.active}
                 aria-pressed={editForm.active}
                 aria-label="Toggle active"
                 disabled={actionLoading}

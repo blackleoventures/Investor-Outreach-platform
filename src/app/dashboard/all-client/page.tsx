@@ -980,7 +980,7 @@ const ClientsData = () => {
       case "approved":
         return "bg-green-100 text-green-800";
       case "active":
-        return "bg-blue-100 text-blue-800";
+        return "bg-brand-100 text-brand-800";
       case "pending_review":
         return "bg-yellow-100 text-yellow-800";
       case "rejected":
@@ -1002,7 +1002,7 @@ const ClientsData = () => {
     <div key={index} className="border rounded-lg p-4 mb-4 bg-gray-50">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
-          <FileText size={20} className="text-blue-600" />
+          <FileText size={20} className="text-brand-600" />
           <span className="font-semibold text-lg">
             {analysis.fileName || `Analysis ${index + 1}`}
           </span>
@@ -1081,13 +1081,13 @@ const ClientsData = () => {
               <div key={criteria}>
                 <div className="flex justify-between mb-1">
                   <span className="text-sm font-medium">{criteria}</span>
-                  <span className="text-sm font-bold text-blue-600">
+                  <span className="text-sm font-bold text-brand-600">
                     {score}/10
                   </span>
                 </div>
                 <Progress
                   percent={score * 10}
-                  strokeColor="#1890ff"
+                  strokeColor="#4f46e5"
                   strokeWidth={8}
                   showInfo={false}
                 />
@@ -1140,7 +1140,7 @@ const ClientsData = () => {
                             `subject-${index}`
                           )
                         }
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        className="p-1.5 text-brand-600 hover:bg-brand-50 rounded transition-colors"
                       >
                         {copiedField === `subject-${index}` ? (
                           <Check size={16} />
@@ -1150,7 +1150,7 @@ const ClientsData = () => {
                       </button>
                     </Tooltip>
                   </div>
-                  <div className="p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                  <div className="p-3 bg-brand-50 border border-brand-200 rounded-lg">
                     <p className="text-sm text-gray-800 font-medium">
                       {analysis.email_subject}
                     </p>
@@ -1178,7 +1178,7 @@ const ClientsData = () => {
                             `body-${index}`
                           )
                         }
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        className="p-1.5 text-brand-600 hover:bg-brand-50 rounded transition-colors"
                       >
                         {copiedField === `body-${index}` ? (
                           <Check size={16} />
@@ -1239,6 +1239,9 @@ const ClientsData = () => {
     {
       key: "companyName",
       title: "Company Name",
+      sortable: true,
+      sorter: (a: Client, b: Client) =>
+        String(a.companyName || "").localeCompare(String(b.companyName || "")),
       render: (_, record: Client) => (
         <span className="text-sm font-medium">
           {record.companyName || "N/A"}
@@ -1248,6 +1251,9 @@ const ClientsData = () => {
     {
       key: "founderName",
       title: "Founder Name",
+      sortable: true,
+      sorter: (a: Client, b: Client) =>
+        String(a.founderName || "").localeCompare(String(b.founderName || "")),
       render: (_, record: Client) => (
         <span className="text-sm">{record.founderName || "N/A"}</span>
       ),
@@ -1269,13 +1275,16 @@ const ClientsData = () => {
     {
       key: "status",
       title: "Status",
+      sortable: true,
+      sorter: (a: Client, b: Client) =>
+        String(a.status || "").localeCompare(String(b.status || "")),
       render: (_, record: Client) => (
         <span
           className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getClientStatusColor(
             record.status
           )}`}
         >
-          {record.status.replace("_", " ").toUpperCase()}
+          {(record.status || "").replace("_", " ").toUpperCase()}
         </span>
       ),
     },
@@ -1302,11 +1311,23 @@ const ClientsData = () => {
     {
       key: "pitchScore",
       title: "Pitch Score",
+      sortable: true,
+      sorter: (a: Client, b: Client) => {
+        const sa =
+          a.pitchAnalyses?.[a.pitchAnalyses.length - 1]?.summary
+            ?.total_score ?? -1;
+        const sb =
+          b.pitchAnalyses?.[b.pitchAnalyses.length - 1]?.summary
+            ?.total_score ?? -1;
+        return sa - sb;
+      },
       render: (_, record: Client) => {
         const latestPitch =
           record.pitchAnalyses?.[record.pitchAnalyses.length - 1];
         if (latestPitch) {
           const score = latestPitch.summary?.total_score || 0;
+          const label =
+            score >= 70 ? "Strong" : score >= 40 ? "Moderate" : "Weak";
           return (
             <span
               className="text-sm font-bold"
@@ -1314,7 +1335,8 @@ const ClientsData = () => {
                 color: getProgressColor(score),
               }}
             >
-              {score}/100
+              {score}/100{" "}
+              <span className="font-medium text-gray-500">({label})</span>
             </span>
           );
         }
@@ -1394,7 +1416,7 @@ const ClientsData = () => {
             {industries.slice(0, 2).map((industry, idx) => (
               <span
                 key={idx}
-                className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800"
+                className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-brand-100 text-brand-800"
               >
                 {industry}
               </span>
@@ -1418,6 +1440,10 @@ const ClientsData = () => {
     {
       key: "onboarding",
       title: "Onboarding Info",
+      sortable: true,
+      sorter: (a: Client, b: Client) =>
+        new Date(a.createdAt || 0).getTime() -
+        new Date(b.createdAt || 0).getTime(),
       render: (_, record: Client) => {
         if (!record.createdAt) return <span className="text-sm">N/A</span>;
 
@@ -1441,8 +1467,9 @@ const ClientsData = () => {
         <div className="flex items-center justify-center gap-2">
           <button
             onClick={() => handleViewClient(record)}
-            className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+            className="p-2 text-brand-600 hover:bg-brand-50 rounded-full transition-colors"
             title="View details"
+            aria-label="View details"
           >
             <Eye size={18} />
           </button>
@@ -1451,6 +1478,7 @@ const ClientsData = () => {
               onClick={() => handleReviewClient(record)}
               className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
               title="Mark as reviewed"
+              aria-label="Review client"
             >
               <CheckCircle size={18} />
             </button>
@@ -1459,13 +1487,15 @@ const ClientsData = () => {
             onClick={() => handleEditClient(record)}
             className="p-2 text-gray-600 hover:bg-gray-50 rounded-full transition-colors"
             title="Edit client"
+            aria-label="Edit client"
           >
             <Edit size={18} />
           </button>
           <button
             onClick={() => handleManageUsageLimits(record)}
-            className="p-2 text-purple-600 hover:bg-purple-50 rounded-full transition-colors"
+            className="p-2 text-brand-600 hover:bg-brand-50 rounded-full transition-colors"
             title="Manage usage limits"
+            aria-label="Settings"
           >
             <Settings size={18} />
           </button>
@@ -1474,6 +1504,7 @@ const ClientsData = () => {
               onClick={() => handleUnarchiveClient(record.id)}
               className="p-2 text-green-600 hover:bg-green-50 rounded-full transition-colors"
               title="Unarchive client"
+              aria-label="Unarchive client"
               disabled={updateLoading}
             >
               {updateLoading ? <Spin size="small" /> : <Upload size={18} />}
@@ -1493,6 +1524,7 @@ const ClientsData = () => {
             }}
             className="p-2 text-red-600 hover:bg-red-50 rounded-full transition-colors"
             title="Delete client"
+            aria-label="Delete client"
             disabled={deleteLoading === record.id}
           >
             {deleteLoading === record.id ? (
@@ -1514,8 +1546,7 @@ const ClientsData = () => {
         </h1>
         <button
           onClick={() => router.push("/dashboard/add-client")}
-          className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors"
-          style={{ backgroundColor: "#ac6a1e" }}
+          className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors bg-brand-600 hover:bg-brand-700"
         >
           <Plus size={18} />
           <span>Add Client</span>
@@ -2057,8 +2088,8 @@ const ClientsData = () => {
                     }}
                     type="primary"
                     style={{
-                      backgroundColor: "#1890ff",
-                      borderColor: "#1890ff",
+                      backgroundColor: "#4f46e5",
+                      borderColor: "#4f46e5",
                     }}
                   >
                     Manage Limits
@@ -2088,8 +2119,8 @@ const ClientsData = () => {
             key="save"
             onClick={handleUpdateClient}
             disabled={updateLoading}
-            className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
-            style={{ backgroundColor: "#1890ff" }}
+            className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
+            style={{ backgroundColor: "#4f46e5" }}
           >
             {updateLoading ? <Spin size="small" /> : "Save Changes"}
           </button>,
@@ -2640,8 +2671,8 @@ const ClientsData = () => {
             key="save"
             onClick={handleUpdateUsageLimits}
             disabled={updateLoading}
-            className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
-            style={{ backgroundColor: "#1890ff" }}
+            className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed ml-2"
+            style={{ backgroundColor: "#4f46e5" }}
           >
             {updateLoading ? <Spin size="small" /> : "Save Changes"}
           </button>,

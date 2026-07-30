@@ -46,10 +46,15 @@ export default function ScheduleConfig({
     scheduleConfig?.campaignName ||
       `${selectedClient.companyName} - Campaign - ${dayjs().format("MMM YYYY")}`
   );
+  // Consistent fallback when neither a saved config nor a client SMTP limit
+  // is available.
+  const DEFAULT_DAILY_LIMIT = 80;
+  const clientSmtpLimit =
+    selectedClient.emailConfiguration?.dailyEmailLimit || DEFAULT_DAILY_LIMIT;
   const [dailyLimit, setDailyLimit] = useState(
     scheduleConfig?.dailyLimit ||
       selectedClient.emailConfiguration?.dailyEmailLimit ||
-      80
+      DEFAULT_DAILY_LIMIT
   );
   const [startDate, setStartDate] = useState(
     scheduleConfig?.startDate
@@ -131,16 +136,24 @@ export default function ScheduleConfig({
   };
 
   const checkConflicts = async () => {
-    const clientLimit =
-      selectedClient.emailConfiguration?.dailyEmailLimit || 80;
+    const clientLimit = clientSmtpLimit;
 
+    // Hard cap: never allow the daily limit to exceed the client's SMTP cap.
     if (dailyLimit > clientLimit) {
       setConflictWarning(
-        `Daily limit (${dailyLimit}) exceeds client's SMTP limit (${clientLimit}). This may cause sending failures.`
+        `Daily limit cannot exceed the client's SMTP limit of ${clientLimit} emails/day. It has been reduced to ${clientLimit}.`
       );
+      setDailyLimit(clientLimit);
     } else {
       setConflictWarning("");
     }
+  };
+
+  // Validate the sending window: end must be strictly after start.
+  const isSendingWindowValid = () => {
+    const start = dayjs(sendingWindow.start, "HH:mm");
+    const end = dayjs(sendingWindow.end, "HH:mm");
+    return end.isAfter(start);
   };
 
   const handlePriorityChange = (type: string, value: number) => {
@@ -158,10 +171,27 @@ export default function ScheduleConfig({
       others.forEach((key) => {
         newAllocation[key as keyof typeof newAllocation] += adjustment;
       });
+
+      // Absorb any rounding drift into the last "other" bucket so the total
+      // is always exactly 100.
+      const newTotal = Object.values(newAllocation).reduce(
+        (sum, val) => sum + val,
+        0
+      );
+      const remainder = 100 - newTotal;
+      if (remainder !== 0 && others.length > 0) {
+        const lastKey = others[others.length - 1] as keyof typeof newAllocation;
+        newAllocation[lastKey] = Math.max(0, newAllocation[lastKey] + remainder);
+      }
     }
 
     setPriorityAllocation(newAllocation);
   };
+
+  const priorityTotal = Object.values(priorityAllocation).reduce(
+    (sum, val) => sum + val,
+    0
+  );
 
   const handleNext = () => {
     if (!campaignName.trim()) {
@@ -171,6 +201,24 @@ export default function ScheduleConfig({
 
     if (!startInstantly && (dailyLimit < 10 || dailyLimit > 200)) {
       message.error("Daily limit must be between 10 and 200 emails");
+      return;
+    }
+
+    // Hard cap against the client's SMTP limit.
+    if (!startInstantly && dailyLimit > clientSmtpLimit) {
+      message.error(
+        `Daily limit cannot exceed the client's SMTP limit of ${clientSmtpLimit} emails/day`
+      );
+      return;
+    }
+
+    if (!startInstantly && !isSendingWindowValid()) {
+      message.error("Sending end time must be after the start time");
+      return;
+    }
+
+    if (priorityTotal !== 100) {
+      message.error("Priority distribution must add up to exactly 100%");
       return;
     }
 
@@ -284,9 +332,9 @@ export default function ScheduleConfig({
             </label>
             <InputNumber
               value={dailyLimit}
-              onChange={(value) => setDailyLimit(value || 50)}
+              onChange={(value) => setDailyLimit(value || DEFAULT_DAILY_LIMIT)}
               min={10}
-              max={200}
+              max={Math.min(200, clientSmtpLimit)}
               size="large"
               style={{ width: "100%" }}
               addonAfter="emails/day"
@@ -547,24 +595,6 @@ export default function ScheduleConfig({
           Review Campaign
         </Button>
       </div>
-      <style dangerouslySetInnerHTML={{ __html: timePickerStyles }} />
     </div>
   );
 }
-
-const timePickerStyles = `
-  .ant-picker-footer .ant-btn-primary {
-    background-color: #1890ff !important;
-    border-color: #1890ff !important;
-    color: white !important;
-  }
-  
-  .ant-picker-footer .ant-btn-primary:hover {
-    background-color: #40a9ff !important;
-    border-color: #40a9ff !important;
-  }
-  
-  .ant-picker-time-panel-column > li.ant-picker-time-panel-cell-selected .ant-picker-time-panel-cell-inner {
-    background-color: #1890ff !important;
-  }
-`;

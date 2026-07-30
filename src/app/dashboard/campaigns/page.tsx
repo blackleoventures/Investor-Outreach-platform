@@ -229,6 +229,7 @@ export default function CampaignsListPage() {
       key: "campaignName",
       title: "Campaign Name",
       width: 250,
+      sortable: true,
       render: (_, record) => (
         <div>
           <p className="font-semibold text-gray-900">{record.campaignName}</p>
@@ -244,9 +245,10 @@ export default function CampaignsListPage() {
       title: "Status",
       width: 100,
       align: "center",
+      sortable: true,
       render: (_, record) => (
         <Tag color={getStatusColor(record.status)}>
-          {record.status.toUpperCase()}
+          {(record.status || "unknown").toUpperCase()}
         </Tag>
       ),
     },
@@ -261,7 +263,9 @@ export default function CampaignsListPage() {
             ? "Both"
             : record.targetType === "investors"
               ? "Investors"
-              : "Incubators"}
+              : record.targetType === "incubators"
+                ? "Incubators"
+                : "N/A"}
         </Tag>
       ),
     },
@@ -269,6 +273,10 @@ export default function CampaignsListPage() {
       key: "progress",
       title: "Progress",
       width: 200,
+      sortable: true,
+      sorter: (a, b) =>
+        (a.sent + a.failed) / (a.totalRecipients || 1) -
+        (b.sent + b.failed) / (b.totalRecipients || 1),
       render: (_, record) => {
         const progress =
           record.totalRecipients > 0
@@ -335,6 +343,10 @@ export default function CampaignsListPage() {
       key: "createdAt",
       title: "Created",
       width: 120,
+      sortable: true,
+      sorter: (a, b) =>
+        new Date(a.createdAt || 0).getTime() -
+        new Date(b.createdAt || 0).getTime(),
       render: (_, record) => (
         <div className="text-xs text-gray-600">
           {formatDate(record.createdAt)}
@@ -354,8 +366,8 @@ export default function CampaignsListPage() {
             icon={<EyeOutlined />}
             onClick={() => viewCampaignDetails(record.id)}
             style={{
-              backgroundColor: "#1890ff",
-              borderColor: "#1890ff",
+              backgroundColor: "#4f46e5",
+              borderColor: "#4f46e5",
             }}
           >
             Details
@@ -365,11 +377,6 @@ export default function CampaignsListPage() {
             icon={<CopyOutlined />}
             onClick={() => copyPublicLink(record.publicToken)}
             title="Copy Public Report Link"
-            style={{
-              backgroundColor: "#52c41a",
-              borderColor: "#52c41a",
-              color: "white",
-            }}
           >
             Link
           </Button>
@@ -402,7 +409,7 @@ export default function CampaignsListPage() {
 
         <button
           onClick={() => router.push("/dashboard/campaigns/create")}
-          className="flex items-center gap-2 px-4 py-2 bg-[#ac6a1e] text-white rounded-lg hover:bg-[#8d5518] transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
         >
           <PlusOutlined className="h-4 w-4" />
           Create Campaign
@@ -420,6 +427,23 @@ export default function CampaignsListPage() {
         filterColumns={filterColumns}
         pageSize={20}
         pageSizeOptions={[10, 20, 50, 100]}
+        entityName="campaigns"
+        lastUpdated={lastUpdated}
+        emptyState={
+          <div className="flex flex-col items-center justify-center gap-3 text-gray-500">
+            <p className="font-medium text-gray-700">No campaigns yet</p>
+            <p className="text-sm">
+              Create your first campaign to start reaching out.
+            </p>
+            <button
+              onClick={() => router.push("/dashboard/campaigns/create")}
+              className="mt-1 flex items-center gap-2 px-4 py-2 bg-brand-600 text-white rounded-lg hover:bg-brand-700 transition-colors"
+            >
+              <PlusOutlined className="h-4 w-4" />
+              Create Campaign
+            </button>
+          </div>
+        }
       />
     </div>
   );

@@ -10,6 +10,27 @@ import Link from "@tiptap/extension-link";
 import { Extension } from "@tiptap/core";
 import RichTextToolbar from "./RichTextToolbar";
 import { useEffect } from "react";
+import { sanitizeHtml } from "@/lib/sanitize-html";
+
+/**
+ * Conservative cleanup for HTML pasted from external sources (Word, Gmail, etc.).
+ * Runs the shared sanitizer (strips scripts/handlers/dangerous URLs) and then
+ * removes inline style/class/id attributes so foreign markup does not leak
+ * arbitrary styling into the editor. TipTap still parses the remaining
+ * semantic tags (b, i, p, ul, a, ...).
+ */
+function cleanPastedHtml(html: string): string {
+  let clean = sanitizeHtml(html);
+  // Drop inline styles and class/id attributes (Word/Gmail noise).
+  clean = clean.replace(/\sstyle\s*=\s*"[^"]*"/gi, "");
+  clean = clean.replace(/\sstyle\s*=\s*'[^']*'/gi, "");
+  clean = clean.replace(/\s(class|id)\s*=\s*"[^"]*"/gi, "");
+  clean = clean.replace(/\s(class|id)\s*=\s*'[^']*'/gi, "");
+  // Strip MS Office conditional comments / xml namespaces.
+  clean = clean.replace(/<!--[\s\S]*?-->/g, "");
+  clean = clean.replace(/<\/?o:p>/gi, "");
+  return clean;
+}
 
 // Custom Font Family Extension
 const FontFamily = Extension.create({
@@ -268,6 +289,8 @@ export default function RichTextEditor({
         class: `prose prose-sm max-w-none focus:outline-none min-h-[${minHeight}] p-4`,
         style: `min-height: ${minHeight}; font-family: Arial, sans-serif;`,
       },
+      // Sanitize HTML pasted from external apps (Word/Gmail) before TipTap parses it.
+      transformPastedHTML: (html) => cleanPastedHtml(html),
     },
     onUpdate: ({ editor }) => {
       // Emit HTML content on every change
@@ -367,8 +390,8 @@ export default function RichTextEditor({
 
         /* Focus styles */
         .rich-text-editor:focus-within {
-          border-color: #3b82f6;
-          box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+          border-color: #4f46e5;
+          box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
         }
       `}</style>
     </div>

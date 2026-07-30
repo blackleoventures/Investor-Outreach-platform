@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, Table, Button, Input, message, Tag, Space, Spin } from "antd";
+import { Card, Table, Button, Input, message, Tag, Space, Spin, Empty, Tooltip } from "antd";
 import {
   SearchOutlined,
   CheckCircleOutlined,
   ArrowRightOutlined,
 } from "@ant-design/icons";
+import { useRouter } from "next/navigation";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
@@ -23,8 +24,10 @@ export default function ClientSelection({
   onNext,
   getAuthToken,
 }: ClientSelectionProps) {
+  const router = useRouter();
   const [clients, setClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectingId, setSelectingId] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
   const [filteredClients, setFilteredClients] = useState<any[]>([]);
 
@@ -79,7 +82,7 @@ export default function ClientSelection({
 
   const handleSelectClient = async (client: any) => {
     try {
-      setLoading(true);
+      setSelectingId(client.id);
       const token = await getAuthToken();
       if (!token) return;
 
@@ -105,7 +108,7 @@ export default function ClientSelection({
       console.error("Error selecting client:", error);
       message.error(error.message || "Failed to select client");
     } finally {
-      setLoading(false);
+      setSelectingId(null);
     }
   };
 
@@ -192,33 +195,56 @@ export default function ClientSelection({
       key: "action",
       width: 100,
       fixed: "right" as const,
-      render: (_: any, record: any) => (
-        <Button
-          type="primary"
-          size="small"
-          onClick={() => handleSelectClient(record)}
-          disabled={selectedClient?.id === record.id}
-          icon={
-            selectedClient?.id === record.id ? <CheckCircleOutlined /> : null
-          }
-          style={{
-            backgroundColor:
-              selectedClient?.id === record.id ? "#52c41a" : "#1890ff",
-            borderColor:
-              selectedClient?.id === record.id ? "#52c41a" : "#1890ff",
-          }}
-        >
-          {selectedClient?.id === record.id ? "Selected" : "Select"}
-        </Button>
-      ),
+      render: (_: any, record: any) => {
+        const isSelected = selectedClient?.id === record.id;
+        const isVerified =
+          record.emailConfiguration?.testStatus === "passed";
+        const button = (
+          <Button
+            type="primary"
+            size="small"
+            onClick={() =>
+              isSelected ? onClientSelect(null) : handleSelectClient(record)
+            }
+            disabled={!isVerified && !isSelected}
+            loading={selectingId === record.id}
+            icon={isSelected ? <CheckCircleOutlined /> : null}
+            style={
+              isSelected
+                ? { backgroundColor: "#16a34a", borderColor: "#16a34a" }
+                : isVerified
+                  ? { backgroundColor: "#4f46e5", borderColor: "#4f46e5" }
+                  : undefined
+            }
+          >
+            {isSelected ? "Selected" : "Select"}
+          </Button>
+        );
+        if (!isVerified && !isSelected) {
+          return (
+            <Tooltip title="SMTP must be verified before this client can be used in a campaign">
+              <span>{button}</span>
+            </Tooltip>
+          );
+        }
+        if (isSelected) {
+          return (
+            <Tooltip title="Click to unselect">
+              <span>{button}</span>
+            </Tooltip>
+          );
+        }
+        return button;
+      },
     },
   ];
 
   if (loading && clients.length === 0) {
     return (
       <Card>
-        <div className="flex justify-center items-center py-12">
-          <Spin size="large" tip="Loading eligible clients..." />
+        <div className="flex flex-col gap-3 justify-center items-center py-12">
+          <Spin size="large" />
+          <p className="text-gray-500 text-sm">Loading eligible clients...</p>
         </div>
       </Card>
     );
@@ -236,18 +262,43 @@ export default function ClientSelection({
           className="mb-4"
         />
 
-        <Table
-          columns={columns}
-          dataSource={filteredClients}
-          rowKey="id"
-          loading={loading}
-          scroll={{ x: "max-content" }}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: false,
-            showTotal: (total) => `Total ${total} eligible clients`,
-          }}
-        />
+        {!loading && clients.length === 0 ? (
+          <Empty
+            description={
+              <div>
+                <p className="font-medium text-gray-700">
+                  No eligible clients found
+                </p>
+                <p className="text-gray-500 text-sm">
+                  Campaigns can only be created for clients with a verified SMTP
+                  configuration. Add a client and verify their email settings to
+                  get started.
+                </p>
+              </div>
+            }
+          >
+            <Button
+              type="primary"
+              onClick={() => router.push("/dashboard/clients")}
+              style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}
+            >
+              Go to Clients
+            </Button>
+          </Empty>
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={filteredClients}
+            rowKey="id"
+            loading={loading}
+            scroll={{ x: "max-content" }}
+            pagination={{
+              pageSize: 10,
+              showSizeChanger: false,
+              showTotal: (total) => `Total ${total} eligible clients`,
+            }}
+          />
+        )}
       </Card>
 
       {selectedClient && (
@@ -283,8 +334,8 @@ export default function ClientSelection({
           disabled={!selectedClient}
           icon={<ArrowRightOutlined />}
           style={{
-            backgroundColor: selectedClient ? "#1890ff" : undefined,
-            borderColor: selectedClient ? "#1890ff" : undefined,
+            backgroundColor: selectedClient ? "#4f46e5" : undefined,
+            borderColor: selectedClient ? "#4f46e5" : undefined,
           }}
         >
           Next: Select Audience

@@ -10,6 +10,7 @@ import {
   PlayCircleOutlined,
   ExclamationCircleOutlined,
   ReloadOutlined,
+  WarningOutlined,
 } from "@ant-design/icons";
 import { auth } from "@/lib/firebase";
 
@@ -41,7 +42,10 @@ export default function CampaignActions({
   userRole,
   onStatusChange,
 }: CampaignActionsProps) {
-  const [loading, setLoading] = useState(false);
+  // Track which action is currently in-flight so only that button spins.
+  const [pendingAction, setPendingAction] = useState<
+    "complete" | "pauseResume" | "reschedule" | null
+  >(null);
 
   const isAdminOrSubadmin =
     userRole === "admin" || userRole === "subadmin" || userRole === "owner";
@@ -78,8 +82,8 @@ export default function CampaignActions({
               <div>Pending: {stats.pending}</div>
             </div>
           </div>
-          <p className="text-red-600 font-semibold">
-            ⚠️ Warning: This action cannot be undone!
+          <p className="text-red-600 font-semibold flex items-center gap-2">
+            <WarningOutlined /> Warning: This action cannot be undone!
           </p>
           <p className="text-sm text-gray-600 mt-2">
             Once completed, the campaign will stop sending emails and cannot be
@@ -92,14 +96,6 @@ export default function CampaignActions({
       cancelText: "Cancel",
       width: 600,
 
-      okButtonProps: {
-        style: {
-          backgroundColor: "#1890ff",
-          borderColor: "#1890ff",
-          color: "white",
-        },
-        className: "hover:!bg-blue-600",
-      },
       cancelButtonProps: {
         style: {
           backgroundColor: "#f5f5f5",
@@ -111,7 +107,7 @@ export default function CampaignActions({
 
       onOk: async () => {
         try {
-          setLoading(true);
+          setPendingAction("complete");
           const token = await getAuthToken();
           if (!token) return;
 
@@ -138,7 +134,7 @@ export default function CampaignActions({
           console.error("Mark complete error:", error);
           message.error(error.message || "Failed to mark campaign as complete");
         } finally {
-          setLoading(false);
+          setPendingAction(null);
         }
       },
     });
@@ -175,7 +171,7 @@ export default function CampaignActions({
 
       onOk: async () => {
         try {
-          setLoading(true);
+          setPendingAction("pauseResume");
           const token = await getAuthToken();
           if (!token) return;
 
@@ -201,7 +197,7 @@ export default function CampaignActions({
           console.error(`${action} error:`, error);
           message.error(error.message || `Failed to ${action} campaign`);
         } finally {
-          setLoading(false);
+          setPendingAction(null);
         }
       },
     });
@@ -259,7 +255,7 @@ export default function CampaignActions({
 
       onOk: async () => {
         try {
-          setLoading(true);
+          setPendingAction("reschedule");
           const token = await getAuthToken();
           if (!token) return;
 
@@ -287,7 +283,7 @@ export default function CampaignActions({
           console.error("Reschedule error:", error);
           message.error(error.message || "Failed to reschedule campaign");
         } finally {
-          setLoading(false);
+          setPendingAction(null);
         }
       },
     });
@@ -306,7 +302,7 @@ export default function CampaignActions({
             )
           }
           onClick={handlePauseResume}
-          loading={loading}
+          loading={pendingAction === "pauseResume"}
           style={{
             backgroundColor:
               campaignStatus === "paused" ? "#52c41a" : "#fa8c16",
@@ -318,20 +314,21 @@ export default function CampaignActions({
         </Button>
       )}
 
-      {/* Mark Complete Button - Admin/Subadmin Only */}
-
-      <Button
-        icon={<CheckCircleOutlined />}
-        onClick={handleMarkComplete}
-        loading={loading}
-        style={{
-          backgroundColor: "#1890ff",
-          borderColor: "#1890ff",
-          color: "white",
-        }}
-      >
-        Mark as Complete
-      </Button>
+      {/* Mark Complete Button - Admin/Subadmin Only, not already completed */}
+      {canMarkComplete && (
+        <Button
+          icon={<CheckCircleOutlined />}
+          onClick={handleMarkComplete}
+          loading={pendingAction === "complete"}
+          style={{
+            backgroundColor: "#4f46e5",
+            borderColor: "#4f46e5",
+            color: "white",
+          }}
+        >
+          Mark as Complete
+        </Button>
+      )}
 
       {/* Reschedule Button - Admin/Subadmin Only, Active/Paused Campaigns */}
       {/* 
@@ -339,7 +336,7 @@ export default function CampaignActions({
         <Button
           icon={<ReloadOutlined />}
           onClick={handleReschedule}
-          loading={loading}
+          loading={pendingAction === "reschedule"}
           style={{
             backgroundColor: "#722ed1",
             borderColor: "#722ed1",

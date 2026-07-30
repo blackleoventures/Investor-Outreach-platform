@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signInWithCustomToken } from "firebase/auth";
 import { auth } from "@/lib/firebase";
-import { Spin, Result, Button, message } from "antd";
+import { Spin, Result, Button } from "antd";
 import { LoadingOutlined } from "@ant-design/icons";
 
 export default function InvestorLoginPage() {
@@ -18,9 +18,11 @@ export default function InvestorLoginPage() {
     useEffect(() => {
         if (!token) {
             setStatus("error");
-            setErrorMessage("Invalid Link: No access token provided.");
+            setErrorMessage("Invalid link: no access token provided. Please use the link from your invitation email.");
             return;
         }
+
+        let redirectTimer: ReturnType<typeof setTimeout> | undefined;
 
         const verifyAndLogin = async () => {
             try {
@@ -46,21 +48,26 @@ export default function InvestorLoginPage() {
                 }
 
                 setStatus("success");
-                message.success("Login successful! Redirecting...");
 
                 // 3. Redirect to Deal Room
-                setTimeout(() => {
+                redirectTimer = setTimeout(() => {
                     router.push("/dashboard/deal-room");
                 }, 1500);
 
             } catch (error: any) {
                 console.error("Login Error:", error);
                 setStatus("error");
-                setErrorMessage(error.message || "Failed to log you in. Please try again.");
+                setErrorMessage("This invitation link is invalid or has expired. Please request a new link.");
             }
         };
 
         verifyAndLogin();
+
+        return () => {
+            if (redirectTimer) {
+                clearTimeout(redirectTimer);
+            }
+        };
     }, [token, router]);
 
     if (status === "loading") {

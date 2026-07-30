@@ -29,6 +29,8 @@ import {
   UnorderedListOutlined,
   ThunderboltOutlined,
   PieChartOutlined,
+  ShopOutlined,
+  UserAddOutlined,
 } from "@ant-design/icons";
 import Image from "next/image";
 
@@ -169,6 +171,33 @@ export default function DashboardLayout({
         ],
       },
       {
+        key: "deal-room",
+        icon: <ShopOutlined />,
+        label: "Deal Room",
+        children: [
+          {
+            key: "/dashboard/applications",
+            icon: <FileTextOutlined />,
+            ...navItem("/dashboard/applications", "Applications"),
+          },
+          {
+            key: "/dashboard/deal-room",
+            icon: <ShopOutlined />,
+            ...navItem("/dashboard/deal-room", "View Deal Room"),
+          },
+          {
+            key: "/dashboard/introductions",
+            icon: <MailOutlined />,
+            ...navItem("/dashboard/introductions", "Introductions"),
+          },
+          {
+            key: "/dashboard/invite-investor",
+            icon: <UserAddOutlined />,
+            ...navItem("/dashboard/invite-investor", "Invite Investor"),
+          },
+        ],
+      },
+      {
         key: "/dashboard/pitch-deck-analysis",
         icon: <PieChartOutlined />,
         ...navItem("/dashboard/pitch-deck-analysis", "Pitch Deck Analysis"),
@@ -269,6 +298,33 @@ export default function DashboardLayout({
         ],
       },
       {
+        key: "deal-room",
+        icon: <ShopOutlined />,
+        label: "Deal Room",
+        children: [
+          {
+            key: "/dashboard/applications",
+            icon: <FileTextOutlined />,
+            ...navItem("/dashboard/applications", "Applications"),
+          },
+          {
+            key: "/dashboard/deal-room",
+            icon: <ShopOutlined />,
+            ...navItem("/dashboard/deal-room", "View Deal Room"),
+          },
+          {
+            key: "/dashboard/introductions",
+            icon: <MailOutlined />,
+            ...navItem("/dashboard/introductions", "Introductions"),
+          },
+          {
+            key: "/dashboard/invite-investor",
+            icon: <UserAddOutlined />,
+            ...navItem("/dashboard/invite-investor", "Invite Investor"),
+          },
+        ],
+      },
+      {
         key: "/dashboard/pitch-deck-analysis",
         icon: <PieChartOutlined />,
         ...navItem("/dashboard/pitch-deck-analysis", "Pitch Deck Analysis"),
@@ -299,6 +355,18 @@ export default function DashboardLayout({
     [navItem]
   );
 
+  // Investor menu items (deal room only)
+  const investorMenuItems = useMemo(
+    () => [
+      {
+        key: "/dashboard/deal-room",
+        icon: <ShopOutlined />,
+        ...navItem("/dashboard/deal-room", "Deal Room"),
+      },
+    ],
+    [navItem]
+  );
+
   // Get menu items based on user role
   const menuItems = useMemo(() => {
     if (!userData?.role) return [];
@@ -310,10 +378,18 @@ export default function DashboardLayout({
         return subadminMenuItems;
       case "client":
         return clientMenuItems;
+      case "investor":
+        return investorMenuItems;
       default:
         return [];
     }
-  }, [userData?.role, adminMenuItems, subadminMenuItems, clientMenuItems]);
+  }, [
+    userData?.role,
+    adminMenuItems,
+    subadminMenuItems,
+    clientMenuItems,
+    investorMenuItems,
+  ]);
 
   const userMenuItems = useMemo(
     () => [
@@ -361,7 +437,7 @@ export default function DashboardLayout({
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <div className="w-12 h-12 border-4 border-brand-600 border-t-transparent rounded-full animate-spin" />
           <p className="text-gray-600 text-sm">Loading...</p>
         </div>
       </div>
@@ -372,7 +448,7 @@ export default function DashboardLayout({
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          <div className="w-12 h-12 border-4 border-brand-600 border-t-transparent rounded-full animate-spin" />
           <p className="text-gray-600 text-sm">Loading dashboard...</p>
         </div>
       </div>
@@ -479,7 +555,7 @@ export default function DashboardLayout({
               />
             )}
             <h2 className="text-lg font-bold hidden sm:block">
-              <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-brand-600 to-brand-400 bg-clip-text text-transparent">
                 Welcome back,
               </span>{" "}
               <span className="text-base">{currentUser.displayName}</span>
@@ -497,7 +573,7 @@ export default function DashboardLayout({
                 icon={<UserOutlined />}
                 src={currentUser.photoURL || undefined}
                 size="default"
-                className="bg-gradient-to-br from-blue-500 to-purple-600"
+                className="bg-gradient-to-br from-brand-500 to-brand-700"
               />
               <span className="text-sm font-medium text-gray-700 hidden sm:inline">
                 {currentUser.displayName || currentUser.email?.split("@")[0]}

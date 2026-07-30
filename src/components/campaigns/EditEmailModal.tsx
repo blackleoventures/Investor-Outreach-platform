@@ -48,6 +48,27 @@ export default function EditEmailModal({
     return await user.getIdToken();
   };
 
+  const hasUnsavedChanges = () =>
+    subject !== initialSubject || body !== initialBody;
+
+  // Guarded close: confirm before discarding unsaved edits.
+  const handleRequestClose = () => {
+    if (saving) return;
+    if (hasUnsavedChanges()) {
+      Modal.confirm({
+        title: "Discard changes?",
+        content:
+          "You have unsaved changes. Are you sure you want to close without saving?",
+        okText: "Discard",
+        okType: "danger",
+        cancelText: "Keep editing",
+        onOk: onCloseAction,
+      });
+      return;
+    }
+    onCloseAction();
+  };
+
   const handleSave = async () => {
     if (!subject.trim()) {
       message.warning("Subject cannot be empty");
@@ -99,11 +120,12 @@ export default function EditEmailModal({
         </span>
       }
       open={visible}
-      onCancel={onCloseAction}
+      onCancel={handleRequestClose}
+      maskClosable={false}
       width={800}
       centered
       footer={[
-        <Button key="cancel" onClick={onCloseAction} disabled={saving}>
+        <Button key="cancel" onClick={handleRequestClose} disabled={saving}>
           Cancel
         </Button>,
         <Button
@@ -111,7 +133,6 @@ export default function EditEmailModal({
           type="primary"
           onClick={handleSave}
           loading={saving}
-          style={{ backgroundColor: "#1890ff", borderColor: "#1890ff" }}
         >
           Save Changes
         </Button>,

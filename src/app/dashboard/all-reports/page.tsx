@@ -1,36 +1,23 @@
 "use client";
 
-import { 
-  Card, 
-  Table, 
-  Typography, 
-  Button, 
-  Space, 
-  Tag, 
-  Statistic, 
-  Row, 
-  Col, 
+import {
+  Card,
+  Table,
+  Typography,
+  Button,
+  Tag,
+  Statistic,
+  Row,
+  Col,
   Modal,
-  Descriptions,
-  Timeline,
-  Progress,
-  message,
-  Tooltip,
-  Badge
+  message
 } from "antd";
-import { 
-  EyeOutlined, 
-  FileTextOutlined, 
-  EditOutlined, 
+import {
+  FileTextOutlined,
   BarChartOutlined,
-  MailOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  ClockCircleOutlined,
-  UserOutlined,
   DownloadOutlined
 } from "@ant-design/icons";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 
 const { Title, Text } = Typography;
@@ -111,8 +98,15 @@ const AllReports = () => {
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
   const [investorModalVisible, setInvestorModalVisible] = useState(false);
+  const [investorSearch, setInvestorSearch] = useState("");
   const searchParams = useSearchParams();
   const campaignId = searchParams.get('campaignId');
+
+  // Track selected report id without retriggering the polling effect
+  const selectedReportIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedReportIdRef.current = selectedReport?.id ?? null;
+  }, [selectedReport?.id]);
 
   const columns = [
     {
@@ -136,7 +130,7 @@ const AllReports = () => {
         const metrics = record.metrics;
         return (
           <div style={{ textAlign: 'center' }}>
-            <Text strong style={{ fontSize: '16px', color: '#1890ff' }}>
+            <Text strong style={{ fontSize: '16px', color: '#4f46e5' }}>
               {metrics.sent}
             </Text>
             <br />
@@ -153,7 +147,7 @@ const AllReports = () => {
       key: "status",
       render: (status: string) => (
         <Tag color={status === "completed" ? "green" : status === "active" ? "blue" : "orange"}>
-          {status.toUpperCase()}
+          {(status || '').toUpperCase()}
         </Tag>
       ),
     },
@@ -180,7 +174,7 @@ const AllReports = () => {
           <Button
             type="primary"
             size="small"
-            style={{ backgroundColor: '#1677ff', borderColor: '#1677ff', color: '#fff' }}
+            style={{ backgroundColor: '#4f46e5', borderColor: '#4f46e5', color: '#fff' }}
           icon={<BarChartOutlined />}
           onClick={() => handleViewReport(record)}
           >
@@ -195,29 +189,17 @@ const AllReports = () => {
     setDetailModalVisible(true);
   };
 
-  const handleViewInvestors = (report: Report) => {
-    setSelectedReport(report);
-    setInvestorModalVisible(true);
-  };
-
-  const handleDownloadReport = (report: Report, format: 'csv' | 'excel') => {
+  const handleDownloadReport = (report: Report) => {
     const data = report.recipients.map(recipient => ({
       'Name': recipient.firmName,
-      'Website': `http://www.${recipient.firmName.toLowerCase().replace(/\s+/g, '')}.com`,
       'Contacts': recipient.contactPerson,
       'Engaged': recipient.email,
       'Opened': recipient.opened ? `${recipient.contactPerson} (${recipient.openedAt ? new Date(recipient.openedAt).toLocaleDateString() : 'recently'})` : 'No'
     }));
 
-    if (format === 'csv') {
-      const csvContent = convertArrayToCSV(data);
-      downloadFile(csvContent, `${report.name}_report.csv`, 'text/csv');
-    } else {
-      // For Excel, we'll use the same CSV format for now
-      const csvContent = convertArrayToCSV(data);
-      downloadFile(csvContent, `${report.name}_report.xlsx`, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    }
-    message.success(`Report downloaded as ${format.toUpperCase()}`);
+    const csvContent = convertArrayToCSV(data);
+    downloadFile(csvContent, `${report.name}_report.csv`, 'text/csv');
+    message.success('Report downloaded as CSV');
   };
 
   const convertArrayToCSV = (data: any[]) => {
@@ -248,85 +230,6 @@ const AllReports = () => {
     window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
   };
-
-  const investorColumns = [
-    {
-      title: 'Investor/Firm',
-      dataIndex: 'firmName',
-      key: 'firmName',
-      render: (name: string, record: InvestorActivity) => (
-        <div>
-          <Text strong>{name}</Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            {record.contactPerson}
-          </Text>
-        </div>
-      ),
-    },
-    {
-      title: 'Email Status',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => {
-        const colors = {
-          sent: 'blue',
-          delivered: 'green', 
-          failed: 'red',
-          bounced: 'orange'
-        };
-        return <Tag color={colors[status as keyof typeof colors]}>{status.toUpperCase()}</Tag>;
-      },
-    },
-    {
-      title: 'Activity',
-      key: 'activity',
-      render: (_: any, record: InvestorActivity) => (
-        <Space direction="vertical" size="small">
-          <div>
-            {record.opened ? (
-              <Tag color="blue" icon={<EyeOutlined />}>
-                Opened {record.openedAt ? new Date(record.openedAt).toLocaleDateString() : ''}
-              </Tag>
-            ) : (
-              <Tag color="default">Not Opened</Tag>
-            )}
-          </div>
-          <div>
-            {record.clicked ? (
-              <Tag color="purple" icon={<CheckCircleOutlined />}>
-                Clicked {record.clickedAt ? new Date(record.clickedAt).toLocaleDateString() : ''}
-              </Tag>
-            ) : (
-              <Tag color="default">No Clicks</Tag>
-            )}
-          </div>
-          <div>
-            {record.replied ? (
-              <Tag color="green" icon={<MailOutlined />}>
-                Replied {record.repliedAt ? new Date(record.repliedAt).toLocaleDateString() : ''}
-              </Tag>
-            ) : (
-              <Tag color="default">No Reply</Tag>
-            )}
-          </div>
-        </Space>
-      ),
-    },
-    {
-      title: 'Contact Info',
-      key: 'contact',
-      render: (_: any, record: InvestorActivity) => (
-        <div>
-          <Text copyable style={{ fontSize: '12px' }}>{record.email}</Text>
-          <br />
-          <Text type="secondary" style={{ fontSize: '11px' }}>
-            {record.sector} • {record.location}
-          </Text>
-        </div>
-      ),
-    },
-  ];
 
   // Load real-time reports from API and keep modals in sync
   useEffect(() => {
@@ -367,8 +270,8 @@ const AllReports = () => {
             
             setReports(apiReports);
             // If a report is open, refresh its data from the updated list
-            if (selectedReport) {
-              const updated = apiReports.find((r: any) => r.id === selectedReport.id);
+            if (selectedReportIdRef.current) {
+              const updated = apiReports.find((r: any) => r.id === selectedReportIdRef.current);
               if (updated) setSelectedReport(updated);
           }
         } else {
@@ -566,8 +469,8 @@ const AllReports = () => {
                 }))
               }));
               setReports(mapped);
-              if (selectedReport) {
-                const updated = mapped.find((r: any) => r.id === selectedReport.id);
+              if (selectedReportIdRef.current) {
+                const updated = mapped.find((r: any) => r.id === selectedReportIdRef.current);
                 if (updated) setSelectedReport(updated);
               }
             } else {
@@ -615,8 +518,8 @@ const AllReports = () => {
               }))
             }));
             setReports(mapped);
-            if (selectedReport) {
-              const updated = mapped.find((r: any) => r.id === selectedReport.id);
+            if (selectedReportIdRef.current) {
+              const updated = mapped.find((r: any) => r.id === selectedReportIdRef.current);
               if (updated) setSelectedReport(updated);
             }
           } else {
@@ -632,10 +535,10 @@ const AllReports = () => {
 
     loadReports();
 
-    // Auto-refresh every 10 seconds to reflect delivered/opens/clicks/replies
-    const interval = setInterval(loadReports, 5000);
+    // Auto-refresh every 30 seconds to reflect delivered/opens/clicks/replies
+    const interval = setInterval(loadReports, 30000);
     return () => clearInterval(interval);
-  }, [selectedReport?.id]);
+  }, []);
 
   return (
     <div className="p-6">
@@ -681,6 +584,7 @@ const AllReports = () => {
           dataSource={reports}
           loading={loading}
           rowKey="id"
+          scroll={{ x: 'max-content' }}
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
@@ -695,33 +599,26 @@ const AllReports = () => {
         title={null}
         open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
-        bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
         footer={[
-          <Button 
-            key="close" 
+          <Button
+            key="close"
             onClick={() => setDetailModalVisible(false)}
-            style={{ backgroundColor: '#ff4d4f', borderColor: '#ff4d4f', color: '#fff' }}
           >
             Close
           </Button>,
-          <Button 
-            key="csv" 
+          <Button
+            key="csv"
+            type="primary"
             icon={<DownloadOutlined />}
-            onClick={() => selectedReport && handleDownloadReport(selectedReport, 'csv')}
-            style={{ backgroundColor: '#8c8c8c', borderColor: '#8c8c8c', color: '#fff' }}
+            onClick={() => selectedReport && handleDownloadReport(selectedReport)}
+            style={{ backgroundColor: '#4f46e5', borderColor: '#4f46e5', color: '#fff' }}
           >
             CSV
-          </Button>,
-          <Button 
-            key="excel" 
-            icon={<DownloadOutlined />}
-            onClick={() => selectedReport && handleDownloadReport(selectedReport, 'excel')}
-            style={{ backgroundColor: '#faad14', borderColor: '#faad14', color: '#fff' }}
-          >
-            Excel
           </Button>
         ]}
-        width={900}
+        width="90%"
+        style={{ maxWidth: 900 }}
       >
         {selectedReport && (
           <div style={{ padding: '20px' }}>
@@ -734,7 +631,7 @@ const AllReports = () => {
 
             {/* Campaign Name */}
             <div style={{ marginBottom: '30px' }}>
-              <Title level={3} style={{ color: '#1890ff', margin: 0 }}>
+              <Title level={3} style={{ color: '#4f46e5', margin: 0 }}>
                 {selectedReport.clientName}:
               </Title>
             </div>
@@ -754,7 +651,7 @@ const AllReports = () => {
                     <Statistic
                       title="Emails Sent"
                       value={selectedReport.metrics.sent}
-                      valueStyle={{ color: '#1890ff' }}
+                      valueStyle={{ color: '#4f46e5' }}
                     />
                   </Card>
                 </Col>
@@ -809,9 +706,9 @@ const AllReports = () => {
 
             {/* View Complete Report Link */}
             <div style={{ marginBottom: '30px' }}>
-              <Button 
-                type="link" 
-                style={{ padding: 0, fontSize: '16px', color: '#1890ff' }}
+              <Button
+                type="link"
+                style={{ padding: 0, fontSize: '16px', color: '#4f46e5' }}
                 onClick={() => {
                   setDetailModalVisible(false);
                   setInvestorModalVisible(true);
@@ -830,33 +727,26 @@ const AllReports = () => {
         title={null}
         open={investorModalVisible}
         onCancel={() => setInvestorModalVisible(false)}
-        bodyStyle={{ maxHeight: '70vh', overflowY: 'auto' }}
+        styles={{ body: { maxHeight: '70vh', overflowY: 'auto' } }}
         footer={[
-          <Button 
-            key="close" 
+          <Button
+            key="close"
             onClick={() => setInvestorModalVisible(false)}
-            style={{ backgroundColor: '#ff4d4f', borderColor: '#ff4d4f', color: '#fff' }}
           >
             Close
           </Button>,
-          <Button 
-            key="csv" 
+          <Button
+            key="csv"
+            type="primary"
             icon={<DownloadOutlined />}
-            onClick={() => selectedReport && handleDownloadReport(selectedReport, 'csv')}
-            style={{ backgroundColor: '#8c8c8c', borderColor: '#8c8c8c', color: '#fff' }}
+            onClick={() => selectedReport && handleDownloadReport(selectedReport)}
+            style={{ backgroundColor: '#4f46e5', borderColor: '#4f46e5', color: '#fff' }}
           >
             CSV
-          </Button>,
-          <Button 
-            key="excel" 
-            icon={<DownloadOutlined />}
-            onClick={() => selectedReport && handleDownloadReport(selectedReport, 'excel')}
-            style={{ backgroundColor: '#faad14', borderColor: '#faad14', color: '#fff' }}
-          >
-            Excel
           </Button>
         ]}
-        width={1400}
+        width="90%"
+        style={{ maxWidth: 1400 }}
       >
         {selectedReport && (
           <div style={{ padding: '20px' }}>
@@ -866,12 +756,14 @@ const AllReports = () => {
               </div>
               <div>
                 <Text>Search: </Text>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   placeholder="Search..."
-                  style={{ 
-                    padding: '4px 8px', 
-                    border: '1px solid #d9d9d9', 
+                  value={investorSearch}
+                  onChange={(e) => setInvestorSearch(e.target.value)}
+                  style={{
+                    padding: '4px 8px',
+                    border: '1px solid #d9d9d9',
                     borderRadius: '4px',
                     width: '200px'
                   }}
@@ -917,8 +809,14 @@ const AllReports = () => {
                   ),
                 },
               ]}
-              dataSource={selectedReport.recipients}
+              dataSource={selectedReport.recipients.filter((r) => {
+                const q = investorSearch.trim().toLowerCase();
+                if (!q) return true;
+                return [r.firmName, r.contactPerson, r.email]
+                  .some((v) => (v || '').toLowerCase().includes(q));
+              })}
               rowKey="id"
+              scroll={{ x: 'max-content' }}
               pagination={{
                 pageSize: 10,
                 showTotal: (total: number) => `Total ${total} entries`,

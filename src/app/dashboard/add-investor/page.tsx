@@ -91,55 +91,6 @@ export default function AddInvestorPage() {
     setLoading(true);
 
     try {
-      // Validate required fields
-      if (!values.investor_name || !values.investor_name.trim()) {
-        message.error("Please enter the Investor Name");
-        setLoading(false);
-        return;
-      }
-
-      if (!values.partner_name || !values.partner_name.trim()) {
-        message.error("Please enter the Partner Name");
-        setLoading(false);
-        return;
-      }
-
-      if (!values.partner_email || !values.partner_email.trim()) {
-        message.error("Please enter the Partner Email");
-        setLoading(false);
-        return;
-      }
-
-      if (!values.phone_number || !values.phone_number.trim()) {
-        message.error("Please enter the Phone Number");
-        setLoading(false);
-        return;
-      }
-
-      if (!values.fund_type || !values.fund_type.trim()) {
-        message.error("Please enter the Fund Type");
-        setLoading(false);
-        return;
-      }
-
-      if (!values.fund_stage || !values.fund_stage.trim()) {
-        message.error("Please enter the Fund Stage");
-        setLoading(false);
-        return;
-      }
-
-      if (!values.location || !values.location.trim()) {
-        message.error("Please enter the Location");
-        setLoading(false);
-        return;
-      }
-
-      if (!values.fund_focus_sectors || !values.fund_focus_sectors.trim()) {
-        message.error("Please enter the Fund Focus Sectors");
-        setLoading(false);
-        return;
-      }
-
       // Prepare payload
       const payload = {
         "Investor Name": values.investor_name.trim(),
@@ -212,10 +163,10 @@ export default function AddInvestorPage() {
           </div>
 
           <div className="flex justify-center mt-12">
-            <Card className="text-center p-8 hover:shadow-lg transition-shadow border-2 hover:border-blue-300 w-full max-w-md">
+            <Card className="text-center p-8 hover:shadow-lg transition-shadow border-2 hover:border-brand-300 w-full max-w-md">
               <div className="mb-6">
-                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <UserOutlined className="text-3xl text-blue-600" />
+                <div className="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <UserOutlined className="text-3xl text-brand-600" />
                 </div>
                 <Title level={3} className="mb-2">
                   Manual Entry
@@ -231,8 +182,8 @@ export default function AddInvestorPage() {
                   onClick={handleManualEntry}
                   size="large"
                   style={{
-                    backgroundColor: "#1677ff",
-                    borderColor: "#1677ff",
+                    backgroundColor: "#4f46e5",
+                    borderColor: "#4f46e5",
                     color: "#fff",
                   }}
                 >
@@ -291,8 +242,8 @@ export default function AddInvestorPage() {
             }
           }}
           footer={null}
-          width={1200}
-          style={{ top: 20 }}
+          width="90%"
+          style={{ top: 20, maxWidth: 1200 }}
           styles={{
             body: {
               padding: 0,
@@ -384,6 +335,11 @@ export default function AddInvestorPage() {
                       {
                         whitespace: true,
                         message: "Phone number cannot be empty",
+                      },
+                      {
+                        pattern:
+                          /^[+]?[(]?[0-9]{1,4}[)]?[-\s.]?[(]?[0-9]{1,4}[)]?[-\s.]?[0-9]{1,9}$/,
+                        message: "Please enter a valid phone number",
                       },
                     ]}
                   >
@@ -477,6 +433,7 @@ export default function AddInvestorPage() {
                     name="website"
                     label="Website (Optional)"
                     className="mb-3"
+                    extra="Include https://"
                     rules={[
                       { type: "url", message: "Please enter a valid URL" },
                     ]}
@@ -495,9 +452,9 @@ export default function AddInvestorPage() {
                     loading={loading}
                     disabled={loading}
                     style={{
-                      backgroundColor: "#1677ff",
+                      backgroundColor: "#4f46e5",
                       color: "#fff",
-                      borderColor: "#1677ff",
+                      borderColor: "#4f46e5",
                     }}
                   >
                     {loading ? "Adding..." : "Add Investor"}
@@ -567,7 +524,7 @@ function PasteHelper({ onFill }: { onFill: (fields: any) => void }) {
       .filter(Boolean);
 
     const getAfter = (label: string) => {
-      const re = new RegExp(`${label}[:\-]?\s*(.+)`, "i");
+      const re = new RegExp(`${label}[:\\-]?\\s*(.+)`, "i");
       for (const l of lines) {
         const m = l.match(re);
         if (m) return m[1].trim();
@@ -652,8 +609,8 @@ function PasteHelper({ onFill }: { onFill: (fields: any) => void }) {
           type="primary"
           onClick={parseAndFill}
           style={{
-            backgroundColor: "#1677ff",
-            borderColor: "#1677ff",
+            backgroundColor: "#4f46e5",
+            borderColor: "#4f46e5",
           }}
         >
           Fill Fields

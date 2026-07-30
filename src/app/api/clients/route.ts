@@ -8,6 +8,10 @@ import {
 } from "@/lib/auth-middleware";
 import { dbHelpers } from "@/lib/db-helpers";
 import {
+  toInvestorSafeClient,
+  type InvestorSafeClient,
+} from "@/lib/client-projection";
+import {
   ClientDocument,
   TransformedClient,
   ApiResponse,
@@ -111,6 +115,18 @@ export async function GET(request: NextRequest) {
         };
       }
     );
+
+    // Investors receive a redacted projection: no founder email or phone, no
+    // SMTP configuration, no internal identifiers or review trail.
+    if (user.role === "investor") {
+      const safeClients = transformedClients.map(toInvestorSafeClient);
+
+      return NextResponse.json({
+        success: true,
+        data: safeClients,
+        count: safeClients.length,
+      } as ApiResponse<InvestorSafeClient[]>);
+    }
 
     const response: ApiResponse<TransformedClient[]> = {
       success: true,

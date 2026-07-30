@@ -10,8 +10,12 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
   X,
   Filter,
+  Inbox,
 } from "lucide-react";
 
 export interface Column<T = any> {
@@ -21,6 +25,10 @@ export interface Column<T = any> {
   align?: "left" | "center" | "right";
   render?: (value: any, record: T, index: number) => React.ReactNode;
   dataIndex?: string;
+  /** Enable click-to-sort on this column's header. */
+  sortable?: boolean;
+  /** Optional custom comparator. Defaults to smart string/number compare on the cell value. */
+  sorter?: (a: T, b: T) => number;
 }
 
 // NEW: Filter column definition
@@ -46,6 +54,10 @@ export interface DataTableProps<T = any> {
   dataSource?: string;
   lastUpdated?: string;
   filterColumns?: FilterColumn[]; // NEW: Dynamic filter columns
+  /** Custom empty-state content shown when there is no data (not when a search/filter returns nothing). */
+  emptyState?: React.ReactNode;
+  /** Short label describing the entity, e.g. "clients". Used in the default empty state. */
+  entityName?: string;
 }
 
 export default function DataTable<T = any>({
@@ -64,8 +76,14 @@ export default function DataTable<T = any>({
   dataSource,
   lastUpdated,
   filterColumns = [], // NEW: Default empty array
+  emptyState,
+  entityName = "records",
 }: DataTableProps<T>) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortConfig, setSortConfig] = useState<{
+    key: string;
+    direction: "asc" | "desc";
+  } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(initialPageSize);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
@@ -154,12 +172,49 @@ export default function DataTable<T = any>({
     });
   }, [data, searchQuery, searchKeys, activeFilters]);
 
+  // Sort the filtered data
+  const sortedData = useMemo(() => {
+    if (!sortConfig) return filteredData;
+    const col = columns.find((c) => c.key === sortConfig.key);
+    if (!col) return filteredData;
+
+    const dir = sortConfig.direction === "asc" ? 1 : -1;
+    const getValue = (record: any) =>
+      col.dataIndex ? record[col.dataIndex] : record[col.key];
+
+    const sorted = [...filteredData].sort((a, b) => {
+      if (col.sorter) return col.sorter(a, b) * dir;
+      const av = getValue(a);
+      const bv = getValue(b);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1; // nulls last regardless of direction
+      if (bv == null) return -1;
+      // Numeric compare when both look numeric
+      const an = typeof av === "number" ? av : Number(av);
+      const bn = typeof bv === "number" ? bv : Number(bv);
+      if (!Number.isNaN(an) && !Number.isNaN(bn) && av !== "" && bv !== "") {
+        return (an - bn) * dir;
+      }
+      return String(av).localeCompare(String(bv)) * dir;
+    });
+    return sorted;
+  }, [filteredData, sortConfig, columns]);
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) => {
+      if (prev?.key !== key) return { key, direction: "asc" };
+      if (prev.direction === "asc") return { key, direction: "desc" };
+      return null; // third click clears sorting
+    });
+    setCurrentPage(1);
+  };
+
   // Paginate data
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     const end = start + pageSize;
-    return filteredData.slice(start, end);
-  }, [filteredData, currentPage, pageSize]);
+    return sortedData.slice(start, end);
+  }, [sortedData, currentPage, pageSize]);
 
   // Calculate total pages
   const totalPages = Math.ceil(filteredData.length / pageSize);
@@ -220,10 +275,11 @@ export default function DataTable<T = any>({
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               type="text"
+              aria-label={searchPlaceholder}
               placeholder={searchPlaceholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
             />
             {searchQuery && (
               <button
@@ -246,7 +302,7 @@ export default function DataTable<T = any>({
                   <Filter className="h-4 w-4" />
                   <span>Filters</span>
                   {activeFilterCount > 0 && (
-                    <span className="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full">
+                    <span className="bg-brand-600 text-white text-xs px-2 py-0.5 rounded-full">
                       {activeFilterCount}
                     </span>
                   )}
@@ -264,7 +320,7 @@ export default function DataTable<T = any>({
                         {activeFilterCount > 0 && (
                           <button
                             onClick={clearAllFilters}
-                            className="text-xs text-blue-600 hover:text-blue-700"
+                            className="text-xs text-brand-600 hover:text-brand-700"
                           >
                             Clear All
                           </button>
@@ -281,7 +337,7 @@ export default function DataTable<T = any>({
                               onChange={(e) =>
                                 handleFilterChange(filter.key, e.target.value)
                               }
-                              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500 text-sm"
                             >
                               <option value="all">All</option>
                               {filter.options.map((option) => (
@@ -349,7 +405,7 @@ export default function DataTable<T = any>({
                                 onChange={(e) =>
                                   handleColumnToggle(col.key, e.target.checked)
                                 }
-                                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                className="w-4 h-4 text-brand-600 border-gray-300 rounded focus:ring-brand-500"
                               />
                               <span className="text-sm text-gray-700">
                                 {col.title}
@@ -375,13 +431,13 @@ export default function DataTable<T = any>({
               return (
                 <span
                   key={key}
-                  className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
+                  className="inline-flex items-center gap-1 px-3 py-1 bg-brand-100 text-brand-800 text-sm rounded-full"
                 >
                   <span className="font-medium">{filter?.title}:</span>
                   <span>{option?.label || value}</span>
                   <button
                     onClick={() => handleFilterChange(key, "all")}
-                    className="ml-1 hover:text-blue-900"
+                    className="ml-1 hover:text-brand-900"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -398,45 +454,114 @@ export default function DataTable<T = any>({
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {displayColumns.map((col) => (
-                  <th
-                    key={col.key}
-                    className={`px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider ${
-                      col.align === "center"
-                        ? "text-center"
-                        : col.align === "right"
-                        ? "text-right"
-                        : ""
-                    }`}
-                    style={{ width: col.width }}
-                  >
-                    {col.title}
-                  </th>
-                ))}
+                {displayColumns.map((col) => {
+                  const isSorted = sortConfig?.key === col.key;
+                  return (
+                    <th
+                      key={col.key}
+                      aria-sort={
+                        col.sortable
+                          ? isSorted
+                            ? sortConfig!.direction === "asc"
+                              ? "ascending"
+                              : "descending"
+                            : "none"
+                          : undefined
+                      }
+                      className={`px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider ${
+                        col.align === "center"
+                          ? "text-center"
+                          : col.align === "right"
+                          ? "text-right"
+                          : ""
+                      }`}
+                      style={{ width: col.width }}
+                    >
+                      {col.sortable ? (
+                        <button
+                          type="button"
+                          onClick={() => handleSort(col.key)}
+                          aria-label={`Sort by ${col.title}`}
+                          className={`group inline-flex items-center gap-1 uppercase tracking-wider hover:text-brand-600 transition-colors ${
+                            col.align === "center"
+                              ? "justify-center"
+                              : col.align === "right"
+                              ? "justify-end"
+                              : ""
+                          } ${isSorted ? "text-brand-600" : ""}`}
+                        >
+                          {col.title}
+                          {isSorted ? (
+                            sortConfig!.direction === "asc" ? (
+                              <ChevronUp className="h-3.5 w-3.5" />
+                            ) : (
+                              <ChevronDown className="h-3.5 w-3.5" />
+                            )
+                          ) : (
+                            <ChevronsUpDown className="h-3.5 w-3.5 opacity-40 group-hover:opacity-70" />
+                          )}
+                        </button>
+                      ) : (
+                        col.title
+                      )}
+                    </th>
+                  );
+                })}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
-                <tr>
-                  <td
-                    colSpan={displayColumns.length}
-                    className="px-4 py-12 text-center"
-                  >
-                    <div className="flex items-center justify-center gap-2 text-gray-500">
-                      <RefreshCw className="h-5 w-5 animate-spin" />
-                      <span>Loading...</span>
-                    </div>
-                  </td>
-                </tr>
+                Array.from({ length: Math.min(pageSize, 6) }).map((_, r) => (
+                  <tr key={`skeleton-${r}`}>
+                    {displayColumns.map((col) => (
+                      <td key={col.key} className="px-4 py-3">
+                        <div className="h-4 bg-gray-200 rounded animate-pulse" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
               ) : paginatedData.length === 0 ? (
                 <tr>
                   <td
                     colSpan={displayColumns.length}
-                    className="px-4 py-12 text-center text-gray-500"
+                    className="px-4 py-16 text-center"
                   >
-                    {searchQuery || activeFilterCount > 0
-                      ? "No results found"
-                      : "No data available"}
+                    {searchQuery || activeFilterCount > 0 ? (
+                      <div className="flex flex-col items-center justify-center gap-2 text-gray-500">
+                        <Search className="h-8 w-8 text-gray-300" />
+                        <p className="font-medium text-gray-700">
+                          No results found
+                        </p>
+                        <p className="text-sm">
+                          Try adjusting your search or filters.
+                        </p>
+                        {(searchQuery || activeFilterCount > 0) && (
+                          <button
+                            onClick={() => {
+                              setSearchQuery("");
+                              clearAllFilters();
+                            }}
+                            className="mt-1 text-sm text-brand-600 hover:text-brand-700 font-medium"
+                          >
+                            Clear search &amp; filters
+                          </button>
+                        )}
+                      </div>
+                    ) : emptyState ? (
+                      emptyState
+                    ) : (
+                      <div className="flex flex-col items-center justify-center gap-2 text-gray-500">
+                        <Inbox className="h-8 w-8 text-gray-300" />
+                        <p className="font-medium text-gray-700">
+                          No {entityName} yet
+                        </p>
+                        <p className="text-sm">
+                          {entityName.charAt(0).toUpperCase() +
+                            entityName.slice(1)}{" "}
+                          will appear here once added.
+                        </p>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -491,7 +616,8 @@ export default function DataTable<T = any>({
             <select
               value={pageSize}
               onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-              className="border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              aria-label="Rows per page"
+              className="border border-gray-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
               {pageSizeOptions.map((size) => (
                 <option key={size} value={size}>
@@ -541,9 +667,11 @@ export default function DataTable<T = any>({
                   <button
                     key={pageNum}
                     onClick={() => goToPage(pageNum)}
+                    aria-label={`Page ${pageNum}`}
+                    aria-current={currentPage === pageNum ? "page" : undefined}
                     className={`px-3 py-1 border rounded transition-colors ${
                       currentPage === pageNum
-                        ? "bg-blue-600 text-white border-blue-600"
+                        ? "bg-brand-600 text-white border-brand-600"
                         : "border-gray-300 hover:bg-gray-50"
                     }`}
                   >

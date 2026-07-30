@@ -1,262 +1,488 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Input, Select, Tag, Card, Row, Col, Typography, Spin, Empty, Button } from "antd";
-import { SearchOutlined, FilterOutlined, ArrowRightOutlined, EnvironmentOutlined, DollarOutlined } from "@ant-design/icons";
+import {
+  Button,
+  Card,
+  Col,
+  Empty,
+  Input,
+  Row,
+  Select,
+  Spin,
+  Switch,
+  Tag,
+  Tooltip,
+  Typography,
+} from "antd";
+import {
+  ArrowRightOutlined,
+  BankOutlined,
+  ClearOutlined,
+  DollarOutlined,
+  EnvironmentOutlined,
+  InfoCircleOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  TeamOutlined,
+  TrophyOutlined,
+} from "@ant-design/icons";
 import { auth } from "@/lib/firebase";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  BUSINESS_MODELS,
+  FUNDING_ASK_RANGES,
+  REVENUE_BANDS,
+  SECTORS,
+  STARTUP_STAGES,
+  formatUsd,
+  revenueRank,
+  stageRank,
+} from "@/lib/config/deal-room-options";
+import type { PublicStartupProfile } from "@/types/startup-application";
 
 const { Title, Text, Paragraph } = Typography;
-const { Search } = Input;
-const { Option } = Select;
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
+type SortKey = "recent" | "revenue" | "growth" | "fundingAsk";
 
-interface Client {
-    id: string;
-    companyName: string;
-    founderName: string;
-    industry: string;
-    fundingStage: string;
-    description: string;
-    city: string;
-    investment: string;
-    logoUrl?: string;
-    status: string;
-    dealRoomPermission?: boolean; // Added
+const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+  { value: "recent", label: "Recently Added" },
+  { value: "revenue", label: "Revenue" },
+  { value: "growth", label: "Fastest Growing" },
+  { value: "fundingAsk", label: "Funding Ask" },
+];
+
+/**
+ * Composite growth score. The application captures a point-in-time snapshot
+ * rather than a time series, so "fastest growing" ranks how far along a startup
+ * is: stage first, then revenue band, then customer count as a tiebreaker.
+ */
+function growthScore(startup: PublicStartupProfile): number {
+  return (
+    stageRank(startup.stage) * 1000 +
+    revenueRank(startup.monthlyRevenue) * 100 +
+    Math.min(startup.payingCustomers || 0, 99)
+  );
 }
 
+export default function InvestorPortalPage() {
+  const router = useRouter();
+  const { userData, loading: authLoading } = useAuth();
 
-export default function DealRoomDashboard() {
-    const router = useRouter();
-    const [loading, setLoading] = useState(true);
-    const [startups, setStartups] = useState<Client[]>([]);
-    const [filteredStartups, setFilteredStartups] = useState<Client[]>([]);
-    const [searchText, setSearchText] = useState("");
-    const [industryFilter, setIndustryFilter] = useState<string | null>(null);
-    const [stageFilter, setStageFilter] = useState<string | null>(null);
-    const [cityFilter, setCityFilter] = useState<string | null>(null); // Added City Filter
-    const [citySearchValue, setCitySearchValue] = useState(""); // Track city search input
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [startups, setStartups] = useState<PublicStartupProfile[]>([]);
 
-    useEffect(() => {
-        // Check for link-only access
-        if (typeof window !== "undefined") {
-            const hasAccess = sessionStorage.getItem("dealRoomAccess") === "granted";
-            if (!hasAccess) {
-                // Check if they are admin/subadmin (they should have access anyway)
-                // However, the user specifically asked for "only through link" for investor route.
-                // Assuming admins might still want to see it, but strictly following the request for now.
-                // Let's refine: if it's an investor, they MUST have the flag.
-                // We'll handle redirection if no access.
-                router.push("/dashboard");
-                return;
-            }
-        }
-        fetchStartups();
-    }, []);
+  const [search, setSearch] = useState("");
+  const [sector, setSector] = useState<string | null>(null);
+  const [country, setCountry] = useState<string | null>(null);
+  const [fundingRange, setFundingRange] = useState<string | null>(null);
+  const [revenue, setRevenue] = useState<string | null>(null);
+  const [stage, setStage] = useState<string | null>(null);
+  const [businessModel, setBusinessModel] = useState<string | null>(null);
+  const [incubatedOnly, setIncubatedOnly] = useState(false);
+  const [grantWinnersOnly, setGrantWinnersOnly] = useState(false);
+  const [sortBy, setSortBy] = useState<SortKey>("recent");
 
-    useEffect(() => {
-        filterStartups();
-    }, [searchText, industryFilter, stageFilter, cityFilter, startups]);
+  const fetchStartups = useCallback(async () => {
+    setLoading(true);
+    setFetchError(false);
+    try {
+      const user = auth.currentUser;
+      if (!user) {
+        router.push("/login");
+        return;
+      }
+      const token = await user.getIdToken();
 
-    const fetchStartups = async () => {
-        setLoading(true);
-        try {
-            const user = auth.currentUser;
-            if (!user) {
-                router.push("/login");
-                return;
-            }
-            const token = await user.getIdToken();
+      const response = await fetch("/api/deal-room/startups", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
 
-            const response = await fetch(`${API_BASE_URL}/clients`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+      if (response.ok && data.success) {
+        setStartups(data.data || []);
+      } else {
+        setStartups([]);
+        setFetchError(true);
+      }
+    } catch (error) {
+      console.error("Failed to load deal room:", error);
+      setStartups([]);
+      setFetchError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
 
-            if (response.ok) {
-                const data = await response.json();
-                setStartups(data.data || []);
-            } else {
-                console.error("Failed to fetch startups");
-                setStartups([]);
-            }
-        } catch (error) {
-            console.error("Error fetching startups:", error);
-            setStartups([]);
-        } finally {
-            setLoading(false);
-        }
-    };
+  useEffect(() => {
+    if (authLoading) return;
 
-    const filterStartups = () => {
-        let result = startups;
+    // Staff browse from the sidebar; investors arrive via their magic link,
+    // which sets the session flag.
+    const isStaff = userData?.role === "admin" || userData?.role === "subadmin";
+    const hasInvite =
+      typeof window !== "undefined" &&
+      sessionStorage.getItem("dealRoomAccess") === "granted";
 
-        if (searchText) {
-            const lowerSearch = searchText.toLowerCase();
-            result = result.filter(
-                (s) =>
-                    s.companyName?.toLowerCase().includes(lowerSearch) ||
-                    s.founderName?.toLowerCase().includes(lowerSearch) ||
-                    s.industry?.toLowerCase().includes(lowerSearch)
-            );
-        }
+    if (!isStaff && !hasInvite) {
+      router.push("/dashboard");
+      return;
+    }
 
-        if (industryFilter) {
-            result = result.filter((s) => {
-                if (!s.industry) return false;
-                const industries = s.industry.split(/[,;/]+/).map(ind => ind.trim().toLowerCase());
-                return industries.includes(industryFilter.toLowerCase());
-            });
-        }
+    fetchStartups();
+  }, [authLoading, userData?.role, fetchStartups, router]);
 
-        if (stageFilter) {
-            result = result.filter((s) => s.fundingStage === stageFilter);
-        }
+  // Countries come from the data rather than the master list so the dropdown
+  // only offers values that will actually return results.
+  const countries = useMemo(
+    () => Array.from(new Set(startups.map((s) => s.country).filter(Boolean))).sort(),
+    [startups]
+  );
 
-        if (cityFilter) {
-            result = result.filter((s) => s.city === cityFilter);
-        }
+  const visible = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    const range = FUNDING_ASK_RANGES.find((r) => r.label === fundingRange);
 
-        setFilteredStartups(result);
-    };
+    const filtered = startups.filter((startup) => {
+      if (term) {
+        const haystack = [
+          startup.startupName,
+          startup.oneLineDescription,
+          startup.sector,
+          startup.country,
+          startup.businessModel,
+          startup.incubationCentre,
+          startup.technologyDescription,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(term)) return false;
+      }
 
-    const uniqueIndustries = Array.from(new Set(
-        startups.flatMap((s) =>
-            (s.industry || "")
-                .split(/[,;/]+/)
-                .map(ind => ind.trim())
-                .filter(Boolean)
-        )
-    )).sort();
-    const uniqueStages = Array.from(new Set(startups.map((s) => s.fundingStage).filter(Boolean)));
-    const uniqueCities = Array.from(new Set(startups.map((s) => s.city).filter(Boolean)));
+      if (sector && startup.sector !== sector) return false;
+      if (country && startup.country !== country) return false;
+      if (revenue && startup.monthlyRevenue !== revenue) return false;
+      if (stage && startup.stage !== stage) return false;
+      if (businessModel && startup.businessModel !== businessModel) return false;
+      if (incubatedOnly && !startup.isIncubated) return false;
+      if (grantWinnersOnly && !startup.isGrantWinner) return false;
 
-    return (
-        <div className="min-h-screen bg-gray-50 p-6">
-            <div className="max-w-7xl mx-auto">
-                <div className="mb-6 md:mb-8 text-center md:text-left">
-                    <Title level={2} style={{ marginBottom: 8, fontSize: 'clamp(1.5rem, 5vw, 2rem)' }}>Founder Deal Room</Title>
-                    <Text type="secondary" style={{ fontSize: 'clamp(0.875rem, 3vw, 1rem)' }}>
-                        Curated investment opportunities for you.
-                    </Text>
-                </div>
+      if (range) {
+        const ask = startup.raisingAmountUsd;
+        // An unparseable ask is excluded from range filtering rather than
+        // treated as zero, which would wrongly land it in the lowest bucket.
+        if (ask === null) return false;
+        if (ask < range.min || ask >= range.max) return false;
+      }
 
-                {/* Filters */}
-                <div className="bg-white p-4 rounded-lg shadow-sm mb-6 flex flex-col lg:flex-row gap-4 items-center">
-                    <Search
-                        placeholder="Search company, founder, or keyword..."
-                        allowClear
-                        onChange={(e) => setSearchText(e.target.value)}
-                        className="w-full lg:max-w-md"
-                        prefix={<SearchOutlined className="text-gray-400" />}
-                    />
+      return true;
+    });
 
-                    <div className="flex flex-wrap gap-4 w-full lg:w-auto items-center justify-center md:justify-start">
+    const sorted = [...filtered];
+    switch (sortBy) {
+      case "revenue":
+        sorted.sort(
+          (a, b) =>
+            revenueRank(b.monthlyRevenue) - revenueRank(a.monthlyRevenue) ||
+            (b.payingCustomers || 0) - (a.payingCustomers || 0)
+        );
+        break;
+      case "growth":
+        sorted.sort((a, b) => growthScore(b) - growthScore(a));
+        break;
+      case "fundingAsk":
+        sorted.sort((a, b) => (b.raisingAmountUsd ?? -1) - (a.raisingAmountUsd ?? -1));
+        break;
+      default:
+        sorted.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+    }
 
-                        <Select
-                            placeholder="Industry"
-                            allowClear
-                            className="w-full sm:w-[180px]"
-                            onChange={setIndustryFilter}
-                        >
-                            {uniqueIndustries.map(ind => (
-                                <Option key={ind} value={ind}>{ind}</Option>
-                            ))}
-                        </Select>
+    return sorted;
+  }, [
+    startups,
+    search,
+    sector,
+    country,
+    fundingRange,
+    revenue,
+    stage,
+    businessModel,
+    incubatedOnly,
+    grantWinnersOnly,
+    sortBy,
+  ]);
 
-                        <Select
-                            placeholder="Stage"
-                            allowClear
-                            className="w-full sm:w-[150px]"
-                            onChange={setStageFilter}
-                        >
-                            {uniqueStages.map(stage => (
-                                <Option key={stage} value={stage}>{stage}</Option>
-                            ))}
-                        </Select>
+  const activeFilterCount = [
+    search.trim(),
+    sector,
+    country,
+    fundingRange,
+    revenue,
+    stage,
+    businessModel,
+    incubatedOnly || null,
+    grantWinnersOnly || null,
+  ].filter(Boolean).length;
 
-                        <Select
-                            placeholder="City"
-                            allowClear
-                            showSearch
-                            searchValue={citySearchValue}
-                            onSearch={setCitySearchValue}
-                            open={citySearchValue.length > 0}
-                            onSelect={() => setCitySearchValue("")}
-                            onBlur={() => setCitySearchValue("")}
-                            suffixIcon={<SearchOutlined />}
-                            optionFilterProp="children"
-                            filterOption={(input, option) =>
-                                (option?.value as string ?? '').toLowerCase().includes(input.toLowerCase())
-                            }
-                            className="w-full sm:w-[180px]"
-                            onChange={setCityFilter}
-                        >
-                            {uniqueCities.map(city => (
-                                <Option key={city} value={city}>{city}</Option>
-                            ))}
-                        </Select>
-                    </div>
-                </div>
+  const clearFilters = () => {
+    setSearch("");
+    setSector(null);
+    setCountry(null);
+    setFundingRange(null);
+    setRevenue(null);
+    setStage(null);
+    setBusinessModel(null);
+    setIncubatedOnly(false);
+    setGrantWinnersOnly(false);
+  };
 
-                {/* Content */}
-                {loading ? (
-                    <div className="flex justify-center items-center h-64">
-                        <Spin size="large" tip="Loading opportunities..." />
-                    </div>
-                ) : filteredStartups.length > 0 ? (
-                    <Row gutter={[24, 24]}>
-                        {filteredStartups.map((startup) => (
-                            <Col xs={24} sm={12} lg={8} key={startup.id}>
-                                <Card
-                                    hoverable
-                                    className="h-full flex flex-col"
-                                    bodyStyle={{ flex: 1, display: 'flex', flexDirection: 'column' }}
-                                    onClick={() => router.push(`/dashboard/deal-room/${startup.id}`)}
-                                >
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <Title level={4} style={{ marginBottom: 4 }}>{startup.companyName}</Title>
-                                            <Text type="secondary" className="text-xs uppercase tracking-wide">{startup.industry}</Text>
-                                        </div>
-                                        {startup.fundingStage && (
-                                            <Tag color="blue">{startup.fundingStage}</Tag>
-                                        )}
-                                    </div>
-
-                                    <Paragraph ellipsis={{ rows: 3 }} className="text-gray-600 mb-4 flex-grow">
-                                        {startup.description || "No description provided."}
-                                    </Paragraph>
-
-                                    <div className="mt-auto space-y-3">
-                                        <div className="flex items-center text-gray-500 text-sm">
-                                            <EnvironmentOutlined className="mr-2" /> {startup.city || "Remote"}
-                                        </div>
-                                        {startup.investment && (
-                                            <div className="flex items-center text-gray-900 font-medium">
-                                                <DollarOutlined className="mr-2 text-green-600" /> Ask: {startup.investment}
-                                            </div>
-                                        )}
-
-                                        <Button
-                                            type="primary"
-                                            block
-                                            className="mt-4 flex items-center justify-center bg-blue-400 hover:bg-blue-500 border-black"
-                                            onClick={() => router.push(`/dashboard/deal-room/${startup.id}`)}
-                                        >
-                                            View Profile <ArrowRightOutlined className="ml-2" />
-                                        </Button>
-                                    </div>
-                                </Card>
-                            </Col>
-                        ))}
-                    </Row>
-                ) : (
-                    <Empty description="No startups found matching your criteria." />
-                )}
-            </div>
+  return (
+    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-6">
+          <Title level={2} style={{ marginBottom: 4 }}>
+            Deal Room
+          </Title>
+          <Text type="secondary">
+            Curated, reviewed startups. Request an introduction and our team handles the rest.
+          </Text>
         </div>
-    );
+
+        {/* Filters */}
+        <Card className="mb-6 rounded-xl" bodyStyle={{ padding: 16 }}>
+          <Input
+            allowClear
+            size="large"
+            placeholder="Search by startup, description, sector, or technology..."
+            prefix={<SearchOutlined className="text-gray-400" />}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="mb-4"
+          />
+
+          <Row gutter={[12, 12]}>
+            <Col xs={24} sm={12} lg={6}>
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                className="w-full"
+                placeholder="Sector / Industry"
+                value={sector}
+                onChange={setSector}
+                options={SECTORS.map((s) => ({ label: s, value: s }))}
+              />
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Select
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                className="w-full"
+                placeholder="Country"
+                value={country}
+                onChange={setCountry}
+                options={countries.map((c) => ({ label: c, value: c }))}
+              />
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Select
+                allowClear
+                className="w-full"
+                placeholder="Funding Required"
+                value={fundingRange}
+                onChange={setFundingRange}
+                options={FUNDING_ASK_RANGES.map((r) => ({ label: r.label, value: r.label }))}
+              />
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Select
+                allowClear
+                className="w-full"
+                placeholder="Revenue"
+                value={revenue}
+                onChange={setRevenue}
+                options={REVENUE_BANDS.map((r) => ({ label: r, value: r }))}
+              />
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Select
+                allowClear
+                className="w-full"
+                placeholder="Stage"
+                value={stage}
+                onChange={setStage}
+                options={STARTUP_STAGES.map((s) => ({ label: s, value: s }))}
+              />
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Select
+                allowClear
+                className="w-full"
+                placeholder="Business Model"
+                value={businessModel}
+                onChange={setBusinessModel}
+                options={BUSINESS_MODELS.map((m) => ({ label: m, value: m }))}
+              />
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <Select
+                className="w-full"
+                value={sortBy}
+                onChange={(value: SortKey) => setSortBy(value)}
+                options={SORT_OPTIONS}
+                suffixIcon={
+                  <Tooltip title="Fastest Growing ranks by stage, then revenue band, then paying customers.">
+                    <InfoCircleOutlined />
+                  </Tooltip>
+                }
+              />
+            </Col>
+            <Col xs={24} sm={12} lg={6}>
+              <div className="flex h-8 items-center gap-4">
+                <span className="flex items-center gap-2">
+                  <Switch size="small" checked={incubatedOnly} onChange={setIncubatedOnly} />
+                  <Text className="text-sm">Incubated</Text>
+                </span>
+                <span className="flex items-center gap-2">
+                  <Switch
+                    size="small"
+                    checked={grantWinnersOnly}
+                    onChange={setGrantWinnersOnly}
+                  />
+                  <Text className="text-sm">Grant Winner</Text>
+                </span>
+              </div>
+            </Col>
+          </Row>
+
+          <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-3">
+            <Text type="secondary" className="text-sm">
+              {visible.length} {visible.length === 1 ? "startup" : "startups"}
+              {activeFilterCount > 0 ? ` matching ${activeFilterCount} filter${activeFilterCount === 1 ? "" : "s"}` : ""}
+            </Text>
+            {activeFilterCount > 0 && (
+              <Button type="link" size="small" icon={<ClearOutlined />} onClick={clearFilters}>
+                Clear all
+              </Button>
+            )}
+          </div>
+        </Card>
+
+        {/* Results */}
+        {loading ? (
+          <div className="flex h-64 flex-col items-center justify-center gap-3">
+            <Spin size="large" />
+            <Text type="secondary">Loading opportunities...</Text>
+          </div>
+        ) : fetchError ? (
+          <Empty description="We couldn't load the deal room.">
+            <Button type="primary" icon={<ReloadOutlined />} onClick={fetchStartups}>
+              Retry
+            </Button>
+          </Empty>
+        ) : visible.length === 0 ? (
+          <Empty
+            description={
+              startups.length === 0
+                ? "No startups have been approved for the deal room yet."
+                : "No startups match your filters."
+            }
+          >
+            {activeFilterCount > 0 && <Button onClick={clearFilters}>Clear filters</Button>}
+          </Empty>
+        ) : (
+          <Row gutter={[20, 20]}>
+            {visible.map((startup) => (
+              <Col xs={24} sm={12} lg={8} key={startup.id}>
+                <Card
+                  hoverable
+                  className="flex h-full flex-col rounded-xl"
+                  bodyStyle={{ flex: 1, display: "flex", flexDirection: "column" }}
+                  onClick={() => router.push(`/dashboard/deal-room/${startup.id}`)}
+                >
+                  <div className="mb-3 flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <Title level={4} style={{ marginBottom: 2 }} ellipsis>
+                        {startup.startupName}
+                      </Title>
+                      <Text
+                        type="secondary"
+                        className="line-clamp-1 text-xs uppercase tracking-wide"
+                        title={startup.sector}
+                      >
+                        {startup.sector}
+                      </Text>
+                    </div>
+                    <Tag color="#4f46e5" className="m-0 shrink-0">
+                      {startup.stage}
+                    </Tag>
+                  </div>
+
+                  <Paragraph ellipsis={{ rows: 3 }} className="mb-4 flex-grow text-gray-600">
+                    {startup.oneLineDescription}
+                  </Paragraph>
+
+                  <div className="mb-3 flex flex-wrap gap-1">
+                    {startup.isIncubated && (
+                      <Tag icon={<BankOutlined />} color="geekblue" className="m-0">
+                        Incubated
+                      </Tag>
+                    )}
+                    {startup.isGrantWinner && (
+                      <Tag icon={<TrophyOutlined />} color="gold" className="m-0">
+                        Grant Winner
+                      </Tag>
+                    )}
+                    {startup.businessModel && (
+                      <Tag className="m-0">{startup.businessModel}</Tag>
+                    )}
+                  </div>
+
+                  <div className="mt-auto space-y-2 border-t border-gray-100 pt-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2 text-gray-500">
+                        <EnvironmentOutlined /> {startup.country}
+                      </span>
+                      <span className="flex items-center gap-2 text-gray-500">
+                        <TeamOutlined /> {startup.payingCustomers} customers
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-2 font-medium text-gray-900">
+                        <DollarOutlined className="text-green-600" />
+                        {startup.raisingAmount || formatUsd(startup.raisingAmountUsd)}
+                      </span>
+                      <Text type="secondary" className="text-xs">
+                        {startup.monthlyRevenue}
+                      </Text>
+                    </div>
+
+                    <Button
+                      type="primary"
+                      block
+                      className="mt-2"
+                      style={{ backgroundColor: "#4f46e5" }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/dashboard/deal-room/${startup.id}`);
+                      }}
+                    >
+                      View Profile <ArrowRightOutlined />
+                    </Button>
+                  </div>
+                </Card>
+              </Col>
+            ))}
+          </Row>
+        )}
+      </div>
+    </div>
+  );
 }

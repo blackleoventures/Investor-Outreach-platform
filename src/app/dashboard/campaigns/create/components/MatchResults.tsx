@@ -14,6 +14,7 @@ import {
   Select,
   Space,
   Modal,
+  Checkbox,
 } from "antd";
 import {
   ArrowLeftOutlined,
@@ -30,6 +31,8 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 interface MatchResultsProps {
   selectedClient: any;
   targetType: string;
+  searchMode: "sector" | "state" | "both";
+  selectedStates: string[];
   matchResults: any;
   onMatchComplete: (results: any) => void;
   onNext: () => void;
@@ -40,6 +43,8 @@ interface MatchResultsProps {
 export default function MatchResults({
   selectedClient,
   targetType,
+  searchMode,
+  selectedStates,
   matchResults,
   onMatchComplete,
   onNext,
@@ -47,27 +52,75 @@ export default function MatchResults({
   getAuthToken,
 }: MatchResultsProps) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchText, setSearchText] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [stateFilter, setStateFilter] = useState<string>("all");
   const [filteredData, setFilteredData] = useState<any[]>([]);
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
 
+  // Key identifying the inputs that produced the current matches. Used to
+  // detect stale matches when the user goes Back and changes client/target.
+  const currentInputKey = `${selectedClient?.id ?? ""}|${targetType}|${searchMode}|${[...selectedStates].sort().join(",")}`;
+
   useEffect(() => {
-    if (!matchResults) {
+    // Run matching when there are no results yet, or when the existing results
+    // were produced for a different client/targetType (stale after going Back).
+    const stale =
+      matchResults && matchResults.__inputKey && matchResults.__inputKey !== currentInputKey;
+    if (!matchResults || stale) {
       runMatching();
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentInputKey]);
 
   useEffect(() => {
     if (matchResults?.matches) {
       filterData();
     }
-  }, [searchText, priorityFilter, typeFilter, matchResults]);
+  }, [searchText, priorityFilter, typeFilter, stateFilter, matchResults]);
+
+  // Location tokens for a match: incubators carry "State/City" from the
+  // sheet, investors carry a free-form locations array. Values are split on
+  // comma / slash / semicolon so composite cells like "Mohali, Punjab" yield
+  // clean individual tokens. The filter dropdown and the row matching both
+  // use this same token set, so a selected state always matches exactly.
+  const getMatchLocations = (item: any): string[] => {
+    const raw: string[] = [];
+    if (item.rawData?.stateCity) raw.push(String(item.rawData.stateCity));
+    if (Array.isArray(item.rawData?.locations)) {
+      raw.push(...item.rawData.locations.map((l: any) => String(l)));
+    }
+    const seen = new Map<string, string>();
+    raw
+      .flatMap((value) => value.split(/[,/;]/))
+      .map((l) => l.replace(/\s+/g, " ").trim())
+      .filter((l) => l.length > 0)
+      .forEach((l) => {
+        const key = l.toLowerCase();
+        if (!seen.has(key)) seen.set(key, l);
+      });
+    return Array.from(seen.values());
+  };
+
+  // Unique state/location options across all matches (case-insensitive dedupe,
+  // first-seen casing wins).
+  const stateOptions: string[] = (() => {
+    const seen = new Map<string, string>();
+    (matchResults?.matches || []).forEach((item: any) => {
+      getMatchLocations(item).forEach((l) => {
+        const key = l.toLowerCase();
+        if (!seen.has(key)) seen.set(key, l);
+      });
+    });
+    return Array.from(seen.values()).sort((a, b) => a.localeCompare(b));
+  })();
 
   const runMatching = async () => {
     try {
       setLoading(true);
+      setError(null);
       const token = await getAuthToken();
       if (!token) return;
 
@@ -80,6 +133,8 @@ export default function MatchResults({
         body: JSON.stringify({
           clientId: selectedClient.id,
           targetType,
+          searchMode,
+          selectedStates,
         }),
       });
 
@@ -88,10 +143,12 @@ export default function MatchResults({
       }
 
       const data = await response.json();
-      onMatchComplete(data);
+      // Stamp the inputs that produced these matches so we can detect staleness.
+      onMatchComplete({ ...data, __inputKey: currentInputKey });
       message.success(`Found ${data.totalMatches} matches!`);
     } catch (error: any) {
       console.error("Matching error:", error);
+      setError(error.message || "Failed to find matches");
       message.error(error.message || "Failed to find matches");
     } finally {
       setLoading(false);
@@ -118,6 +175,14 @@ export default function MatchResults({
       filtered = filtered.filter((item: any) => item.type === typeFilter);
     }
 
+    if (stateFilter !== "all") {
+      filtered = filtered.filter((item: any) =>
+        getMatchLocations(item).some(
+          (l) => l.toLowerCase() === stateFilter.toLowerCase()
+        )
+      );
+    }
+
     setFilteredData(filtered);
   };
 
@@ -128,17 +193,19 @@ export default function MatchResults({
     }
 
     Modal.confirm({
-      title: "Delete Selected Contacts?",
+      title: "Remove Selected Contacts?",
       icon: <ExclamationCircleOutlined />,
       content: (
         <div>
-          <p>Are you sure you want to remove <strong>{selectedRowKeys.length}</strong> selected contacts from this campaign?</p>
+          <p>Remove <strong>{selectedRowKeys.length}</strong> selected contacts from this campaign?</p>
           <p className="text-gray-600 text-sm mt-2">
-            This action cannot be undone. The removed contacts will not receive emails from this campaign.
+            These contacts won't receive emails from this campaign. This only
+            affects the current selection — you can re-run matching to bring
+            them back.
           </p>
         </div>
       ),
-      okText: "Yes, Delete",
+      okText: "Remove",
       okType: "danger",
       cancelText: "Cancel",
       onOk: () => {
@@ -171,29 +238,36 @@ export default function MatchResults({
           incubatorPercent: totalMatches > 0 ? Math.round((incubatorCount / totalMatches) * 100) : 0,
         };
 
-        onMatchComplete(updatedResults);
+        onMatchComplete({ ...updatedResults, __inputKey: currentInputKey });
         setSelectedRowKeys([]);
         message.success(`${selectedRowKeys.length} contacts removed successfully`);
       },
     });
   };
 
+  const escapeCsv = (value: any) => {
+    const str = value === null || value === undefined ? "" : String(value);
+    // Always quote and escape embedded double-quotes per RFC 4180.
+    return `"${str.replace(/"/g, '""')}"`;
+  };
+
   const exportToCSV = () => {
     if (!matchResults?.matches) return;
 
     const csvContent = [
-      ["Name", "Email", "Organization", "Type", "Priority", "Score", "Matched Criteria"],
+      ["Name", "Email", "Organization", "Location", "Type", "Priority", "Score", "Matched Criteria"],
       ...matchResults.matches.map((item: any) => [
         item.name,
         item.email,
         item.organization,
+        getMatchLocations(item).join("; "),
         item.type,
         item.priority,
         item.matchScore,
-        item.matchedCriteria.join("; "),
+        (item.matchedCriteria || []).join("; "),
       ]),
     ]
-      .map((row) => row.join(","))
+      .map((row) => row.map(escapeCsv).join(","))
       .join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv" });
@@ -224,6 +298,22 @@ export default function MatchResults({
     onChange: (selectedKeys: React.Key[]) => {
       setSelectedRowKeys(selectedKeys);
     },
+    selections: [
+      Table.SELECTION_ALL,
+      Table.SELECTION_INVERT,
+      Table.SELECTION_NONE,
+    ],
+  };
+
+  const allFilteredSelected =
+    filteredData.length > 0 &&
+    (() => {
+      const selected = new Set(selectedRowKeys);
+      return filteredData.every((item: any) => selected.has(item.id));
+    })();
+
+  const handleSelectAllFiltered = (checked: boolean) => {
+    setSelectedRowKeys(checked ? filteredData.map((item: any) => item.id) : []);
   };
 
   const columns = [
@@ -247,7 +337,7 @@ export default function MatchResults({
       key: "email",
       width: 200,
       render: (email: string) => (
-        <span className="text-blue-600">{email}</span>
+        <span className="text-brand-600">{email}</span>
       ),
     },
     {
@@ -255,6 +345,19 @@ export default function MatchResults({
       dataIndex: "organization",
       key: "organization",
       width: 180,
+    },
+    {
+      title: "Location",
+      key: "location",
+      width: 140,
+      render: (_: any, record: any) => {
+        const locs = getMatchLocations(record);
+        return locs.length > 0 ? (
+          <span>{locs.join(", ")}</span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        );
+      },
     },
     {
       title: "Type",
@@ -324,8 +427,67 @@ export default function MatchResults({
     );
   }
 
+  // Error state: matching failed — let the user retry instead of a blank screen.
+  if (error && !matchResults) {
+    return (
+      <div>
+        <Card>
+          <div className="flex flex-col justify-center items-center py-12 text-center">
+            <ExclamationCircleOutlined style={{ fontSize: 40, color: "#ff4d4f" }} />
+            <p className="mt-4 text-lg font-semibold">Matching failed</p>
+            <p className="text-gray-500 mb-4">{error}</p>
+            <Button
+              type="primary"
+              onClick={runMatching}
+              style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}
+            >
+              Retry matching
+            </Button>
+          </div>
+        </Card>
+        <div className="flex justify-between mt-6">
+          <Button size="large" onClick={onBack} icon={<ArrowLeftOutlined />}>
+            Back
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (!matchResults) {
     return null;
+  }
+
+  const totalMatches = matchResults.totalMatches ?? matchResults.matches?.length ?? 0;
+
+  // Zero-matches empty state.
+  if (totalMatches === 0) {
+    return (
+      <div>
+        <Card>
+          <div className="flex flex-col justify-center items-center py-12 text-center">
+            <SearchOutlined style={{ fontSize: 40, color: "#94a3b8" }} />
+            <p className="mt-4 text-lg font-semibold">No matches found</p>
+            <p className="text-gray-500 mb-4">
+              No contacts matched this client and audience. Try a different
+              target audience or re-run matching.
+            </p>
+            <Button
+              type="primary"
+              onClick={runMatching}
+              style={{ backgroundColor: "#4f46e5", borderColor: "#4f46e5" }}
+            >
+              Re-run matching
+            </Button>
+          </div>
+        </Card>
+        <div className="flex justify-between mt-6">
+          <Button size="large" onClick={onBack} icon={<ArrowLeftOutlined />}>
+            Back
+          </Button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -371,13 +533,13 @@ export default function MatchResults({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-gray-600 mb-2">Investors</p>
-              <p className="text-2xl font-bold text-blue-600">
+              <p className="text-2xl font-bold text-brand-600">
                 {matchResults.investorCount} ({matchResults.investorPercent}%)
               </p>
             </div>
             <div>
               <p className="text-gray-600 mb-2">Incubators</p>
-              <p className="text-2xl font-bold text-green-600">
+              <p className="text-2xl font-bold text-brand-500">
                 {matchResults.incubatorCount} ({matchResults.incubatorPercent}%)
               </p>
             </div>
@@ -420,21 +582,59 @@ export default function MatchResults({
             icon={<DownloadOutlined />}
             onClick={exportToCSV}
             style={{
-              backgroundColor: "#52c41a",
-              borderColor: "#52c41a",
+              backgroundColor: "#4f46e5",
+              borderColor: "#4f46e5",
               color: "white",
             }}
           >
             Export CSV
           </Button>
+          <Select
+            value={stateFilter}
+            onChange={setStateFilter}
+            style={{ width: 200 }}
+            showSearch
+            optionFilterProp="children"
+          >
+            <Select.Option value="all">All States</Select.Option>
+            {stateOptions.map((state) => (
+              <Select.Option key={state} value={state}>
+                {state}
+              </Select.Option>
+            ))}
+          </Select>
           {selectedRowKeys.length > 0 && (
-            <Button
-              danger
-              icon={<DeleteOutlined />}
-              onClick={handleDeleteSelected}
-            >
-              Delete Selected ({selectedRowKeys.length})
-            </Button>
+            <>
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleDeleteSelected}
+              >
+                Delete Selected ({selectedRowKeys.length})
+              </Button>
+              <Button onClick={() => setSelectedRowKeys([])}>
+                Unselect All
+              </Button>
+            </>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between mb-3">
+          <Checkbox
+            checked={allFilteredSelected}
+            indeterminate={selectedRowKeys.length > 0 && !allFilteredSelected}
+            onChange={(e) => handleSelectAllFiltered(e.target.checked)}
+            disabled={filteredData.length === 0}
+          >
+            Select all {filteredData.length} contacts
+            {stateFilter !== "all" || priorityFilter !== "all" || searchText
+              ? " (filtered)"
+              : ""}
+          </Checkbox>
+          {selectedRowKeys.length > 0 && (
+            <span className="text-sm text-gray-500">
+              {selectedRowKeys.length} selected
+            </span>
           )}
         </div>
 
@@ -453,27 +653,20 @@ export default function MatchResults({
       </Card>
 
       <div className="flex justify-between">
-        <Button
-          size="large"
-          onClick={onBack}
-          icon={<ArrowLeftOutlined />}
-          style={{
-            backgroundColor: "#6c757d",
-            borderColor: "#6c757d",
-            color: "white",
-          }}
-        >
+        <Button size="large" onClick={onBack} icon={<ArrowLeftOutlined />}>
           Back
         </Button>
         <Button
           type="primary"
           size="large"
           onClick={onNext}
+          disabled={totalMatches === 0}
           icon={<ArrowRightOutlined />}
-          style={{
-            backgroundColor: "#1890ff",
-            borderColor: "#1890ff",
-          }}
+          style={
+            totalMatches === 0
+              ? undefined
+              : { backgroundColor: "#4f46e5", borderColor: "#4f46e5" }
+          }
         >
           Continue to Email Template
         </Button>

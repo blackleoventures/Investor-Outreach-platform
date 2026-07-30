@@ -16,6 +16,7 @@ export default function LoginPage() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isLoggingIn, setIsLoggingIn] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         setMounted(true);
@@ -42,9 +43,11 @@ export default function LoginPage() {
     const handleGoogleLogin = async () => {
         try {
             setIsLoggingIn(true);
+            setError(null);
             await loginWithGoogle();
         } catch (error) {
             console.error("Google login failed:", error);
+            setError("We couldn't sign you in with Google. Please try again.");
         } finally {
             setIsLoggingIn(false);
         }
@@ -58,9 +61,11 @@ export default function LoginPage() {
 
         try {
             setIsLoggingIn(true);
+            setError(null);
             await loginWithEmail(email, password);
         } catch (error) {
             console.error("Email login failed:", error);
+            setError("Invalid email or password. Please try again.");
         } finally {
             setIsLoggingIn(false);
         }
@@ -71,7 +76,7 @@ export default function LoginPage() {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
                 <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                    <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
                     <p className="text-white text-sm">Loading...</p>
                 </div>
             </div>
@@ -83,7 +88,7 @@ export default function LoginPage() {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
                 <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                    <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
                     <p className="text-white text-sm">Loading...</p>
                 </div>
             </div>
@@ -95,7 +100,7 @@ export default function LoginPage() {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
                 <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                    <Loader2 className="w-8 h-8 animate-spin text-brand-500" />
                     <p className="text-white text-sm">Redirecting...</p>
                 </div>
             </div>
@@ -111,7 +116,7 @@ export default function LoginPage() {
                         <div className="mx-auto w-24 h-24 rounded-full bg-white flex items-center justify-center shadow-lg">
                             <Image
                                 src="/logo.png"
-                                alt="Logo"
+                                alt="Investor Outreach Platform logo"
                                 width={80}
                                 height={80}
                                 className="w-20 h-20 object-contain"
@@ -122,34 +127,55 @@ export default function LoginPage() {
                 </div>
 
                 {/* Tab Navigation */}
-                <div className="flex bg-white/5 rounded-lg p-1 mb-6">
+                <div className="flex bg-white/5 rounded-lg p-1 mb-6" role="tablist" aria-label="Sign in options">
                     <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTab === "client"}
+                        aria-controls="client-area-panel"
+                        id="client-tab"
                         onClick={() => setActiveTab("client")}
-                        className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "client"
-                                ? "bg-blue-600 text-white shadow-lg"
+                        className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${activeTab === "client"
+                                ? "bg-brand-600 text-white shadow-lg"
                                 : "text-gray-300 hover:text-white hover:bg-white/10"
                             }`}
                         data-testid="client-tab"
                     >
-                        <User className="w-4 h-4" />
+                        <User className="w-4 h-4" aria-hidden="true" />
                         Client Area
                     </button>
                     <button
+                        type="button"
+                        role="tab"
+                        aria-selected={activeTab === "member"}
+                        aria-controls="member-area-panel"
+                        id="member-tab"
                         onClick={() => setActiveTab("member")}
-                        className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${activeTab === "member"
-                                ? "bg-purple-600 text-white shadow-lg"
+                        className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 ${activeTab === "member"
+                                ? "bg-brand-600 text-white shadow-lg"
                                 : "text-gray-300 hover:text-white hover:bg-white/10"
                             }`}
                         data-testid="member-tab"
                     >
-                        <Shield className="w-4 h-4" />
+                        <Shield className="w-4 h-4" aria-hidden="true" />
                         Member Area
                     </button>
                 </div>
 
+                {/* Error Alert */}
+                {error && (
+                    <div
+                        role="alert"
+                        className="mb-6 rounded-xl border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-200"
+                        data-testid="login-error"
+                    >
+                        {error}
+                    </div>
+                )}
+
                 {/* Client Area Tab */}
                 {activeTab === "client" && (
-                    <div className="space-y-6" data-testid="client-area">
+                    <div className="space-y-6" data-testid="client-area" role="tabpanel" id="client-area-panel" aria-labelledby="client-tab">
                         <div className="text-center">
                             <h2 className="text-xl font-semibold text-white mb-2">
                                 Client Sign In
@@ -162,7 +188,7 @@ export default function LoginPage() {
                         <button
                             onClick={handleGoogleLogin}
                             disabled={isLoggingIn}
-                            className="w-full bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black font-semibold py-4 px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:scale-105 transform"
+                            className="w-full bg-white hover:bg-gray-100 disabled:bg-gray-300 disabled:cursor-not-allowed text-black font-semibold py-4 px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:scale-105 transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                             data-testid="google-signin-btn"
                         >
                             {isLoggingIn ? (
@@ -194,7 +220,7 @@ export default function LoginPage() {
 
                 {/* Member Area Tab */}
                 {activeTab === "member" && (
-                    <div className="space-y-6" data-testid="member-area">
+                    <div className="space-y-6" data-testid="member-area" role="tabpanel" id="member-area-panel" aria-labelledby="member-tab">
                         <div className="text-center">
                             <h2 className="text-xl font-semibold text-white mb-2">
                                 Member Sign In
@@ -206,26 +232,36 @@ export default function LoginPage() {
 
                         <form onSubmit={handleEmailLogin} className="space-y-4">
                             <div className="relative">
-                                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                                <label htmlFor="member-email" className="sr-only">
+                                    Email address
+                                </label>
+                                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" aria-hidden="true" />
                                 <input
+                                    id="member-email"
                                     type="email"
                                     placeholder="Email address"
+                                    aria-label="Email address"
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                                    className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
                                     required
                                     data-testid="email-input"
                                 />
                             </div>
 
                             <div className="relative">
-                                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                                <label htmlFor="member-password" className="sr-only">
+                                    Password
+                                </label>
+                                <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" aria-hidden="true" />
                                 <input
+                                    id="member-password"
                                     type="password"
                                     placeholder="Password"
+                                    aria-label="Password"
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all duration-200"
+                                    className="w-full pl-12 pr-4 py-4 bg-white/10 border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent transition-all duration-200"
                                     required
                                     data-testid="password-input"
                                 />
@@ -234,13 +270,13 @@ export default function LoginPage() {
                             <button
                                 type="submit"
                                 disabled={isLoggingIn || !email || !password}
-                                className="w-full bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:scale-105 transform"
+                                className="w-full bg-gradient-to-r from-brand-600 to-brand-700 hover:from-brand-700 hover:to-brand-800 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-xl transition duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl hover:scale-105 transform focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                                 data-testid="member-signin-btn"
                             >
                                 {isLoggingIn ? (
                                     <Loader2 className="w-5 h-5 animate-spin" />
                                 ) : (
-                                    <Shield className="w-5 h-5" />
+                                    <Shield className="w-5 h-5" aria-hidden="true" />
                                 )}
                                 {isLoggingIn ? "Signing in..." : "Sign In"}
                             </button>

@@ -1,15 +1,14 @@
+import { appUrl } from './app-url';
+
 export function getBaseUrl() {
   if (typeof window !== 'undefined') {
     // Browser
     return window.location.origin;
   }
-  
-  // Server
-  if (process.env.NODE_ENV === 'development') {
-    return process.env.NEXT_PUBLIC_DEV_URL || 'http://localhost:3000';
-  }
-  
-  return process.env.NEXT_PUBLIC_PROD_URL || process.env.VERCEL_URL || 'https://yourdomain.com';
+
+  // Server: shares one resolver with outbound email, so tracking URLs and
+  // magic links can never disagree about where the app lives.
+  return appUrl();
 }
 
 export function isDevelopment() {

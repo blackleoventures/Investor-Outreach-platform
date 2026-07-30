@@ -1,7 +1,14 @@
-// @ts-nocheck
 "use client";
 
-export default function Page() {
-  return <div className="p-6">Client campaigns page coming soon.</div>;
-}
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
+export default function Page() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/dashboard/campaigns");
+  }, [router]);
+
+  return null;
+}
